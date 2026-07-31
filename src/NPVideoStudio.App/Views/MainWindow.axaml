@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NPVideoStudio.App.ViewModels"
+        xmlns:views="using:NPVideoStudio.App.Views"
+        x:Class="NPVideoStudio.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NP Video Studio"
+        Width="1400" Height="900" MinWidth="1024" MinHeight="640">
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:StartScreenViewModel">
+      <views:StartScreenView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:NewProjectViewModel">
+      <views:NewProjectView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:WorkspaceViewModel">
+      <views:WorkspaceView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel">
+      <views:SettingsView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:DiagnosticsViewModel">
+      <views:DiagnosticsView />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="panel" BorderThickness="0,0,0,1" Padding="16,10">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="NP VIDEO STUDIO" FontWeight="Bold" FontSize="16" />
+          <Button Content="Početni ekran" Command="{Binding GoHomeCommand}" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+          <Button Content="Podešavanja" Command="{Binding GoToSettingsCommand}" />
+          <Button Content="Dijagnostika" Command="{Binding GoToDiagnosticsCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ContentControl Content="{Binding CurrentPage}" />
+  </DockPanel>
+</Window>

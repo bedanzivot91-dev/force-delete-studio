@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="using:NPVideoStudio.App.Converters"
+             x:Class="NPVideoStudio.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="24" Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+      <TextBlock Text="Podešavanja" FontSize="22" FontWeight="Bold" />
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="Tema" />
+        <ComboBox ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="x:Object">
+              <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="subtle" TextWrapping="Wrap"
+                   Text="Trenutno su dostupne 3 od planiranih 10 tema. Ostale dolaze u narednim fazama." />
+      </StackPanel>
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="Folder za projekte" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding ProjectsFolder}" />
+          <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi..." Command="{Binding BrowseProjectsFolderCommand}" />
+        </Grid>
+      </StackPanel>
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="Cache folder" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding CacheFolder}" />
+          <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi..." Command="{Binding BrowseCacheFolderCommand}" />
+        </Grid>
+      </StackPanel>
+
+      <CheckBox IsChecked="{Binding AutoSaveEnabled}" Content="Automatsko čuvanje uključeno" />
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="Interval automatskog čuvanja (sekunde)" />
+        <NumericUpDown Value="{Binding AutoSaveIntervalSeconds}" Minimum="10" Maximum="3600" Width="160" HorizontalAlignment="Left" />
+      </StackPanel>
+
+      <StackPanel Spacing="6">
+        <TextBlock Text="Čuvanje logova (dana)" />
+        <NumericUpDown Value="{Binding LogRetentionDays}" Minimum="1" Maximum="365" Width="160" HorizontalAlignment="Left" />
+      </StackPanel>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" IsVisible="{Binding HasStatusMessage}" />
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="accent" Content="Sačuvaj podešavanja" Command="{Binding SaveCommand}" />
+        <Button Content="Vrati podrazumevano" Command="{Binding ResetToDefaultsCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

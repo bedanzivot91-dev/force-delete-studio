@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.StartScreenView"
+             x:DataType="vm:StartScreenViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="24" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+
+      <Border Classes="panel" Padding="16" IsVisible="{Binding HasRecoveryMessage}" Background="#4D2A2A">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding RecoveryMessage}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="accent" Content="Nastavi od automatskog čuvanja" Command="{Binding RecoverAutoSaveCommand}" />
+            <Button Content="Zanemari" Command="{Binding DismissRecoveryCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="Novi projekat" FontSize="20" FontWeight="Bold" />
+      <WrapPanel>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewProjectCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Novi projekat" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="Izaberite format ručno" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenProjectCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Otvori projekat" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="Iz .npvsproject fajla" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewYouTubeVideoCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Kreiraj YouTube video" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="16:9, 1920x1080, 30 fps" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewYouTubeShortsCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Kreiraj YouTube Shorts" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewTikTokCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Kreiraj TikTok video" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewInstagramReelCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Kreiraj Instagram Reel" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewFacebookReelCommand}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Kreiraj Facebook Reel" FontWeight="Bold" />
+            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+
+      <TextBlock Text="Nedavni projekti" FontSize="20" FontWeight="Bold" />
+      <Border Classes="panel" Padding="8" IsVisible="{Binding !HasRecentProjects}">
+        <TextBlock Classes="subtle" Text="Još nema nedavnih projekata." Margin="8" />
+      </Border>
+      <ItemsControl ItemsSource="{Binding RecentProjects}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:RecentProjectItemViewModel">
+            <Border Classes="panel" Padding="12" Margin="0,0,0,8">
+              <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <StackPanel>
+                  <TextBlock Text="{Binding ProjectName}" FontWeight="Bold" />
+                  <TextBlock Classes="subtle" Text="{Binding AspectRatioLabel}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Classes="subtle" VerticalAlignment="Center" Margin="8,0"
+                           Text="Fajl nije pronađen" IsVisible="{Binding IsMissing}" Foreground="OrangeRed" />
+                <Button Grid.Column="2" Content="Otvori" Margin="8,0"
+                        Command="{Binding OpenCommand}" IsEnabled="{Binding !IsMissing}" />
+                <Button Grid.Column="3" Content="Ukloni" Command="{Binding RemoveCommand}" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Text="Ostale funkcije" FontSize="20" FontWeight="Bold" />
+      <WrapPanel>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenSettingsCommand}">
+          <TextBlock Text="Podešavanja" FontWeight="Bold" />
+        </Button>
+        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenDiagnosticsCommand}">
+          <TextBlock Text="Dijagnostika sistema" FontWeight="Bold" />
+        </Button>
+        <ItemsControl ItemsSource="{Binding PlannedFeatures}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <Button Classes="tile" Width="220" Margin="0,0,12,12" IsEnabled="False">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding}" FontWeight="Bold" />
+                  <TextBlock Classes="subtle" Text="Uskoro - u razvoju" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </WrapPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

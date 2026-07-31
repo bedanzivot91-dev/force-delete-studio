@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.WorkspaceView"
+             x:DataType="vm:WorkspaceViewModel"
+             DragDrop.AllowDrop="True">
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="panel" Padding="16,10" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel>
+          <TextBlock Text="{Binding Project.Name}" FontSize="18" FontWeight="Bold" />
+          <TextBlock Classes="subtle">
+            <TextBlock.Text>
+              <MultiBinding StringFormat="{}{0}x{1} • {2:0.##} fps • {3}">
+                <Binding Path="Project.Format.Width" />
+                <Binding Path="Project.Format.Height" />
+                <Binding Path="Project.Format.Fps" />
+                <Binding Path="Project.Format.Orientation" />
+              </MultiBinding>
+            </TextBlock.Text>
+          </TextBlock>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="subtle" />
+          <Button Content="Sačuvaj projekat" Command="{Binding SaveProjectCommand}" />
+          <Button Classes="accent" Content="Dodaj medije" Command="{Binding ImportMediaCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid RowDefinitions="*,Auto">
+      <Border Margin="16" Classes="panel" Padding="0">
+        <DockPanel>
+          <Border DockPanel.Dock="Top" Padding="12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
+            <TextBlock Text="Media biblioteka" FontWeight="Bold" />
+          </Border>
+
+          <Border IsVisible="{Binding !HasMedia}" Padding="24">
+            <TextBlock Classes="subtle" Text="Prevucite video, audio ili slike ovde, ili kliknite „Dodaj medije“." TextWrapping="Wrap" HorizontalAlignment="Center" />
+          </Border>
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding MediaLibrary}" Margin="8">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MediaAssetViewModel">
+                  <Border Classes="panel" Padding="10" Margin="4">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
+                      <TextBlock Text="{Binding KindLabel}" Width="60" FontWeight="Bold" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="2" Text="{Binding DurationLabel}" Classes="subtle" Margin="12,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="3" Text="{Binding ResolutionLabel}" Classes="subtle" Margin="12,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="4" Text="{Binding SizeLabel}" Classes="subtle" Margin="12,0" VerticalAlignment="Center" />
+                      <ToggleButton Grid.Column="5" Content="★" IsChecked="{Binding IsFavorite, Mode=OneWay}" Command="{Binding ToggleFavoriteCommand}" Margin="4,0" />
+                      <Button Grid.Column="6" Content="Ukloni" Command="{Binding RemoveCommand}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Row="1" Classes="panel" Margin="16,0,16,16" Padding="16">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Timeline" FontWeight="Bold" />
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                      Text="Timeline montaža (sečenje, trake, tekst, titlovi, efekti) je u razvoju i dolazi u narednim fazama. Media biblioteka i uvoz fajlova iznad su potpuno funkcionalni." />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</UserControl>

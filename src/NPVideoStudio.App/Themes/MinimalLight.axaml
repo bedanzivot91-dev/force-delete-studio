@@ -1,0 +1,20 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="ThemeBackgroundColor">#FAFAFA</Color>
+  <Color x:Key="ThemePanelColor">#FFFFFF</Color>
+  <Color x:Key="ThemeAccentColor">#3A6FF7</Color>
+  <Color x:Key="ThemeTextColor">#1B1D22</Color>
+  <Color x:Key="ThemeSubtleTextColor">#6B7280</Color>
+  <Color x:Key="ThemeBorderColor">#E3E5E8</Color>
+
+  <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
+  <SolidColorBrush x:Key="ThemePanelBrush" Color="{StaticResource ThemePanelColor}" />
+  <SolidColorBrush x:Key="ThemeAccentBrush" Color="{StaticResource ThemeAccentColor}" />
+  <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
+  <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
+  <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+
+  <x:Double x:Key="ThemeCornerRadiusValue">10</x:Double>
+  <CornerRadius x:Key="ThemeCornerRadius">10</CornerRadius>
+  <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+</ResourceDictionary>
