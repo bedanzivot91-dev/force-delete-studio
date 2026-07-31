@@ -1,5 +1,8 @@
 package com.sunopesmestudio.app.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,26 +27,51 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.sunopesmestudio.app.R
 import com.sunopesmestudio.app.data.SongEntity
+import com.sunopesmestudio.app.data.WatchedFoldersPreference
 import com.sunopesmestudio.app.ui.library.LibraryViewModel
+import com.sunopesmestudio.app.work.LibraryRescanWorker
+import kotlinx.coroutines.launch
 
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel, modifier: Modifier = Modifier) {
+fun LibraryScreen(viewModel: LibraryViewModel, watchedFoldersPreference: WatchedFoldersPreference, modifier: Modifier = Modifier) {
     val songs by viewModel.songs.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+            scope.launch {
+                watchedFoldersPreference.addFolder(uri.toString())
+                WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<LibraryRescanWorker>().build())
+            }
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
             value = query,
             onValueChange = viewModel::setQuery,
             label = { Text(stringResourceCompat(R.string.nav_library)) },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             singleLine = true,
         )
+        Button(onClick = { folderPicker.launch(null) }, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Text("Dodaj folder za praćenje")
+        }
         if (songs.isEmpty()) {
             LibraryEmptyState()
         } else {

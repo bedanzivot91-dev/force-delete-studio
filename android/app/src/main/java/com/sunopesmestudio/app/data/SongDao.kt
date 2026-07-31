@@ -38,4 +38,7 @@ interface SongDao {
 
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT * FROM songs WHERE fileSha256 = :sha256 AND fileSha256 != '' LIMIT 1")
+    suspend fun findByHash(sha256: String): SongEntity?
 }

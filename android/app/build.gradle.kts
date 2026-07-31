@@ -75,6 +75,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.documentfile:documentfile:1.0.1") // SAF folder traversal for LibraryRescanWorker
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06") // Android Keystore-backed EncryptedSharedPreferences (transcript token storage, section 14/21)
     implementation("androidx.media3:media3-exoplayer:1.5.1")

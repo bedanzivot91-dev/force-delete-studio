@@ -9,9 +9,10 @@ import androidx.room.RoomDatabase
 // for real Room migration testing per spec section 12/18) requires wiring
 // room.schemaLocation via the Room Gradle plugin, deferred to the phase
 // that actually adds a version-2 migration to test.
-@Database(entities = [SongEntity::class], version = 1, exportSchema = false)
+@Database(entities = [SongEntity::class, RecognizedTrackEntity::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
+    abstract fun recognizedTrackDao(): RecognizedTrackDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null

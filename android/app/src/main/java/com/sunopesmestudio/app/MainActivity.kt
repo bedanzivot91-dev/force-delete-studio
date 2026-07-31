@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sunopesmestudio.app.ui.library.LibraryViewModel
 import com.sunopesmestudio.app.ui.nav.SunoNavHost
+import com.sunopesmestudio.app.ui.recognition.SongFinderViewModel
 import com.sunopesmestudio.app.ui.theme.AppTheme
 import com.sunopesmestudio.app.ui.theme.SunoPesmeStudioTheme
 
@@ -28,7 +29,15 @@ class MainActivity : ComponentActivity() {
                     val libraryViewModel: LibraryViewModel = viewModel(
                         factory = LibraryViewModel.Factory(app.database.songDao()),
                     )
-                    SunoNavHost(libraryViewModel = libraryViewModel)
+                    val songFinderViewModel: SongFinderViewModel = viewModel(
+                        factory = SongFinderViewModel.Factory(app, app.database.songDao(), app.database.recognizedTrackDao()),
+                    )
+                    SunoNavHost(
+                        libraryViewModel = libraryViewModel,
+                        songFinderViewModel = songFinderViewModel,
+                        themePreference = app.themePreference,
+                        watchedFoldersPreference = app.watchedFoldersPreference,
+                    )
                 }
             }
         }

@@ -26,4 +26,8 @@ data class SongEntity(
     val localLyrics: String? = null,
     @ColumnInfo(defaultValue = "0") val downloadedAtEpochMs: Long = 0,
     @ColumnInfo(defaultValue = "1") val importedAtEpochMs: Long = 0,
+    // SHA-256 of the local audio file, used by the Pronalazac pesme local
+    // (offline) duplicate/match check -- mirrors songs.file_sha256 on the
+    // desktop schema.
+    @ColumnInfo(defaultValue = "") val fileSha256: String = "",
 )
