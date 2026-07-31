@@ -1,0 +1,68 @@
+name: Android build and test (real Gradle + Android SDK)
+
+# The build sandbox this project is developed in cannot resolve
+# com.android.application or almost any androidx.*/Compose dependency --
+# they live on dl.google.com, which that sandbox's network policy blocks
+# (confirmed directly: `gradle wrapper` there reported "could not resolve
+# plugin artifact com.android.application... Searched in: Google, MavenRepo,
+# Gradle Central Plugin Repository"). This workflow runs on a GitHub-hosted
+# Ubuntu runner with full internet access and a real Android SDK, so this is
+# the actual first real compile of android/.
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Gradle build (assembleDebug) -- real dependency resolution against google()
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Gradle unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Gradle lint
+        working-directory: android
+        run: ./gradlew lintDebug --stacktrace
+        continue-on-error: true
+
+      - name: Verify APK was actually produced
+        run: |
+          find android/app/build/outputs/apk -name "*.apk" -exec ls -la {} \;
+          test -n "$(find android/app/build/outputs/apk -name '*.apk')" || (echo "No APK produced" && exit 1)
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-unit-test-results
+          path: android/app/build/test-results/**/*.xml
+          if-no-files-found: warn
