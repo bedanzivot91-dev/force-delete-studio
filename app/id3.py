@@ -95,19 +95,25 @@ def embed_mp3_metadata(
     tag = b"ID3" + bytes([3, 0, 0]) + _synchsafe(len(frames) + len(padding)) + frames + padding
 
     mp3_path = Path(mp3_path)
-    with mp3_path.open("rb") as source:
-        start = source.read(10)
-        old_tag_size = 0
-        if len(start) == 10 and start[:3] == b"ID3":
-            old_tag_size = 10 + _decode_synchsafe(start[6:10]) + (10 if (start[5] & 0x10) else 0)
-        source.seek(old_tag_size)
-        fd, temp_name = tempfile.mkstemp(prefix="suno_tag_", suffix=".mp3", dir=str(mp3_path.parent))
-        os.close(fd)
-        try:
+    fd, temp_name = tempfile.mkstemp(prefix="suno_tag_", suffix=".mp3", dir=str(mp3_path.parent))
+    os.close(fd)
+    try:
+        # The source handle must be fully closed before os.replace() below:
+        # on Windows (unlike POSIX), replacing a file that this process
+        # still has open for reading fails with "Access is denied"
+        # (WinError 5) even though it's a read-only handle in the same
+        # process -- the whole write happens inside this `with` block so
+        # `source` is guaranteed closed by the time we get to the replace.
+        with mp3_path.open("rb") as source:
+            start = source.read(10)
+            old_tag_size = 0
+            if len(start) == 10 and start[:3] == b"ID3":
+                old_tag_size = 10 + _decode_synchsafe(start[6:10]) + (10 if (start[5] & 0x10) else 0)
+            source.seek(old_tag_size)
             with open(temp_name, "wb") as target:
                 target.write(tag)
                 shutil.copyfileobj(source, target, length=1024 * 1024)
-            os.replace(temp_name, mp3_path)
-        finally:
-            if os.path.exists(temp_name):
-                os.unlink(temp_name)
+        os.replace(temp_name, mp3_path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)

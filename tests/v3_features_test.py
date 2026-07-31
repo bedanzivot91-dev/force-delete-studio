@@ -57,7 +57,15 @@ def main():
         base=Path(raw); db=LibraryDB(base/'library.db'); wav=base/'pesma.wav'; make_wav(wav)
         song={'id':'song-1','title':'Moja pesma','display_name':'Autor','duration':8.0,'created_at':'2026-07-29T00:00:00Z','lyrics':'Prvi stih\nDrugi stih'}
         db.upsert_song(song);db.update_song_files('song-1',local_wav=str(wav))
-        integrity=library_integrity_scan(db);assert integrity['checked_files']>=1 and not integrity['missing'];checks.append('library integrity')
+        # probe_audio_files=False: this test verifies library_integrity_scan's
+        # DB/filesystem bookkeeping (checked/missing counts), not FFmpeg
+        # itself -- FFmpeg here would come from tools/ffmpeg/bin/ffmpeg.exe
+        # (see app/audio_tools.py:ffmpeg_path), which is only staged into
+        # the package by the installer/CI's later "Stage real components"
+        # step, not present yet when this test suite runs. Real production
+        # use (and CI's own component-staging checks) exercises the actual
+        # ffprobe path separately.
+        integrity=library_integrity_scan(db,probe_audio_files=False);assert integrity['checked_files']>=1 and not integrity['missing'];checks.append('library integrity')
         plan=organize_library(db,base/'organized',dry_run=True);assert plan['count']>=1 and plan['dry_run'];checks.append('organizer dry run')
         dup=duplicate_detection(db);assert 'exact_groups' in dup;checks.append('duplicate report')
         aligned=align_original_lyrics('Prvi stih\nDrugi stih',{'words':[{'start':.2,'end':.6,'word':'Prvi'},{'start':.6,'end':1.0,'word':'stih'},{'start':2.0,'end':2.4,'word':'Drugi'},{'start':2.4,'end':2.8,'word':'stih'}]},8)

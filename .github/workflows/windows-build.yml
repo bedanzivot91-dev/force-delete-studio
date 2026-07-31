@@ -62,8 +62,37 @@ jobs:
         run: python -m pip install --upgrade pip -r requirements-core.txt
 
       - name: Install FFmpeg (real Windows binary via winget, on-runner)
-        continue-on-error: true # best-effort; http_integration_v300.py's audio/info check depends on it being on PATH afterwards, everything else in this job does not
+        continue-on-error: true # best-effort; several tests below depend on real ffmpeg/ffprobe being resolvable
         run: winget install --id Gyan.FFmpeg -e --source winget --accept-package-agreements --accept-source-agreements
+
+      - name: Make FFmpeg resolvable the same way the shipped app finds it
+        # app/audio_tools.py's ffmpeg_path()/ffprobe_path() check
+        # <repo_root>/tools/ffmpeg/bin/*.exe FIRST (that's where the real
+        # installer/CI's own "Stage real components" step later puts it
+        # for the shipped Program/ folder), and only fall back to PATH.
+        # winget's install location varies by ffmpeg version and isn't
+        # guaranteed to be on PATH within this same job/PowerShell
+        # session, so several tests below (v3_features_test.py,
+        # http_integration_v300.py) that call probe_audio() were failing
+        # here even though the real shipped app never hits this: it
+        # always has tools/ffmpeg/bin/ffmpeg.exe by the time it runs.
+        # Copying winget's binaries into that exact path makes this test
+        # run match real product behavior instead of an artifact of step
+        # ordering. Best-effort: if winget's install didn't work above,
+        # this just finds nothing and later tests fail the same way they
+        # already were, not worse.
+        continue-on-error: true
+        run: |
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe) {
+            New-Item -ItemType Directory -Force -Path tools\ffmpeg\bin | Out-Null
+            Copy-Item $exe.FullName tools\ffmpeg\bin\ffmpeg.exe
+            $probe = Join-Path $exe.Directory.FullName "ffprobe.exe"
+            if (Test-Path $probe) { Copy-Item $probe tools\ffmpeg\bin\ffprobe.exe }
+            Write-Host "Copied FFmpeg from $($exe.FullName) to tools\ffmpeg\bin\"
+          } else {
+            Write-Host "No winget-installed ffmpeg.exe found -- ffmpeg-dependent tests below will report that, same as before this step existed."
+          }
 
       - name: Import smoke test -- every app/plugins module, for real
         run: python tests/import_smoke_test.py

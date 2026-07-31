@@ -2,7 +2,7 @@ from pathlib import Path
 import hashlib
 ROOT=Path(__file__).resolve().parents[1]
 setup=(ROOT/'windows_build/setup/main.go').read_text(encoding='utf-8')
-progress=(ROOT/'windows_build/progress.go').read_text(encoding='utf-8')
+progress=(ROOT/'windows_build/progress/main.go').read_text(encoding='utf-8')
 checks=[]
 def ok(name, cond):
     assert cond, name
