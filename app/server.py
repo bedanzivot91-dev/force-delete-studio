@@ -32,6 +32,23 @@ from pathlib import Path
 from typing import Any, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# The shipped embeddable Python interpreter has a <ver>._pth file next to
+# python.exe, which puts the interpreter in "isolated path" mode: sys.path
+# is built ENTIRELY from that file's contents, and the normal CPython
+# behavior of prepending the running script's own directory to sys.path is
+# skipped entirely (see https://docs.python.org/3/using/windows.html
+# #windows-embeddable, "isolated" -- confirmed as the real cause of a
+# ModuleNotFoundError: No module named 'cdp' a real user hit on Windows:
+# watchdog.py spawns `python.exe .../app/server.py` directly, and without
+# this line, sys.path never contains app/ at all under that ._pth, so
+# every local import below fails immediately). tests/import_smoke_test.py
+# already worked around this itself (sys.path.insert(0, str(APP_DIR))),
+# which is exactly why CI's import-smoke-test step never caught this --
+# only running server.py itself the way watchdog.py really does exposes
+# it. Doing it here, not just in the packaging step's ._pth patch, means
+# server.py is correct however it's actually invoked.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from cdp import ChromeConnector
 from database import LibraryDB
 from audio_tools import AudioCancelled, ensure_ffmpeg, ffmpeg_path, ffprobe_path, probe_audio, process_audio, waveform_peaks, status as audio_tools_status

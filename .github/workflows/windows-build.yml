@@ -176,6 +176,49 @@ jobs:
           & $py tests\import_smoke_test.py
           if ($LASTEXITCODE -ne 0) { throw "import_smoke_test.py failed under the staged embeddable Python, exit code $LASTEXITCODE" }
 
+      - name: Real end-to-end server startup under the STAGED embeddable Python (the actual gap that let a real user-reported crash through)
+        # This is the one thing that was NEVER actually verified anywhere
+        # in this workflow: spawning app/server.py the exact way
+        # watchdog.py/launcher/main.go do in production, using the real
+        # staged embeddable python.exe. tests/import_smoke_test.py can't
+        # catch this class of bug because it manually does
+        # sys.path.insert(0, str(APP_DIR)) before importing anything --
+        # server.py itself does not (well, did not: see the sys.path fix
+        # in app/server.py's own history). tests/watchdog_test.py, in the
+        # "Run the existing test suite" step above, spawns
+        # sys.executable, which in THAT step is setup-python's regular
+        # interpreter -- not the staged embeddable one -- so it never
+        # exercised the embeddable distribution's <ver>._pth "isolated
+        # path" mode either, where Python does NOT auto-add the running
+        # script's own directory to sys.path (the real interpreter
+        # behavior that caused ModuleNotFoundError: No module named 'cdp'
+        # on an actual user's Windows machine -- confirmed against their
+        # own server-konzola.log, not guessed).
+        run: |
+          $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) "package\e2e-data\data")
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\e2e-data\downloads")
+          $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\e2e-data\exports")
+          $env:SUNO_STUDIO_PORT = "18888"
+          $env:SUNO_AUTO_OPEN = "0"
+          $env:PYTHONUTF8 = "1"
+          $proc = Start-Process -FilePath "package\Program\python\pythonw.exe" -ArgumentList @("package\Program\app\server.py") -PassThru -NoNewWindow
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Milliseconds 500
+            try {
+              $resp = Invoke-RestMethod -Uri "http://127.0.0.1:18888/api/health" -TimeoutSec 2
+              if ($resp.ok) { $ok = $true; break }
+            } catch {}
+          }
+          if (-not $ok) {
+            if (-not $proc.HasExited) { $proc.Kill() }
+            throw "The staged server.py never responded to /api/health when spawned the real production way (staged pythonw.exe, no manual sys.path workaround). This is the exact class of bug a real user hit."
+          }
+          try { Invoke-RestMethod -Uri "http://127.0.0.1:18888/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
+          Start-Sleep -Seconds 1
+          if (-not $proc.HasExited) { $proc.Kill() }
+          Write-Host "Staged server.py started for real under the staged embeddable Python and responded to /api/health."
+
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |
           $lines = Get-ChildItem -Recurse -File package\Program | ForEach-Object {
