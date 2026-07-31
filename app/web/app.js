@@ -1162,12 +1162,17 @@ function songFinderBadge(status){
 }
 function songFinderResultCard(r){
   const res=r?.result||r||{};
+  const historyId=Number(r?.history_id||res.history_id||r?.id||0);
+  const retryBtn=historyId?`<button class="btn ghost small song-finder-retry" data-id="${historyId}">Ponovi</button>`:'';
   if(!res.found){return `<article class="youtube-match-card"><div class="youtube-match-main">${songFinderBadge('not_found')}<h3>${escapeHtml(r?.original_filename||res.file||'Isečak')}</h3><p>Provereno pesama u indeksu: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}.</p></div></article>`;}
+  if(res.multiple_songs_detected){
+    const items=(res.distinct_matches||[]).map(m=>`<li>${songFinderBadge(m.status)} <strong>${escapeHtml(m.title||m.song_id)}</strong> — ${Number(m.confidence||0)}% · Isečak: ${Number(m.clip_start||0).toFixed(1)}s–${Number(m.clip_end||0).toFixed(1)}s (deo pesme: ${Number(m.song_start||0).toFixed(1)}s–${Number(m.song_end||0).toFixed(1)}s)</li>`).join('');
+    return `<article class="youtube-match-card"><div class="youtube-match-main"><span class="match-score">PRONAĐENO VIŠE MOJIH PESAMA</span><h3>${escapeHtml(r?.original_filename||res.file||'Isečak')}</h3><p class="muted">Ovaj isečak sadrži više od jedne moje pesme, svaka u drugom delu isečka:</p><ul>${items}</ul><p class="muted">Motor: ${escapeHtml(res.engine||'chromaprint+spectral')} · Provereno pesama: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}</p></div><div class="button-row">${retryBtn}</div></article>`;
+  }
   const p=res.primary||{};
   const timing=`Pesma: ${Number(p.song_start||0).toFixed(1)}s–${Number(p.song_end||0).toFixed(1)}s · Isečak: ${Number(p.clip_start||0).toFixed(1)}s–${Number(p.clip_end||0).toFixed(1)}s`;
   const alts=(res.alternatives||[]).map(a=>`<li>${escapeHtml(a.title||a.song_id)} — ${songFinderBadge(a.status)} (${Number(a.confidence||0)}%)</li>`).join('');
-  const historyId=Number(r?.history_id||res.history_id||r?.id||0);
-  return `<article class="youtube-match-card"><div class="youtube-match-main">${songFinderBadge(res.status)}<h3>${escapeHtml(p.title||res.title||'Nepoznata pesma iz Biblioteke')}</h3><p>Pouzdanost: ${Number(res.confidence||p.confidence||0)}% · ${escapeHtml(timing)}</p><p class="muted">Motor: ${escapeHtml(res.engine||'chromaprint+spectral')} · Provereno pesama: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}</p>${alts?`<p class="muted">Ostale mogućnosti:</p><ul>${alts}</ul>`:''}</div><div class="button-row">${historyId?`<button class="btn ghost small song-finder-retry" data-id="${historyId}">Ponovi</button>`:''}</div></article>`;
+  return `<article class="youtube-match-card"><div class="youtube-match-main">${songFinderBadge(res.status)}<h3>${escapeHtml(p.title||res.title||'Nepoznata pesma iz Biblioteke')}</h3><p>Pouzdanost: ${Number(res.confidence||p.confidence||0)}% · ${escapeHtml(timing)}</p><p class="muted">Motor: ${escapeHtml(res.engine||'chromaprint+spectral')} · Provereno pesama: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}</p>${alts?`<p class="muted">Ostale mogućnosti:</p><ul>${alts}</ul>`:''}</div><div class="button-row">${retryBtn}</div></article>`;
 }
 function renderSongFinderResults(){
   const box=$('songFinderResults');if(!box)return;

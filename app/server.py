@@ -2697,6 +2697,7 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
     ranked = song_finder.rank_song_candidates(candidates)
     primary = ranked[0] if ranked else None
     overall_status = primary["status"] if primary else song_finder.STATUS_NOT_FOUND
+    distinct_matches = song_finder.select_distinct_matches(ranked)
     result = {
         "found": bool(primary),
         "provider": "local_library",
@@ -2707,6 +2708,7 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
         "status": overall_status, "status_label": song_finder.STATUS_LABELS_SR.get(overall_status, overall_status),
         "songs_checked": checked, "songs_indexed_total": len(songs),
         "primary": primary, "alternatives": ranked[1:4], "matches": ranked,
+        "distinct_matches": distinct_matches, "multiple_songs_detected": len(distinct_matches) >= 2,
     }
     record = DB.add_recognition({
         "original_filename": path.name, "input_path": str(path), "prepared_audio_path": "",

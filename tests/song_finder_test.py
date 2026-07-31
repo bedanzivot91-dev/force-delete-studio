@@ -106,6 +106,42 @@ def main():
         assert len(items) == 1 and items[0]['result']['status'] == 'confirmed'
         checks.append('recognized_tracks table reused as-is for local_library provider, no migration needed')
 
+        # -- manual override timestamp: confirming a result records WHEN it was manually corrected --
+        before = db.get_recognition(int(record["id"]))
+        assert not before.get("manual_override_at")
+        db.set_recognition_library_song(int(record["id"]), "song-2")
+        after = db.get_recognition(int(record["id"]))
+        assert after.get("library_song_id") == "song-2" and after.get("manual_override_at")
+        checks.append('set_recognition_library_song: records manual_override_at, not just the new song id')
+
+    # -- select_distinct_matches(): two of the user's OWN songs in one Shorts must both survive --
+    two_songs = [
+        {"song_id": "a", "status": song_finder.STATUS_CONFIRMED, "audio_score": 90, "clip_start": 0.0, "clip_end": 14.0},
+        {"song_id": "b", "status": song_finder.STATUS_CONFIRMED, "audio_score": 85, "clip_start": 15.0, "clip_end": 29.0},
+    ]
+    distinct = song_finder.select_distinct_matches(song_finder.rank_song_candidates(two_songs))
+    assert {c["song_id"] for c in distinct} == {"a", "b"}
+    checks.append('select_distinct_matches: two songs at two different, non-overlapping clip timestamps both kept')
+
+    # -- same segment matched by two different songs (e.g. a near-duplicate or a false extra
+    # candidate) must NOT both be kept -- only the higher-ranked one for that time range survives --
+    same_segment = [
+        {"song_id": "best", "status": song_finder.STATUS_CONFIRMED, "audio_score": 90, "clip_start": 0.0, "clip_end": 20.0},
+        {"song_id": "worse", "status": song_finder.STATUS_POSSIBLE, "audio_score": 55, "clip_start": 1.0, "clip_end": 19.0},
+    ]
+    distinct_dedup = song_finder.select_distinct_matches(song_finder.rank_song_candidates(same_segment))
+    assert [c["song_id"] for c in distinct_dedup] == ["best"]
+    checks.append('select_distinct_matches: overlapping candidates for the same segment collapse to the best one')
+
+    # -- not_found candidates never count as a "distinct match" --
+    with_not_found = [
+        {"song_id": "real", "status": song_finder.STATUS_CONFIRMED, "audio_score": 90, "clip_start": 0.0, "clip_end": 10.0},
+        {"song_id": "irrelevant", "status": song_finder.STATUS_NOT_FOUND, "audio_score": 5, "clip_start": 20.0, "clip_end": 25.0},
+    ]
+    distinct_filtered = song_finder.select_distinct_matches(song_finder.rank_song_candidates(with_not_found))
+    assert [c["song_id"] for c in distinct_filtered] == ["real"]
+    checks.append('select_distinct_matches: not_found candidates are excluded even if their time range is free')
+
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
 

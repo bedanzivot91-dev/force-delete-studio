@@ -62,3 +62,30 @@ def rank_song_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any
         candidates,
         key=lambda c: (_STATUS_ORDER.get(str(c.get("status")), 3), -float(c.get("audio_score") or 0)),
     )
+
+
+def select_distinct_matches(ranked: list[dict[str, Any]], overlap_ratio: float = 0.5) -> list[dict[str, Any]]:
+    """Pick out matches that occupy genuinely DIFFERENT parts of the clip
+    (e.g. two of the user's own songs mixed into one Shorts), instead of
+    just "1 primary + alternatives". Greedily walks the already-ranked list
+    (best first) and only rejects a candidate when its clip_start/clip_end
+    window really overlaps an already-picked one -- two different songs
+    matched at two different timestamps both survive."""
+    selected: list[dict[str, Any]] = []
+    for candidate in ranked:
+        if str(candidate.get("status")) == STATUS_NOT_FOUND:
+            continue
+        c_start = float(candidate.get("clip_start") or 0)
+        c_end = float(candidate.get("clip_end") or c_start)
+        conflict = False
+        for kept in selected:
+            k_start = float(kept.get("clip_start") or 0)
+            k_end = float(kept.get("clip_end") or k_start)
+            overlap = max(0.0, min(c_end, k_end) - max(c_start, k_start))
+            base = min(max(0.0, c_end - c_start), max(0.0, k_end - k_start))
+            if base > 0 and overlap / base >= overlap_ratio:
+                conflict = True
+                break
+        if not conflict:
+            selected.append(candidate)
+    return selected

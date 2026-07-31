@@ -442,6 +442,9 @@ class LibraryDB:
                 "google_email": "TEXT DEFAULT ''",
                 "thumbnail_url": "TEXT DEFAULT ''",
             })
+            self._ensure_columns(conn, "recognized_tracks", {
+                "manual_override_at": "TEXT DEFAULT ''",
+            })
             self._ensure_columns(conn, "youtube_videos", {
                 "audio_cache_path": "TEXT DEFAULT ''",
                 "audio_cache_sha256": "TEXT DEFAULT ''",
@@ -2091,5 +2094,8 @@ class LibraryDB:
 
     def set_recognition_library_song(self, recognition_id: int, song_id: str) -> None:
         with self._lock, self._connect() as conn:
-            conn.execute("UPDATE recognized_tracks SET library_song_id=? WHERE id=?", (str(song_id), int(recognition_id)))
+            conn.execute(
+                "UPDATE recognized_tracks SET library_song_id=?, manual_override_at=CURRENT_TIMESTAMP WHERE id=?",
+                (str(song_id), int(recognition_id)),
+            )
 
