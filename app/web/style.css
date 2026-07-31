@@ -334,3 +334,354 @@ body[data-theme="neon-district"][data-motion="reduced"] .song-card:hover{transfo
   body[data-theme="neon-district"] .nav-item{font-size:0}
   body[data-theme="neon-district"] .btn{clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 100%)}
 }
+
+/* ==========================================================================
+   URBAN CONCRETE — full redesign. Graffiti/concrete industrial direction:
+   raw gray-black surfaces, lime + orange "city signage" accents, bold
+   condensed typography, asymmetric single-corner blocks, hazard-stripe
+   active markers, hard-edged shadows (no soft glow). Distinct from every
+   other theme's shape language -- no rounded corners anywhere.
+   ========================================================================== */
+body[data-theme="urban-concrete"]{
+  --bg:#141412;--panel:#1c1c19;--panel2:#232320;--line:#3a3a34;--text:#f2f1ea;--muted:#9d9c92;
+  --accent:#c6ff3a;--accent2:#8fce00;--green:#c6ff3a;--red:#ff4d2e;--yellow:#ff8a1e;
+  --sidebar:#111110;--input:#1a1a17;--card:#1e1e1b;--glow:rgba(198,255,58,.16);
+  --uc-lime:#c6ff3a;--uc-orange:#ff8a1e;
+  font-family:"Segoe UI",Arial,sans-serif;
+}
+body[data-theme="urban-concrete"]{
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 2px, transparent 2px 26px),
+    radial-gradient(circle at 90% 100%, rgba(255,138,30,.07), transparent 40%),
+    var(--bg);
+}
+body[data-theme="urban-concrete"] ::selection{background:var(--uc-lime);color:#141412}
+body[data-theme="urban-concrete"] ::-webkit-scrollbar{width:12px;height:12px}
+body[data-theme="urban-concrete"] ::-webkit-scrollbar-track{background:var(--sidebar)}
+body[data-theme="urban-concrete"] ::-webkit-scrollbar-thumb{background:var(--uc-lime);border:3px solid var(--sidebar)}
+
+body[data-theme="urban-concrete"] .sidebar{
+  background:var(--sidebar);border-right:4px solid var(--uc-lime);
+}
+body[data-theme="urban-concrete"] .brand{border-bottom:2px solid var(--line)}
+body[data-theme="urban-concrete"] .brand-mark{
+  border-radius:0;background:var(--uc-lime);color:#141412;
+  box-shadow:5px 5px 0 rgba(0,0,0,.4);
+}
+body[data-theme="urban-concrete"] .brand strong{text-transform:uppercase;letter-spacing:.02em;font-weight:900}
+body[data-theme="urban-concrete"] .brand span{color:var(--uc-orange);font-weight:800}
+body[data-theme="urban-concrete"] .nav-item{
+  border-radius:0;font-weight:800;text-transform:uppercase;font-size:12.5px;letter-spacing:.03em;
+  border-left:4px solid transparent;
+}
+body[data-theme="urban-concrete"] .nav-item:hover{background:rgba(198,255,58,.08);border-left-color:var(--line)}
+body[data-theme="urban-concrete"] .nav-item.active{
+  background:repeating-linear-gradient(135deg,rgba(198,255,58,.14) 0 10px,rgba(198,255,58,.05) 10px 20px);
+  border-left:4px solid var(--uc-lime);color:#fff;
+}
+body[data-theme="urban-concrete"] .connection{border-radius:0;border:2px solid var(--line);font-weight:700}
+body[data-theme="urban-concrete"] .connection.online i{background:var(--uc-lime);border-radius:0}
+
+body[data-theme="urban-concrete"] .panel,
+body[data-theme="urban-concrete"] .song-card,
+body[data-theme="urban-concrete"] .toast,
+body[data-theme="urban-concrete"] .modal-card,
+body[data-theme="urban-concrete"] .folder-card,
+body[data-theme="urban-concrete"] .youtube-settings-box,
+body[data-theme="urban-concrete"] .youtube-action-card,
+body[data-theme="urban-concrete"] .youtube-channel-card,
+body[data-theme="urban-concrete"] .advanced-card,
+body[data-theme="urban-concrete"] .stat-card{
+  border-radius:0!important;border:2px solid var(--line);
+  background:var(--card);
+  box-shadow:6px 6px 0 rgba(0,0,0,.35);
+}
+body[data-theme="urban-concrete"] .song-card:hover{border-color:var(--uc-lime);transform:translate(-2px,-2px);box-shadow:8px 8px 0 rgba(0,0,0,.4)}
+body[data-theme="urban-concrete"] .cover-placeholder{background:repeating-linear-gradient(45deg,#1a1a17,#1a1a17 12px,#202019 12px,#202019 24px);color:var(--uc-lime)}
+
+body[data-theme="urban-concrete"] .btn{
+  border-radius:0;text-transform:uppercase;font-weight:900;letter-spacing:.03em;font-size:12.5px;
+  box-shadow:4px 4px 0 rgba(0,0,0,.4);
+}
+body[data-theme="urban-concrete"] .btn:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 rgba(0,0,0,.4)}
+body[data-theme="urban-concrete"] .btn.primary{background:var(--uc-lime);color:#141412}
+body[data-theme="urban-concrete"] .btn.primary:hover{background:#d4ff66}
+body[data-theme="urban-concrete"] .btn.secondary{background:#232320;border:2px solid var(--line);color:#e8e7de}
+body[data-theme="urban-concrete"] .btn.danger{background:var(--red);color:#1a0a05;border-color:transparent}
+body[data-theme="urban-concrete"] .icon-btn{border-radius:0;border:2px solid var(--line)}
+body[data-theme="urban-concrete"] .icon-btn.active{border-color:var(--uc-lime);color:var(--uc-lime)}
+
+body[data-theme="urban-concrete"] select,body[data-theme="urban-concrete"] input,
+body[data-theme="urban-concrete"] textarea,body[data-theme="urban-concrete"] .search-wrap{
+  border-radius:0;border:2px solid var(--line);background:var(--input);
+}
+body[data-theme="urban-concrete"] input:focus,body[data-theme="urban-concrete"] select:focus,body[data-theme="urban-concrete"] textarea:focus{
+  border-color:var(--uc-lime);box-shadow:none;
+}
+
+body[data-theme="urban-concrete"] .badge,body[data-theme="urban-concrete"] .pill,
+body[data-theme="urban-concrete"] .oauth-badge,body[data-theme="urban-concrete"] .status-pill,
+body[data-theme="urban-concrete"] .youtube-summary-badges span{
+  border-radius:0;font-weight:900;text-transform:uppercase;font-size:10px;background:var(--uc-orange);color:#1a0e02;border:0;
+}
+body[data-theme="urban-concrete"] .badge.saved{background:var(--uc-lime);color:#141412}
+
+body[data-theme="urban-concrete"] .progress,body[data-theme="urban-concrete"] .bar-track,
+body[data-theme="urban-concrete"] .coverage-meter i,body[data-theme="urban-concrete"] .audio-score-grid i{
+  border-radius:0;background:#232320;border:2px solid var(--line);
+}
+body[data-theme="urban-concrete"] .progress div,body[data-theme="urban-concrete"] .bar-fill,
+body[data-theme="urban-concrete"] .coverage-meter b,body[data-theme="urban-concrete"] .audio-score-grid b{
+  background:repeating-linear-gradient(135deg,var(--uc-lime) 0 10px,var(--uc-orange) 10px 20px);
+}
+body[data-theme="urban-concrete"] .stat-card strong,body[data-theme="urban-concrete"] .big-number strong{
+  font-weight:900;color:var(--uc-lime);
+}
+body[data-theme="urban-concrete"] #waveformCanvas,body[data-theme="urban-concrete"] .audio-preview-panel{border-radius:0;border:2px solid var(--line)}
+body[data-theme="urban-concrete"] .empty-icon{border-radius:0;border:2px dashed var(--line);color:var(--uc-lime)}
+body[data-theme="urban-concrete"] .player{border-radius:0;border:2px solid var(--uc-lime);box-shadow:6px 6px 0 rgba(0,0,0,.4)}
+body[data-theme="urban-concrete"] .toast{border-left:5px solid var(--uc-lime)}
+body[data-theme="urban-concrete"] .toast.error{border-left-color:var(--red)}
+body[data-theme="urban-concrete"] .theme-card{border-radius:0}
+body[data-theme="urban-concrete"] .theme-card.active{box-shadow:4px 4px 0 var(--uc-lime)}
+@media (prefers-reduced-motion: reduce){
+  body[data-theme="urban-concrete"] .song-card,body[data-theme="urban-concrete"] .btn{transition:none!important}
+}
+body[data-theme="urban-concrete"][data-motion="reduced"] .song-card:hover,
+body[data-theme="urban-concrete"][data-motion="reduced"] .btn:hover{transform:none!important}
+@media(max-width:760px){body[data-theme="urban-concrete"] .nav-item{font-size:0}}
+
+/* ==========================================================================
+   MIDNIGHT STUDIO — full redesign. Professional audio-studio direction:
+   near-black brushed-metal panels, restrained blue/violet accents, compact
+   dense spacing for long working sessions, VU-meter-style progress bars
+   (green->yellow->red), thin precise borders, minimal shadow, no glow.
+   ========================================================================== */
+body[data-theme="midnight-studio"]{
+  --bg:#0a0a0c;--panel:#131317;--panel2:#17171c;--line:#26262e;--text:#e8e9ee;--muted:#83848f;
+  --accent:#6c8cff;--accent2:#4a63cc;--green:#3ddc84;--red:#ff5470;--yellow:#ffc95c;
+  --sidebar:#08080a;--input:#0e0e11;--card:#141418;--glow:rgba(108,140,255,.14);
+  font-family:"Segoe UI",Inter,Arial,sans-serif;
+}
+body[data-theme="midnight-studio"]{
+  background:linear-gradient(180deg,#0c0c10,var(--bg));
+}
+body[data-theme="midnight-studio"] ::-webkit-scrollbar{width:8px;height:8px}
+body[data-theme="midnight-studio"] ::-webkit-scrollbar-track{background:var(--sidebar)}
+body[data-theme="midnight-studio"] ::-webkit-scrollbar-thumb{background:#2a2a33;border-radius:4px}
+body[data-theme="midnight-studio"] ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+body[data-theme="midnight-studio"] .sidebar{
+  background:linear-gradient(180deg,#0a0a0d,#0d0d11);border-right:1px solid var(--line);
+}
+body[data-theme="midnight-studio"] .brand-mark{
+  background:linear-gradient(160deg,#2a2d38,#15161b);border:1px solid var(--line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 4px 12px rgba(0,0,0,.5);color:var(--accent);
+}
+body[data-theme="midnight-studio"] .brand span{color:var(--muted);letter-spacing:.14em}
+body[data-theme="midnight-studio"] .nav-item{border-radius:5px;padding:8px 10px;font-size:12.5px}
+body[data-theme="midnight-studio"] .nav-item:hover{background:#15151a}
+body[data-theme="midnight-studio"] .nav-item.active{
+  background:linear-gradient(90deg,rgba(108,140,255,.14),transparent);border-left:2px solid var(--accent);
+  border-radius:2px 5px 5px 2px;color:#fff;
+}
+body[data-theme="midnight-studio"] .connection{border-radius:6px;background:#101014;border:1px solid var(--line)}
+
+body[data-theme="midnight-studio"] .panel,
+body[data-theme="midnight-studio"] .song-card,
+body[data-theme="midnight-studio"] .toast,
+body[data-theme="midnight-studio"] .modal-card,
+body[data-theme="midnight-studio"] .folder-card,
+body[data-theme="midnight-studio"] .youtube-settings-box,
+body[data-theme="midnight-studio"] .youtube-action-card,
+body[data-theme="midnight-studio"] .youtube-channel-card,
+body[data-theme="midnight-studio"] .advanced-card,
+body[data-theme="midnight-studio"] .stat-card{
+  border-radius:8px;border:1px solid var(--line);
+  background:linear-gradient(165deg,#151519,#111114);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 6px 18px rgba(0,0,0,.35);
+}
+body[data-theme="midnight-studio"] .song-card:hover{border-color:var(--accent);box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 0 0 1px var(--accent)}
+body[data-theme="midnight-studio"] .cover-placeholder{background:#0e0e11;color:var(--accent)}
+
+body[data-theme="midnight-studio"] .btn{border-radius:6px;font-size:12.5px;font-weight:700}
+body[data-theme="midnight-studio"] .btn.primary{background:linear-gradient(160deg,var(--accent),var(--accent2));box-shadow:0 4px 14px var(--glow)}
+body[data-theme="midnight-studio"] .btn.secondary{background:#16161b;border:1px solid var(--line)}
+body[data-theme="midnight-studio"] .icon-btn{border-radius:6px;background:#111115;border:1px solid var(--line)}
+body[data-theme="midnight-studio"] .icon-btn.active{border-color:var(--accent);color:var(--accent)}
+
+body[data-theme="midnight-studio"] select,body[data-theme="midnight-studio"] input,
+body[data-theme="midnight-studio"] textarea,body[data-theme="midnight-studio"] .search-wrap{
+  border-radius:6px;background:var(--input);border:1px solid var(--line);
+}
+body[data-theme="midnight-studio"] input:focus,body[data-theme="midnight-studio"] select:focus{
+  border-color:var(--accent);box-shadow:0 0 0 2px var(--glow);
+}
+
+body[data-theme="midnight-studio"] .progress,body[data-theme="midnight-studio"] .bar-track,
+body[data-theme="midnight-studio"] .coverage-meter i,body[data-theme="midnight-studio"] .audio-score-grid i{
+  border-radius:3px;background:#0e0e11;border:1px solid var(--line);
+}
+body[data-theme="midnight-studio"] .progress div,body[data-theme="midnight-studio"] .bar-fill,
+body[data-theme="midnight-studio"] .coverage-meter b,body[data-theme="midnight-studio"] .audio-score-grid b{
+  background:linear-gradient(90deg,var(--green) 0 60%,var(--yellow) 80%,var(--red) 100%);
+}
+body[data-theme="midnight-studio"] .stat-card strong{color:var(--accent);font-weight:800}
+body[data-theme="midnight-studio"] #waveformCanvas,body[data-theme="midnight-studio"] .audio-preview-panel{
+  border-radius:8px;border:1px solid var(--line);background:#0c0c0f;
+}
+body[data-theme="midnight-studio"] .player{border-radius:10px;border:1px solid var(--line);background:rgba(17,17,21,.97)}
+body[data-theme="midnight-studio"] .toast{border-left:3px solid var(--accent)}
+@media (prefers-reduced-motion: reduce){
+  body[data-theme="midnight-studio"] .song-card,body[data-theme="midnight-studio"] .btn{transition:none!important}
+}
+
+/* ==========================================================================
+   AURORA GLASS — full redesign. Glassmorphism direction: deep dark base
+   with aurora radial-gradient blobs, translucent frosted panels (blur only
+   on the few large surfaces where it's cheap -- sidebar, modal, player --
+   not on every small badge, per the performance note in the spec), soft
+   colorful shadows, strongly rounded shapes, floating pill-shaped nav.
+   ========================================================================== */
+body[data-theme="aurora-glass"]{
+  --bg:#080a14;--panel:rgba(255,255,255,.045);--panel2:rgba(255,255,255,.03);--line:rgba(255,255,255,.09);
+  --text:#f3f0ff;--muted:#a6a3c4;--accent:#7ee8fa;--accent2:#c084fc;--green:#6ee7b7;--red:#fb7185;--yellow:#fde68a;
+  --sidebar:rgba(10,10,20,.55);--input:rgba(255,255,255,.05);--card:rgba(255,255,255,.045);--glow:rgba(126,232,250,.22);
+  font-family:"Segoe UI",Inter,Arial,sans-serif;
+}
+body[data-theme="aurora-glass"]{
+  background:
+    radial-gradient(circle at 15% 8%, rgba(126,232,250,.20), transparent 38%),
+    radial-gradient(circle at 85% 18%, rgba(192,132,252,.18), transparent 40%),
+    radial-gradient(circle at 50% 95%, rgba(110,231,183,.10), transparent 45%),
+    var(--bg);
+}
+body[data-theme="aurora-glass"] ::-webkit-scrollbar{width:8px;height:8px}
+body[data-theme="aurora-glass"] ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px}
+
+body[data-theme="aurora-glass"] .sidebar{
+  background:var(--sidebar);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-right:1px solid var(--line);
+}
+body[data-theme="aurora-glass"] .brand-mark{
+  background:linear-gradient(140deg,var(--accent),var(--accent2));box-shadow:0 8px 26px var(--glow);
+}
+body[data-theme="aurora-glass"] .nav-item{border-radius:14px;font-weight:600}
+body[data-theme="aurora-glass"] .nav-item:hover{background:rgba(255,255,255,.06)}
+body[data-theme="aurora-glass"] .nav-item.active{
+  background:linear-gradient(120deg,rgba(126,232,250,.18),rgba(192,132,252,.10));
+  border:1px solid var(--line);color:#fff;
+}
+body[data-theme="aurora-glass"] .connection{border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+
+body[data-theme="aurora-glass"] .panel,
+body[data-theme="aurora-glass"] .song-card,
+body[data-theme="aurora-glass"] .folder-card,
+body[data-theme="aurora-glass"] .youtube-settings-box,
+body[data-theme="aurora-glass"] .youtube-action-card,
+body[data-theme="aurora-glass"] .youtube-channel-card,
+body[data-theme="aurora-glass"] .advanced-card,
+body[data-theme="aurora-glass"] .stat-card{
+  border-radius:20px;border:1px solid var(--line);
+  background:var(--card);
+  box-shadow:0 10px 34px rgba(0,0,0,.28);
+}
+body[data-theme="aurora-glass"] .modal-card,body[data-theme="aurora-glass"] .toast,body[data-theme="aurora-glass"] .player{
+  background:rgba(18,18,32,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--line);
+}
+body[data-theme="aurora-glass"] .song-card:hover{border-color:rgba(126,232,250,.5);box-shadow:0 14px 40px rgba(126,232,250,.14);transform:translateY(-2px)}
+body[data-theme="aurora-glass"] .cover-placeholder{background:rgba(255,255,255,.04);color:var(--accent)}
+
+body[data-theme="aurora-glass"] .btn{border-radius:14px;font-weight:700}
+body[data-theme="aurora-glass"] .btn.primary{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#0a0a14;box-shadow:0 8px 24px var(--glow)}
+body[data-theme="aurora-glass"] .btn.secondary{background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text)}
+body[data-theme="aurora-glass"] .icon-btn{border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+body[data-theme="aurora-glass"] .icon-btn.active{border-color:var(--accent);color:var(--accent)}
+
+body[data-theme="aurora-glass"] select,body[data-theme="aurora-glass"] input,
+body[data-theme="aurora-glass"] textarea,body[data-theme="aurora-glass"] .search-wrap{
+  border-radius:12px;background:var(--input);border:1px solid var(--line);color:var(--text);
+}
+body[data-theme="aurora-glass"] input:focus,body[data-theme="aurora-glass"] select:focus{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--glow);
+}
+
+body[data-theme="aurora-glass"] .badge,body[data-theme="aurora-glass"] .pill,
+body[data-theme="aurora-glass"] .oauth-badge,body[data-theme="aurora-glass"] .status-pill{
+  border-radius:99px;background:rgba(255,255,255,.07);border:1px solid var(--line);
+}
+body[data-theme="aurora-glass"] .progress,body[data-theme="aurora-glass"] .bar-track,
+body[data-theme="aurora-glass"] .coverage-meter i,body[data-theme="aurora-glass"] .audio-score-grid i{
+  border-radius:99px;background:rgba(255,255,255,.06);
+}
+body[data-theme="aurora-glass"] .progress div,body[data-theme="aurora-glass"] .bar-fill,
+body[data-theme="aurora-glass"] .coverage-meter b,body[data-theme="aurora-glass"] .audio-score-grid b{
+  background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--glow);
+}
+body[data-theme="aurora-glass"] .stat-card strong{background:linear-gradient(120deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+body[data-theme="aurora-glass"] #waveformCanvas,body[data-theme="aurora-glass"] .audio-preview-panel{
+  border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.03);
+}
+body[data-theme="aurora-glass"] .empty-icon{border-radius:22px;background:rgba(255,255,255,.05);color:var(--accent)}
+body[data-theme="aurora-glass"] .toast{border-left:3px solid var(--accent)}
+body[data-theme="aurora-glass"] .toast.error{border-left-color:var(--red)}
+@media (prefers-reduced-motion: reduce){
+  body[data-theme="aurora-glass"] .song-card,body[data-theme="aurora-glass"] .btn{transition:none!important}
+}
+/* Low-end-safe fallback: browsers/devices without backdrop-filter support
+   get solid panels instead of a broken transparent look. */
+@supports not (backdrop-filter: blur(1px)){
+  body[data-theme="aurora-glass"] .sidebar,body[data-theme="aurora-glass"] .modal-card,
+  body[data-theme="aurora-glass"] .toast,body[data-theme="aurora-glass"] .player{background:#12121f}
+}
+
+/* ==========================================================================
+   Skaliranje i pristupačnost (section 5.6) -- theme-independent, applied on
+   top of whichever of the 5 themes is active.
+   ========================================================================== */
+
+/* Text/UI scale: WebView2's Chromium engine supports the `zoom` property,
+   and this is the app's actual runtime (see windows_build/launcher) --
+   using it here is a deliberate, working choice for this target, not a
+   cross-browser hack. */
+.app-shell[data-ui-scale]{zoom:var(--ui-scale, 1)}
+
+/* Density: compact / normal (default, no override needed) / comfortable */
+body[data-density="compact"] .main{padding:16px 22px 100px}
+body[data-density="compact"] .panel,body[data-density="compact"] .form-panel{padding:12px}
+body[data-density="compact"] .song-card .song-body{padding:9px}
+body[data-density="compact"] .songs-grid{gap:9px}
+body[data-density="compact"] .toolbar{padding:8px}
+body[data-density="compact"] .stat-card{padding:12px}
+
+body[data-density="comfortable"] .main{padding:34px 44px 140px}
+body[data-density="comfortable"] .panel,body[data-density="comfortable"] .form-panel{padding:26px}
+body[data-density="comfortable"] .song-card .song-body{padding:18px}
+body[data-density="comfortable"] .songs-grid{gap:20px}
+body[data-density="comfortable"] .toolbar{padding:16px}
+body[data-density="comfortable"] .stat-card{padding:24px}
+
+/* Reduced motion: global safety net across all 5 themes, not just the ones
+   with their own per-theme reduced-motion rules already above. */
+body[data-motion="reduced"] *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+body[data-motion="reduced"] .song-card:hover,body[data-motion="reduced"] .btn:hover{transform:none!important}
+@media (prefers-reduced-motion: reduce){
+  body:not([data-motion]) *{transition:none!important;animation:none!important}
+}
+
+/* High-contrast mode: strengthen borders/text against the active theme's
+   own palette rather than replacing it with a fixed one. */
+body[data-contrast="high"]{--muted:var(--text)}
+body[data-contrast="high"] .panel,body[data-contrast="high"] .song-card,
+body[data-contrast="high"] .btn,body[data-contrast="high"] input,
+body[data-contrast="high"] select,body[data-contrast="high"] textarea{border-width:2px!important}
+body[data-contrast="high"] input:focus,body[data-contrast="high"] select:focus,
+body[data-contrast="high"] textarea:focus,body[data-contrast="high"] .btn:focus-visible{
+  outline:3px solid var(--accent);outline-offset:1px;
+}
+
+/* Colorblind-safe status colors: success/error are consumed everywhere via
+   var(--green)/var(--red), so overriding the two variables here is enough
+   to recolor every status badge, meter and message across all 5 themes. */
+body[data-colorblind="true"]{--green:#2f8fe0;--red:#e0862f}

@@ -297,7 +297,22 @@
       <section id="view-logs" class="view"><div class="panel form-panel"><div class="section-title"><h2>Dnevnik rada</h2><button id="refreshLogsBtn" class="btn secondary small">Osveži</button></div><div id="logsTable" class="logs-table"></div></div></section>
 
       <section id="view-settings" class="view">
-        <div class="panel theme-settings"><div class="section-title"><div><h2>20 novih urbanih i modernih skinova</h2><p class="muted">Klikni na skin i izgled se menja odmah. Izbor se pamti.</p></div><select id="themeSelect"></select></div><div id="themeGrid" class="theme-grid"></div></div>
+        <div class="panel theme-settings"><div class="section-title"><div><h2>Izgled i teme</h2><p class="muted">Klikni na temu i izgled se menja odmah, bez restartovanja. Izbor se pamti po ovom uređaju.</p></div><select id="themeSelect"></select></div><div id="themeGrid" class="theme-grid"></div>
+          <div class="button-row" style="margin-top:14px"><button id="resetThemeBtn" class="btn ghost small">Vrati na originalnu temu</button><button id="exportThemeSettingsBtn" class="btn ghost small">Izvezi podešavanja izgleda</button><label class="btn ghost small" style="cursor:pointer">Uvezi podešavanja<input id="importThemeSettingsInput" type="file" accept="application/json" class="hidden"></label></div>
+        </div>
+        <div class="panel form-panel" id="accessibilityPanel">
+          <h2>Skaliranje i pristupačnost</h2>
+          <div class="option-grid">
+            <label>Veličina teksta<select id="textScaleSelect"><option value="90">Manji (90%)</option><option value="100" selected>Normalan (100%)</option><option value="115">Veći (115%)</option><option value="130">Najveći (130%)</option></select></label>
+            <label>Gustina rasporeda<select id="densitySelect"><option value="compact">Kompaktno</option><option value="normal" selected>Normalno</option><option value="comfortable">Udobno</option></select></label>
+          </div>
+          <div class="option-grid">
+            <div class="toggle-row"><input type="checkbox" id="reduceMotionToggle"><div><strong>Smanjeno kretanje</strong><small>Isključuje hover animacije i prelaze tema koje mogu smetati.</small></div></div>
+            <div class="toggle-row"><input type="checkbox" id="highContrastToggle"><div><strong>Visokokontrastni režim</strong><small>Pojačava kontrast teksta i ivica na trenutnoj temi.</small></div></div>
+            <div class="toggle-row"><input type="checkbox" id="colorblindToggle"><div><strong>Podrška za daltonizam</strong><small>Zamenjuje crveno/zeleno statusne boje plavo/narandžastim parom.</small></div></div>
+          </div>
+          <div id="contrastCheckResult" class="diagnostics-box hidden"></div>
+        </div>
         <div class="settings-grid">
           <div class="panel form-panel"><h2>Glavni folder za preuzimanje</h2><div class="folder-path-row"><input id="downloadDirInput" placeholder="C:\Suno pesme"><button id="chooseSettingsFolderBtn" class="btn ghost">Izaberi</button></div><div class="button-row"><button id="saveSettingsBtn" class="btn primary">Sačuvaj</button><button id="openDownloadFolderBtn" class="btn secondary">Otvori folder</button></div></div>
           <div class="panel form-panel"><h2>FFmpeg audio alati</h2><p class="muted">Potrebni su za skraćivanje, konverziju, fade i normalizaciju. Program ih preuzima samo jednom, bez instalacije u Windows.</p><button id="installAudioToolsSettingsBtn" class="btn secondary full">Proveri / pripremi alate</button><div id="settingsAudioToolsStatus" class="inline-message"></div></div>

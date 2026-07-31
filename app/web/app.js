@@ -42,6 +42,9 @@ const THEMES = [
   // swap of the shared component CSS above) -- see the
   // body[data-theme="..."] blocks near the end of style.css.
   { id:'neon-district', name:'Neon District', colors:['#00f0ff','#ff2bd6','#050914'], full:true },
+  { id:'urban-concrete', name:'Urban Concrete', colors:['#c6ff3a','#2b2b28','#141412'], full:true },
+  { id:'midnight-studio', name:'Midnight Studio', colors:['#6c8cff','#0e0e12','#050506'], full:true },
+  { id:'aurora-glass', name:'Aurora Glass', colors:['#7ee8fa','#c084fc','#080a14'], full:true },
 ];
 
 function escapeHtml(value) {
@@ -120,7 +123,7 @@ function showView(name) {
   if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); }
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
-  if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); }
+  if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
 }
 
 function selectedIds() { return [...state.selected]; }
@@ -492,6 +495,89 @@ function renderThemes() {
   $('themeSelect').innerHTML = THEMES.map((t)=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   $('themeGrid').innerHTML = THEMES.slice(1).map((t)=>`<button class="theme-card" data-theme="${t.id}"><span class="theme-colors">${t.colors.map((c)=>`<i style="background:${c}"></i>`).join('')}</span><strong>${escapeHtml(t.name)}</strong></button>`).join('');
   applyTheme(localStorage.getItem('suno-theme') || state.status?.theme || 'default', false);
+}
+
+// --- Skaliranje i pristupačnost (section 5.6) ---
+const A11Y_KEYS = { scale: 'suno-ui-scale', density: 'suno-ui-density', motion: 'suno-ui-motion', contrast: 'suno-ui-contrast', colorblind: 'suno-ui-colorblind' };
+function loadA11ySettings() {
+  return {
+    scale: localStorage.getItem(A11Y_KEYS.scale) || '100',
+    density: localStorage.getItem(A11Y_KEYS.density) || 'normal',
+    motion: localStorage.getItem(A11Y_KEYS.motion) === '1',
+    contrast: localStorage.getItem(A11Y_KEYS.contrast) === '1',
+    colorblind: localStorage.getItem(A11Y_KEYS.colorblind) === '1',
+  };
+}
+function applyA11ySettings(settings) {
+  const shell = document.querySelector('.app-shell');
+  const pct = Number(settings.scale) || 100;
+  if (shell) { shell.dataset.uiScale = String(pct !== 100); shell.style.setProperty('--ui-scale', String(pct / 100)); }
+  document.body.dataset.density = settings.density === 'normal' ? '' : settings.density;
+  if (settings.motion) document.body.dataset.motion = 'reduced'; else delete document.body.dataset.motion;
+  if (settings.contrast) document.body.dataset.contrast = 'high'; else delete document.body.dataset.contrast;
+  if (settings.colorblind) document.body.dataset.colorblind = 'true'; else delete document.body.dataset.colorblind;
+  if ($('textScaleSelect')) $('textScaleSelect').value = String(pct);
+  if ($('densitySelect')) $('densitySelect').value = settings.density;
+  if ($('reduceMotionToggle')) $('reduceMotionToggle').checked = settings.motion;
+  if ($('highContrastToggle')) $('highContrastToggle').checked = settings.contrast;
+  if ($('colorblindToggle')) $('colorblindToggle').checked = settings.colorblind;
+}
+function saveA11ySetting(key, value) {
+  localStorage.setItem(A11Y_KEYS[key], String(value));
+  applyA11ySettings(loadA11ySettings());
+}
+function resetThemeAndAppearance() {
+  localStorage.removeItem('suno-theme');
+  Object.values(A11Y_KEYS).forEach((k) => localStorage.removeItem(k));
+  applyTheme('default');
+  applyA11ySettings(loadA11ySettings());
+  toast('Vraćeno na originalnu temu i podrazumevana podešavanja izgleda.', 'success');
+}
+function exportThemeSettings() {
+  const payload = { theme: localStorage.getItem('suno-theme') || 'default', ...loadA11ySettings() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'suno-pesme-studio-izgled.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+async function importThemeSettings(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.theme) applyTheme(data.theme);
+    if (data.scale) saveA11ySetting('scale', data.scale);
+    if (data.density) saveA11ySetting('density', data.density);
+    saveA11ySetting('motion', Boolean(data.motion));
+    saveA11ySetting('contrast', Boolean(data.contrast));
+    saveA11ySetting('colorblind', Boolean(data.colorblind));
+    toast('Podešavanja izgleda su uvezena.', 'success');
+  } catch (e) { toast('Fajl nije validan JSON izvoz podešavanja.', 'error'); }
+}
+// Relative luminance + WCAG contrast ratio between the active theme's text
+// and background colors -- a real check against the currently rendered
+// CSS custom properties, not a canned number.
+function relLuminance(hex) {
+  const c = hex.replace('#', '');
+  const full = c.length === 3 ? c.split('').map((x) => x + x).join('') : c;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function checkThemeContrast() {
+  const box = $('contrastCheckResult');
+  if (!box) return;
+  const styles = getComputedStyle(document.body);
+  const textColor = styles.getPropertyValue('--text').trim();
+  const bgColor = styles.getPropertyValue('--bg').trim();
+  try {
+    const L1 = relLuminance(textColor.startsWith('#') ? textColor : '#f5f7fb');
+    const L2 = relLuminance(bgColor.startsWith('#') ? bgColor : '#0b0d12');
+    const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+    const passesAA = ratio >= 4.5;
+    box.classList.remove('hidden');
+    box.innerHTML = `<span>Kontrast teksta na pozadini (tekuća tema)</span><strong>${ratio.toFixed(2)}:1 — ${passesAA ? 'zadovoljava WCAG AA (≥4.5:1)' : 'ISPOD WCAG AA (4.5:1)'}</strong>`;
+  } catch (e) { box.classList.remove('hidden'); box.textContent = 'Provera kontrasta nije uspela za ovu temu.'; }
 }
 function scheduleAutoCheck(minutes) { clearInterval(state.autoCheckTimer); const n=Number(minutes||0); if(!n) return; state.autoCheckTimer=setInterval(()=>{ if(state.status?.connected && !state.taskId) checkNewSongs(); },n*60*1000); }
 async function saveAutomationSettings() { const minutes=Number(($('settingsAutoCheckMinutes')||$('autoCheckMinutes')).value||0); const backup=Boolean($('settingsAutoBackup')?.checked || $('autoBackupBeforeSync')?.checked); try { const data=await api('/api/settings',{method:'POST',body:{auto_check_minutes:minutes,auto_backup_before_sync:backup}}); scheduleAutoCheck(data.auto_check_minutes); toast('Automatizacija je sačuvana.','success'); } catch(e){ toast(e.message,'error'); } }
@@ -973,6 +1059,14 @@ function bindEvents() {
   $('audioPlayer').addEventListener('timeupdate', () => { if (state.previewEnd !== null && $('audioPlayer').currentTime >= Number(state.previewEnd)) { $('audioPlayer').pause(); state.previewEnd = null; } }); $('audioPlayer').addEventListener('error', () => toast('Pesma nije mogla da se pusti. Pogledaj Dnevnik ili ponovo sinhronizuj podatke.', 'error', 8000)); $('audioPlayer').addEventListener('ended', playNextQueue); $('playerSpeed').addEventListener('change',()=>{$('audioPlayer').playbackRate=Number($('playerSpeed').value||1);}); $('repeatPlayerBtn').addEventListener('click',()=>{state.repeat=!state.repeat;$('repeatPlayerBtn').classList.toggle('active',state.repeat);toast(state.repeat?'Ponavljanje uključeno.':'Ponavljanje isključeno.','info');}); $('playQueueBtn').addEventListener('click',playSelectedQueue); $('closePlayerBtn').addEventListener('click', () => { $('audioPlayer').pause(); $('playerBar').classList.remove('visible'); });
   $('refreshLogsBtn').addEventListener('click', loadLogs); $('chooseSettingsFolderBtn').addEventListener('click', () => chooseFolder('downloadDirInput')); $('saveSettingsBtn').addEventListener('click', saveSettings); $('openDownloadFolderBtn').addEventListener('click', openFolder); $('backupBtn').addEventListener('click', backup); $('chooseRestoreFileBtn').addEventListener('click', chooseBackupFile); $('restoreBackupBtn').addEventListener('click', restoreBackup); $('runSelfTestBtn').addEventListener('click', runProgramSelfTest); $('exportDiagnosticsBtn').addEventListener('click', exportDiagnostics); $('refreshStorageBtn').addEventListener('click', loadStorageSummary); $('checkLibraryBtn').addEventListener('click', () => checkLibraryHealth(false)); $('repairLibraryBtn').addEventListener('click', () => { if (confirm('Očistiti samo putanje ka fajlovima koji više ne postoje? Postojeći fajlovi se ne brišu.')) checkLibraryHealth(true); }); qsa('.export-all').forEach((b) => b.addEventListener('click', () => exportData(b.dataset.format))); $('disconnectBtn').addEventListener('click', async () => { try { const data = await api('/api/connect/disconnect', { method: 'POST', body: {} }); toast(data.message, 'success'); loadStatus(); } catch (e) { toast(e.message, 'error'); } });
   $('themeSelect').addEventListener('change',(e)=>applyTheme(e.target.value)); $('themeGrid').addEventListener('click',(e)=>{const card=e.target.closest('[data-theme]');if(card)applyTheme(card.dataset.theme);});
+  $('resetThemeBtn').addEventListener('click', resetThemeAndAppearance);
+  $('exportThemeSettingsBtn').addEventListener('click', exportThemeSettings);
+  $('importThemeSettingsInput').addEventListener('change', (e) => { const f = e.target.files?.[0]; if (f) importThemeSettings(f); e.target.value = ''; });
+  $('textScaleSelect').addEventListener('change', (e) => { saveA11ySetting('scale', e.target.value); checkThemeContrast(); });
+  $('densitySelect').addEventListener('change', (e) => saveA11ySetting('density', e.target.value));
+  $('reduceMotionToggle').addEventListener('change', (e) => saveA11ySetting('motion', e.target.checked));
+  $('highContrastToggle').addEventListener('change', (e) => { saveA11ySetting('contrast', e.target.checked); checkThemeContrast(); });
+  $('colorblindToggle').addEventListener('change', (e) => saveA11ySetting('colorblind', e.target.checked));
   $('autoCheckMinutes').addEventListener('change',async()=>{ $('settingsAutoCheckMinutes').value=$('autoCheckMinutes').value; await saveAutomationSettings(); }); $('saveAutomationSettingsBtn').addEventListener('click',saveAutomationSettings); $('autoBackupBeforeSync').addEventListener('change',()=>{$('settingsAutoBackup').checked=$('autoBackupBeforeSync').checked;saveAutomationSettings();}); $('saveSunoSessionSettingsBtn').addEventListener('click',saveSunoSessionSettings); $('refreshSunoSessionNowBtn').addEventListener('click',refreshSunoSessionNow);
   $('connectYoutubeGoogleBtn').addEventListener('click',connectYoutubeGoogle); $('refreshYoutubeGoogleBtn').addEventListener('click',refreshYoutubeGoogle); $('importYoutubeOAuthClientBtn').addEventListener('click',importYoutubeOAuthClient); $('removeYoutubeOAuthConfigBtn').addEventListener('click',removeYoutubeOAuthConfig); $('openGoogleCloudClientsBtn').addEventListener('click',()=>openExternal('https://console.cloud.google.com/auth/clients'));
   $('saveYoutubeSettingsBtn').addEventListener('click',()=>saveYoutubeSettings(false)); $('clearYoutubeApiKeyBtn').addEventListener('click',()=>saveYoutubeSettings(true)); $('addYoutubeChannelBtn').addEventListener('click',addYoutubeChannel); $('scanOwnedYoutubeBtn').addEventListener('click',scanOwnedYoutube); $('scanGlobalYoutubeBtn').addEventListener('click',scanGlobalYoutube); $('refreshYoutubeCalendarBtn').addEventListener('click',loadYoutubeCenter); $('exportYoutubeCalendarBtn').addEventListener('click',exportYoutubeCalendar); $('refreshYoutubeMatchesBtn').addEventListener('click',loadYoutubeCenter); $('youtubeMatchStatusFilter').addEventListener('change',loadYoutubeCenter); $('openCopyrightMatchBtn').addEventListener('click',()=>openExternal('https://studio.youtube.com/')); $('openCopyrightHelpBtn').addEventListener('click',()=>openExternal('https://support.google.com/youtube/answer/2807622'));
@@ -1022,5 +1116,5 @@ async function retryRecognition(id){try{const d=await api('/api/music-recognitio
 async function addRecognitionToLibrary(id){try{const d=await api('/api/music-recognition/add-to-library',{method:'POST',body:{id},timeoutMs:60000,retries:0});state.recognitionHistory=d.history||[];renderMusicRecognitionHistory();await loadSongs(true);toast(d.message||'Pesma je dodata u Biblioteku.','success',10000);}catch(e){toast(e.message,'error',12000);}}
 async function openRecognitionFolder(){try{const d=await api('/api/music-recognition/status');await api('/api/open-folder',{method:'POST',body:{path:d.folder}});}catch(e){toast(e.message,'error');}}
 
-async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
+async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); applyA11ySettings(loadA11ySettings()); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
 document.addEventListener('DOMContentLoaded', init);
