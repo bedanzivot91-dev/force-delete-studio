@@ -5,95 +5,114 @@
              x:DataType="vm:StartScreenViewModel">
 
   <ScrollViewer>
-    <StackPanel Margin="24" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+    <StackPanel Margin="32,28,32,32" Spacing="24" MaxWidth="1180" HorizontalAlignment="Stretch">
 
-      <Border Classes="panel" Padding="16" IsVisible="{Binding HasRecoveryMessage}" Background="#4D2A2A">
-        <StackPanel Spacing="8">
+      <StackPanel Spacing="2">
+        <TextBlock Text="DOBRODOŠLI" Classes="eyebrow" />
+        <TextBlock Text="Šta pravimo danas?" Classes="heading" />
+      </StackPanel>
+
+      <Border Classes="panel" Padding="18" IsVisible="{Binding HasRecoveryMessage}"
+              Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
+        <StackPanel Spacing="10">
           <TextBlock Text="{Binding RecoveryMessage}" TextWrapping="Wrap" />
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Classes="accent" Content="Nastavi od automatskog čuvanja" Command="{Binding RecoverAutoSaveCommand}" />
-            <Button Content="Zanemari" Command="{Binding DismissRecoveryCommand}" />
+            <Button Classes="cta" Content="Nastavi od automatskog čuvanja" Command="{Binding RecoverAutoSaveCommand}" />
+            <Button Classes="ghost" Content="Zanemari" Command="{Binding DismissRecoveryCommand}" />
           </StackPanel>
         </StackPanel>
       </Border>
 
-      <TextBlock Text="Novi projekat" FontSize="20" FontWeight="Bold" />
+      <TextBlock Text="Novi projekat" Classes="section" />
       <WrapPanel>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewProjectCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Novi projekat" FontWeight="Bold" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewProjectCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="+" /></Border>
+            <TextBlock Text="Novi projekat" FontWeight="SemiBold" />
             <TextBlock Classes="subtle" Text="Izaberite format ručno" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenProjectCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Otvori projekat" FontWeight="Bold" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenProjectCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="📂" /></Border>
+            <TextBlock Text="Otvori projekat" FontWeight="SemiBold" />
             <TextBlock Classes="subtle" Text="Iz .npvsproject fajla" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewYouTubeVideoCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Kreiraj YouTube video" FontWeight="Bold" />
-            <TextBlock Classes="subtle" Text="16:9, 1920x1080, 30 fps" TextWrapping="Wrap" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewYouTubeVideoCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="▶" /></Border>
+            <TextBlock Text="YouTube video" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="16:9 · 1920x1080 · 30 fps" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewYouTubeShortsCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Kreiraj YouTube Shorts" FontWeight="Bold" />
-            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewYouTubeShortsCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="⚡" /></Border>
+            <TextBlock Text="YouTube Shorts" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewTikTokCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Kreiraj TikTok video" FontWeight="Bold" />
-            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewTikTokCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="♪" /></Border>
+            <TextBlock Text="TikTok video" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewInstagramReelCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Kreiraj Instagram Reel" FontWeight="Bold" />
-            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewInstagramReelCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="◎" /></Border>
+            <TextBlock Text="Instagram Reel" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding NewFacebookReelCommand}">
-          <StackPanel Spacing="4">
-            <TextBlock Text="Kreiraj Facebook Reel" FontWeight="Bold" />
-            <TextBlock Classes="subtle" Text="9:16, 1080x1920, 30 fps" TextWrapping="Wrap" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewFacebookReelCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="f" FontWeight="Bold" /></Border>
+            <TextBlock Text="Facebook Reel" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
       </WrapPanel>
 
-      <TextBlock Text="Nedavni projekti" FontSize="20" FontWeight="Bold" />
-      <Border Classes="panel" Padding="8" IsVisible="{Binding !HasRecentProjects}">
-        <TextBlock Classes="subtle" Text="Još nema nedavnih projekata." Margin="8" />
+      <TextBlock Text="Nedavni projekti" Classes="section" />
+      <Border Classes="panel" Padding="20" IsVisible="{Binding !HasRecentProjects}">
+        <TextBlock Classes="subtle" Text="Još nema nedavnih projekata. Napravite novi ili otvorite postojeći iznad." />
       </Border>
       <ItemsControl ItemsSource="{Binding RecentProjects}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:RecentProjectItemViewModel">
-            <Border Classes="panel" Padding="12" Margin="0,0,0,8">
+            <Border Classes="panel" Padding="16,14" Margin="0,0,0,10">
               <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                <StackPanel>
-                  <TextBlock Text="{Binding ProjectName}" FontWeight="Bold" />
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" />
                   <TextBlock Classes="subtle" Text="{Binding AspectRatioLabel}" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Classes="subtle" VerticalAlignment="Center" Margin="8,0"
-                           Text="Fajl nije pronađen" IsVisible="{Binding IsMissing}" Foreground="OrangeRed" />
-                <Button Grid.Column="2" Content="Otvori" Margin="8,0"
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="8,0"
+                           Text="Fajl nije pronađen" IsVisible="{Binding IsMissing}" Foreground="#E06060" FontSize="12.5" />
+                <Button Grid.Column="2" Classes="cta" Content="Otvori" Margin="8,0" Padding="14,8"
                         Command="{Binding OpenCommand}" IsEnabled="{Binding !IsMissing}" />
-                <Button Grid.Column="3" Content="Ukloni" Command="{Binding RemoveCommand}" />
+                <Button Grid.Column="3" Classes="ghost" Content="Ukloni" Command="{Binding RemoveCommand}" />
               </Grid>
             </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <TextBlock Text="Ostale funkcije" FontSize="20" FontWeight="Bold" />
+      <TextBlock Text="Ostale funkcije" Classes="section" />
       <WrapPanel>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenSettingsCommand}">
-          <TextBlock Text="Podešavanja" FontWeight="Bold" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenSettingsCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="⚙" /></Border>
+            <TextBlock Text="Podešavanja" FontWeight="SemiBold" />
+          </StackPanel>
         </Button>
-        <Button Classes="tile" Width="220" Margin="0,0,12,12" Command="{Binding OpenDiagnosticsCommand}">
-          <TextBlock Text="Dijagnostika sistema" FontWeight="Bold" />
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenDiagnosticsCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="✓" /></Border>
+            <TextBlock Text="Dijagnostika sistema" FontWeight="SemiBold" />
+          </StackPanel>
         </Button>
         <ItemsControl ItemsSource="{Binding PlannedFeatures}">
           <ItemsControl.ItemsPanel>
@@ -103,10 +122,10 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-              <Button Classes="tile" Width="220" Margin="0,0,12,12" IsEnabled="False">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding}" FontWeight="Bold" />
-                  <TextBlock Classes="subtle" Text="Uskoro - u razvoju" />
+              <Button Classes="tile" Width="216" Margin="0,0,14,14" IsEnabled="False">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding}" FontWeight="SemiBold" />
+                  <TextBlock Classes="subtle" Text="Uskoro — u razvoju" />
                 </StackPanel>
               </Button>
             </DataTemplate>

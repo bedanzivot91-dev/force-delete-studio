@@ -5,8 +5,10 @@
   <Application.Styles>
     <FluentTheme />
 
+    <!-- ===== Base typography & window chrome ===== -->
     <Style Selector="Window">
       <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
+      <Setter Property="FontSize" Value="14" />
     </Style>
 
     <Style Selector="TextBlock">
@@ -15,20 +17,87 @@
 
     <Style Selector="TextBlock.subtle">
       <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}" />
+      <Setter Property="FontSize" Value="13" />
     </Style>
 
+    <Style Selector="TextBlock.heading">
+      <Setter Property="FontSize" Value="24" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,4,0,2" />
+    </Style>
+
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <!-- ===== Cards & panels ===== -->
     <Style Selector="Border.panel">
       <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
       <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCardCornerRadius}" />
     </Style>
 
-    <Style Selector="Button.accent">
+    <Style Selector="Border.surface">
+      <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+    </Style>
+
+    <!-- ===== Buttons ===== -->
+    <Style Selector="Button">
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="Padding" Value="14,9" />
+      <Setter Property="FontSize" Value="13.5" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.12" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeHoverBrush}" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemePressedBrush}" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+    <Style Selector="Button.cta">
       <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}" />
       <Setter Property="Foreground" Value="White" />
-      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
-      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="18,11" />
+    </Style>
+    <Style Selector="Button.cta:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.cta:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}" />
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeHoverBrush}" />
     </Style>
 
     <Style Selector="Button.tile">
@@ -36,9 +105,117 @@
       <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
       <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
-      <Setter Property="Padding" Value="16" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCardCornerRadius}" />
+      <Setter Property="Padding" Value="18" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Button.tile:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeHoverBrush}" />
+    </Style>
+    <Style Selector="Button.tile:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <!-- ===== Icon badge used on start-screen tiles ===== -->
+    <Style Selector="Border.iconBadge">
+      <Setter Property="Width" Value="38" />
+      <Setter Property="Height" Value="38" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}" />
+      <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+    <Style Selector="Border.iconBadge > TextBlock">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <!-- ===== Inputs ===== -->
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource ThemeAccentSubtleBrush}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="Padding" Value="12,9" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeHoverBrush}" />
+    </Style>
+
+    <Style Selector="NumericUpDown">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+      <Setter Property="FontSize" Value="13.5" />
+    </Style>
+    <Style Selector="CheckBox /template/ Border#NormalRectangle">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="CornerRadius" Value="5" />
+    </Style>
+    <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton">
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource ThemeBorderThickness}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ToggleButton:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}" />
+    </Style>
+    <Style Selector="ToggleButton:checked">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+
+    <Style Selector="Expander">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
+    </Style>
+    <Style Selector="Expander /template/ ToggleButton#PART_toggle">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ThemeCornerRadius}" />
+    </Style>
+
+    <Style Selector="ItemsControl">
+      <Setter Property="Background" Value="Transparent" />
     </Style>
   </Application.Styles>
 

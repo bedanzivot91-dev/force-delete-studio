@@ -43,6 +43,9 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
+            // Deliberately NOT using Avalonia.Fonts.Inter: it was found to corrupt uppercase
+            // caron letters (Š/Č/Ž) at several point sizes - a hard blocker for a Serbian-language
+            // app. The platform default font (Segoe UI on Windows) renders Serbian Latin correctly
+            // at every size/weight and is what the app now uses everywhere.
             .LogToTrace();
 }

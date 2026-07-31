@@ -28,6 +28,14 @@ public sealed partial class DiagnosticCheckItemViewModel : ViewModelBase
         _ => "?"
     };
 
+    public string StatusColorHex => Result.Status switch
+    {
+        DiagnosticStatus.Ok => "#2FD498",
+        DiagnosticStatus.Warning => "#F5A623",
+        DiagnosticStatus.Error => "#E06060",
+        _ => "#8B92A5"
+    };
+
     public bool CanAutoFix => Result.CanAutoFix;
 
     [RelayCommand]
@@ -38,6 +46,7 @@ public sealed partial class DiagnosticCheckItemViewModel : ViewModelBase
         {
             Result = await _diagnosticsService.TryAutoFixAsync(Result.CheckName);
             OnPropertyChanged(nameof(StatusGlyph));
+            OnPropertyChanged(nameof(StatusColorHex));
             OnPropertyChanged(nameof(CanAutoFix));
         }
         finally

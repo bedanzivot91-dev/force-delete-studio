@@ -6,13 +6,13 @@
              DragDrop.AllowDrop="True">
 
   <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="panel" Padding="16,10" BorderThickness="0,0,0,1">
+    <Border DockPanel.Dock="Top" Classes="surface" Padding="24,16" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="*,Auto">
-        <StackPanel>
-          <TextBlock Text="{Binding Project.Name}" FontSize="18" FontWeight="Bold" />
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding Project.Name}" FontSize="19" FontWeight="SemiBold" />
           <TextBlock Classes="subtle">
             <TextBlock.Text>
-              <MultiBinding StringFormat="{}{0}x{1} • {2:0.##} fps • {3}">
+              <MultiBinding StringFormat="{}{0}×{1}  ·  {2:0.##} fps  ·  {3}">
                 <Binding Path="Project.Format.Width" />
                 <Binding Path="Project.Format.Height" />
                 <Binding Path="Project.Format.Fps" />
@@ -21,22 +21,22 @@
             </TextBlock.Text>
           </TextBlock>
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="subtle" />
-          <Button Content="Sačuvaj projekat" Command="{Binding SaveProjectCommand}" />
-          <Button Classes="accent" Content="Dodaj medije" Command="{Binding ImportMediaCommand}" />
+          <Button Classes="ghost" Content="Sačuvaj projekat" Command="{Binding SaveProjectCommand}" />
+          <Button Classes="cta" Content="Dodaj medije" Command="{Binding ImportMediaCommand}" />
         </StackPanel>
       </Grid>
     </Border>
 
     <Grid RowDefinitions="*,Auto">
-      <Border Margin="16" Classes="panel" Padding="0">
+      <Border Margin="20" Classes="panel" Padding="0">
         <DockPanel>
-          <Border DockPanel.Dock="Top" Padding="12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
-            <TextBlock Text="Media biblioteka" FontWeight="Bold" />
+          <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
+            <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
           </Border>
 
-          <Border IsVisible="{Binding !HasMedia}" Padding="24">
+          <Border IsVisible="{Binding !HasMedia}" Padding="40">
             <TextBlock Classes="subtle" Text="Prevucite video, audio ili slike ovde, ili kliknite „Dodaj medije“." TextWrapping="Wrap" HorizontalAlignment="Center" />
           </Border>
 
@@ -62,9 +62,9 @@
         </DockPanel>
       </Border>
 
-      <Border Grid.Row="1" Classes="panel" Margin="16,0,16,16" Padding="16">
+      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,20" Padding="18">
         <StackPanel Spacing="4">
-          <TextBlock Text="Timeline" FontWeight="Bold" />
+          <TextBlock Text="Timeline" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
                       Text="Timeline montaža (sečenje, trake, tekst, titlovi, efekti) je u razvoju i dolazi u narednim fazama. Media biblioteka i uvoz fajlova iznad su potpuno funkcionalni." />
         </StackPanel>

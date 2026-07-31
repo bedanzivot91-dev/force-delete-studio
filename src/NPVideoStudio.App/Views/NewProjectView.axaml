@@ -6,68 +6,75 @@
              x:DataType="vm:NewProjectViewModel">
 
   <ScrollViewer>
-    <StackPanel Margin="24" Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
-      <TextBlock Text="Novi projekat" FontSize="22" FontWeight="Bold" />
-
-      <StackPanel Spacing="6">
-        <TextBlock Text="Naziv projekta" />
-        <TextBox Text="{Binding ProjectName}" />
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="620" HorizontalAlignment="Left">
+      <StackPanel Spacing="2">
+        <TextBlock Text="NOVI PROJEKAT" Classes="eyebrow" />
+        <TextBlock Text="Podesi format projekta" Classes="heading" />
       </StackPanel>
 
-      <StackPanel Spacing="6">
-        <TextBlock Text="Format (odnos stranica)" />
-        <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" HorizontalAlignment="Stretch">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="x:Object">
-              <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
-      </StackPanel>
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Naziv projekta" Classes="subtle" />
+            <TextBox Text="{Binding ProjectName}" />
+          </StackPanel>
 
-      <StackPanel Spacing="6">
-        <TextBlock Text="Rezolucija" />
-        <ComboBox ItemsSource="{Binding ResolutionOptions}" SelectedItem="{Binding SelectedResolution}" HorizontalAlignment="Stretch">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="x:Object">
-              <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
-      </StackPanel>
+          <StackPanel Spacing="6">
+            <TextBlock Text="Format (odnos stranica)" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
 
-      <StackPanel Spacing="6" IsVisible="{Binding IsCustomResolution}">
-        <TextBlock Text="Ručna rezolucija (širina x visina)" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <NumericUpDown Value="{Binding CustomWidth}" Minimum="16" Maximum="7680" Width="140" />
-          <TextBlock Text="x" VerticalAlignment="Center" />
-          <NumericUpDown Value="{Binding CustomHeight}" Minimum="16" Maximum="7680" Width="140" />
+          <StackPanel Spacing="6">
+            <TextBlock Text="Rezolucija" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding ResolutionOptions}" SelectedItem="{Binding SelectedResolution}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Spacing="6" IsVisible="{Binding IsCustomResolution}">
+            <TextBlock Text="Ručna rezolucija (širina x visina)" Classes="subtle" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <NumericUpDown Value="{Binding CustomWidth}" Minimum="16" Maximum="7680" Width="150" />
+              <TextBlock Text="×" VerticalAlignment="Center" Classes="subtle" />
+              <NumericUpDown Value="{Binding CustomHeight}" Minimum="16" Maximum="7680" Width="150" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Frame rate" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding FrameRateOptions}" SelectedItem="{Binding SelectedFrameRate}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Spacing="6" IsVisible="{Binding IsCustomFrameRate}">
+            <TextBlock Text="Ručni FPS" Classes="subtle" />
+            <NumericUpDown Value="{Binding CustomFps}" Minimum="1" Maximum="240" Width="150" />
+          </StackPanel>
         </StackPanel>
-      </StackPanel>
-
-      <StackPanel Spacing="6">
-        <TextBlock Text="Frame rate" />
-        <ComboBox ItemsSource="{Binding FrameRateOptions}" SelectedItem="{Binding SelectedFrameRate}" HorizontalAlignment="Stretch">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="x:Object">
-              <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
-      </StackPanel>
-
-      <StackPanel Spacing="6" IsVisible="{Binding IsCustomFrameRate}">
-        <TextBlock Text="Ručni FPS" />
-        <NumericUpDown Value="{Binding CustomFps}" Minimum="1" Maximum="240" Width="140" />
-      </StackPanel>
-
-      <Border Classes="panel" Padding="12">
-        <TextBlock Text="{Binding PreviewLabel}" FontWeight="Bold" />
       </Border>
 
-      <TextBlock Text="{Binding ErrorMessage}" Foreground="OrangeRed" IsVisible="{Binding HasErrorMessage}" TextWrapping="Wrap" />
+      <Border CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="16,14" Background="{DynamicResource ThemeAccentSubtleBrush}">
+        <TextBlock Text="{Binding PreviewLabel}" FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentBrush}" />
+      </Border>
 
-      <Button Classes="accent" Content="Napravi projekat" Command="{Binding CreateCommand}" HorizontalAlignment="Left" />
+      <TextBlock Text="{Binding ErrorMessage}" Foreground="#E06060" IsVisible="{Binding HasErrorMessage}" TextWrapping="Wrap" />
+
+      <Button Classes="cta" Content="Napravi projekat" Command="{Binding CreateCommand}" HorizontalAlignment="Left" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>
