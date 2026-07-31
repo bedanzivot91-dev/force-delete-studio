@@ -1,5 +1,22 @@
 //go:build windows
 
+// Suno Pesme Studio launcher.
+//
+// This replaces the previous implementation, which opened the app UI by
+// shelling out to Chrome/Edge/Brave with --app=http://127.0.0.1:8765/ (or,
+// failing that, the OS default browser via rundll32 url.dll). That is
+// exactly the "browser tab" / "visible localhost" pattern the product spec
+// forbids for the desktop build: no address bar control, no taskbar/window
+// identity of our own, and a hard dependency on the user having one of
+// those three browsers installed.
+//
+// The UI is now hosted directly inside a native WebView2 window owned by
+// this process (github.com/jchv/go-webview2 -- a pure-Go, CGO-free binding
+// over the WebView2 COM API, cross-compiles cleanly from a non-Windows
+// host). The Python backend is still a hidden loopback-only HTTP server
+// (app/server.py binds 127.0.0.1 only and validates Origin); the WebView2
+// window simply navigates to it internally, with no address bar or browser
+// chrome for the user to see or tamper with.
 package main
 
 import (
@@ -13,25 +30,39 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	webview2 "github.com/jchv/go-webview2"
 )
 
 const (
 	appName           = "Suno Pesme Studio"
+	windowTitle       = "Suno Pesme Studio 3.3.2"
 	version           = "3.3.2"
-	healthURL         = "http://127.0.0.1:8765/api/health"
-	appURL            = "http://127.0.0.1:8765/"
+	appPort           = "8765"
+	healthURL         = "http://127.0.0.1:" + appPort + "/api/health"
+	appURL            = "http://127.0.0.1:" + appPort + "/"
 	createNoWindow    = 0x08000000
 	mbOK              = 0x00000000
 	mbIconError       = 0x00000010
 	mbIconInformation = 0x00000040
+	singleInstanceMtx = "Local\\SunoPesmeStudio_3_3_2_SingleInstance"
+	mainWindowClass   = "SunoPesmeStudioMainWindow"
+	errorAlreadyExist = 183
 )
 
 var (
-	user32      = syscall.NewLazyDLL("user32.dll")
-	messageBoxW = user32.NewProc("MessageBoxW")
+	user32          = syscall.NewLazyDLL("user32.dll")
+	kernel32        = syscall.NewLazyDLL("kernel32.dll")
+	messageBoxW     = user32.NewProc("MessageBoxW")
+	findWindowW     = user32.NewProc("FindWindowW")
+	setForegroundW  = user32.NewProc("SetForegroundWindow")
+	showWindowProc  = user32.NewProc("ShowWindow")
+	createMutexW    = kernel32.NewProc("CreateMutexW")
+	getLastError    = kernel32.NewProc("GetLastError")
 )
 
 func u16(s string) *uint16 { p, _ := syscall.UTF16PtrFromString(s); return p }
+
 func message(title, text string, flags uint32) {
 	messageBoxW.Call(0, uintptr(unsafe.Pointer(u16(text))), uintptr(unsafe.Pointer(u16(title))), uintptr(flags))
 }
@@ -112,6 +143,7 @@ func startWatchdog(root string) error {
 		"SUNO_STUDIO_PUBLISHED_DIR="+filepath.Join(data, "Objavljene_pesme"),
 		"SUNO_STUDIO_LIBRARY_DIR="+filepath.Join(data, "Biblioteka_pesama"),
 		"SUNO_STUDIO_RECOGNITION_DIR="+filepath.Join(data, "Pronalazac_pesme"),
+		"SUNO_STUDIO_PORT="+appPort,
 		"SUNO_AUTO_OPEN=0",
 		"PYTHONUTF8=1",
 		"PYTHONIOENCODING=utf-8",
@@ -123,34 +155,16 @@ func startWatchdog(root string) error {
 	return cmd.Start()
 }
 
-func browserCandidates() []string {
-	var paths []string
-	for _, base := range []string{os.Getenv("PROGRAMFILES(X86)"), os.Getenv("PROGRAMFILES"), os.Getenv("LOCALAPPDATA")} {
-		if strings.TrimSpace(base) == "" {
-			continue
-		}
-		paths = append(paths,
-			filepath.Join(base, "Microsoft", "Edge", "Application", "msedge.exe"),
-			filepath.Join(base, "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(base, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-		)
+func shutdownBackend() {
+	c := &http.Client{Timeout: 2 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+appPort+"/api/shutdown", nil)
+	if err != nil {
+		return
 	}
-	return paths
-}
-
-func openAppWindow() error {
-	for _, p := range browserCandidates() {
-		if st, err := os.Stat(p); err == nil && !st.IsDir() {
-			cmd := exec.Command(p, "--app="+appURL, "--new-window")
-			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-			if err := cmd.Start(); err == nil {
-				return nil
-			}
-		}
+	resp, err := c.Do(req)
+	if err == nil {
+		resp.Body.Close()
 	}
-	cmd := exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", appURL)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd.Start()
 }
 
 func selfTest(root string) error {
@@ -158,6 +172,49 @@ func selfTest(root string) error {
 		return fmt.Errorf("nedostaju fajlovi:\n• %s", strings.Join(missing, "\n• "))
 	}
 	return nil
+}
+
+// acquireSingleInstance returns true if this process is the first instance.
+// If another instance already owns the mutex, it tries to bring that
+// instance's window to the foreground and the caller should exit.
+func acquireSingleInstance() bool {
+	h, _, _ := createMutexW.Call(0, 0, uintptr(unsafe.Pointer(u16(singleInstanceMtx))))
+	if h == 0 {
+		return true // couldn't create mutex, don't block startup over it
+	}
+	errCode, _, _ := getLastError.Call()
+	if errCode == errorAlreadyExist {
+		hwnd, _, _ := findWindowW.Call(0, uintptr(unsafe.Pointer(u16(windowTitle))))
+		if hwnd != 0 {
+			const swRestore = 9
+			showWindowProc.Call(hwnd, swRestore)
+			setForegroundW.Call(hwnd)
+		}
+		return false
+	}
+	return true
+}
+
+func showNativeWindow() {
+	w := webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug:     false,
+		AutoFocus: true,
+		WindowOptions: webview2.WindowOptions{
+			Title:  windowTitle,
+			Width:  1360,
+			Height: 860,
+			Center: true,
+		},
+	})
+	if w == nil {
+		message(appName, "WebView2 runtime nije dostupan na ovom sistemu.\r\n\r\nInstaliraj ponovo program (INSTALIRAJ_PROGRAM.exe), koji ugrađuje potreban WebView2 Runtime.", mbOK|mbIconError)
+		shutdownBackend()
+		return
+	}
+	defer w.Destroy()
+	w.Navigate(appURL)
+	w.Run()
+	shutdownBackend()
 }
 
 func main() {
@@ -179,6 +236,12 @@ func main() {
 		_ = cmd.Start()
 		return
 	}
+
+	if !acquireSingleInstance() {
+		// Another instance is already running and was just focused.
+		return
+	}
+
 	if err := selfTest(root); err != nil {
 		message(appName+" — nepotpuna instalacija",
 			"Program nije kompletno instaliran.\r\n\r\n"+err.Error()+
@@ -206,7 +269,5 @@ func main() {
 			mbOK|mbIconError)
 		return
 	}
-	if err := openAppWindow(); err != nil {
-		message(appName, "Program radi lokalno, ali prozor nije mogao da se otvori:\r\n"+err.Error(), mbOK|mbIconInformation)
-	}
+	showNativeWindow()
 }

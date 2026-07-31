@@ -1,0 +1,79 @@
+{
+  "python_version": "3.13.12 (main, Feb  4 2026, 09:25:39) [GCC 13.3.0]",
+  "modules_checked": 18,
+  "results": {
+    "advanced_features": {
+      "status": "OK",
+      "optional": false
+    },
+    "audio_match": {
+      "status": "OK",
+      "optional": false
+    },
+    "audio_tools": {
+      "status": "OK",
+      "optional": false
+    },
+    "bootstrap": {
+      "status": "OK",
+      "optional": false
+    },
+    "cdp": {
+      "status": "OK",
+      "optional": true
+    },
+    "database": {
+      "status": "OK",
+      "optional": false
+    },
+    "id3": {
+      "status": "OK",
+      "optional": false
+    },
+    "music_recognition": {
+      "status": "OK",
+      "optional": false
+    },
+    "security_lock": {
+      "status": "OK",
+      "optional": false
+    },
+    "server": {
+      "status": "OK",
+      "optional": false
+    },
+    "suno_client": {
+      "status": "OK",
+      "optional": false
+    },
+    "suno_compat": {
+      "status": "OK",
+      "optional": false
+    },
+    "v3_features": {
+      "status": "OK",
+      "optional": false
+    },
+    "watchdog": {
+      "status": "OK",
+      "optional": false
+    },
+    "youtube_oauth": {
+      "status": "OK",
+      "optional": false
+    },
+    "youtube_tools": {
+      "status": "OK",
+      "optional": false
+    },
+    "stems_worker": {
+      "status": "OK",
+      "optional": true
+    },
+    "transcribe_worker": {
+      "status": "OK",
+      "optional": true
+    }
+  },
+  "required_failed": []
+}
