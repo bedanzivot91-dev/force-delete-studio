@@ -26,6 +26,7 @@
     <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Infrastructure\NPVideoStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Media\NPVideoStudio.Media.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.AI\NPVideoStudio.AI.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Diagnostics\NPVideoStudio.Diagnostics.csproj" />
   </ItemGroup>
 

@@ -40,6 +40,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.SettingsRequested += () => CurrentPage = CreateSettingsPage();
         vm.DiagnosticsRequested += () => CurrentPage = CreateDiagnosticsPage();
         vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
+        vm.LyricSearchRequested += () => CurrentPage = _services.GetRequiredService<LyricSearchViewModel>();
 
         CurrentPage = vm;
         await vm.InitializeAsync();

@@ -15,10 +15,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="TestAssets\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.Infrastructure\NPVideoStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.Media\NPVideoStudio.Media.csproj" />
+    <ProjectReference Include="..\..\src\NPVideoStudio.AI\NPVideoStudio.AI.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.Diagnostics\NPVideoStudio.Diagnostics.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.App\NPVideoStudio.App.csproj" />
   </ItemGroup>

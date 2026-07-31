@@ -41,11 +41,18 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   trajanju od 30 do 50 sekundi (podesivo), koje možete izvesti kao zasebne audio fajlove — spremne kao
   sirovi materijal za najavu pesme na YouTube Shorts/TikTok/Reels. Ovo je heuristika po glasnoći, ne
   prepoznavanje refrena, i program to jasno kaže u samom interfejsu.
+- **Pronađi tekst u pesmi** (Alati → Pronađi tekst u pesmi): ukucate stih, program lokalno transkribuje
+  pevanje preko Whisper-a (model se preuzima samo uz vaš izričit klik na dugme, ~75 MB, jednom) i
+  prikaže gde misli da se taj tekst peva, sa procenom tačnosti za svako mesto (prepoznavanje pevanja je
+  manje pouzdano od govora, program to ne krije). Svako pronađeno mesto može da se izveze kao poseban
+  audio isečak. Radi na sopstvenim pesmama - npr. numere sa Suno profila ili sopstvenih YouTube kanala.
 
-Sve navedeno je pokriveno sa 32 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 43 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
-dijagnostika rade bez grešaka.
+dijagnostika rade bez grešaka. Tri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
+gde ima interneta do huggingface.co (radi na CI-ju i na krajnjem korisničkom računaru; ne radi u
+ograničenom razvojnom sandboxu bez tog pristupa - videćete jasno zbog čega u samom testu).
 
 ### Šta JOŠ NIJE implementirano (planirano za naredne faze)
 
@@ -53,7 +60,8 @@ Ovo je **jasno označeno u samom programu** (dugmad su vidljivo onemogućena, sa
 razvoju"), ne prikazuje se kao gotovo:
 
 - Timeline montaža: sečenje, trake, prelazi, keyframe animacije.
-- Tekstualni sistem, titlovi i automatsko prepoznavanje govora (Whisper).
+- Tekstualni sistem i automatski titlovi za video (Whisper transkripcija sada postoji za pretragu
+  teksta u pesmi, ali još nije povezana sa generisanjem titlova na video timeline-u).
 - Video-efekti, maske, chroma key, prelazi.
 - Audio editor (EQ, noise reduction, ducking...), snimanje mikrofona.
 - Render/export videa (MP4/H.264 i ostali formati).
@@ -195,6 +203,7 @@ src/
   NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics...)
   NPVideoStudio.Infrastructure/  SQLite, JSON perzistencija, auto-save, logovanje (Serilog)
   NPVideoStudio.Media/           FFprobe analiza medijskih fajlova, isečci iz pesme (FFmpeg astats)
+  NPVideoStudio.AI/              Lokalna Whisper transkripcija za pretragu teksta u pesmi
   NPVideoStudio.Diagnostics/     Sistemska dijagnostika i paket za podršku
 tests/
   NPVideoStudio.UnitTests/       xUnit + Avalonia.Headless testovi

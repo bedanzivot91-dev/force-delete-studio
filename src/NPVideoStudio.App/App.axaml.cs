@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Styling;
 using Microsoft.Extensions.DependencyInjection;
+using NPVideoStudio.AI;
 using NPVideoStudio.Core.Diagnostics;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Diagnostics;
@@ -65,11 +66,13 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IStorageService>(sp => new StorageService(() => (Current as App)?.MainWindowRef));
         services.AddSingleton<ISongHighlightService>(sp =>
             new SongHighlightService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        services.AddSingleton<ILyricSearchService>(_ => new LyricSearchService(settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<DiagnosticsViewModel>();
         services.AddTransient<SongHighlightsViewModel>();
+        services.AddTransient<LyricSearchViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

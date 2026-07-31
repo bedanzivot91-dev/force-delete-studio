@@ -40,4 +40,6 @@ public sealed class AppSettings
     public static string DatabasePath() => Path.Combine(AppDataRoot(), "npvideostudio.db");
 
     public static string AutoSaveFolder() => Path.Combine(AppDataRoot(), "AutoSave");
+
+    public static string ModelsFolder() => Path.Combine(AppDataRoot(), "Models");
 }
