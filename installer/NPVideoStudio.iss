@@ -37,7 +37,9 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
 [Languages]
-Name: "serbianlatin"; MessagesFile: "compiler:Languages\SerbianLatin.isl"
+; SerbianLatin.isl is part of Inno Setup's optional Translations pack, not the base compiler install
+; (the CI runner's Chocolatey "innosetup" package only ships Default.isl) - using English wizard chrome
+; keeps the installer buildable everywhere. The app itself and all its content stay in Serbian.
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
