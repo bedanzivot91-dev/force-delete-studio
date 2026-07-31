@@ -10,6 +10,7 @@ const state = {
   youtubeAudioResults: [], youtubeAudioSummary: null, youtubeMatrix: {channels:[],rows:[]}, youtubeCoverage: {rows:[],channels:[],summary:{}}, youtubeExtraReport: {duplicates:[],mixes:[],repeats:[],version_types:[]}, ytdlp: null, youtubeOAuth: null,
   page: 0, pageSize: 100, totalFiltered: 0, subtitleCues: [], advancedStatus: null, security: null,
   recognitionHistory: [], recognitionCurrent: null, watchedFolders: [],
+  songFinderResults: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -120,7 +121,7 @@ function showView(name) {
   if (name === 'stats') loadStats(); if (name === 'logs') loadLogs(); if (name === 'folders') renderFolders(); if (name === 'audio') loadAudioToolsStatus();
   if (name === 'download' || name === 'tools') updateSelectionUi();
   if (name === 'tools') { loadYoutubeCenter(); loadAdvancedStatus(); }
-  if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); }
+  if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadSongFinderResults(); }
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
   if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
@@ -261,7 +262,7 @@ function renderTask(task) {
   $('taskLogs').innerHTML = (task.logs || []).slice(-120).map((r) => `<div class="${escapeHtml(r.level)}">[${escapeHtml(r.time)}] ${escapeHtml(r.message)}</div>`).join('');
   if (task.status !== 'running' && !state.completedTasks.has(task.id)) {
     state.completedTasks.add(task.id); if (state.taskId === task.id) state.taskId = null; const toastKind=task.status==='done'?'success':(task.status==='partial'||task.status==='cancelled'?'warning':'error'); toast(task.message || 'Završeno.', toastKind, 15000);
-    Promise.all([loadSongs(), loadCollections(), loadStats(), loadLogs(), loadAudioToolsStatus()]).then(async () => { if (state.currentSong) await openSong(state.currentSong.id, false); if (task.type === 'sync' && task.status === 'done') showView('library'); if (['youtube_owned','youtube_global','youtube_audio_owned','youtube_audio_one'].includes(task.type)) await loadYoutubeCenter(); if(['import_folder','rescan_watched_folders'].includes(task.type)) await loadWatchedFolders(); });
+    Promise.all([loadSongs(), loadCollections(), loadStats(), loadLogs(), loadAudioToolsStatus()]).then(async () => { if (state.currentSong) await openSong(state.currentSong.id, false); if (task.type === 'sync' && task.status === 'done') showView('library'); if (['youtube_owned','youtube_global','youtube_audio_owned','youtube_audio_one'].includes(task.type)) await loadYoutubeCenter(); if(['import_folder','rescan_watched_folders'].includes(task.type)) await loadWatchedFolders(); if(task.type==='song_finder_index'){await loadSongFinderStatus();} });
   }
 }
 async function startBackground(path, body) { const data = await api(path, { method: 'POST', body }); state.taskId = data.task?.id || null; renderTask(data.task); return data; }
@@ -998,9 +999,17 @@ async function loadV3Status(){
   try{
     const d=await api('/api/v3/status',{timeoutMs:30000,retries:0});
     const r=d.preflight||{}; const tools=d.tools||{};
-    const toolLine=Object.entries(tools).map(([k,v])=>`${k}: ${v?.ready?'SPREMAN':'NIJE SPREMAN'}`).join(' · ');
+    // Each tool is shown exactly once here; d.panako duplicated this same
+    // "panako" entry as a second line previously (identical information,
+    // shown twice). Optional tools (e.g. panako) get a distinct label
+    // instead of a plain SPREMAN/NIJE SPREMAN so a missing optional addon
+    // doesn't read like a core-tool failure.
+    const toolLine=Object.entries(tools).map(([k,v])=>{
+      if(v?.ready)return `${k}: SPREMAN`;
+      return v?.optional?`${k}: opcioni dodatak, nije instaliran`:`${k}: NIJE SPREMAN`;
+    }).join(' · ');
     $('v3StatusBox').className=`panel inline-message ${r.readiness==='ready'?'success':r.readiness==='blocked'?'error':'warning'}`;
-    $('v3StatusBox').innerHTML=`<strong>${r.readiness==='ready'?'Računar je spreman':r.readiness==='blocked'?'Program ima blokirajuće probleme':'Računar je spreman uz ograničenja'}</strong><br>${escapeHtml(toolLine)}<br>Slobodan prostor: ${Number(d.storage?.disk?.free_gb||0).toFixed(1)} GB · Panako: ${d.panako?.ready?'spreman':'nije spreman'} · Watchdog: ${d.watchdog?'aktivan':'nije aktivan'}`;
+    $('v3StatusBox').innerHTML=`<strong>${r.readiness==='ready'?'Računar je spreman':r.readiness==='blocked'?'Program ima blokirajuće probleme':'Računar je spreman uz ograničenja'}</strong><br>${escapeHtml(toolLine)}<br>Slobodan prostor: ${Number(d.storage?.disk?.free_gb||0).toFixed(1)} GB · Watchdog: ${d.watchdog?'aktivan':'nije aktivan'}`;
   }catch(e){$('v3StatusBox').className='panel inline-message error';$('v3StatusBox').textContent=e.message;}
 }
 async function runV3Preflight(){try{const d=await api('/api/v3/preflight',{method:'POST',body:{},timeoutMs:60000,retries:0});v3Show(d.report,'Kompletna provera računara');toast(d.report?.readiness==='ready'?'Računar je spreman.':'Provera je završena uz upozorenja.','info',9000);loadV3Status();}catch(e){toast(e.message,'error',12000);}}
@@ -1078,6 +1087,7 @@ function bindEvents() {
   $('resetSunoFieldsBtn').addEventListener('click', resetCurrentSongEdits); $('deleteLibrarySongBtn').addEventListener('click', deleteCurrentSong); $('refreshHistoryBtn').addEventListener('click',loadSongHistory); $('saveSubtitleCuesBtn').addEventListener('click',saveSubtitleCues); $('compareYoutubeTextBtn').addEventListener('click',compareYoutubeText); $('shiftCuesBackBtn').addEventListener('click',()=>shiftSubtitleCues(-0.1)); $('shiftCuesForwardBtn').addEventListener('click',()=>shiftSubtitleCues(0.1)); $('addCueBtn').addEventListener('click',()=>{syncCuesFromEditor();const start=state.subtitleCues.length?state.subtitleCues.at(-1).end:0;state.subtitleCues.push({start,end:start+3,text:''});renderSubtitleCues();}); $('subtitleCueEditor').addEventListener('click',e=>{const b=e.target.closest('.cue-delete');if(!b)return;const row=b.closest('.subtitle-cue-row');row.remove();syncCuesFromEditor();renderSubtitleCues();});
   $('refreshAdvancedStatusBtn').addEventListener('click',loadAdvancedStatus); $('chooseIncrementalBackupDirBtn').addEventListener('click',()=>chooseFolder('incrementalBackupDir')); $('runIncrementalBackupBtn').addEventListener('click',runIncrementalBackup); $('chooseRelocateRootBtn').addEventListener('click',()=>chooseFolder('relocateRootDir')); $('runRelocateBtn').addEventListener('click',runRelocate); $('runQualityAnalysisBtn').addEventListener('click',runQuality); $('saveYoutubeScheduleBtn').addEventListener('click',saveYoutubeSchedule); $('chooseCloudBackupDirBtn').addEventListener('click',()=>chooseFolder('cloudBackupDir')); $('runCloudBackupBtn').addEventListener('click',runCloudBackup); $('chooseCloudRestoreBtn').addEventListener('click',chooseCloudRestore); $('restoreCloudBackupBtn').addEventListener('click',restoreCloudBackup); $('runStemsBtn').addEventListener('click',runStems); $('runTranscriptionBtn').addEventListener('click',runTranscription); $('installStemsBtn').addEventListener('click',installStemsPlugin); $('installTranscriptionBtn').addEventListener('click',installTranscriptionPlugin); $('saveUpdateUrlBtn').addEventListener('click',saveUpdateUrl); $('checkUpdateBtn').addEventListener('click',checkProgramUpdate); $('downloadUpdateBtn').addEventListener('click',downloadProgramUpdate);
   $('saveAuddTokenBtn')?.addEventListener('click',saveAuddToken); $('recognizeMusicBtn')?.addEventListener('click',recognizeMusic); $('chooseMusicRecognitionFileBtn')?.addEventListener('click',chooseMusicRecognitionFile); $('refreshRecognitionHistoryBtn')?.addEventListener('click',loadMusicRecognitionHistory); $('openRecognitionFolderBtn')?.addEventListener('click',openRecognitionFolder); $('musicRecognitionHistory')?.addEventListener('click',(e)=>{const show=e.target.closest('.recognition-show');if(show){const r=state.recognitionHistory.find(x=>Number(x.id)===Number(show.dataset.id));if(r)showRecognitionResult({...r,...(r.result||{}),history_id:r.id});}const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));}); $('musicRecognitionResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));});
+  $('chooseSongFinderFileBtn')?.addEventListener('click',chooseSongFinderFile); $('analyzeSongFinderBtn')?.addEventListener('click',analyzeSongFinder); $('songFinderIndexAllBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRefreshBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRebuildBtn')?.addEventListener('click',rebuildSongFinderIndex); $('refreshSongFinderResultsBtn')?.addEventListener('click',loadSongFinderResults); $('songFinderResults')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));}); $('songFinderResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));});
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('songModal').classList.add('hidden'); if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();showView('library');$('searchInput').focus();} if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();checkNewSongs();} if(e.code==='Space'&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)===false){e.preventDefault();const a=$('audioPlayer');a.paused?a.play().catch(()=>{}):a.pause();} });
 }
 
@@ -1118,5 +1128,51 @@ async function retryRecognition(id){try{const d=await api('/api/music-recognitio
 async function addRecognitionToLibrary(id){try{const d=await api('/api/music-recognition/add-to-library',{method:'POST',body:{id},timeoutMs:60000,retries:0});state.recognitionHistory=d.history||[];renderMusicRecognitionHistory();await loadSongs(true);toast(d.message||'Pesma je dodata u Biblioteku.','success',10000);}catch(e){toast(e.message,'error',12000);}}
 async function openRecognitionFolder(){try{const d=await api('/api/music-recognition/status');await api('/api/open-folder',{method:'POST',body:{path:d.folder}});}catch(e){toast(e.message,'error');}}
 
-async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); applyA11ySettings(loadA11ySettings()); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
+async function loadSongFinderStatus(){
+  try{const d=await api('/api/song-finder/status',{timeoutMs:15000,retries:0});
+    if($('songFinderIndexedCount'))$('songFinderIndexedCount').textContent=String(Number(d.songs_indexed||0));
+    const box=$('songFinderIndexStatus');if(box){const ok=Number(d.songs_indexed||0)>0;box.className=`inline-message ${ok?'success':'warning'}`;box.textContent=`Indeksirano: ${Number(d.songs_indexed||0)} / ${Number(d.songs_with_audio||0)} pesama sa lokalnim audio fajlom (od ukupno ${Number(d.songs_total||0)} u Biblioteci).`+(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.');}
+  }catch(e){const box=$('songFinderIndexStatus');if(box){box.className='inline-message error';box.textContent=e.message;}}
+}
+function songFinderBadge(status){
+  if(status==='confirmed')return '<span class="match-score">POTVRĐENO</span>';
+  if(status==='possible')return '<span class="match-score warning">MOGUĆE PODUDARANJE</span>';
+  return '<span class="match-score warning">NIJE PRONAĐENA MOJA PESMA</span>';
+}
+function songFinderResultCard(r){
+  const res=r?.result||r||{};
+  if(!res.found){return `<article class="youtube-match-card"><div class="youtube-match-main">${songFinderBadge('not_found')}<h3>${escapeHtml(r?.original_filename||res.file||'Isečak')}</h3><p>Provereno pesama u indeksu: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}.</p></div></article>`;}
+  const p=res.primary||{};
+  const timing=`Pesma: ${Number(p.song_start||0).toFixed(1)}s–${Number(p.song_end||0).toFixed(1)}s · Isečak: ${Number(p.clip_start||0).toFixed(1)}s–${Number(p.clip_end||0).toFixed(1)}s`;
+  const alts=(res.alternatives||[]).map(a=>`<li>${escapeHtml(a.title||a.song_id)} — ${songFinderBadge(a.status)} (${Number(a.confidence||0)}%)</li>`).join('');
+  const historyId=Number(r?.history_id||res.history_id||r?.id||0);
+  return `<article class="youtube-match-card"><div class="youtube-match-main">${songFinderBadge(res.status)}<h3>${escapeHtml(p.title||res.title||'Nepoznata pesma iz Biblioteke')}</h3><p>Pouzdanost: ${Number(res.confidence||p.confidence||0)}% · ${escapeHtml(timing)}</p><p class="muted">Motor: ${escapeHtml(res.engine||'chromaprint+spectral')} · Provereno pesama: ${Number(res.songs_checked||0)} / ${Number(res.songs_indexed_total||0)}</p>${alts?`<p class="muted">Ostale mogućnosti:</p><ul>${alts}</ul>`:''}</div><div class="button-row">${historyId?`<button class="btn ghost small song-finder-retry" data-id="${historyId}">Ponovi</button>`:''}</div></article>`;
+}
+function renderSongFinderResults(){
+  const box=$('songFinderResults');if(!box)return;
+  if(!state.songFinderResults.length){box.innerHTML='<div class="empty compact"><p>Nema sačuvanih rezultata. Ubaci Shorts, video ili audio i pokreni Pronalazač mojih pesama.</p></div>';return;}
+  box.innerHTML=state.songFinderResults.map((r)=>`<article class="youtube-match-card" data-id="${Number(r.id)}"><div class="youtube-match-main">${songFinderBadge((r.result||{}).status||(r.found?'confirmed':'not_found'))}<h3>${escapeHtml(r.found?(r.title||'Prepoznata pesma'):(r.original_filename||'Isečak'))}</h3><p>${escapeHtml(r.created_at||'')}</p></div><div class="button-row"><button class="btn ghost small song-finder-retry" data-id="${Number(r.id)}">Ponovi</button></div></article>`).join('');
+}
+async function loadSongFinderResults(){try{const d=await api('/api/song-finder/results',{timeoutMs:15000,retries:0});state.songFinderResults=d.items||[];renderSongFinderResults();}catch(e){const box=$('songFinderResults');if(box)box.innerHTML=`<div class="inline-message error">${escapeHtml(e.message)}</div>`;}}
+async function chooseSongFinderFile(){
+  try{const d=await api('/api/choose-file',{method:'POST',body:{initial:$('songFinderPath')?.value||'',filter:'Audio i video (*.mp3;*.wav;*.flac;*.m4a;*.aac;*.ogg;*.mp4;*.mov;*.mkv;*.webm)|*.mp3;*.wav;*.flac;*.m4a;*.aac;*.ogg;*.mp4;*.mov;*.mkv;*.webm|Svi fajlovi (*.*)|*.*'}});if(d.path)$('songFinderPath').value=d.path;return d.path||'';}catch(e){toast(e.message,'error',10000);return '';}
+}
+async function analyzeSongFinder(){
+  const sourcePath=$('songFinderPath')?.value.trim()||'';
+  if(!sourcePath)return toast('Izaberi Shorts, video ili audio fajl.','warning');
+  const status=$('songFinderStatus'),out=$('songFinderResult');status.className='inline-message warning';status.textContent='Proveravam lokalno da li isečak sadrži neku od mojih pesama…';out.innerHTML='';
+  try{const d=await api('/api/song-finder/analyze-file',{method:'POST',body:{source_path:sourcePath},timeoutMs:180000,retries:0});const r=d.result||{};out.innerHTML=songFinderResultCard(r);
+    status.className=`inline-message ${r.found?'success':'warning'}`;status.textContent=r.found?`Pronađeno lokalno, bez tokena i interneta: ${r.status_label||''}.`:'Ova moja pesma nije pronađena u lokalnom indeksu.';
+    loadSongFinderResults();
+  }catch(e){status.className='inline-message error';status.textContent=e.message;toast(e.message,'error',15000);}
+}
+async function retrySongFinder(id){
+  try{const d=await api('/api/song-finder/result/retry',{method:'POST',body:{id},timeoutMs:180000,retries:0});const out=$('songFinderResult');if(out)out.innerHTML=songFinderResultCard(d.result||{});toast((d.result||{}).found?'Pesma je pronađena.':'Ponovna provera je završena.','success');loadSongFinderResults();}catch(e){toast(e.message,'error',15000);}
+}
+async function runSongFinderIndex(force){
+  try{await startBackground('/api/song-finder/index',{force:!!force});}catch(e){toast(e.message,'error',12000);}
+}
+function rebuildSongFinderIndex(){if(!confirm('Ponovo obraditi sve pesme u indeksu Pronalazača mojih pesama? Ovo može potrajati za veliku biblioteku.'))return;runSongFinderIndex(true);}
+
+async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); applyA11ySettings(loadA11ySettings()); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
 document.addEventListener('DOMContentLoaded', init);

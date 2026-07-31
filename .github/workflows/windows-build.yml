@@ -107,7 +107,7 @@ jobs:
       - name: Run the existing test suite (tests/*.py) -- real results, not curated
         run: |
           $failed = 0
-          Get-ChildItem tests\*.py | Where-Object { $_.Name -ne "e2e_test.py" } | ForEach-Object {
+          Get-ChildItem tests\*.py | Where-Object { $_.Name -ne "e2e_test.py" -and $_.Name -ne "ci_song_finder_fixtures.py" } | ForEach-Object {
             Write-Host "=== $($_.Name) ==="
             python $_.FullName
             if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: $($_.Name)"; $failed = 1 } else { Write-Host "PASS: $($_.Name)" }
@@ -218,6 +218,94 @@ jobs:
           Start-Sleep -Seconds 1
           if (-not $proc.HasExited) { $proc.Kill() }
           Write-Host "Staged server.py started for real under the staged embeddable Python and responded to /api/health."
+
+      - name: Real song-finder end-to-end test with real FFmpeg/chromaprint (Pronalazac mojih pesama -- no token, no internet)
+        # This sandbox has no FFmpeg, so tests/song_finder_test.py can only
+        # verify the pure classify_match()/rank_song_candidates() threshold
+        # logic and system_preflight()'s severity handling -- it cannot
+        # prove that a real Shorts-style clip cut from a real song is
+        # actually detected against that song's real chromaprint/spectral
+        # fingerprint, or that an unrelated song correctly reports
+        # not-found instead of a false positive. This step is that real
+        # proof: it builds two distinct synthetic "songs", indexes one of
+        # them through the real staged FFmpeg (already downloaded by the
+        # "Stage real components" step above, at package\Program\tools\
+        # ffmpeg\bin), cuts three real Shorts-length clips from it with
+        # that same ffmpeg.exe, and drives the actual HTTP API end to end.
+        run: |
+          $ffmpeg = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"
+          if (-not (Test-Path $ffmpeg)) { throw "Staged FFmpeg not found at $ffmpeg -- song-finder e2e cannot run without the real component the shipped app uses." }
+
+          $fixturesDir = "package\songfinder-e2e\fixtures"
+          $dataDir = "package\songfinder-e2e\data"
+          python tests\ci_song_finder_fixtures.py "package\Program\app" $fixturesDir $dataDir
+          if ($LASTEXITCODE -ne 0) { throw "ci_song_finder_fixtures.py failed" }
+
+          # Two positive clips (15s and 60s, cut from different points of the
+          # INDEXED song) and one negative clip (cut from a DIFFERENT,
+          # unindexed song) -- guards against false positives, not just
+          # false negatives, per the "no falsely confirmed matches" requirement.
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 20 -t 15 "$fixturesDir\clip_positive_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 15s positive clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 5 -t 60 "$fixturesDir\clip_positive_60s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 60s positive clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_b.wav" -ss 10 -t 15 "$fixturesDir\clip_negative_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the negative clip" }
+
+          $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) $dataDir)
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\downloads")
+          $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\exports")
+          $env:SUNO_STUDIO_PORT = "18889"
+          $env:SUNO_AUTO_OPEN = "0"
+          $env:PYTHONUTF8 = "1"
+          $proc = Start-Process -FilePath "package\Program\python\pythonw.exe" -ArgumentList @("package\Program\app\server.py") -PassThru -NoNewWindow
+          $base = "http://127.0.0.1:18889"
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { $resp = Invoke-RestMethod -Uri "$base/api/health" -TimeoutSec 2; if ($resp.ok) { $ok = $true; break } } catch {}
+          }
+          if (-not $ok) {
+            if (-not $proc.HasExited) { $proc.Kill() }
+            throw "song-finder e2e server never became healthy"
+          }
+
+          try {
+            $indexResp = Invoke-RestMethod -Uri "$base/api/song-finder/index" -Method Post -Body (@{force=$true} | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 30
+            $taskId = $indexResp.task.id
+            $done = $false
+            for ($i = 0; $i -lt 120; $i++) {
+              Start-Sleep -Milliseconds 500
+              $task = Invoke-RestMethod -Uri "$base/api/task" -TimeoutSec 5
+              if ($task.task -and $task.task.id -eq $taskId -and $task.task.status -ne "running") { $done = $true; break }
+            }
+            if (-not $done) { throw "song-finder indexing task never finished" }
+
+            $statusResp = Invoke-RestMethod -Uri "$base/api/song-finder/status" -TimeoutSec 10
+            if ($statusResp.songs_indexed -lt 1) { throw "song-finder status reports 0 indexed songs after indexing -- the real chromaprint/ffmpeg pipeline did not produce a usable fingerprint" }
+
+            foreach ($case in @(
+              @{ name = "15s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_15s.wav"; expectFound = $true },
+              @{ name = "60s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_60s.wav"; expectFound = $true },
+              @{ name = "15s negative clip (from an UNINDEXED different song)"; path = "$fixturesDir\clip_negative_15s.wav"; expectFound = $false }
+            )) {
+              $full = Join-Path (Get-Location) $case.path
+              $body = (@{ source_path = $full } | ConvertTo-Json)
+              $r = Invoke-RestMethod -Uri "$base/api/song-finder/analyze-file" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
+              Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.confidence)"
+              if ($r.result.found -ne $case.expectFound) {
+                throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found) (real local matcher, no token, no internet)"
+              }
+              if ($case.expectFound -and $r.result.primary.song_id -ne "ci-song-finder-a") {
+                throw "song-finder matched the wrong song for $($case.name): got $($r.result.primary.song_id)"
+              }
+            }
+            Write-Host "Real song-finder end-to-end check passed: correct local, offline, no-token match/no-match against real FFmpeg+chromaprint output."
+          } finally {
+            try { Invoke-RestMethod -Uri "$base/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
+            Start-Sleep -Seconds 1
+            if (-not $proc.HasExited) { $proc.Kill() }
+          }
 
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |

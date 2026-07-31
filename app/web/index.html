@@ -141,20 +141,37 @@
       </section>
 
       <section id="view-recognition" class="view">
-        <div class="tools-hero panel"><div><h2>Pronalazač pesme</h2><p class="muted">Ubaci Short, Reels, video sa citatom ili audio isečak. Program čuva ulazni fajl, pripremljeni audio i rezultat, pa ga možeš ponoviti bez ponovnog ubacivanja.</p></div><div class="tool-status"><strong id="recognitionHistoryCount">0</strong><span>sačuvanih pokušaja</span></div></div>
+        <div class="tools-hero panel"><div><h2>PRONALAZAČ MOJIH PESAMA</h2><p class="muted">Ubaci Shorts, video ili audio. Program lokalno proverava da li sadrži neku pesmu iz tvoje biblioteke. Nije potreban token niti internet.</p></div><div class="tool-status"><strong id="songFinderIndexedCount">0</strong><span>indeksiranih pesama</span></div></div>
         <div class="two-col">
           <div class="panel form-panel">
-            <h2>Izaberi audio ili video isečak</h2>
-            <div class="folder-path-row"><input id="musicRecognitionPath" placeholder="Izaberi MP3, WAV, M4A, MP4, MOV, MKV ili WEBM"><button id="chooseMusicRecognitionFileBtn" class="btn ghost">Izaberi fajl</button></div>
-            <input id="musicRecognitionFile" class="hidden" type="file" accept="audio/*,video/*">
-            <div class="two-inputs"><label>Početak isečka u sekundama<input id="musicRecognitionStart" type="number" min="0" step="0.1" value="0"></label><label>Trajanje analize<input id="musicRecognitionDuration" type="number" min="8" max="45" step="1" value="25"></label></div>
-            <label>AudD API token<input id="auddToken" type="password" placeholder="Nalepi token sa AudD naloga"></label>
-            <div class="button-row"><button id="saveAuddTokenBtn" class="btn secondary">SAČUVAJ TOKEN</button><button id="recognizeMusicBtn" class="btn primary">PRONAĐI PESMU</button><button id="openRecognitionFolderBtn" class="btn ghost">Otvori folder</button></div>
-            <div id="musicRecognitionStatus" class="inline-message">Najbolji rezultat daje čist isečak od 8–25 sekundi bez glasnog govora preko muzike.</div>
-            <div id="musicRecognitionResult" class="youtube-matches-list"></div>
+            <h2>Indeks mojih pesama</h2>
+            <p class="muted">Pesme se otiskuju lokalno preko FFmpeg-a; nepromenjene pesme se ne obrađuju ponovo.</p>
+            <div id="songFinderIndexStatus" class="inline-message">Indeksiranje još nije pokrenuto.</div>
+            <div class="button-row"><button id="songFinderIndexAllBtn" class="btn primary small">INDEKSIRAJ SVE MOJE PESME</button><button id="songFinderIndexRefreshBtn" class="btn secondary small">OSVEŽI IZMENJENE</button><button id="songFinderIndexRebuildBtn" class="btn ghost small">OBRIŠI I PONOVO NAPRAVI INDEKS</button></div>
           </div>
-          <div class="panel form-panel"><div class="section-title"><div><h2>Istorija pronalaženja</h2><p class="muted">Izaberi stari rezultat, ponovi analizu ili ga trajno dodaj u Biblioteku.</p></div><button id="refreshRecognitionHistoryBtn" class="btn ghost small">Osveži</button></div><div id="musicRecognitionHistory" class="youtube-matches-list"></div></div>
+          <div class="panel form-panel">
+            <h2>Ubaci Shorts / video / audio</h2>
+            <div class="folder-path-row"><input id="songFinderPath" placeholder="Izaberi MP3, WAV, M4A, AAC, FLAC, OGG, WEBM, MP4, MOV ili MKV"><button id="chooseSongFinderFileBtn" class="btn ghost">Izaberi fajl</button></div>
+            <div class="button-row"><button id="analyzeSongFinderBtn" class="btn primary">PRONAĐI MOJU PESMU</button></div>
+            <div id="songFinderStatus" class="inline-message">Nijedan token, nalog niti internet veza nisu potrebni za ovu proveru.</div>
+            <div id="songFinderResult" class="youtube-matches-list"></div>
+          </div>
         </div>
+        <div class="panel form-panel"><div class="section-title"><div><h2>Rezultati</h2><p class="muted">Izaberi stari rezultat ili ponovi analizu.</p></div><button id="refreshSongFinderResultsBtn" class="btn ghost small">Osveži</button></div><div id="songFinderResults" class="youtube-matches-list"></div></div>
+        <details class="panel form-panel">
+          <summary><h2 style="display:inline">Opcioni internet servisi</h2></summary>
+          <p class="muted">Ovo NIJE Pronalazač mojih pesama iznad — ovo je zaseban, potpuno opcioni alat za prepoznavanje NEPOZNATE komercijalne pesme preko internet servisa AudD. Nikad se ne pokreće automatski i ne utiče na lokalnu proveru iznad.</p>
+          <h3>Prepoznaj nepoznatu komercijalnu pesmu preko AudD</h3>
+          <div class="folder-path-row"><input id="musicRecognitionPath" placeholder="Izaberi MP3, WAV, M4A, MP4, MOV, MKV ili WEBM"><button id="chooseMusicRecognitionFileBtn" class="btn ghost">Izaberi fajl</button></div>
+          <input id="musicRecognitionFile" class="hidden" type="file" accept="audio/*,video/*">
+          <div class="two-inputs"><label>Početak isečka u sekundama<input id="musicRecognitionStart" type="number" min="0" step="0.1" value="0"></label><label>Trajanje analize<input id="musicRecognitionDuration" type="number" min="8" max="45" step="1" value="25"></label></div>
+          <label>AudD API token<input id="auddToken" type="password" placeholder="Nalepi token sa AudD naloga"></label>
+          <div class="button-row"><button id="saveAuddTokenBtn" class="btn secondary">SAČUVAJ TOKEN</button><button id="recognizeMusicBtn" class="btn primary">PRONAĐI PREKO AudD</button><button id="openRecognitionFolderBtn" class="btn ghost">Otvori folder</button></div>
+          <div id="musicRecognitionStatus" class="inline-message">Najbolji rezultat daje čist isečak od 8–25 sekundi bez glasnog govora preko muzike.</div>
+          <div id="musicRecognitionResult" class="youtube-matches-list"></div>
+          <div class="section-title"><div><h3>Istorija AudD pokušaja</h3></div><button id="refreshRecognitionHistoryBtn" class="btn ghost small">Osveži</button></div>
+          <div id="musicRecognitionHistory" class="youtube-matches-list"></div>
+        </details>
       </section>
 
       <section id="view-tools" class="view">

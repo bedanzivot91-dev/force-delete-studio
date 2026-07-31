@@ -112,7 +112,18 @@ def system_preflight(root: Path, data_dir: Path, download_dir: Path, tool_status
     add("disk", usage.free >= 10 * 1024**3, "Najmanje 10 GB slobodnog prostora", {"free_bytes": usage.free, "free_gb": round(usage.free / 1024**3, 1)}, "ok" if usage.free >= 10 * 1024**3 else "warning")
     add("long_paths", len(str(root)) < 180, "Bezbedna dužina putanje", {"length": len(str(root)), "path": str(root)}, "ok" if len(str(root)) < 180 else "warning")
     for name, status in tool_status.items():
-        add(f"tool_{name}", bool(status.get("ready")), f"Alat {name}", status)
+        ready = bool(status.get("ready"))
+        # required/optional/severity come from v3_tool_status() itself now
+        # (single source of truth) -- criticality was previously decided
+        # purely from `ready`, so a missing OPTIONAL tool like Panako
+        # counted as a hard "error" and readiness became "blocked" even
+        # though every core feature (FFmpeg, yt-dlp, Deno, Python) was
+        # fine. Panako has its own separate install/status flow and must
+        # never prevent the program from starting.
+        level = status.get("severity") or ("ok" if ready else "error")
+        optional = bool(status.get("optional"))
+        label = f"Alat {name}" + (" (opcioni dodatak)" if optional and not ready else "")
+        add(f"tool_{name}", ready, label, status, level)
     internet = {
         "suno": _url_check("https://suno.com", 5),
         "youtube": _url_check("https://www.youtube.com", 5),

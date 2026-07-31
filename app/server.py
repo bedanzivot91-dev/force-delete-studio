@@ -74,9 +74,10 @@ from music_recognition import MusicRecognitionError, decode_audio_base64, recogn
 from v3_features import (
     align_original_lyrics, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
     library_integrity_scan, organize_library, panako_index, panako_query, panako_status,
-    render_lyric_video, render_short_clip, storage_report as v3_storage_report, cleanup_storage,
+    render_lyric_video, render_short_clip, sha256_file, storage_report as v3_storage_report, cleanup_storage,
     suggest_short_clips, system_preflight, youtube_metadata, youtube_resumable_upload,
 )
+import song_finder
 
 
 APP_VERSION = "3.3.2"
@@ -2589,6 +2590,118 @@ def add_recognition_to_library(recognition_id: int) -> dict[str, Any]:
     return DB.get_song(song_id) or {"id": song_id, "title": title, "display_name": artist}
 
 
+def song_finder_status() -> dict[str, Any]:
+    """Pronalazač mojih pesama: local-only index status, no token, no internet."""
+    songs = DB.export_rows()
+    with_audio = [s for s in songs if _existing_audio_path(s)]
+    indexed = sum(1 for s in with_audio if DB.get_audio_fingerprint("suno", str(s.get("id") or ""), AUDIO_MATCH_VERSION))
+    return {
+        "ok": True,
+        "songs_total": len(songs),
+        "songs_with_audio": len(with_audio),
+        "songs_indexed": indexed,
+        "songs_not_indexed": len(with_audio) - indexed,
+        "algorithm_version": AUDIO_MATCH_VERSION,
+        "last_indexed_at": DB.get_setting("song_finder_last_index_at", ""),
+    }
+
+
+def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
+    force = bool(options.get("force"))
+    all_songs = DB.export_rows()
+    songs = [s for s in all_songs if _existing_audio_path(s)]
+    task.total = len(songs)
+    ok = 0
+    failed = 0
+    for idx, song in enumerate(songs, 1):
+        if task.cancel_event.is_set():
+            break
+        wait_if_paused(task)
+        song_id = str(song.get("id") or "")
+        path = _existing_audio_path(song)
+        title = str(song.get("title") or song.get("display_name") or song_id)
+        try:
+            # _signature_for_source already skips recomputation when the
+            # file's SHA-256/mtime identity hasn't changed since the last
+            # index (force=False here just means "don't force a redo of
+            # unchanged songs" -- true force=True, from "OBRIŠI I PONOVO
+            # NAPRAVI INDEKS", recomputes every song regardless).
+            _signature_for_source("suno", song_id, path, task, title, force=force)
+            ok += 1
+        except Exception as exc:
+            failed += 1
+            task.log(f"{title}: {exc}", "warning")
+        task.set_progress(idx, len(songs), title)
+    DB.set_setting("song_finder_last_index_at", now_iso())
+    no_audio = len(all_songs) - len(songs)
+    task.finish(f"Indeksiranje završeno: {ok} obrađeno, {failed} neuspešno, {no_audio} pesama nema lokalni audio fajl.")
+
+
+def song_finder_analyze(path: Path) -> dict[str, Any]:
+    """Compare an uploaded Shorts/video/audio file against the local song
+    index only -- no AudD, no YouTube, no Google, no Suno token, no
+    network call of any kind."""
+    path = Path(path).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError("Fajl nije pronađen.")
+    if not song_finder.is_supported_file(path):
+        raise RuntimeError(f"Format {path.suffix or '?'} nije podržan za Pronalazač mojih pesama.")
+    file_sha256 = sha256_file(path)
+    upload_signature = extract_signature(path)
+    songs = [s for s in DB.export_rows() if _existing_audio_path(s)]
+    candidates: list[dict[str, Any]] = []
+    checked = 0
+    for song in songs:
+        song_id = str(song.get("id") or "")
+        cached = DB.get_audio_fingerprint("suno", song_id, AUDIO_MATCH_VERSION)
+        if not cached:
+            continue
+        try:
+            song_signature = unpack_signature(cached.get("payload") or b"")
+            analysis = compare_signatures(song_signature, upload_signature)
+        except (AudioMatchError, Exception):
+            continue
+        checked += 1
+        status = song_finder.classify_match(analysis)
+        if status == song_finder.STATUS_NOT_FOUND:
+            continue
+        candidates.append({
+            "song_id": song_id,
+            "title": str(song.get("title") or song.get("display_name") or song_id),
+            "display_name": str(song.get("display_name") or ""),
+            "status": status,
+            "status_label": song_finder.STATUS_LABELS_SR.get(status, status),
+            "confidence": song_finder.confidence_percent(analysis),
+            "audio_score": analysis.get("audio_score"),
+            "matched_seconds": analysis.get("matched_seconds"),
+            "song_start": analysis.get("source_start"), "song_end": analysis.get("source_end"),
+            "clip_start": analysis.get("video_start"), "clip_end": analysis.get("video_end"),
+            "reason": analysis.get("reason"),
+        })
+    ranked = song_finder.rank_song_candidates(candidates)
+    primary = ranked[0] if ranked else None
+    overall_status = primary["status"] if primary else song_finder.STATUS_NOT_FOUND
+    result = {
+        "found": bool(primary),
+        "provider": "local_library",
+        "artist": str(primary.get("display_name") or "") if primary else "",
+        "title": str(primary.get("title") or "") if primary else "",
+        "file": str(path), "file_sha256": file_sha256, "duration": upload_signature.get("duration"),
+        "engine": "chromaprint+spectral", "algorithm_version": AUDIO_MATCH_VERSION,
+        "status": overall_status, "status_label": song_finder.STATUS_LABELS_SR.get(overall_status, overall_status),
+        "songs_checked": checked, "songs_indexed_total": len(songs),
+        "primary": primary, "alternatives": ranked[1:4], "matches": ranked,
+    }
+    record = DB.add_recognition({
+        "original_filename": path.name, "input_path": str(path), "prepared_audio_path": "",
+        "library_song_id": str(primary.get("song_id") or "") if primary else "",
+        "status": "recognized" if primary else "not_found",
+        "result": result,
+    })
+    result["history_id"] = int(record.get("id") or 0)
+    return result
+
+
 def _unique_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -3713,6 +3826,9 @@ def _v3_audio_path(song: dict[str, Any]) -> Path:
     raise RuntimeError("Pesma prvo mora da bude preuzeta kao MP3 ili WAV.")
 
 
+OPTIONAL_TOOLS = {"panako"}
+
+
 def v3_tool_status() -> dict[str, Any]:
     status = {"ffmpeg": audio_tools_status(), "yt_dlp": ytdlp_status(), "panako": panako_status(ROOT)}
     try:
@@ -3721,6 +3837,12 @@ def v3_tool_status() -> dict[str, Any]:
     except Exception as exc:
         status["deno"] = {"ready": False, "message": str(exc)}
     status["python"] = {"ready": True, "version": platform.python_version(), "path": sys.executable}
+    for name, entry in status.items():
+        ready = bool(entry.get("ready"))
+        optional = name in OPTIONAL_TOOLS
+        entry["required"] = not optional
+        entry["optional"] = optional
+        entry["severity"] = "ok" if ready else ("warning" if optional else "error")
     return status
 
 
@@ -4069,6 +4191,11 @@ class Handler(BaseHTTPRequestHandler):
                 }); return
             if path == "/api/music-recognition/history":
                 self._send_json({"ok": True, "items": DB.list_recognitions(limit=int((query.get("limit") or [200])[0] or 200)), "folder": str(RECOGNITION_ROOT)}); return
+            if path == "/api/song-finder/status":
+                self._send_json(song_finder_status()); return
+            if path == "/api/song-finder/results":
+                items = [r for r in DB.list_recognitions(limit=int((query.get("limit") or [200])[0] or 200)) if str(r.get("provider") or "") == "local_library"]
+                self._send_json({"ok": True, "items": items}); return
             if path == "/api/import/watched-folders":
                 self._send_json({"ok": True, "folders": DB.list_watched_folders()}); return
             if path == "/api/v3/security/status":
@@ -4581,6 +4708,30 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/music-recognition/add-to-library":
                 song = add_recognition_to_library(int(body.get("id") or 0))
                 self._send_json({"ok": True, "song": song, "history": DB.list_recognitions(limit=200), "message": "Prepoznata pesma je trajno dodata u Biblioteku."}); return
+            if path == "/api/song-finder/index":
+                payload = {"force": bool(body.get("force"))}
+                task = start_task("song_finder_index", "Indeksiranje mojih pesama", lambda t: song_finder_index_task(t, payload), persistent_payload=payload)
+                self._send_json({"ok": True, "task": task.as_dict()}); return
+            if path == "/api/song-finder/analyze-file":
+                source_path = str(body.get("source_path") or "").strip()
+                if not source_path:
+                    raise RuntimeError("Izaberi Shorts, video ili audio fajl.")
+                result = song_finder_analyze(Path(source_path))
+                self._send_json({"ok": True, "result": result}); return
+            if path == "/api/song-finder/result/confirm":
+                recognition_id = int(body.get("id") or 0)
+                song_id = str(body.get("song_id") or "")
+                if not recognition_id or not song_id:
+                    raise RuntimeError("Nedostaje ID rezultata ili pesme.")
+                DB.set_recognition_library_song(recognition_id, song_id)
+                self._send_json({"ok": True, "history": DB.list_recognitions(limit=200)}); return
+            if path == "/api/song-finder/result/retry":
+                recognition_id = int(body.get("id") or 0)
+                record = DB.get_recognition(recognition_id)
+                if not record:
+                    raise RuntimeError("Sačuvani rezultat nije pronađen.")
+                result = song_finder_analyze(Path(str(record.get("input_path") or "")))
+                self._send_json({"ok": True, "result": result}); return
             if path == "/api/v3/youtube/upload":
                 payload=dict(body); task=start_task("v3_youtube_upload","YouTube upload",lambda t:v3_youtube_upload_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/v3/proof":
