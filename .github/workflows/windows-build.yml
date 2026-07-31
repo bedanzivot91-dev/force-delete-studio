@@ -75,13 +75,89 @@ jobs:
           }
           if ($failed -ne 0) { Write-Host "One or more tests failed -- see log above, this is the real result, not the sandbox-simulated one." }
 
-      - name: Self-test the launcher's required-files check
-        run: build_out\SunoPesmeStudio.exe --self-test
-        continue-on-error: true # expected to fail here: python/ffmpeg/tools/ aren't staged into build_out in this smoke job
-
-      - name: Upload build artifacts
+      - name: Upload raw build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-build-output
           path: build_out/*.exe
+          if-no-files-found: error
+
+      - name: Stage real components (Python/FFmpeg/yt-dlp/Deno) into Program/
+        # Reuses setup.exe's own prepareComponents() via the --stage-components
+        # CLI mode added for exactly this -- one source of truth for URLs/
+        # SHA-256 pins, no separate copy in this script to drift out of sync.
+        # This is the step this project's dev sandbox could never run for
+        # real (python.org/github-releases/gyan.dev are blocked there).
+        run: |
+          New-Item -ItemType Directory -Force -Path package\Program | Out-Null
+          .\build_out\INSTALIRAJ_PROGRAM.exe --stage-components package\Program
+
+      - name: Assemble Program/ folder structure (section 7 of the spec)
+        run: |
+          Copy-Item -Recurse -Force app package\Program\app
+          Copy-Item -Recurse -Force plugins package\Program\plugins
+          New-Item -ItemType Directory -Force -Path package\Program\runtime\webview2, package\Program\runtime\vcruntime, package\Program\models, package\Program\licences, package\Program\recovery, package\Program\manifests | Out-Null
+          Copy-Item build_out\SunoPesmeStudio.exe "package\Program\Suno Pesme Studio.exe"
+          Copy-Item build_out\Deinstaliraj_Suno_Pesme_Studio.exe "package\Program\Deinstaliraj Suno Pesme Studio.exe"
+          Copy-Item build_out\INSTALACIJA_NAPREDAK.exe package\Program\
+          Copy-Item docs\COMPONENTS_MANIFEST.json package\manifests_root_copy.json
+
+      - name: Install core Python packages into the staged embeddable interpreter
+        # The official embeddable zip ships WITHOUT pip/ensurepip (that's
+        # intentional upstream, not a mistake here) and its <ver>._pth file
+        # disables site-packages by default -- both need fixing before pip
+        # will work at all: uncomment "import site" in the ._pth, then
+        # bootstrap pip via get-pip.py (the documented way to do this for
+        # an embeddable distribution), then install requirements-core.txt.
+        run: |
+          $py = "package\Program\python\python.exe"
+          $pth = Get-ChildItem "package\Program\python\*._pth" | Select-Object -First 1
+          (Get-Content $pth.FullName) -replace '^#\s*import site', 'import site' | Set-Content $pth.FullName
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "package\Program\python\get-pip.py"
+          & $py "package\Program\python\get-pip.py" --no-warn-script-location
+          if ($LASTEXITCODE -ne 0) { throw "get-pip.py bootstrap failed" }
+          Remove-Item "package\Program\python\get-pip.py"
+          & $py -m pip install --no-warn-script-location -r requirements-core.txt
+          if ($LASTEXITCODE -ne 0) { throw "pip install into embeddable Python failed" }
+
+      - name: Real import-smoke-test using the STAGED embeddable Python (not setup-python's)
+        run: |
+          $py = "package\Program\python\python.exe"
+          & $py tests\import_smoke_test.py
+
+      - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
+        run: |
+          $lines = Get-ChildItem -Recurse -File package\Program | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path package).Path.Length + 1) -replace '\\','/'
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $rel"
+          }
+          $lines | Set-Content -Encoding ascii package\MANIFEST_SHA256.txt
+          (Get-Content package\MANIFEST_SHA256.txt).Count
+
+      - name: Self-test the launcher against the real staged package
+        working-directory: package
+        run: '& "Program\Suno Pesme Studio.exe" --self-test'
+
+      - name: Assemble final release folder and ZIP
+        run: |
+          $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
+          New-Item -ItemType Directory -Force -Path $rel | Out-Null
+          Move-Item package\Program "$rel\Program"
+          Move-Item package\MANIFEST_SHA256.txt "$rel\MANIFEST_SHA256.txt"
+          Copy-Item build_out\INSTALIRAJ_PROGRAM.exe "$rel\INSTALIRAJ_PROGRAM.exe"
+          Copy-Item docs\COMPONENTS_MANIFEST.json "$rel\COMPONENTS_MANIFEST.json"
+          Copy-Item docs\GAP_ANALYSIS.md "$rel\GAP_ANALYSIS.md"
+          Copy-Item windows_build\BUILD_VERIFICATION.md "$rel\BUILD_VERIFICATION.md"
+          Get-ChildItem -Recurse -File $rel | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.FullName.Substring((Resolve-Path .).Path.Length + 1).Replace('\','/')
+          } | Set-Content -Encoding ascii "$rel\SHA256SUMS.txt"
+          Compress-Archive -Path $rel -DestinationPath "$rel.zip" -CompressionLevel Optimal
+          Get-Item "$rel.zip" | Select-Object Name, Length
+
+      - name: Upload full offline package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE
+          path: Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip
           if-no-files-found: error

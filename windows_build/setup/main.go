@@ -189,7 +189,35 @@ func messageBox(title, text string, flags uint32) int {
 
 func hresultFailed(hr uintptr) bool { return int32(hr) < 0 }
 
+// stageComponentsCLI runs the exact same component fetch/verify/extract
+// logic the GUI installer uses (prepareComponents), headless, against a
+// target directory. This exists so CI (which has real internet access,
+// unlike the sandbox this project was developed in) can assemble a
+// genuinely offline-capable release package without a second,
+// out-of-sync copy of the download URLs/hashes living in a build script.
+// Not reachable from the shipped GUI installer's normal flow.
+func stageComponentsCLI(target string) int {
+	if err := os.MkdirAll(target, 0755); err != nil {
+		fmt.Fprintln(os.Stderr, "mkdir:", err)
+		return 1
+	}
+	log := func(s string) { fmt.Println(s) }
+	// prepareComponents both downloads/verifies-by-SHA-256 and runs each
+	// tool with --version at the end (see the `checks` block at its tail)
+	// before returning, so a nil error here already means every component
+	// was physically staged and actually executed successfully.
+	if err := prepareComponents(target, nil, log); err != nil {
+		fmt.Fprintln(os.Stderr, "prepareComponents:", err)
+		return 1
+	}
+	fmt.Println("Komponente su preuzete, proverene i uspešno pokrenute u:", target)
+	return 0
+}
+
 func main() {
+	if len(os.Args) > 2 && os.Args[1] == "--stage-components" {
+		os.Exit(stageComponentsCLI(os.Args[2]))
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		fail(err)
