@@ -52,6 +52,27 @@ jobs:
           find android/app/build/outputs/apk -name "*.apk" -exec ls -la {} \;
           test -n "$(find android/app/build/outputs/apk -name '*.apk')" || (echo "No APK produced" && exit 1)
 
+      - name: Verify APK is signed with the committed debug keystore (real fingerprint check)
+        # Proves, in every CI run, that signingConfigs.debug in
+        # android/app/build.gradle.kts actually took effect -- i.e. that this
+        # APK's signature will match every other APK built from this same
+        # keystore, which is the whole point of committing a fixed debug
+        # keystore instead of relying on Gradle's per-machine auto-generated
+        # one (see android/keystore/debug.keystore and the signingConfigs
+        # block). A mismatch here means the signing fix regressed silently.
+        run: |
+          set -euo pipefail
+          APK=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          EXPECTED_FPR=$(keytool -list -v -keystore android/keystore/debug.keystore -storepass android -alias androiddebugkey | grep 'SHA256:' | awk '{print $2}')
+          ACTUAL_FPR=$(keytool -printcert -jarfile "$APK" | grep 'SHA256:' | head -1 | awk '{print $2}')
+          echo "Expected (committed keystore): $EXPECTED_FPR"
+          echo "Actual   (built APK):          $ACTUAL_FPR"
+          if [ "$EXPECTED_FPR" != "$ACTUAL_FPR" ]; then
+            echo "SIGNATURE MISMATCH -- the APK was NOT signed with the committed debug keystore. signingConfigs.debug is not taking effect." >&2
+            exit 1
+          fi
+          echo "OK: APK signature matches the committed debug keystore."
+
       - name: Assemble Suno-Pesme-Studio-v3.3.2-ANDROID release folder
         # Section 28 of the spec. release.apk/release.aab are intentionally
         # NOT produced: they require a real signing key the spec itself
