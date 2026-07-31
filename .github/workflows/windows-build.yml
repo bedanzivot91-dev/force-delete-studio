@@ -98,10 +98,20 @@ jobs:
         # SHA-256 pins, no separate copy in this script to drift out of sync.
         # This is the step this project's dev sandbox could never run for
         # real (python.org/github-releases/gyan.dev are blocked there).
+        #
+        # INSTALIRAJ_PROGRAM.exe is built with -H windowsgui (intentional --
+        # the real installer must not flash a console for end users). That
+        # same flag is why plain invocation + $LASTEXITCODE silently lied in
+        # run #12 of this workflow: PowerShell doesn't reliably attach to a
+        # GUI-subsystem child's exit code / stdout timing the way it does for
+        # console-subsystem programs (go build, python.exe, which is why
+        # those checks elsewhere in this file are fine as plain $LASTEXITCODE
+        # checks). Start-Process -Wait -PassThru waits on the actual OS
+        # process handle regardless of subsystem, which is the reliable fix.
         run: |
           New-Item -ItemType Directory -Force -Path package\Program | Out-Null
-          .\build_out\INSTALIRAJ_PROGRAM.exe --stage-components package\Program
-          if ($LASTEXITCODE -ne 0) { throw "--stage-components failed with exit code $LASTEXITCODE -- see its own stdout/stderr above for which component failed" }
+          $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
+          if ($proc.ExitCode -ne 0) { throw "--stage-components failed with exit code $($proc.ExitCode)" }
 
       - name: Assemble Program/ folder structure (section 7 of the spec)
         run: |
@@ -148,10 +158,13 @@ jobs:
           (Get-Content package\MANIFEST_SHA256.txt).Count
 
       - name: Self-test the launcher against the real staged package
+        # Same -H windowsgui subsystem caveat as the stage-components step
+        # above -- Start-Process -Wait -PassThru, not plain invocation +
+        # $LASTEXITCODE.
         working-directory: package
         run: |
-          & "Program\Suno Pesme Studio.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "launcher --self-test failed with exit code $LASTEXITCODE -- the staged Program/ folder is missing required files, see selfTest()/missingFiles() in launcher/main.go" }
+          $proc = Start-Process -FilePath "Program\Suno Pesme Studio.exe" -ArgumentList @("--self-test") -Wait -NoNewWindow -PassThru
+          if ($proc.ExitCode -ne 0) { throw "launcher --self-test failed with exit code $($proc.ExitCode) -- the staged Program/ folder is missing required files, see selfTest()/missingFiles() in launcher/main.go" }
 
       - name: Assemble final release folder and ZIP
         run: |
