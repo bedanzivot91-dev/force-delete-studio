@@ -52,11 +52,42 @@ jobs:
           find android/app/build/outputs/apk -name "*.apk" -exec ls -la {} \;
           test -n "$(find android/app/build/outputs/apk -name '*.apk')" || (echo "No APK produced" && exit 1)
 
-      - name: Upload debug APK
+      - name: Assemble Suno-Pesme-Studio-v3.3.2-ANDROID release folder
+        # Section 28 of the spec. release.apk/release.aab are intentionally
+        # NOT produced: they require a real signing key the spec itself
+        # says must not be embedded (section 21/18.5) -- only the debug
+        # build (debug-signed by the Android SDK's own auto-generated debug
+        # key, which is the normal, non-secret Android toolchain default)
+        # ships here. UPUTSTVO_ZA_INSTALACIJU.txt tells the user exactly
+        # how to produce a signed release build with their own key.
+        #
+        # Report content generation lives in ci_scripts/generate_android_reports.py
+        # (tested locally against this exact repo before being wired in here)
+        # rather than as inline heredocs -- YAML block-scalar indentation
+        # and multi-line bash heredocs don't mix well, and this is testable.
+        run: |
+          set -euo pipefail
+          REL="Suno-Pesme-Studio-v3.3.2-ANDROID"
+          mkdir -p "$REL/TEST_RESULTS" "$REL/Izvorni_kod"
+          APK_SRC=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          cp "$APK_SRC" "$REL/Suno-Pesme-Studio-v3.3.2-Android-debug.apk"
+          cp -r android "$REL/Izvorni_kod/android"
+          rm -rf "$REL/Izvorni_kod/android/.gradle" "$REL/Izvorni_kod/android/app/build" "$REL/Izvorni_kod/android/build"
+          find android/app/build/test-results -name "*.xml" -exec cp {} "$REL/TEST_RESULTS/" \; 2>/dev/null || true
+          cp docs/ANDROID_FEATURE_PARITY_MATRIX.md "$REL/ANDROID_FEATURE_PARITY_MATRIX.md"
+
+          GRADLE_VER=$(cd android && ./gradlew --version | grep '^Gradle' | awk '{print $2}')
+          python3 ci_scripts/generate_android_reports.py "$REL" "$GITHUB_RUN_ID" "$GITHUB_SHA" "$GRADLE_VER"
+
+          (cd "$REL" && find . -type f -exec sha256sum {} \; | sed 's|\./||' > SHA256SUMS.txt)
+          zip -r "${REL}.zip" "$REL" > /dev/null
+          ls -la "${REL}.zip"
+
+      - name: Upload Suno-Pesme-Studio-v3.3.2-ANDROID package
         uses: actions/upload-artifact@v4
         with:
-          name: android-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: Suno-Pesme-Studio-v3.3.2-ANDROID
+          path: Suno-Pesme-Studio-v3.3.2-ANDROID.zip
           if-no-files-found: error
 
       - name: Upload unit test results
