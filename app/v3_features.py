@@ -14,6 +14,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -312,6 +313,65 @@ def suggest_short_clips(song: dict[str, Any], audio_path: Path, durations: list[
             if len(used) >= 3: break
     suggestions.sort(key=lambda x: (x["duration"], -x["score"]))
     return {"song_id": song.get("id"), "title": song.get("title"), "audio": str(audio_path), "duration": total, "suggestions": suggestions, "created_at": now_iso()}
+
+
+TEASER_MIN_DURATION = 30.0
+TEASER_MAX_DURATION = 50.0
+
+
+def _normalize_lyrics_text(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", str(text or ""))
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", stripped.casefold()).strip()
+
+
+def find_lyrics_timestamp(cues: list[dict[str, Any]], query: str) -> dict[str, Any] | None:
+    """Find the earliest saved LRC/SRT cue whose text contains the given
+    lyrics snippet (diacritics/case-insensitive substring match)."""
+    needle = _normalize_lyrics_text(query)
+    if not needle:
+        return None
+    best: dict[str, Any] | None = None
+    for cue in cues:
+        haystack = _normalize_lyrics_text(str(cue.get("text") or ""))
+        if needle not in haystack:
+            continue
+        start = float(cue.get("start_s", cue.get("start", 0)) or 0)
+        end = float(cue.get("end_s", cue.get("end", start)) or start)
+        if best is None or start < best["start"]:
+            best = {"start": start, "end": max(start, end), "text": str(cue.get("text") or ""), "source": str(cue.get("source") or "")}
+    return best
+
+
+def teaser_clip_from_text(cues: list[dict[str, Any]], query: str, total_duration: float, duration: float = 30.0, pre_roll: float = 2.0) -> dict[str, Any] | None:
+    """Locate `query` in the saved lyrics timing and return a clip window of
+    `duration` seconds that starts a little before the matched line."""
+    hit = find_lyrics_timestamp(cues, query)
+    if not hit:
+        return None
+    total_duration = max(0.0, float(total_duration))
+    duration = max(5.0, min(duration, total_duration)) if total_duration > 0 else max(5.0, duration)
+    start = max(0.0, hit["start"] - pre_roll)
+    end = min(total_duration, start + duration) if total_duration > 0 else start + duration
+    start = max(0.0, end - duration)
+    return {
+        "start": round(start, 3), "end": round(end, 3), "duration": round(end - start, 3),
+        "matched_text": hit["text"], "matched_at": round(hit["start"], 3),
+        "approximate": hit.get("source") == "generated-draft",
+    }
+
+
+def suggest_teaser_clips(song: dict[str, Any], audio_path: Path, count: int = 3, durations: list[int] | None = None) -> list[dict[str, Any]]:
+    """Pick the single best (loudest) non-overlapping window per requested
+    duration, all sized within the 30-50s Shorts-teaser range."""
+    durations = durations or [30, 40, 50]
+    suggestions = suggest_short_clips(song, audio_path, durations)["suggestions"]
+    best_per_duration: dict[int, dict[str, Any]] = {}
+    for item in suggestions:
+        d = int(item.get("duration") or 0)
+        if d not in best_per_duration or float(item["score"]) > float(best_per_duration[d]["score"]):
+            best_per_duration[d] = item
+    return [best_per_duration[d] for d in durations if d in best_per_duration][:count]
 
 
 def render_short_clip(audio_path: Path, output_path: Path, start: float, duration: float, *, normalize: bool = True) -> dict[str, Any]:

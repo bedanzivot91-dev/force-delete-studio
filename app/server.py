@@ -75,7 +75,7 @@ from v3_features import (
     align_original_lyrics, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
     library_integrity_scan, organize_library, panako_index, panako_query, panako_status,
     render_lyric_video, render_short_clip, sha256_file, storage_report as v3_storage_report, cleanup_storage,
-    suggest_short_clips, system_preflight, youtube_metadata, youtube_resumable_upload,
+    suggest_short_clips, suggest_teaser_clips, teaser_clip_from_text, system_preflight, youtube_metadata, youtube_resumable_upload,
 )
 import song_finder
 
@@ -3887,6 +3887,28 @@ def v3_shorts_render_task(task: TaskState, options: dict[str, Any]) -> None:
     task.finish(f"Napravljeno je {len(made)} Shorts audio isečaka.")
 
 
+def v3_shorts_teasers_task(task: TaskState, options: dict[str, Any]) -> None:
+    """Automatically cut 3 Shorts-teaser clips (30-50s, the program's own
+    energetic-part pick) so the user does not have to trim anything by hand."""
+    song_id = str(options.get("id") or ""); song = DB.get_song(song_id)
+    if not song: raise RuntimeError("Pesma nije pronađena.")
+    source = _v3_audio_path(song)
+    selected = suggest_teaser_clips(song, source, count=3)
+    if not selected:
+        raise RuntimeError("Program nije mogao da pronađe dovoljno energetski jake delove pesme za najave.")
+    target = Path(str(options.get("target") or (get_download_dir() / "Shorts_najave" / sanitize_filename(str(song.get('title') or song_id), 100))))
+    target.mkdir(parents=True, exist_ok=True); task.total = len(selected); made = []
+    for idx, item in enumerate(selected, 1):
+        if task.cancel_event.is_set(): break
+        wait_if_paused(task)
+        start = float(item.get("start") or 0); duration = float(item.get("duration") or 30)
+        out = target / f"{sanitize_filename(str(song.get('title') or song_id), 90)} - najava {idx} - {int(duration)}s.mp3"
+        result = render_short_clip(source, out, start, duration, normalize=bool(options.get("normalize", True)))
+        DB.add_derived_file(song_id, "short_teaser", f"Shorts najava {idx} ({int(duration)}s, najglasniji deo)", str(out), "mp3", duration, {"start": start, "duration": duration, "score": item.get("score")})
+        made.append(result); task.set_progress(idx, len(selected), out.name)
+    task.finish(f"Napravljene su {len(made)} kratke najave pesme (30-50 s) za Shorts.")
+
+
 def v3_lyric_video_task(task: TaskState, options: dict[str, Any]) -> None:
     song_id = str(options.get("id") or ""); song = DB.get_song(song_id)
     if not song: raise RuntimeError("Pesma nije pronađena.")
@@ -4652,6 +4674,26 @@ class Handler(BaseHTTPRequestHandler):
                 payload=dict(body); task=start_task("v3_organize","Organizovanje biblioteke",lambda t:v3_organize_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/v3/shorts/render":
                 payload=dict(body); task=start_task("v3_shorts","Pravljenje Shorts isečaka",lambda t:v3_shorts_render_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
+            if path == "/api/v3/shorts/teasers":
+                payload=dict(body); task=start_task("v3_shorts_teasers","Pravljenje 3 kratke najave pesme",lambda t:v3_shorts_teasers_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
+            if path == "/api/v3/shorts/text-clip":
+                song_id = str(body.get("id") or ""); song = DB.get_song(song_id)
+                if not song: raise RuntimeError("Pesma nije pronađena.")
+                query_text = str(body.get("text") or "").strip()
+                if not query_text: raise RuntimeError("Upiši deo teksta pesme koji želiš da isečeš.")
+                duration = max(10.0, min(60.0, float(body.get("duration") or 30)))
+                source = _v3_audio_path(song)
+                total = float(probe_audio(source).get("duration") or song.get("duration") or 0)
+                cues = load_subtitle_cues(song, DB)
+                hit = teaser_clip_from_text(cues, query_text, total, duration)
+                if not hit:
+                    raise RuntimeError("Taj tekst nije pronađen u sačuvanim titlovima ove pesme. Proveri da li je tekst tačno napisan ili prvo sačuvaj LRC/SRT u editoru titlova.")
+                target = get_download_dir() / "Shorts_najave" / sanitize_filename(str(song.get('title') or song_id), 100)
+                target.mkdir(parents=True, exist_ok=True)
+                out = target / f"{sanitize_filename(str(song.get('title') or song_id), 90)} - po tekstu - {int(hit['duration'])}s.mp3"
+                result = render_short_clip(source, out, hit["start"], hit["duration"], normalize=True)
+                DB.add_derived_file(song_id, "short_teaser", f"Shorts po tekstu ({int(hit['duration'])}s): „{hit['matched_text'][:40]}“", str(out), "mp3", hit["duration"], {"start": hit["start"], "duration": hit["duration"], "matched_text": hit["matched_text"]})
+                self._send_json({"ok": True, "result": {**result, **hit}}); return
             if path == "/api/v3/lyric-video":
                 payload=dict(body); task=start_task("v3_lyric_video","Pravljenje lyric videa",lambda t:v3_lyric_video_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/v3/youtube/package":

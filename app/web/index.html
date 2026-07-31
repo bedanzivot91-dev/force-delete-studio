@@ -392,6 +392,16 @@
             <button id="quickCutBtn" class="btn success full">⚡ BRZO ISECI — BEZ PONOVNOG KODIRANJA</button><button id="processAudioBtn" class="btn primary full">OBRADI / NAPRAVI NOVU AUDIO-VERZIJU</button><button id="processSelectedBatchBtn" class="btn secondary full">PRIMENI NA SVE IZABRANE PESME</button><div id="audioSpeedHint" class="inline-message success">Za obično isecanje koristi zeleno dugme. Fade, normalizacija i promena brzine uvek zahtevaju sporiju ponovnu obradu zvuka.</div>
           </div>
         </div>
+        <div class="panel form-panel">
+          <h3>Automatske najave za Shorts (30-50 s)</h3>
+          <p class="muted">Program sam analizira pesmu i iseca 3 kratke najave iz najglasnijih/najenergičnijih delova — spremne za Shorts najave na YouTube i društvenim mrežama.</p>
+          <div class="button-row"><button id="shortsTeasersBtn" class="btn primary">NAPRAVI 3 KRATKE NAJAVE</button></div>
+          <div id="shortsTeasersStatus" class="inline-message"></div>
+          <p class="muted">Ili upiši deo teksta pesme — program pronalazi taj deo u sačuvanim titlovima i iseca isečak oko njega.</p>
+          <div class="two-inputs"><label>Tekst iz pesme<input id="shortsTextQuery" placeholder="npr. o volim te"></label><label>Trajanje isečka (sek)<input id="shortsTextDuration" type="number" min="10" max="60" step="1" value="30"></label></div>
+          <div class="button-row"><button id="shortsTextClipBtn" class="btn secondary">ISECI PO TEKSTU</button></div>
+          <div id="shortsTextClipStatus" class="inline-message"></div>
+        </div>
         <h3>Obrađene verzije</h3><div id="derivedFilesList" class="file-list"></div>
       </div>
 
