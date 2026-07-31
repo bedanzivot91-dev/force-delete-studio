@@ -5,7 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [SongEntity::class], version = 1, exportSchema = true)
+// exportSchema=false for this thin-slice pass: schema JSON export (needed
+// for real Room migration testing per spec section 12/18) requires wiring
+// room.schemaLocation via the Room Gradle plugin, deferred to the phase
+// that actually adds a version-2 migration to test.
+@Database(entities = [SongEntity::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
 
