@@ -8,15 +8,15 @@
     <!-- INTERNET, POST_NOTIFICATIONS, FOREGROUND_SERVICE(_MEDIA_PLAYBACK)
          were previously declared "reserved for future" (YouTube/Suno sync,
          WorkManager notifications, Media3 playback) but nothing in this
-         build's code actually calls them yet -- verified by grep, no
+         build's code actually calls them yet, verified by grep: no
          network call, NotificationManager, or MediaSession/PlaybackService
          exists in app/src. A brand-new, unrecognized signing key requesting
          RECORD_AUDIO+INTERNET together is exactly the permission
          combination Google Play Protect's on-device heuristic scanner
-         treats as high-risk and hard-blocks installation for ("Aplikacija
-         je blokirana radi zaštite uređaja", no "Install anyway" option) --
-         real device testing hit this. Re-add each permission when the
-         feature that needs it actually lands, not before. -->
+         treats as high-risk and hard-blocks installation for (title
+         "Aplikacija je blokirana radi zaštite uređaja", no "Install
+         anyway" option), which real device testing hit. Re-add each
+         permission when the feature that needs it actually lands. -->
 
     <application
         android:name=".SunoApplication"
