@@ -47,3 +47,31 @@ runneru sa punim pristupom `dl.google.com`/Play Maven repozitorijumu i
 stvarnim Android SDK-om (`android-actions/setup-android`) — tamo se prvi
 put stvarno vidi da li se projekat gradi. Rezultat tog CI run-a je pravi
 `ANDROID_TEST_REPORT.md` dokaz, ne ovaj dokument.
+
+## AŽURIRANJE — CI je stvarno zeleno (run #4, commit 4f1f839)
+
+Prva tri CI pokušaja su stvarno pukla, svaki na drugom, sve dubljem koraku
+build pipeline-a — dokaz da CI stvarno gradi projekat, a ne samo "prolazi":
+
+1. `30594432082` — pukao na konfiguraciji: "Starting in Kotlin 2.0, the
+   Compose Compiler Gradle plugin is required when compose is enabled."
+   Popravljeno u `4ce9c9e` (dodat `org.jetbrains.kotlin.plugin.compose`
+   plugin, uklonjen zastareli `composeOptions.kotlinCompilerExtensionVersion`).
+2. `30594867748` — prošao konfiguraciju i zavisnosti, pukao na
+   `:app:mergeDebugResources`: `backup_rules.xml` je imao XML komentar sa
+   doslovnim `--`, što XML specifikacija zabranjuje unutar komentara.
+   Popravljeno u `62c373f`.
+3. `30595124492` — prošao resurse i KSP (Room), pukao na
+   `:app:compileDebugKotlin`: `SunoNavHost.kt` je koristio `by` delegate na
+   `State<T>` i `Modifier.padding(...)` bez potrebnih importa
+   (`androidx.compose.runtime.getValue`,
+   `androidx.compose.foundation.layout.padding`). Popravljeno u `4f1f839`.
+4. `30595383179` — **SUCCESS.** `assembleDebug`, `testDebugUnitTest` i
+   `lintDebug` su sva tri prošla. Stvaran debug APK je proizveden i otpremljen
+   kao CI artefakt: `android-debug-apk`, 21 298 892 bajta (SHA-256
+   `c0a28cd4d1035159edaf61f0c6ee6c58f517072f640120f4cadd8c16a728ccdc`),
+   `android-unit-test-results` je takođe otpremljen.
+
+Ovo je prva stvarna potvrda da `android/` projekat kompletno kompajlira i
+prolazi testove — nešto što ova sesija sama, bez pristupa `dl.google.com`,
+nikad nije mogla da potvrdi.
