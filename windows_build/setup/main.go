@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -19,6 +20,9 @@ import (
 	"time"
 	"unsafe"
 )
+
+//go:embed LICENSE.txt
+var licenseText string
 
 const (
 	appName = "Suno Pesme Studio"
@@ -214,6 +218,25 @@ func stageComponentsCLI(target string) int {
 	return 0
 }
 
+// acceptLicense writes the embedded LICENSE.txt to a temp file, opens it
+// in Notepad so the user actually reads the full text (not just a
+// MessageBox summary, which can't scroll long text), then requires an
+// explicit Yes/No to continue. Returns false if declined or if the
+// license can't even be shown (fail closed, not open).
+func acceptLicense() bool {
+	tmp := filepath.Join(os.TempDir(), "SunoPesmeStudio-LICENSE.txt")
+	if err := os.WriteFile(tmp, []byte(licenseText), 0644); err != nil {
+		messageBox(appName+" — greška", "Licenca nije mogla da se prikaže: "+err.Error(), mbOK|mbIconError)
+		return false
+	}
+	cmd := exec.Command("notepad.exe", tmp)
+	_ = cmd.Start()
+	result := messageBox(appName+" — licenca",
+		"Licenca je otvorena u Notepad-u ("+tmp+").\r\n\r\nPročitaj je, zatim se vrati ovde i klikni Da ako prihvataš uslove, ili Ne da otkažeš instalaciju.",
+		mbYesNo|mbIconInformation)
+	return result == idYes
+}
+
 func main() {
 	if len(os.Args) > 2 && os.Args[1] == "--stage-components" {
 		os.Exit(stageComponentsCLI(os.Args[2]))
@@ -233,6 +256,18 @@ func main() {
 	if local == "" {
 		fail(fmt.Errorf("Windows LOCALAPPDATA nije dostupan"))
 	}
+
+	// Dobrodošli (section 22, step 1)
+	messageBox(appName+" — dobrodošli", "Dobrodošao/la u instalaciju "+appName+" "+version+".\r\n\r\nOva instalacija je grafička, potpuno offline i ne koristi CMD, BAT ni PowerShell.\r\n\r\nSledeći korak je licenca.", mbOK|mbIconInformation)
+
+	// Licenca (section 22, step 2) -- shows the real license text via
+	// Notepad (reliable, already-proven Win32 surface: ShellExecute/exec,
+	// not a hand-rolled multiline edit control) and requires explicit
+	// acceptance before continuing.
+	if !acceptLicense() {
+		return
+	}
+
 	messageBox(appName+" — instalacija", "Sada biraš gde će program biti instaliran. Posle klika na OK izaberi željeni disk i folder. Instalacija ne koristi CMD.", mbOK|mbIconInformation)
 	installRoot := ""
 	for {
@@ -391,8 +426,31 @@ func main() {
 	}
 }
 
+// requestGracefulShutdown asks a running instance to shut itself down (and
+// its Python backend) cleanly via the same local /api/shutdown endpoint
+// launcher/main.go's own window-close handler uses. The current launcher
+// hosts its UI in a WebView2 window (github.com/jchv/go-webview2), which
+// doesn't register under the legacy "SunoPesmeStudioDesktopV*" window
+// classes closePreviousInstances below still tries first for genuinely old
+// versions -- without this, an in-place upgrade would fall straight
+// through to force-killing just the launcher.exe by process name, which
+// can orphan the Python watchdog/server subprocess tree it spawned.
+func requestGracefulShutdown() {
+	client := &http.Client{Timeout: 2 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8765/api/shutdown", nil)
+	if err != nil {
+		return
+	}
+	resp, err := client.Do(req)
+	if err == nil {
+		resp.Body.Close()
+	}
+}
+
 func closePreviousInstances(log func(string)) ([]string, error) {
-	// Native Win32 prozor aplikacije. Ovo je normalno, nenasilno zatvaranje.
+	requestGracefulShutdown()
+	// Native Win32 prozor aplikacije (starije verzije). Ovo je normalno,
+	// nenasilno zatvaranje za instance koje i dalje registruju stare klase.
 	for _, className := range []string{"SunoPesmeStudioDesktopV6", "SunoPesmeStudioDesktopV5", "SunoPesmeStudioDesktopV4"} {
 		hwnd, _, _ := findWindowW.Call(uintptr(unsafe.Pointer(u16(className))), 0)
 		if hwnd != 0 {

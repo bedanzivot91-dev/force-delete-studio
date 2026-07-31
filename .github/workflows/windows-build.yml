@@ -148,6 +148,7 @@ jobs:
           Copy-Item build_out\INSTALIRAJ_PROGRAM.exe "$rel\INSTALIRAJ_PROGRAM.exe"
           Copy-Item docs\COMPONENTS_MANIFEST.json "$rel\COMPONENTS_MANIFEST.json"
           Copy-Item docs\GAP_ANALYSIS.md "$rel\GAP_ANALYSIS.md"
+          Copy-Item windows_build\setup\LICENSE.txt "$rel\LICENSE.txt"
           Copy-Item windows_build\BUILD_VERIFICATION.md "$rel\BUILD_VERIFICATION.md"
           Get-ChildItem -Recurse -File $rel | ForEach-Object {
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.FullName.Substring((Resolve-Path .).Path.Length + 1).Replace('\','/')

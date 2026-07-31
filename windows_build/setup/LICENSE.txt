@@ -1,0 +1,40 @@
+SUNO PESME STUDIO 3.3.2 — USLOVI KORIŠĆENJA
+
+1. PRIRODA PROGRAMA
+Suno Pesme Studio je lični alat za organizaciju, obradu i praćenje muzike
+koju si sam kreirao ili na koju imaš zakonito pravo (uključujući sadržaj
+kreiran preko tvog ličnog Suno naloga). Program ne generiše muziku i ne
+zamenjuje Suno servis — on radi lokalno sa fajlovima i metapodacima na
+tvom računaru.
+
+2. TVOJI NALOZI I API KLJUČEVI
+Suno nalog, Google/YouTube OAuth podaci i eventualni API tokeni
+(npr. za Pronalazač pesme) su TVOJI i ostaju isključivo na tvom uređaju
+(DPAPI/Credential Manager na Windows-u). Program ih ne šalje nikuda osim
+direktno servisu kome pripadaju.
+
+3. AUTORSKA PRAVA I YOUTUBE FUNKCIJE
+Funkcije koje porede tvoju biblioteku sa YouTube kanalima služe da TI
+otkriješ moguća neovlašćena objavljivanja tvog sadržaja. Program ne šalje
+automatski nijedan zahtev za uklanjanje — svaka takva radnja zahteva tvoju
+ručnu potvrdu. Ti si odgovoran/na za tačnost i zakonitost svake radnje
+preduzete na osnovu rezultata programa.
+
+4. NEMA GARANCIJE
+Program se isporučuje "kakav jeste", bez garancije bilo koje vrste, u
+meri dozvoljenoj važećim zakonom. Autori ne odgovaraju za gubitak
+podataka — program pravi automatske bekape pre rizičnih operacija, ali
+redovno pravljenje sopstvenih bekapa ostaje tvoja odgovornost.
+
+5. TREĆE STRANE
+Program koristi treće softverske komponente (Python, FFmpeg, yt-dlp,
+Deno i druge) — svaka pod sopstvenom licencom, navedenom u
+THIRD_PARTY_LICENSES.txt u ovom paketu.
+
+6. TELEMETRIJA
+Program ne šalje anonimne statistike niti izveštaje o padu programa bez
+tvoje izričite dozvole, koju možeš uključiti ili isključiti u bilo kom
+trenutku u Podešavanjima.
+
+Klikom na "Prihvatam" potvrđuješ da si pročitao/la i saglasan/na si sa
+ovim uslovima.
