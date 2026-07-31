@@ -849,6 +849,7 @@ def scan_owned_youtube_channels(task: TaskState, options: dict[str, Any]) -> Non
         raise RuntimeError("Dodaj najmanje jedan svoj YouTube kanal u Pametnim alatima.")
     max_pages = max(1, min(int(options.get("max_pages") or 20), 100))
     include_private_unlisted = bool(options.get("include_private_unlisted", True))
+    scan_mode = str(options.get("scan_mode") or "new").strip().lower()
     songs = DB.export_rows()
     if not songs:
         raise RuntimeError("Suno biblioteka je prazna. Prvo uvezi pesme.")
@@ -871,7 +872,10 @@ def scan_owned_youtube_channels(task: TaskState, options: dict[str, Any]) -> Non
                     api_key, access_token = "", get_youtube_access_token(profile_id, required=True)
                 else:
                     api_key, access_token = youtube_credentials()
-                videos = list_channel_videos(channel, api_key=api_key, access_token=access_token, max_pages=max_pages)
+                known_ids = DB.list_youtube_video_ids(str(channel.get("channel_id") or "")) if scan_mode == "new" else None
+                videos = list_channel_videos(channel, api_key=api_key, access_token=access_token, max_pages=max_pages, known_ids=known_ids)
+                if scan_mode == "new" and known_ids:
+                    task.log(f"{label}: brza provera — zaustavljeno čim je stigla do već poznatih videa ({len(videos)} novih/proverenih).")
             except Exception as exc:
                 errors += 1
                 task.log(f"Kanal {label} nije pročitan: {exc}", "error")

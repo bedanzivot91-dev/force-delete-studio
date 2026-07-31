@@ -1610,6 +1610,13 @@ class LibraryDB:
             row = conn.execute("SELECT * FROM youtube_videos WHERE video_id=?", (str(video_id),)).fetchone()
             return dict(row) if row else None
 
+    def list_youtube_video_ids(self, channel_id: str) -> set[str]:
+        """Lightweight id-only lookup so an incremental channel scan can stop
+        paginating once it reaches videos already known from a prior run."""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT video_id FROM youtube_videos WHERE channel_id=?", (str(channel_id),)).fetchall()
+            return {str(r[0]) for r in rows}
+
     def update_youtube_video_audio_cache(self, video_id: str, path: str, sha256: str = "") -> None:
         with self._lock, self._connect() as conn:
             conn.execute(

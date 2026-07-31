@@ -216,7 +216,12 @@ def _hydrate_videos(api_key: str, video_ids: Iterable[str], access_token: str = 
     return result
 
 
-def list_channel_videos(channel: dict[str, Any], api_key: str = "", max_pages: int = 20, access_token: str = "") -> list[dict[str, Any]]:
+def list_channel_videos(channel: dict[str, Any], api_key: str = "", max_pages: int = 20, access_token: str = "", known_ids: set[str] | None = None) -> list[dict[str, Any]]:
+    """`known_ids`, when given, enables an incremental scan: the uploads
+    playlist is newest-first, so once an entire page of results is already
+    in `known_ids` (all previously seen), later pages can only be even
+    older uploads we've already recorded, and pagination stops early
+    instead of re-walking the whole channel history on every scan."""
     channel_id = str(channel.get("channel_id") or "")
     if not CHANNEL_ID_RE.match(channel_id):
         raise YouTubeAPIError("YouTube channel ID nije ispravan.")
@@ -233,6 +238,7 @@ def list_channel_videos(channel: dict[str, Any], api_key: str = "", max_pages: i
         for _ in range(max(1, min(max_pages, 100))):
             data = _request_json(_api_url("playlistItems", api_key, part="snippet,contentDetails,status", playlistId=uploads, maxResults=50, pageToken=token), access_token=access_token)
             page_items = data.get("items") if isinstance(data.get("items"), list) else []
+            page_ids: list[str] = []
             for entry in page_items:
                 if not isinstance(entry, dict):
                     continue
@@ -241,7 +247,10 @@ def list_channel_videos(channel: dict[str, Any], api_key: str = "", max_pages: i
                 resource = snippet.get("resourceId") if isinstance(snippet.get("resourceId"), dict) else {}
                 vid = str(content.get("videoId") or resource.get("videoId") or "")
                 if vid:
-                    ids.append(vid)
+                    page_ids.append(vid)
+            ids.extend(page_ids)
+            if known_ids is not None and page_ids and all(v in known_ids for v in page_ids):
+                break
             token = str(data.get("nextPageToken") or "")
             if not token or not page_items:
                 break
