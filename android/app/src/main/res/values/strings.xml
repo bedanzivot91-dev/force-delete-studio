@@ -4,6 +4,7 @@
     <string name="nav_home">Početna</string>
     <string name="nav_library">Biblioteka</string>
     <string name="nav_finder">Pronalazač pesme</string>
+    <string name="nav_suno">Suno nalog</string>
     <string name="nav_settings">Podešavanja</string>
     <string name="library_empty_title">Biblioteka je prazna</string>
     <string name="library_empty_body">Uvezi pesme preko dugmeta ispod ili sinhronizuj sa Windows aplikacijom.</string>

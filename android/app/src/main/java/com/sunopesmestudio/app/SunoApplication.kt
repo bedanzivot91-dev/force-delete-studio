@@ -7,6 +7,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.sunopesmestudio.app.data.AppDatabase
+import com.sunopesmestudio.app.data.SunoAuthStore
 import com.sunopesmestudio.app.data.ThemePreference
 import com.sunopesmestudio.app.data.WatchedFoldersPreference
 import com.sunopesmestudio.app.work.LibraryRescanWorker
@@ -16,6 +17,7 @@ class SunoApplication : Application() {
     val database: AppDatabase by lazy { AppDatabase.get(this) }
     val themePreference: ThemePreference by lazy { ThemePreference(this) }
     val watchedFoldersPreference: WatchedFoldersPreference by lazy { WatchedFoldersPreference(this) }
+    val sunoAuthStore: SunoAuthStore by lazy { SunoAuthStore(this) }
 
     override fun onCreate() {
         super.onCreate()

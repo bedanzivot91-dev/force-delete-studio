@@ -1,6 +1,7 @@
 package com.sunopesmestudio.app.ui.nav
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
@@ -30,11 +31,14 @@ import com.sunopesmestudio.app.ui.screens.HomeScreen
 import com.sunopesmestudio.app.ui.screens.LibraryScreen
 import com.sunopesmestudio.app.ui.screens.SettingsScreen
 import com.sunopesmestudio.app.ui.screens.SongFinderScreen
+import com.sunopesmestudio.app.ui.suno.SunoConnectScreen
+import com.sunopesmestudio.app.ui.suno.SunoViewModel
 
 private enum class Destination(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("home", R.string.nav_home, Icons.Filled.Home),
     LIBRARY("library", R.string.nav_library, Icons.Filled.LibraryMusic),
     FINDER("finder", R.string.nav_finder, Icons.Filled.Search),
+    SUNO("suno", R.string.nav_suno, Icons.Filled.Cloud),
     SETTINGS("settings", R.string.nav_settings, Icons.Filled.Settings),
 }
 
@@ -42,6 +46,7 @@ private enum class Destination(val route: String, val labelRes: Int, val icon: a
 fun SunoNavHost(
     libraryViewModel: LibraryViewModel,
     songFinderViewModel: SongFinderViewModel,
+    sunoViewModel: SunoViewModel,
     themePreference: ThemePreference,
     watchedFoldersPreference: WatchedFoldersPreference,
 ) {
@@ -76,6 +81,7 @@ fun SunoNavHost(
             composable(Destination.HOME.route) { HomeScreen(libraryViewModel) }
             composable(Destination.LIBRARY.route) { LibraryScreen(libraryViewModel, watchedFoldersPreference) }
             composable(Destination.FINDER.route) { SongFinderScreen(songFinderViewModel) }
+            composable(Destination.SUNO.route) { SunoConnectScreen(sunoViewModel) }
             composable(Destination.SETTINGS.route) { SettingsScreen(themePreference) }
         }
     }

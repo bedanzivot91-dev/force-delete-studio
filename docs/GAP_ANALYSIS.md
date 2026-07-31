@@ -116,7 +116,18 @@ za svaku od 7 tačaka koje su ranije bile označene kao nedovršene:
    preuzimanje ONNX/ctranslate2 modela zahteva mrežni pristup koji ova
    sesija nema — CI bi trebalo da preuzme i testira modele u sledećoj fazi
    istim `--stage-components`-stilom mehanizmom kao za Python/FFmpeg/itd.
-4. **YouTube OAuth i Suno nalog** — nepromenjeno, i dalje namerno "donesi
+4. **Suno nalog na Androidu — DODATO.** Korisnik je posle prve instalacije
+   direktno pitao gde su funkcije za povezivanje sa Suno nalogom — tačna
+   primedba, taj ekran do tada nije postojao. Dodat `SunoConnectScreen`
+   (prijava preko ugrađenog WebView-a na pravu suno.com stranicu, token
+   izvučen preko `window.Clerk.session.getToken()`, isti mehanizam kao
+   desktop CDP samo portovan na Android WebView), `SunoApiClient`
+   (Kotlin port `SunoClient._feed_v3()`/`extract_items()` iz
+   `app/suno_client.py`, isti endpoint i zaglavlja), i preuzimanje pesama
+   u lokalnu Room biblioteku. Detalji u
+   `docs/ANDROID_FEATURE_PARITY_MATRIX.md`. **Nije još verifikovano na
+   pravom uređaju sa pravim nalogom** — CI potvrđuje samo da se
+   kompajlira. YouTube OAuth ostaje nepromenjeno, i dalje namerno "donesi
    svoje" po dogovoru sa korisnikom (spec section 21 zabranjuje ugradnju
    tuđih tajni).
 5. **Windows GUI installer koraci — svih 7 koraka iz sekcije 22 sada

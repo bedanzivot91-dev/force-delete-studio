@@ -35,7 +35,7 @@ def extract_permissions(manifest_text: str) -> list[str]:
 
 
 PERMISSION_REASONS = {
-    "android.permission.INTERNET": "rezervisano za buduću YouTube/Suno sinhronizaciju (nije još povezano ni na jedan mrežni poziv u ovoj fazi).",
+    "android.permission.INTERNET": "Suno nalog ekran (SunoConnectScreen/SunoApiClient) -- povezivanje naloga preko ugrađenog WebView-a i pozivi ka pravom Suno API-ju (implementirano).",
     "android.permission.RECORD_AUDIO": "Pronalazač pesme, snimanje mikrofonom za lokalno poređenje (implementirano, vidi SongFinderViewModel).",
     "android.permission.POST_NOTIFICATIONS": "rezervisano za WorkManager pozadinske poslove (section 18.4); trenutni LibraryRescanWorker ne prikazuje još notifikaciju.",
     "android.permission.FOREGROUND_SERVICE": "rezervisano za WorkManager pozadinske poslove (section 18.4).",
@@ -93,11 +93,13 @@ DATA_SAFETY = """# ANDROID_DATA_SAFETY_DRAFT.md
 
 Nacrt za Play Console "Data safety" formu, tačan za stanje koda u OVOM build-u (ne za ceo planirani opseg funkcija):
 
-- Aplikacija ne šalje nijedan podatak na spoljni server u ovoj fazi -- nema mrežnih poziva u kodu, i ne traži čak ni INTERNET dozvolu dok ta funkcija stvarno ne bude povezana (uklonjena iz manifesta jer nije bila iskorišćena; videti napomenu u AndroidManifest.xml).
+- Aplikacija šalje mrežne pozive SAMO kada korisnik eksplicitno poveže svoj Suno nalog (ekran "Suno nalog"): prijava se dešava u ugrađenom WebView-u direktno na suno.com (lozinku nikad ne vidi ova aplikacija), a posle toga aplikacija zove Suno-ov sopstveni API (studio-api.prod.suno.com) da prikaže i preuzme korisnikove postojeće pesme -- isti mehanizam kao Windows verzija (app/suno_client.py), samo portovan na Kotlin (SunoApiClient). Bez povezivanja naloga nema nijednog mrežnog poziva.
+- Suno sesijski token (kratkotrajni Clerk JWT) čuva se lokalno u Android Keystore-podržanom EncryptedSharedPreferences-u (secure_prefs.xml), isključen iz Auto Backup-a; nikad se ne šalje bilo kom serveru osim Suno-a samog.
 - Audio snimljen mikrofonom (Pronalazač pesme) ostaje lokalno na uređaju (privremeni fajl u cache direktorijumu, obrisan posle analize) i nikad se ne šalje nikuda.
+- Pesme preuzete sa Suno naloga se čuvaju lokalno (app-specific storage) i upisuju u lokalnu Room biblioteku; ne šalju se dalje nikuda iz ove aplikacije.
 - Room baza (biblioteka, istorija Pronalazača) je lokalna SQLite baza na uređaju, isključena iz Android Auto Backup-a (vidi backup_rules.xml).
 
-Ovaj dokument mora biti ponovo pregledan pre svakog Play Store submitovanja koje dodaje mrežne funkcije (YouTube/Suno sync), jer će se odgovori promeniti.
+Ovaj dokument mora biti ponovo pregledan pre svakog Play Store submitovanja -- posebno da se u Data safety formu tačno prijavi da se podaci nalaze na Suno-ovim serverima (ne ovog developer-a) i da se prenose samo kada ih korisnik eksplicitno zatraži.
 """
 
 INSTALL_INSTRUCTIONS = """SUNO PESME STUDIO 3.3.2 -- ANDROID

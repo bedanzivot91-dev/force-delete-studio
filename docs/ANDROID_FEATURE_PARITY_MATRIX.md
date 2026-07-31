@@ -75,3 +75,54 @@ build pipeline-a — dokaz da CI stvarno gradi projekat, a ne samo "prolazi":
 Ovo je prva stvarna potvrda da `android/` projekat kompletno kompajlira i
 prolazi testove — nešto što ova sesija sama, bez pristupa `dl.google.com`,
 nikad nije mogla da potvrdi.
+
+## AŽURIRANJE — Suno nalog povezivanje (stvarno, ne stub dugme)
+
+Korisnik je posle instalacije s pravom pitao: "Gde su funkcije da se
+povežu sa mojim Suno nalogom?" — tačno pitanje, jer do ovog prolaza
+Android aplikacija nije imala NIJEDAN mrežni poziv niti ekran za to.
+Dodato u ovom prolazu, portovano sa stvarnog desktop mehanizma
+(`app/suno_client.py` + `app/cdp.py`), ne izmišljeno od nule:
+
+- **Prijava**: `SunoConnectScreen` učitava pravu `suno.com` stranicu u
+  ugrađenom Android `WebView`-u; korisnik se prijavljuje direktno na Suno
+  (lozinku ova aplikacija nikad ne vidi).
+- **Token**: posle prijave, JS isečak (`window.Clerk.session.getToken()`)
+  izvučen preko `JavascriptInterface` mosta dobavlja isti kratkotrajni
+  Clerk bearer token koji desktop CDP mehanizam dobavlja preko Chrome
+  DevTools Protocol-a — Android WebView-ov `evaluateJavascript` je ovde
+  direktan zamenski mehanizam za CDP (desktop koristi pravi Chrome proces
+  sa `--remote-debugging-port`, što na Androidu ne postoji na isti način).
+- **Čuvanje tokena**: `SunoAuthStore`, Android Keystore-podržan
+  `EncryptedSharedPreferences` (`secure_prefs.xml` — fajl je već bio
+  rezervisan za ovo u `backup_rules.xml`/`data_extraction_rules.xml` iz
+  ranijeg prolaza, sada stvarno iskorišćen).
+- **API pozivi**: `SunoApiClient` (Kotlin, `org.json`, bez novih
+  zavisnosti) pogađa isti `studio-api.prod.suno.com/api/feed/v3` endpoint
+  i `browser-token`/`Authorization: Bearer` šablon zaglavlja kao
+  `SunoClient._feed_v3()` na desktopu, sa istim rekurzivnim
+  pronalaženjem clip-objekata (pojednostavljen ali funkcionalno
+  ekvivalentan port `extract_items()`-a).
+- **Preuzimanje**: pesme sa `audio_url`-om se mogu preuzeti dugmetom
+  "Preuzmi" — fajl ide u app-specific storage, SHA-256 se računa lokalno,
+  i pesma se upisuje u postojeću Room `SongEntity` biblioteku (vidljiva
+  odmah u `LibraryScreen`).
+- **INTERNET dozvola** je vraćena u `AndroidManifest.xml` (bila uklonjena
+  u prethodnoj ispravci kao neiskorišćena) — sada je stvarno opravdana.
+
+### Šta ovo NE tvrdi
+
+CI (`android-build.yml`) može potvrditi samo da se ovo kompajlira i da
+`lintDebug` prolazi — ne može potvrditi da prijava/API pozivi stvarno rade
+protiv pravog Suno naloga, jer to zahteva pravu prijavu na uređaju (nema
+CI mehanizma za automatizovanu Suno prijavu bez čuvanja tuđih akreditiva,
+što specifikacija section 21 izričito zabranjuje). Ovo je jedina Android
+funkcija u ovoj sesiji koja čeka na potvrdu sa pravog uređaja pre nego što
+se može reći da stvarno radi.
+
+Poznato, dokumentovano ograničenje: Google sopstvenom politikom blokira
+prijavu preko Google naloga (`accounts.google.com`) unutar ugrađenih
+WebView prikaza ("This browser or app may not be secure") — ovo je
+Google-ovo ograničenje, ne bag u ovoj aplikaciji. Ako korisnik naiđe na
+to, ekran za prijavu ga upućuje da koristi imejl/lozinku prijavu umesto
+Google dugmeta.
