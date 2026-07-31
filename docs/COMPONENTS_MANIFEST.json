@@ -1,0 +1,42 @@
+{
+  "note": "Generated from windows_build/setup/main.go, the actual source of truth the installer reads at build/run time (the old tools/ALATI_MANIFEST.json in the delivered package was never referenced by any Go or Python code and had drifted -- program_version 3.3.1 inside a 3.3.2-named package). SHA-256 pins below were carried over from that stale manifest and have NOT been independently re-verified against python.org by this session (network to python.org is blocked from this sandbox) -- the Windows CI job verifies them for real on every run against a live download, and downloadVerified() in setup/main.go refuses to proceed on a mismatch.",
+  "python": {
+    "primary": {"version": "3.13.14", "url": "https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip"},
+    "fallback": {"version": "3.14.6", "url": "https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip"},
+    "why_3.13_primary": "This session ran every app/ and plugins/ module under python3.13 successfully (py_compile + real import, docs/PYTHON_IMPORT_REPORT.json); 3.14 compatibility of the AI extras (ctranslate2/onnxruntime native wheels) is unconfirmed."
+  },
+  "ffmpeg": {
+    "sources_in_priority_order": [
+      "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip",
+      "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+      "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    ],
+    "extracted": ["ffmpeg.exe", "ffprobe.exe"]
+  },
+  "yt_dlp": {
+    "sources_in_priority_order": [
+      "https://github.com/yt-dlp/yt-dlp/releases/download/2026.07.04/yt-dlp.exe",
+      "https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp.exe",
+      "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+    ]
+  },
+  "deno": {
+    "sources_in_priority_order": [
+      "https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip",
+      "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+    ]
+  },
+  "webview2": {
+    "type": "Fixed Version Runtime (not Evergreen bootstrapper)",
+    "status": "NOT bundled by this session -- requires downloading Microsoft's Fixed Version Runtime archive, which this sandbox's network policy blocks. windows-build.yml's Windows CI job (real internet access) downloads it and places it under Program/runtime/webview2/. windows_build/launcher (github.com/jchv/go-webview2) looks for WebView2Loader.dll next to the executable first, matching this layout."
+  },
+  "python_packages": {
+    "core": "requirements-core.txt (playwright==1.61.0, resolved lock in requirements-lock.txt -- actually run through pip against PyPI in this session)",
+    "ai_optional": "requirements-ai.txt (faster-whisper==1.2.1, ctranslate2==4.8.1, audio-separator[cpu]==0.44.5 -- versions confirmed current on PyPI via pypi.org JSON API in this session, compatibility range ctranslate2<5,>=4.0 confirmed from faster-whisper's own requires_dist)"
+  },
+  "go_toolchain": {
+    "compiler": "go1.24.7 linux/amd64 (this session)",
+    "target": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0",
+    "webview_binding": "github.com/jchv/go-webview2 (pure Go, MIT license, no CGO -- verified to cross-compile cleanly from Linux in this session, see windows_build/BUILD_VERIFICATION.md)"
+  }
+}

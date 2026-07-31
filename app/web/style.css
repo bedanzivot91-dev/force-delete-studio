@@ -168,3 +168,169 @@ body[data-theme="nightclub"]{--bg:#06040c;--panel:#120b25;--panel2:#17102e;--lin
 #view-production .button-stack{display:grid;gap:10px}#view-production hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 @media(max-width:900px){.production-hero{align-items:flex-start;flex-direction:column}.production-hero .button-row{width:100%}.production-hero .button-row .btn{flex:1}}
 .security-lock-modal{z-index:9999}.security-lock-card{max-width:430px;text-align:center}.security-lock-icon{font-size:3.4rem;margin-bottom:.35rem}.security-lock-card label{text-align:left}.security-lock-modal .modal-backdrop{cursor:default}
+
+/* ==========================================================================
+   NEON DISTRICT — full redesign, not a palette swap.
+   Cyberpunk/urban direction: navy-black base, cyan+magenta light accents,
+   angular clipped panels instead of rounded cards, a static HUD scanline
+   backdrop, segmented "LED" progress meters, monospace numerics for a
+   console/rack-gear feel. Every rule below is scoped under
+   body[data-theme="neon-district"] so it never leaks into the other themes,
+   and every animated rule is duplicated under a reduced-motion guard.
+   ========================================================================== */
+body[data-theme="neon-district"]{
+  --bg:#050914;--panel:#0a1220;--panel2:#0d1826;--line:#17304a;--text:#eaf6ff;--muted:#7fa2c4;
+  --accent:#00e5ff;--accent2:#ff2bd6;--green:#2af0a0;--red:#ff4d7d;--yellow:#ffd23f;
+  --sidebar:#050a15;--input:#081120;--card:#0a1424;--glow:rgba(0,229,255,.24);
+  --nd-mag:#ff2bd6;--nd-cy:#00e5ff;
+  font-family:"Segoe UI",Inter,Arial,sans-serif;
+}
+body[data-theme="neon-district"]{
+  background:
+    radial-gradient(circle at 82% -8%, rgba(255,43,214,.10), transparent 30%),
+    radial-gradient(circle at 6% 8%, rgba(0,229,255,.10), transparent 32%),
+    repeating-linear-gradient(180deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px),
+    var(--bg);
+}
+body[data-theme="neon-district"] ::selection{background:color-mix(in srgb,var(--nd-cy) 45%,transparent);color:#031018}
+body[data-theme="neon-district"] ::-webkit-scrollbar{width:10px;height:10px}
+body[data-theme="neon-district"] ::-webkit-scrollbar-track{background:var(--sidebar)}
+body[data-theme="neon-district"] ::-webkit-scrollbar-thumb{background:linear-gradient(var(--nd-cy),var(--nd-mag));border-radius:0;border:2px solid var(--sidebar)}
+
+/* Sidebar / nav rail: angular, double-line divider, no rounded corners */
+body[data-theme="neon-district"] .sidebar{
+  background:linear-gradient(180deg,rgba(5,10,21,.98),rgba(6,12,24,.98));
+  border-right:0;
+  box-shadow:inset -1px 0 0 var(--nd-cy), inset -4px 0 0 rgba(0,229,255,.08), 6px 0 22px rgba(0,0,0,.5);
+}
+body[data-theme="neon-district"] .brand{border-bottom:1px solid var(--nd-cy);border-image:linear-gradient(90deg,var(--nd-cy),var(--nd-mag) 80%) 1}
+body[data-theme="neon-district"] .brand-mark{
+  border-radius:2px;background:linear-gradient(135deg,var(--nd-cy),var(--nd-mag));
+  box-shadow:0 0 18px var(--glow),0 0 2px #fff inset;clip-path:polygon(15% 0,100% 0,100% 85%,85% 100%,0 100%,0 15%);
+}
+body[data-theme="neon-district"] .brand span{color:var(--nd-cy);letter-spacing:.22em}
+body[data-theme="neon-district"] .nav-item{
+  border-radius:2px;border-left:2px solid transparent;font-family:"Consolas",ui-monospace,monospace;
+  font-size:12.5px;letter-spacing:.03em;text-transform:uppercase;font-weight:700;
+}
+body[data-theme="neon-district"] .nav-item:hover{background:rgba(0,229,255,.08);border-left-color:var(--nd-cy);color:#fff}
+body[data-theme="neon-district"] .nav-item.active{
+  background:linear-gradient(90deg,rgba(0,229,255,.16),rgba(255,43,214,.05) 90%);
+  border:0;border-left:2px solid var(--nd-cy);color:#fff;
+  box-shadow:inset 0 0 14px rgba(0,229,255,.12);
+}
+body[data-theme="neon-district"] .connection{border-radius:2px;border:1px solid var(--line)}
+body[data-theme="neon-district"] .connection.online i{background:var(--nd-cy);box-shadow:0 0 10px var(--nd-cy)}
+body[data-theme="neon-district"] .version{font-family:ui-monospace,Consolas,monospace}
+
+/* Panels / cards: clipped corner instead of rounded, thin gradient edge */
+body[data-theme="neon-district"] .panel,
+body[data-theme="neon-district"] .song-card,
+body[data-theme="neon-district"] .toast,
+body[data-theme="neon-district"] .modal-card,
+body[data-theme="neon-district"] .folder-card,
+body[data-theme="neon-district"] .youtube-settings-box,
+body[data-theme="neon-district"] .youtube-action-card,
+body[data-theme="neon-district"] .youtube-channel-card,
+body[data-theme="neon-district"] .advanced-card,
+body[data-theme="neon-district"] .stat-card{
+  border-radius:3px!important;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
+  border:1px solid var(--line);
+  background:linear-gradient(155deg,rgba(10,18,32,.97),rgba(8,14,26,.98));
+  position:relative;
+}
+body[data-theme="neon-district"] .panel::before,
+body[data-theme="neon-district"] .song-card::before,
+body[data-theme="neon-district"] .folder-card::before{
+  content:"";position:absolute;inset:0;pointer-events:none;padding:1px;border-radius:inherit;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--nd-cy) 55%,transparent),transparent 40%,color-mix(in srgb,var(--nd-mag) 45%,transparent));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+body[data-theme="neon-district"] .song-card:hover{border-color:var(--nd-cy);box-shadow:0 0 0 1px var(--nd-cy),0 18px 40px rgba(0,229,255,.12);transform:translateY(-2px)}
+body[data-theme="neon-district"] .cover-placeholder{background:repeating-linear-gradient(45deg,#0b1424,#0b1424 10px,#0d1a2c 10px,#0d1a2c 20px);color:var(--nd-cy)}
+
+/* Buttons: beveled corner, tech letter-spacing */
+body[data-theme="neon-district"] .btn{
+  border-radius:2px;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 100%);
+  text-transform:uppercase;font-size:12.5px;letter-spacing:.06em;font-weight:800;
+}
+body[data-theme="neon-district"] .btn.primary{background:linear-gradient(120deg,var(--nd-cy),#00a5c2);color:#031018;box-shadow:0 0 20px var(--glow)}
+body[data-theme="neon-district"] .btn.primary:hover{background:linear-gradient(120deg,#5df3ff,var(--nd-cy));box-shadow:0 0 26px var(--glow)}
+body[data-theme="neon-district"] .btn.secondary{background:#0c1626;border-color:var(--line);color:#cdeeff}
+body[data-theme="neon-district"] .btn.secondary:hover{border-color:var(--nd-cy);color:#fff}
+body[data-theme="neon-district"] .btn.danger{background:rgba(255,77,125,.1);border-color:var(--nd-mag);color:#ffb0dd}
+body[data-theme="neon-district"] .icon-btn{border-radius:2px;background:#0c1626}
+body[data-theme="neon-district"] .icon-btn.active{border-color:var(--nd-cy);color:var(--nd-cy);box-shadow:0 0 10px var(--glow)}
+
+/* Inputs */
+body[data-theme="neon-district"] select,body[data-theme="neon-district"] input,
+body[data-theme="neon-district"] textarea,body[data-theme="neon-district"] .search-wrap{
+  border-radius:2px;background:var(--input);border-color:var(--line)
+}
+body[data-theme="neon-district"] input:focus,body[data-theme="neon-district"] select:focus,body[data-theme="neon-district"] textarea:focus{
+  border-color:var(--nd-cy);box-shadow:0 0 0 2px color-mix(in srgb,var(--nd-cy) 30%,transparent)
+}
+
+/* Badges / pills: clipped hex-ish tag shape */
+body[data-theme="neon-district"] .badge,body[data-theme="neon-district"] .pill,
+body[data-theme="neon-district"] .oauth-badge,body[data-theme="neon-district"] .status-pill,
+body[data-theme="neon-district"] .youtube-summary-badges span{
+  border-radius:2px;clip-path:polygon(6px 0,100% 0,100% 100%,6px 100%,0 50%);
+  font-family:ui-monospace,Consolas,monospace;font-size:10.5px;letter-spacing:.04em;
+}
+body[data-theme="neon-district"] .badge.saved{background:rgba(42,240,160,.16);color:var(--green);border-color:rgba(42,240,160,.35)}
+
+/* Progress / meters: segmented LED look, no continuous gradient */
+body[data-theme="neon-district"] .progress,body[data-theme="neon-district"] .bar-track,
+body[data-theme="neon-district"] .coverage-meter i,body[data-theme="neon-district"] .audio-score-grid i{
+  border-radius:2px;background:repeating-linear-gradient(90deg,#0b1424 0 3px,#0d1a2c 3px 4px);border:1px solid var(--line)
+}
+body[data-theme="neon-district"] .progress div,body[data-theme="neon-district"] .bar-fill,
+body[data-theme="neon-district"] .coverage-meter b,body[data-theme="neon-district"] .audio-score-grid b{
+  background:repeating-linear-gradient(90deg,var(--nd-cy) 0 6px,color-mix(in srgb,var(--nd-cy) 55%,transparent) 6px 8px);
+  box-shadow:0 0 10px var(--glow);
+}
+
+/* Numeric / stat readouts: monospace HUD feel */
+body[data-theme="neon-district"] .stat-card strong,body[data-theme="neon-district"] .big-number strong,
+body[data-theme="neon-district"] .tool-status strong,body[data-theme="neon-district"] .count-badge,
+body[data-theme="neon-district"] .match-score{
+  font-family:ui-monospace,Consolas,monospace;color:var(--nd-cy);text-shadow:0 0 12px rgba(0,229,255,.35)
+}
+
+/* Waveform / audio-visual surfaces */
+body[data-theme="neon-district"] #waveformCanvas,body[data-theme="neon-district"] .audio-preview-panel{
+  border-radius:2px;border-color:var(--nd-cy);background:linear-gradient(180deg,#08101d,#050a14)
+}
+body[data-theme="neon-district"] .audio-segment-map .segment-hit{background:linear-gradient(90deg,var(--nd-cy),var(--nd-mag));box-shadow:0 0 12px var(--glow)}
+
+/* Empty / loading states */
+body[data-theme="neon-district"] .empty-icon{border-radius:2px;background:#0b1424;color:var(--nd-cy);border:1px dashed var(--line)}
+
+/* Player dock */
+body[data-theme="neon-district"] .player{border-radius:3px;border-color:var(--nd-cy);box-shadow:0 0 30px rgba(0,229,255,.14),var(--shadow)}
+body[data-theme="neon-district"] .player img{border-radius:2px}
+
+/* Toasts: left accent bar instead of full border tint */
+body[data-theme="neon-district"] .toast{border-left:3px solid var(--nd-cy)}
+body[data-theme="neon-district"] .toast.success{border-left-color:var(--green)}
+body[data-theme="neon-district"] .toast.error{border-left-color:var(--nd-mag)}
+
+/* Theme picker card */
+body[data-theme="neon-district"] .theme-card.active{box-shadow:0 0 0 1px var(--nd-cy),0 0 16px var(--glow)}
+
+/* Reduced-motion / "smanjeno kretanje": disable hover-lift + glow transitions */
+@media (prefers-reduced-motion: reduce){
+  body[data-theme="neon-district"] .song-card,body[data-theme="neon-district"] .btn,
+  body[data-theme="neon-district"] .theme-card{transition:none!important}
+}
+body[data-theme="neon-district"][data-motion="reduced"] .song-card,
+body[data-theme="neon-district"][data-motion="reduced"] .btn{transition:none!important}
+body[data-theme="neon-district"][data-motion="reduced"] .song-card:hover{transform:none}
+
+@media(max-width:760px){
+  body[data-theme="neon-district"] .nav-item{font-size:0}
+  body[data-theme="neon-district"] .btn{clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 100%)}
+}

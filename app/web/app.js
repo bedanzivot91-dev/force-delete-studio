@@ -38,6 +38,10 @@ const THEMES = [
   { id:'teal-underground', name:'Teal Underground', colors:['#13c8c0','#122b2b','#061010'] },
   { id:'metro-gray', name:'Metro Gray', colors:['#94a3b8','#1e2229','#0c0e12'] },
   { id:'nightclub', name:'Nightclub Neon', colors:['#7c3cff','#17102e','#06040c'] },
+  // Full redesigns (own layout/shape/pattern language, not just a palette
+  // swap of the shared component CSS above) -- see the
+  // body[data-theme="..."] blocks near the end of style.css.
+  { id:'neon-district', name:'Neon District', colors:['#00f0ff','#ff2bd6','#050914'], full:true },
 ];
 
 function escapeHtml(value) {

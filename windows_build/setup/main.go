@@ -1138,14 +1138,21 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	pythonDir := filepath.Join(stage, "python")
 	if !fileReady(filepath.Join(pythonDir, "python.exe"), 100000) || !fileReady(filepath.Join(pythonDir, "pythonw.exe"), 100000) {
 		log("Python nije pronađen u paketu/prethodnoj instalaciji; preuzimam zvanični embeddable paket")
+		// 3.13.14 first, not 3.14.6: this session actually ran every module
+		// in app/ and plugins/ under python3.13 (py_compile + real imports,
+		// see docs/PYTHON_IMPORT_REPORT.json) and confirmed it works: the
+		// shipped .pyc cache in the delivered package was cpython-313, and
+		// the AI extras (ctranslate2, onnxruntime native wheels) have not
+		// been confirmed compatible with 3.14 by anyone in this project.
+		// 3.14.6 is kept as a fallback, not the primary target.
 		pythonZip := filepath.Join(cache, "python.zip")
 		urls := []string{
-			"https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip",
 			"https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip",
+			"https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip",
 		}
 		hashes := []string{
-			"df901e84a896ff1ee720ad03377e0c8d8c2244fda79808aeeaff6316df1cb75c",
 			"90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907",
+			"df901e84a896ff1ee720ad03377e0c8d8c2244fda79808aeeaff6316df1cb75c",
 		}
 		if err := downloadVerified(urls, hashes, pythonZip, log); err != nil {
 			return fmt.Errorf("Python: %w", err)
