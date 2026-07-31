@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Excludes the local song library DB and Keystore-backed prefs from
-     Android Auto Backup -- those must survive reinstall via explicit
+     Android Auto Backup: those must survive reinstall via explicit
      export/import (section 12), not an opaque cloud backup blob. -->
 <full-backup-content>
     <exclude domain="database" path="suno_biblioteka.db" />
