@@ -121,14 +121,20 @@ DEBUG APK (ukljuceno u ovom paketu):
    Android ce prvo prikazati Play zastitu upozorenje ("Play zastita do sada
    nije videla aplikaciju ovog programera") -- ovo je OCEKIVANO za svaki
    APK van Play Store-a, nije greska. Nastavi preko "Ipak instaliraj".
-Debug APK je potpisan Android SDK-ovim automatskim debug kljucem
-(standardno, nije tajna) -- prihvatljivo za testiranje, NE za Play Store.
+Debug APK je potpisan FIKSNIM debug kljucem koji je deo ovog repozitorijuma
+(android/keystore/debug.keystore, standardni Android debug alias
+"androiddebugkey", lozinka "android" -- ovo je javna, dokumentovana
+konvencija, nije tajna). Zbog toga je potpis ISTI u svakom CI build-u ove
+verzije -- pre ove ispravke, GitHub Actions runner je generisao NOV,
+nasumican debug kljuc pri svakom pokretanju, pa su APK-ovi iz razlicitih
+build-ova imali razlicite potpise i Android je odbijao instalaciju preko
+prethodno instalirane verzije ("Aplikacija nije instalirana", bez koda).
 
-Ako i posle raspakivanja na disk instalacija i dalje ne uspe: proveri da
-nemas vec instaliranu stariju verziju iste aplikacije potpisanu drugim
-kljucem (deinstaliraj staru pre nove instalacije), i uporedi SHA-256
-raspakovanog .apk fajla sa vrednoscu u SHA256SUMS.txt da iskljucis
-osteceno preuzimanje/raspakivanje.
+Ako i posle raspakivanja na disk instalacija i dalje ne uspe: najverovatniji
+uzrok je da vec imas instaliranu verziju ove aplikacije iz build-a PRE ove
+ispravke (razlicit, nasumicni potpis) -- deinstaliraj tu staru verziju pre
+instalacije nove. Takodje uporedi SHA-256 raspakovanog .apk fajla sa
+vrednoscu u SHA256SUMS.txt da iskljucis osteceno preuzimanje/raspakivanje.
 
 RELEASE APK/AAB (za Play Store ili sopstvenu distribuciju):
 Ovaj paket ih namerno ne sadrzi -- specifikacija zabranjuje ugradnju

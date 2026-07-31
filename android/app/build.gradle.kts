@@ -23,6 +23,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Fixed, committed debug keystore (android/keystore/debug.keystore,
+            // standard Android debug conventions: alias androiddebugkey,
+            // password "android" -- this is not a secret, it is the public,
+            // well-known debug-signing convention Android itself documents).
+            // Without this block, Gradle auto-generates ~/.android/debug.keystore
+            // per machine; on GitHub Actions' ephemeral runners that means a
+            // NEW random key every CI run, so APKs built in different runs
+            // have mismatched signatures and Android refuses to install one
+            // over the other ("Aplikacija nije instalirana", no error code).
+            // Pinning the keystore here makes every CI-built debug APK share
+            // one signature across runs.
+            storeFile = file("../keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -31,6 +51,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
