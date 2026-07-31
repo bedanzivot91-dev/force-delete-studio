@@ -1,0 +1,20 @@
+{
+  "note": "No AI model weights are downloaded, embedded, or referenced by pinned URL anywhere in this repository as of this session -- this manifest documents the INTENDED model choices and why, not files that exist. Section 17 of the build spec requires at least one Serbian-capable transcription model and one tested stem-separation model physically bundled in the offline Windows package; that bundling has NOT happened yet (blocked by this sandbox's network policy, same reason python.org/gyan.dev are unreachable here -- confirmed directly in this session).",
+  "status": "NOT IMPLEMENTED -- planning document only",
+  "transcription": {
+    "runtime": "faster-whisper (ctranslate2 backend) -- see PYTHON_PACKAGES_MANIFEST.json",
+    "candidate_model": "Systran/faster-whisper-large-v3 or a smaller distilled variant (e.g. large-v3-turbo) from the faster-whisper-compatible CTranslate2 model set on Hugging Face",
+    "serbian_support": "Whisper large-v3/v3-turbo support Serbian as one of its ~99 training languages; this has not been independently benchmarked against Serbian song lyrics in this session -- needs real evaluation before shipping, not just a language-list check",
+    "cpu_fallback": "faster-whisper runs pure CPU by default when no CUDA device is available; already the default code path since the app has no CUDA dependency"
+  },
+  "stem_separation": {
+    "runtime": "audio-separator[cpu] -- see PYTHON_PACKAGES_MANIFEST.json",
+    "candidate_model": "UVR-MDX-NET or Demucs v4 htdemucs, both supported by audio-separator's model registry",
+    "cpu_fallback": "the [cpu] extra is exactly this -- ONNX Runtime CPU execution provider, no CUDA required"
+  },
+  "next_steps_for_real_implementation": [
+    "Extend windows_build/setup's --stage-components (or a sibling --stage-ai-models mode) to download a specific pinned model file with a real SHA-256, the same pattern already used for Python/FFmpeg/yt-dlp/Deno",
+    "Add the model manifest with real per-model SHA-256, license, and size once a specific model file is chosen and downloaded for real on a network-unrestricted runner (Windows CI)",
+    "Run a real transcription against a Serbian test clip and a real stem-separation pass against a test song before claiming this section done -- do not mark this complete on the strength of 'the package imports cleanly', which is all that has been verified so far (see docs/PYTHON_IMPORT_REPORT.json)"
+  ]
+}

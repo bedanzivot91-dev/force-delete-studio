@@ -1,0 +1,57 @@
+THIRD_PARTY_LICENSES.txt -- Suno Pesme Studio 3.3.2
+
+This lists every third-party runtime component this build actually
+references (see docs/COMPONENTS_MANIFEST.json, docs/COMPATIBILITY_MATRIX.json,
+docs/PYTHON_PACKAGES_MANIFEST.json, windows_build/go.mod, android/*/build.gradle.kts
+for where each entry comes from). This is a compliance starting point, not
+a legal sign-off -- verify against each project's actual LICENSE file
+before commercial redistribution, especially the FFmpeg build note below.
+
+== Windows-side native tools (fetched by windows_build/setup at package/install time) ==
+
+Python 3.13.14 (embeddable)     PSF License 2.0            https://www.python.org
+FFmpeg 8.1.2 (gyan.dev build)   GPL v2/v3 (build-dependent) https://ffmpeg.org
+  NOTE: the "essentials" build from gyan.dev typically links libx264 and
+  other GPL-licensed encoders, which makes the resulting ffmpeg.exe/ffprobe.exe
+  binaries GPL-licensed as a whole, not LGPL. Redistributing them requires
+  complying with GPL source-availability terms (gyan.dev publishes their
+  build scripts/patches; verify current terms at build time, not from this
+  static file, since FFmpeg's own bundled codec set can change per release).
+yt-dlp 2026.07.04               Unlicense (public domain)   https://github.com/yt-dlp/yt-dlp
+Deno 2.8.1                      MIT                         https://deno.land
+WebView2 Runtime                Microsoft proprietary EULA  https://developer.microsoft.com/microsoft-edge/webview2/
+
+== Go modules (windows_build, see go.mod/go.sum) ==
+
+github.com/jchv/go-webview2     MIT     https://github.com/jchv/go-webview2
+github.com/jchv/go-winloader    MIT     https://github.com/jchv/go-winloader
+golang.org/x/sys                BSD-3-Clause   https://pkg.go.dev/golang.org/x/sys
+
+== Python packages (see docs/PYTHON_PACKAGES_MANIFEST.json) ==
+
+playwright          Apache-2.0
+greenlet             MIT
+pyee                 MIT
+typing_extensions    PSF-2.0
+faster-whisper       MIT       (optional AI feature)
+ctranslate2          MIT       (optional AI feature)
+audio-separator      MIT       (optional AI feature)
+
+== Android / Kotlin (see android/build.gradle.kts, android/app/build.gradle.kts) ==
+
+Kotlin                          Apache-2.0   https://kotlinlang.org
+AndroidX (core, lifecycle,
+  activity, navigation, compose,
+  room, work, datastore, media3)  Apache-2.0   https://developer.android.com/jetpack/androidx
+Material Components / Material3  Apache-2.0
+Gradle                           Apache-2.0   https://gradle.org
+
+== This project's own code ==
+
+Suno Pesme Studio 3.3.2 application code (app/, plugins/, app/web/,
+windows_build/, android/) -- license not declared by the original
+delivered package; the maintainer should add an explicit LICENSE file at
+the repo root stating the terms under which this codebase itself is
+distributed, separate from the end-user LICENSE.txt shown by the Windows
+installer (windows_build/setup/LICENSE.txt, which covers usage of the
+built application, not the source).
