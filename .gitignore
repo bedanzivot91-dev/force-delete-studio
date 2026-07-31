@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+node_modules/
+*.db
+*.log
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+*.iml
+.idea/
+build/
+dist/
+*.exe
