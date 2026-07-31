@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Storage Access Framework covers file import (section 18.1); no
          broad MANAGE_EXTERNAL_STORAGE / legacy READ_EXTERNAL_STORAGE is
          requested, per current Play storage policy. -->
+    <!-- INTERNET, POST_NOTIFICATIONS, FOREGROUND_SERVICE(_MEDIA_PLAYBACK)
+         were previously declared "reserved for future" (YouTube/Suno sync,
+         WorkManager notifications, Media3 playback) but nothing in this
+         build's code actually calls them yet -- verified by grep, no
+         network call, NotificationManager, or MediaSession/PlaybackService
+         exists in app/src. A brand-new, unrecognized signing key requesting
+         RECORD_AUDIO+INTERNET together is exactly the permission
+         combination Google Play Protect's on-device heuristic scanner
+         treats as high-risk and hard-blocks installation for ("Aplikacija
+         je blokirana radi zaštite uređaja", no "Install anyway" option) --
+         real device testing hit this. Re-add each permission when the
+         feature that needs it actually lands, not before. -->
 
     <application
         android:name=".SunoApplication"

@@ -52,6 +52,23 @@ jobs:
           find android/app/build/outputs/apk -name "*.apk" -exec ls -la {} \;
           test -n "$(find android/app/build/outputs/apk -name '*.apk')" || (echo "No APK produced" && exit 1)
 
+      - name: Print the built APK's real, final permission list (aapt dump, post manifest-merge)
+        # AndroidManifest.xml in source only shows what THIS project declares
+        # -- library dependencies (androidx.work, androidx.media3, etc.) can
+        # silently reintroduce permissions during Gradle's manifest merge.
+        # aapt dump reads the actual compiled APK, so this is the real,
+        # final permission list a device sees, not a source-file guess --
+        # logged here so a permission-trimming change (like removing the
+        # unused INTERNET/FOREGROUND_SERVICE/POST_NOTIFICATIONS entries,
+        # done to reduce Play Protect's high-risk-permission-combo
+        # heuristic) can be confirmed to have actually taken effect.
+        run: |
+          set -euo pipefail
+          APK=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -1)
+          echo "Using aapt: $AAPT"
+          "$AAPT" dump permissions "$APK"
+
       - name: Verify APK is signed with the committed debug keystore (real fingerprint check)
         # Proves, in every CI run, that signingConfigs.debug in
         # android/app/build.gradle.kts actually took effect -- i.e. that this

@@ -93,7 +93,7 @@ DATA_SAFETY = """# ANDROID_DATA_SAFETY_DRAFT.md
 
 Nacrt za Play Console "Data safety" formu, tačan za stanje koda u OVOM build-u (ne za ceo planirani opseg funkcija):
 
-- Aplikacija ne šalje nijedan podatak na spoljni server u ovoj fazi (nema mrežnih poziva u kodu osim rezervisane INTERNET dozvole za buduću sinhronizaciju).
+- Aplikacija ne šalje nijedan podatak na spoljni server u ovoj fazi -- nema mrežnih poziva u kodu, i ne traži čak ni INTERNET dozvolu dok ta funkcija stvarno ne bude povezana (uklonjena iz manifesta jer nije bila iskorišćena; videti napomenu u AndroidManifest.xml).
 - Audio snimljen mikrofonom (Pronalazač pesme) ostaje lokalno na uređaju (privremeni fajl u cache direktorijumu, obrisan posle analize) i nikad se ne šalje nikuda.
 - Room baza (biblioteka, istorija Pronalazača) je lokalna SQLite baza na uređaju, isključena iz Android Auto Backup-a (vidi backup_rules.xml).
 
@@ -121,6 +121,36 @@ DEBUG APK (ukljuceno u ovom paketu):
    Android ce prvo prikazati Play zastitu upozorenje ("Play zastita do sada
    nije videla aplikaciju ovog programera") -- ovo je OCEKIVANO za svaki
    APK van Play Store-a, nije greska. Nastavi preko "Ipak instaliraj".
+
+AKO PLAY ZASTITA POTPUNO BLOKIRA INSTALACIJU (naslov "Aplikacija je
+blokirana radi zastite uredjaja", BEZ dugmeta "Ipak instaliraj", samo
+"Vazi"): ovo je Google Play Protect-ov strozi, "tvrdi" blok (razlicit od
+gore opisanog obicnog upozorenja), koji Google primenjuje na svaki potpuno
+nov, njemu nepoznat potpisni kljuc -- posebno ako aplikacija trazi
+osetljive dozvole. Nije greska u paketu niti nesto sto se moze popraviti u
+samom APK-u/build-u; to je odluka Play Protect-ovog servisa na tvom
+uredjaju/nalogu. Da instaliras svoju sopstvenu, legitimnu aplikaciju:
+1. Otvori Play Store aplikaciju > tvoja profilna slika (gore desno) >
+   "Play zastita" > ikonica zupcanika (podesavanja) > iskljuci "Skeniraj
+   aplikacije pomocu Play zastite". (Na nekim uredjajima: Podesavanja >
+   Bezbednost i privatnost > Google Play zastita > zupcanik > isto dugme.)
+2. Ponovo pokusaj instalaciju raspakovanog .apk fajla.
+3. Po zelji, posle instalacije, vrati podesavanje na ukljuceno.
+Ako uredjaj ima Samsung "Auto Blocker" (Podesavanja > Bezbednost i
+privatnost > Auto Blocker), i on mora biti privremeno iskljucen -- on
+nezavisno od Play zastite blokira instalaciju van Play Store/Galaxy
+Store-a. Ovaj korak je nuzan samo zato sto APK jos nema Play Store
+reputaciju (svaki potpuno nov, nepoznat APK prolazi kroz isto, cak i kad
+je bezbedan) -- ne znaci da je paket neispravan.
+
+Ova verzija takodje NE trazi vise dozvole koje jos ne koristi (INTERNET,
+POST_NOTIFICATIONS, FOREGROUND_SERVICE) -- ranije build-ovi jesu, sto
+kombinovano sa RECORD_AUDIO dozvolom (za Pronalazac pesme) spada u
+kombinaciju koju Play Protect-ov heuristicki skener tretira kao rizicnu
+za potpuno nov/nepoznat potpisni kljuc. I dalje moze doci do gornjeg
+blokiranja (Play Protect ocenjuje i sam nepoznati kljuc, ne samo
+dozvole), ali je rizik manji.
+
 Debug APK je potpisan FIKSNIM debug kljucem koji je deo ovog repozitorijuma
 (android/keystore/debug.keystore, standardni Android debug alias
 "androiddebugkey", lozinka "android" -- ovo je javna, dokumentovana
