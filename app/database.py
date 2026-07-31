@@ -22,6 +22,28 @@ BUILTIN_COLLECTIONS = (
 )
 
 
+class _ClosingConnection(sqlite3.Connection):
+    """sqlite3.Connection used as `with conn: ...` only commits/rolls back
+    on exit -- it deliberately does NOT close the connection (documented
+    stdlib behavior). Nearly every method below uses that exact pattern
+    (`with self._connect() as conn:`), so every one of those ~85 call
+    sites was leaking a raw OS file handle to db_path, never explicitly
+    closed until CPython's garbage collector happened to finalize it.
+    On Windows this is not just untidy: a still-open handle blocks
+    replacing/deleting the database file (confirmed via real CI failures
+    -- WinError 32, "used by another process" -- in exactly the kind of
+    short-lived-LibraryDB-then-cleanup pattern the test suite uses, and
+    the same pattern a real backup/restore/migration touches). Closing
+    here, once, fixes every call site without having to touch each one.
+    """
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
+
 class LibraryDB:
     def __init__(self, db_path: Path):
         self.db_path = db_path
@@ -30,7 +52,12 @@ class LibraryDB:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
+        # factory=_ClosingConnection only changes behavior for callers that
+        # use `with self._connect() as conn:` (the vast majority). The few
+        # call sites that keep the connection across a `with` block (e.g.
+        # backup_to/restore_from) already call .close() themselves and are
+        # unaffected either way.
+        conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False, factory=_ClosingConnection)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")

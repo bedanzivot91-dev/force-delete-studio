@@ -3262,7 +3262,15 @@ def run_self_test(include_audio: bool = True) -> dict[str, Any]:
     def add(name: str, status: str, detail: str, **extra: Any) -> None:
         checks.append({"name": name, "status": status, "detail": detail, **extra})
 
-    required = [WEB_DIR / "index.html", WEB_DIR / "app.js", WEB_DIR / "style.css", ROOT / "POKRENI_PROGRAM.bat", ROOT / "ALATI_I_ODRZAVANJE" / "ZAUSTAVI_PROGRAM.bat", ROOT / "app" / "youtube_oauth.py", ROOT / "app" / "youtube_tools.py", ROOT / "app" / "advanced_features.py", ROOT / "app" / "suno_compat.py", ROOT / "plugins" / "stems_worker.py", ROOT / "plugins" / "transcribe_worker.py", ROOT / "ALATI_I_ODRZAVANJE" / "PRIMENI_AZURIRANJE.bat"]
+    # POKRENI_PROGRAM.bat / ZAUSTAVI_PROGRAM.bat / PRIMENI_AZURIRANJE.bat
+    # used to be checked here too, but that .bat-launcher architecture was
+    # replaced by the native Go launcher/installer/uninstaller
+    # (windows_build/) -- those files are never created by the current
+    # installer (installer/SunoPesmeStudio.iss, which referenced them, was
+    # deleted for the same reason), so this check was permanently
+    # reporting "fail" against files the shipped app was never going to
+    # have, confirmed live via CI's http_integration_v300.py self-test run.
+    required = [WEB_DIR / "index.html", WEB_DIR / "app.js", WEB_DIR / "style.css", ROOT / "app" / "youtube_oauth.py", ROOT / "app" / "youtube_tools.py", ROOT / "app" / "advanced_features.py", ROOT / "app" / "suno_compat.py", ROOT / "plugins" / "stems_worker.py", ROOT / "plugins" / "transcribe_worker.py"]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
     add("Programski fajlovi", "pass" if not missing else "fail", "Svi obavezni fajlovi postoje." if not missing else "Nedostaje: " + ", ".join(missing))
 
