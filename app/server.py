@@ -48,7 +48,7 @@ from audio_match import (
 )
 from advanced_features import (
     analyze_audio_quality, check_update, compare_lyrics_transcript, create_cloud_backup, restore_cloud_backup,
-    create_incremental_backup, download_update, list_incremental_backups, load_subtitle_cues,
+    create_incremental_backup, download_update, install_ai_plugin, list_incremental_backups, load_subtitle_cues,
     plugin_status, relocate_missing_files, restore_incremental_item, run_stem_separation,
     run_transcription, save_subtitle_files,
 )
@@ -3508,6 +3508,14 @@ def relocate_files_task(task: TaskState, options: dict[str, Any]) -> None:
     task.finish(f"Popravka putanja završena: pronađeno {result['fixed']} od {result['missing']} nestalih fajlova.")
 
 
+def install_ai_plugin_task(task: TaskState, options: dict[str, Any]) -> None:
+    component = str(options.get("component") or "")
+    task.total = 1
+    result = install_ai_plugin(ROOT, component, progress=lambda message: task.log(message))
+    task.set_progress(1, 1, component)
+    task.finish(f"{component}: instalacija je završena ({result['target']}).")
+
+
 def stem_task(task: TaskState, options: dict[str, Any]) -> None:
     ids = [str(x) for x in (options.get("ids") or []) if str(x)]
     if not ids and options.get("id"):
@@ -4465,7 +4473,15 @@ class Handler(BaseHTTPRequestHandler):
                 task.log("Posao je nastavljen.", "success")
                 self._send_json({"ok": True, "task": task.as_dict()}); return
             if path == "/api/v3/open-maintenance":
-                target = ROOT / "ALATI_I_ODRZAVANJE"
+                # ALATI_I_ODRZAVANJE (a folder of .bat maintenance scripts)
+                # was the old architecture; the native Go launcher/installer
+                # replaced it and never creates that folder, so opening it
+                # was a dead end (FileNotFoundError). USER_DATA_ROOT -- logs,
+                # backups, rollback snapshots -- is the real, current
+                # equivalent, and is exactly what launcher/main.go's own
+                # --otvori-podatke flag opens.
+                target = USER_DATA_ROOT
+                target.mkdir(parents=True, exist_ok=True)
                 if os.name == "nt": os.startfile(str(target))  # type: ignore[attr-defined]
                 elif sys.platform == "darwin": subprocess.Popen(["open", str(target)])
                 else: subprocess.Popen(["xdg-open", str(target)])
@@ -4612,6 +4628,10 @@ class Handler(BaseHTTPRequestHandler):
                 payload=dict(body); task=start_task("stems","Izdvajanje vokala i instrumentala",lambda t:stem_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/plugins/transcription/run":
                 payload=dict(body); task=start_task("transcription","Lokalna transkripcija",lambda t:transcription_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
+            if path == "/api/plugins/stems/install":
+                payload={"component":"stems"}; task=start_task("plugin_install","Instalacija: izdvajanje vokala i instrumentala",lambda t:install_ai_plugin_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
+            if path == "/api/plugins/transcription/install":
+                payload={"component":"transcription"}; task=start_task("plugin_install","Instalacija: lokalna transkripcija",lambda t:install_ai_plugin_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/update/settings":
                 DB.set_setting("update_manifest_url",str(body.get("manifest_url") or "").strip()); self._send_json({"ok":True,"update":check_update(DB.get_setting("update_manifest_url", ""),APP_VERSION)}); return
             if path == "/api/update/download":

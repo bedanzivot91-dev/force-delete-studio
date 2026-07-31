@@ -498,48 +498,99 @@ def restore_cloud_backup(db: Any, package: Path, *, restore_files: bool = True, 
     return {"path": str(package), "database_restored": True, "files_restored": restored, "restore_root": str(controlled_root), "skipped": skipped}
 
 
+# component -> (pip packages to install, a top-level package dir that only
+# exists once the install actually succeeded -- used as the "installed?"
+# check instead of a separate interpreter, see install_ai_plugin() below).
+_AI_COMPONENTS: dict[str, tuple[list[str], str]] = {
+    "stems": (["audio-separator[cpu]==0.44.5"], "audio_separator"),
+    "transcription": (["faster-whisper==1.2.1", "ctranslate2==4.8.1"], "faster_whisper"),
+}
+
+
+def _bundled_python(root: Path) -> Path:
+    return root / "python" / ("python.exe" if os.name == "nt" else "python")
+
+
 def plugin_status(root: Path) -> dict[str, Any]:
     plugins = root / "plugins"
-    stems_python = plugins / "stems_env" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    transcription_python = plugins / "transcription_env" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     panako_candidates = [
         root / "tools" / "panako" / ("panako.bat" if os.name == "nt" else "panako"),
         plugins / "panako" / ("panako.bat" if os.name == "nt" else "panako"),
     ]
     panako = next((candidate for candidate in panako_candidates if candidate.exists()), panako_candidates[0])
     fpcalc = plugins / "chromaprint" / ("fpcalc.exe" if os.name == "nt" else "fpcalc")
-    return {
-        "stems": {"installed": stems_python.exists(), "python": str(stems_python)},
-        "transcription": {"installed": transcription_python.exists(), "python": str(transcription_python)},
+    result: dict[str, Any] = {
         "panako": {"installed": panako.exists(), "path": str(panako)},
         "chromaprint": {"installed": fpcalc.exists() or bool(shutil.which("fpcalc")), "path": str(fpcalc if fpcalc.exists() else shutil.which("fpcalc") or "")},
     }
+    for component, (_, marker_pkg) in _AI_COMPONENTS.items():
+        target = plugins / f"{component}_env"
+        result[component] = {"installed": (target / marker_pkg).is_dir(), "target": str(target)}
+    return result
+
+
+def install_ai_plugin(root: Path, component: str, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+    """Real installation of an optional AI component (stems|transcription).
+
+    The embeddable Python distribution this app ships has no venv/ensurepip
+    support, so a real isolated virtualenv (what the old, since-removed
+    INSTALIRAJ_STEMOVE.bat / INSTALIRAJ_TRANSKRIPCIJU.bat scripts implied)
+    isn't practical here. `pip install --target <dir>` with the bundled
+    interpreter is the real, working equivalent: it actually downloads and
+    installs the packages (verified against real PyPI in this project's
+    CI), keeps them out of the main interpreter's site-packages, and
+    run_stem_separation()/run_transcription() below load them via
+    PYTHONPATH instead of a separate interpreter.
+    """
+    if component not in _AI_COMPONENTS:
+        raise ValueError(f"Nepoznata AI komponenta: {component}")
+    packages, _ = _AI_COMPONENTS[component]
+    python_exe = _bundled_python(root)
+    if not python_exe.exists():
+        raise RuntimeError("Ugrađeni Python interpreter nije pronađen.")
+    target = root / "plugins" / f"{component}_env"
+    target.mkdir(parents=True, exist_ok=True)
+    if progress:
+        progress(f"Instaliram: {', '.join(packages)} (ovo može potrajati nekoliko minuta)")
+    cmd = [str(python_exe), "-m", "pip", "install", "--no-warn-script-location", "--target", str(target), *packages]
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800,
+        creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "Instalacija nije uspela.")[-2000:])
+    if progress:
+        progress(f"{component} je instaliran.")
+    return {"ok": True, "component": component, "target": str(target)}
+
+
+def _run_ai_worker(root: Path, component: str, worker_name: str, args: list[str]) -> dict[str, Any]:
+    status = plugin_status(root)[component]
+    if not status["installed"]:
+        raise RuntimeError(
+            "Ovaj AI dodatak nije instaliran. Otvori karticu „Pametni alati“ i klikni „Instaliraj“ "
+            f"za {('izdvajanje vokala' if component == 'stems' else 'transkripciju')}."
+        )
+    worker = root / "plugins" / worker_name
+    env = os.environ.copy()
+    env["PYTHONPATH"] = status["target"] + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    cmd = [str(_bundled_python(root)), str(worker), *args]
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=7200, env=env,
+        creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "Obrada nije uspela.")[-2000:])
+    return json.loads((proc.stdout or "{}").strip().splitlines()[-1])
 
 
 def run_stem_separation(root: Path, audio_path: Path, output_dir: Path, model: str = "htdemucs") -> dict[str, Any]:
-    status = plugin_status(root)["stems"]
-    if not status["installed"]:
-        raise RuntimeError("Stem dodatak nije instaliran. Otvori ALATI_I_ODRZAVANJE i pokreni INSTALIRAJ_STEMOVE.bat.")
-    worker = root / "plugins" / "stems_worker.py"
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [status["python"], str(worker), str(audio_path), str(output_dir), model]
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=7200, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
-    if proc.returncode != 0:
-        raise RuntimeError((proc.stderr or proc.stdout or "Stem obrada nije uspela.")[-2000:])
-    data = json.loads((proc.stdout or "{}").strip().splitlines()[-1])
-    return data
+    return _run_ai_worker(root, "stems", "stems_worker.py", [str(audio_path), str(output_dir), model])
 
 
 def run_transcription(root: Path, audio_path: Path, language: str = "sr", model: str = "small") -> dict[str, Any]:
-    status = plugin_status(root)["transcription"]
-    if not status["installed"]:
-        raise RuntimeError("Transkripcija nije instalirana. Otvori ALATI_I_ODRZAVANJE i pokreni INSTALIRAJ_TRANSKRIPCIJU.bat.")
-    worker = root / "plugins" / "transcribe_worker.py"
-    cmd = [status["python"], str(worker), str(audio_path), language, model]
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=7200, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
-    if proc.returncode != 0:
-        raise RuntimeError((proc.stderr or proc.stdout or "Transkripcija nije uspela.")[-2000:])
-    return json.loads((proc.stdout or "{}").strip().splitlines()[-1])
+    return _run_ai_worker(root, "transcription", "transcribe_worker.py", [str(audio_path), language, model])
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
