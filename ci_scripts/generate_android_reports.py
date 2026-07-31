@@ -102,12 +102,33 @@ Ovaj dokument mora biti ponovo pregledan pre svakog Play Store submitovanja koje
 
 INSTALL_INSTRUCTIONS = """SUNO PESME STUDIO 3.3.2 -- ANDROID
 
+VAZNO -- RASPAKUJ CEO ZIP NA DISK PRE INSTALACIJE (najcesci uzrok "Aplikacija
+nije instalirana"):
+Mnogi fajl-menadzeri na Androidu umeju da "pregledaju" sadrzaj .zip fajla
+BEZ pravog raspakivanja (virtuelni prikaz, cesto sa ".archivetemp" u putanji
+na vrhu ekrana). Ako pokusas da instaliras APK direktno iz tog pregleda,
+Android installer cesto ne uspe da ga procita i prijavi generisku gresku
+bez koda. Uvek prvo koristi opciju "Raspakuj"/"Extract" (ne samo
+otvori/pregledaj) u pravi folder na uredjaju (npr. Download/), pa tek onda
+otvori .apk iz tog stvarno raspakovanog foldera.
+
 DEBUG APK (ukljuceno u ovom paketu):
-1. Na telefonu omoguci "Instaliraj iz nepoznatih izvora" za aplikaciju
+1. Raspakuj Suno-Pesme-Studio-v3.3.2-ANDROID.zip na disk (vidi upozorenje
+   iznad -- ovaj korak je obavezan, ne preskaci ga).
+2. Na telefonu omoguci "Instaliraj iz nepoznatih izvora" za aplikaciju
    kojom otvaras APK (Podesavanja > Aplikacije > Poseban pristup).
-2. Otvori Suno-Pesme-Studio-v3.3.2-Android-debug.apk i instaliraj.
+3. Otvori raspakovani Suno-Pesme-Studio-v3.3.2-Android-debug.apk i instaliraj.
+   Android ce prvo prikazati Play zastitu upozorenje ("Play zastita do sada
+   nije videla aplikaciju ovog programera") -- ovo je OCEKIVANO za svaki
+   APK van Play Store-a, nije greska. Nastavi preko "Ipak instaliraj".
 Debug APK je potpisan Android SDK-ovim automatskim debug kljucem
 (standardno, nije tajna) -- prihvatljivo za testiranje, NE za Play Store.
+
+Ako i posle raspakivanja na disk instalacija i dalje ne uspe: proveri da
+nemas vec instaliranu stariju verziju iste aplikacije potpisanu drugim
+kljucem (deinstaliraj staru pre nove instalacije), i uporedi SHA-256
+raspakovanog .apk fajla sa vrednoscu u SHA256SUMS.txt da iskljucis
+osteceno preuzimanje/raspakivanje.
 
 RELEASE APK/AAB (za Play Store ili sopstvenu distribuciju):
 Ovaj paket ih namerno ne sadrzi -- specifikacija zabranjuje ugradnju
