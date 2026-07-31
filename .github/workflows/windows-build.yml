@@ -24,6 +24,9 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Install FFmpeg
+        run: choco install ffmpeg -y --no-progress
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 

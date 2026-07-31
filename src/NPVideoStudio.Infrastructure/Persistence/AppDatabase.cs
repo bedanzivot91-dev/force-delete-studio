@@ -17,7 +17,10 @@ public sealed class AppDatabase
             Directory.CreateDirectory(dir);
         }
 
-        _connectionString = new SqliteConnectionStringBuilder { DataSource = path }.ToString();
+        // Pooling off: this is a low-concurrency local desktop database, and keeping pooled native
+        // connections around after Dispose() holds a Windows file lock on the .db file - which broke
+        // both test cleanup and any real "delete/recreate the database" diagnostics repair.
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString();
     }
 
     public SqliteConnection OpenConnection()
