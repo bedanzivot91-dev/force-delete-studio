@@ -137,6 +137,13 @@ def resolve_channel(reference: str, api_key: str = "", access_token: str = "") -
         stats = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
         channel_id = str(item.get("id") or "")
         custom = str(snippet.get("customUrl") or "")
+        thumbnails = snippet.get("thumbnails") if isinstance(snippet.get("thumbnails"), dict) else {}
+        thumbnail_url = str(
+            (thumbnails.get("high") or {}).get("url")
+            or (thumbnails.get("medium") or {}).get("url")
+            or (thumbnails.get("default") or {}).get("url")
+            or ""
+        )
         return {
             "channel_id": channel_id,
             "title": str(snippet.get("title") or channel_id),
@@ -146,6 +153,7 @@ def resolve_channel(reference: str, api_key: str = "", access_token: str = "") -
             "subscriber_count": int(stats.get("subscriberCount") or 0),
             "video_count": int(stats.get("videoCount") or 0),
             "view_count": int(stats.get("viewCount") or 0),
+            "thumbnail_url": thumbnail_url,
             "source_mode": "oauth" if access_token else "api",
         }
     channel_id = _channel_id_from_page(reference)

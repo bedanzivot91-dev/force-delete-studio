@@ -685,3 +685,6 @@ body[data-contrast="high"] textarea:focus,body[data-contrast="high"] .btn:focus-
    var(--green)/var(--red), so overriding the two variables here is enough
    to recolor every status badge, meter and message across all 5 themes. */
 body[data-colorblind="true"]{--green:#2f8fe0;--red:#e0862f}
+
+.youtube-channel-avatar{overflow:hidden;flex-shrink:0}
+.youtube-channel-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}

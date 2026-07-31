@@ -836,6 +836,13 @@ def _best_song_match(video: dict[str, Any], songs: list[dict[str, Any]], owned_i
     return best_song, best_match
 
 
+def _connected_channels_payload() -> dict[str, Any]:
+    channels = DB.list_youtube_channels()
+    for channel in channels:
+        channel["shorts_report"] = DB.channel_shorts_report(str(channel.get("channel_id") or ""))
+    return {"ok": True, "channels": channels, "has_api_key": bool(get_youtube_api_key()), "oauth": YOUTUBE_OAUTH.status(), "summary": DB.youtube_summary()}
+
+
 def scan_owned_youtube_channels(task: TaskState, options: dict[str, Any]) -> None:
     channels = [c for c in DB.list_youtube_channels() if int(c.get("is_owned") or 0) == 1]
     if not channels:
@@ -1342,7 +1349,12 @@ def _analyse_video_against_songs(
     return primary_result
 
 def analyze_owned_youtube_audio(task: TaskState, options: dict[str, Any]) -> None:
+    only_channel_id = str(options.get("channel_id") or "").strip()
     channels = [c for c in DB.list_youtube_channels() if int(c.get("is_owned") or 0) == 1]
+    if only_channel_id:
+        channels = [c for c in channels if str(c.get("channel_id") or "") == only_channel_id]
+        if not channels:
+            raise RuntimeError("Taj kanal nije pronađen među povezanim mojim kanalima.")
     if not channels:
         raise RuntimeError("Dodaj najmanje jedan svoj YouTube kanal u Pametnim alatima.")
     songs = DB.export_rows([str(x) for x in (options.get("song_ids") or []) if str(x)] or None)
@@ -1373,6 +1385,10 @@ def analyze_owned_youtube_audio(task: TaskState, options: dict[str, Any]) -> Non
                 seen.add(video_id)
                 DB.upsert_youtube_video(video, is_owned_channel=True)
                 all_videos.append(video)
+    if options.get("shorts_only"):
+        before_shorts = len(all_videos)
+        all_videos = [v for v in all_videos if float(v.get("duration") or 0) <= 70]
+        task.log(f"Samo Shorts: izabrano {len(all_videos)} od {before_shorts} videa (trajanje do 70 s).")
     scan_mode = str(options.get("scan_mode") or "new").strip().lower()
     existing_analyses = DB.list_youtube_audio_analyses(limit=10000)
     analysed_ids = {str(row.get("video_id") or "") for row in existing_analyses if str(row.get("audio_checked_at") or "")}
@@ -4314,8 +4330,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/youtube/oauth/status":
                 self._send_json({"ok": True, "oauth": YOUTUBE_OAUTH.status(), "channels": DB.list_youtube_channels()})
                 return
-            if path == "/api/youtube/channels":
-                self._send_json({"ok": True, "channels": DB.list_youtube_channels(), "has_api_key": bool(get_youtube_api_key()), "oauth": YOUTUBE_OAUTH.status(), "summary": DB.youtube_summary()})
+            if path in ("/api/youtube/channels", "/api/youtube/connected-channels"):
+                self._send_json(_connected_channels_payload())
                 return
             if path == "/api/youtube/matches":
                 match_type = (query.get("type") or [""])[0]
@@ -4985,6 +5001,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/youtube/audio-analyze-owned":
                 task = start_task("youtube_audio_owned", "YouTube ↔ Suno audio analiza", lambda t: analyze_owned_youtube_audio(t, body), persistent_payload=dict(body))
+                self._send_json({"ok": True, "task": task.as_dict()})
+                return
+            if path == "/api/youtube/channel/scan-shorts":
+                payload = dict(body); payload["shorts_only"] = True
+                task = start_task("youtube_audio_owned", "Audio provera Shorts videa", lambda t: analyze_owned_youtube_audio(t, payload), persistent_payload=payload)
                 self._send_json({"ok": True, "task": task.as_dict()})
                 return
             if path == "/api/youtube/fingerprint-index":

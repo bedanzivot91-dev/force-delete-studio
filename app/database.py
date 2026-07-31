@@ -440,6 +440,7 @@ class LibraryDB:
             self._ensure_columns(conn, "youtube_channels", {
                 "oauth_profile_id": "TEXT DEFAULT ''",
                 "google_email": "TEXT DEFAULT ''",
+                "thumbnail_url": "TEXT DEFAULT ''",
             })
             self._ensure_columns(conn, "youtube_videos", {
                 "audio_cache_path": "TEXT DEFAULT ''",
@@ -1433,14 +1434,15 @@ class LibraryDB:
             raise ValueError("YouTube channel ID je prazan.")
         with self._lock, self._connect() as conn:
             conn.execute(
-                """INSERT INTO youtube_channels(channel_id,title,handle,url,uploads_playlist,is_owned,source_mode,subscriber_count,video_count,view_count,oauth_profile_id,google_email)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """INSERT INTO youtube_channels(channel_id,title,handle,url,uploads_playlist,is_owned,source_mode,subscriber_count,video_count,view_count,oauth_profile_id,google_email,thumbnail_url)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(channel_id) DO UPDATE SET
                      title=excluded.title, handle=excluded.handle, url=excluded.url, uploads_playlist=excluded.uploads_playlist,
                      is_owned=excluded.is_owned, source_mode=excluded.source_mode, subscriber_count=excluded.subscriber_count,
                      video_count=excluded.video_count, view_count=excluded.view_count,
                      oauth_profile_id=CASE WHEN excluded.oauth_profile_id<>'' THEN excluded.oauth_profile_id ELSE youtube_channels.oauth_profile_id END,
-                     google_email=CASE WHEN excluded.google_email<>'' THEN excluded.google_email ELSE youtube_channels.google_email END""",
+                     google_email=CASE WHEN excluded.google_email<>'' THEN excluded.google_email ELSE youtube_channels.google_email END,
+                     thumbnail_url=CASE WHEN excluded.thumbnail_url<>'' THEN excluded.thumbnail_url ELSE youtube_channels.thumbnail_url END""",
                 (
                     channel_id, str(channel.get("title") or channel_id), str(channel.get("handle") or ""),
                     str(channel.get("url") or f"https://www.youtube.com/channel/{channel_id}"),
@@ -1448,6 +1450,7 @@ class LibraryDB:
                     str(channel.get("source_mode") or "api"), int(channel.get("subscriber_count") or 0),
                     int(channel.get("video_count") or 0), int(channel.get("view_count") or 0),
                     str(channel.get("oauth_profile_id") or ""), str(channel.get("google_email") or ""),
+                    str(channel.get("thumbnail_url") or ""),
                 ),
             )
             row = conn.execute("SELECT * FROM youtube_channels WHERE channel_id=?", (channel_id,)).fetchone()
@@ -1480,6 +1483,30 @@ class LibraryDB:
                 values.append(int(video_count))
             values.append(str(channel_id))
             conn.execute(f"UPDATE youtube_channels SET {', '.join(fields)} WHERE channel_id=?", values)
+
+    def channel_shorts_report(self, channel_id: str, shorts_max_duration: float = 70.0) -> dict[str, Any]:
+        """How many of this channel's known Shorts already have a real audio
+        result vs. only metadata -- lets the UI show "X Shorts still need an
+        audio check" instead of treating a title-only candidate as proof."""
+        with self._connect() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM youtube_videos WHERE channel_id=?", (str(channel_id),)).fetchone()[0]
+            shorts_total = conn.execute(
+                "SELECT COUNT(*) FROM youtube_videos WHERE channel_id=? AND duration>0 AND duration<=?",
+                (str(channel_id), shorts_max_duration),
+            ).fetchone()[0]
+            shorts_checked = conn.execute(
+                "SELECT COUNT(*) FROM youtube_videos WHERE channel_id=? AND duration>0 AND duration<=? AND audio_analyzed_at<>''",
+                (str(channel_id), shorts_max_duration),
+            ).fetchone()[0]
+            unknown_duration = conn.execute(
+                "SELECT COUNT(*) FROM youtube_videos WHERE channel_id=? AND duration<=0",
+                (str(channel_id),),
+            ).fetchone()[0]
+            return {
+                "videos_total": int(total), "shorts_total": int(shorts_total),
+                "shorts_checked": int(shorts_checked), "shorts_not_checked": int(shorts_total - shorts_checked),
+                "unknown_duration": int(unknown_duration),
+            }
 
     def upsert_youtube_video(self, video: dict[str, Any], is_owned_channel: bool = False) -> dict[str, Any]:
         video_id = str(video.get("video_id") or "").strip()
