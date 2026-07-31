@@ -14,3 +14,5 @@
 # Real binary files: never touch line endings in these.
 android/keystore/debug.keystore binary
 android/gradle/wrapper/gradle-wrapper.jar binary
+windows_build/icon/app.ico binary
+windows_build/*/rsrc_windows_amd64.syso binary
