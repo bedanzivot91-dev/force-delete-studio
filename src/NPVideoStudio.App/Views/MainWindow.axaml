@@ -23,6 +23,9 @@
     <DataTemplate DataType="vm:DiagnosticsViewModel">
       <views:DiagnosticsView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SongHighlightsViewModel">
+      <views:SongHighlightsView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

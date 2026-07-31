@@ -46,6 +46,7 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action<TargetPlatform?>? NewProjectRequested;
     public event Action? SettingsRequested;
     public event Action? DiagnosticsRequested;
+    public event Action? SongHighlightsRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -144,6 +145,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenDiagnostics() => DiagnosticsRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenSongHighlights() => SongHighlightsRequested?.Invoke();
 
     private async Task OpenProjectFromPathAsync(string path, string? originalPathOverride = null)
     {

@@ -39,6 +39,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.NewProjectRequested += platform => CurrentPage = CreateNewProjectPage(platform);
         vm.SettingsRequested += () => CurrentPage = CreateSettingsPage();
         vm.DiagnosticsRequested += () => CurrentPage = CreateDiagnosticsPage();
+        vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
 
         CurrentPage = vm;
         await vm.InitializeAsync();

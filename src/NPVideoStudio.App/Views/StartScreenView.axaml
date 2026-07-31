@@ -76,6 +76,17 @@
         </Button>
       </WrapPanel>
 
+      <TextBlock Text="Alati" Classes="section" />
+      <WrapPanel>
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenSongHighlightsCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="✂" /></Border>
+            <TextBlock Text="Isečci iz pesme" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="3 najglasnija dela pesme za Shorts najavu" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+
       <TextBlock Text="Nedavni projekti" Classes="section" />
       <Border Classes="panel" Padding="20" IsVisible="{Binding !HasRecentProjects}">
         <TextBlock Classes="subtle" Text="Još nema nedavnih projekata. Napravite novi ili otvorite postojeći iznad." />

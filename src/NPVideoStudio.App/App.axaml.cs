@@ -63,10 +63,13 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IMediaProbeService>(_ => new FfprobeService(settingsService.Current.FfprobePath));
         services.AddSingleton<IDiagnosticsService, DiagnosticsService>();
         services.AddSingleton<IStorageService>(sp => new StorageService(() => (Current as App)?.MainWindowRef));
+        services.AddSingleton<ISongHighlightService>(sp =>
+            new SongHighlightService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<DiagnosticsViewModel>();
+        services.AddTransient<SongHighlightsViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

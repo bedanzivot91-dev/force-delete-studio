@@ -36,8 +36,13 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   informacije o sistemu, bez ličnih video/audio/projektnih fajlova).
 - Strukturirano logovanje u fajlove (app i errors logovi, sa rotacijom po danu i podesivim periodom
   čuvanja).
+- **Isečci iz pesme** (Alati → Isečci iz pesme): učitate audio fajl, program analizira glasnoću kroz
+  celu numeru preko FFmpeg-a i predloži 3 (podesivo) najglasnija, međusobno nepreklapajuća dela u
+  trajanju od 30 do 50 sekundi (podesivo), koje možete izvesti kao zasebne audio fajlove — spremne kao
+  sirovi materijal za najavu pesme na YouTube Shorts/TikTok/Reels. Ovo je heuristika po glasnoći, ne
+  prepoznavanje refrena, i program to jasno kaže u samom interfejsu.
 
-Sve navedeno je pokriveno sa 27 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 32 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka.
@@ -53,7 +58,10 @@ razvoju"), ne prikazuje se kao gotovo:
 - Audio editor (EQ, noise reduction, ducking...), snimanje mikrofona.
 - Render/export videa (MP4/H.264 i ostali formati).
 - Šabloni, thumbnail editor, muzički vizualizator, profili kanala, plugin sistem.
-- Kompajlirani i testirani Windows `.exe` installer (skripta postoji, vidi ispod).
+
+Ovo su namerno svi ekrani koji rade danas — nijedno dugme u programu ne prikazuje lažnu funkcionalnost.
+Ako imate konkretnu funkciju koja vam odmah treba, javite je — lakše je ubaciti jednu jasno definisanu
+funkciju u sledeću iteraciju (kao "Isečci iz pesme" iznad) nego čekati da čitav NLE bude gotov.
 
 Ovaj README će se ažurirati posle svake faze da tačno odražava stvarno stanje programa.
 
@@ -67,12 +75,10 @@ Ovaj README će se ažurirati posle svake faze da tačno odražava stvarno stanj
 
 ## Instalacija
 
-**Napomena:** Gotov `.exe` installer se pravi na Windows računaru pomoću `scripts\build-release.ps1`
-(vidi odeljak "Pravljenje instalacije" ispod) — u ovoj fazi razvoja on još nije kompajliran i testiran,
-jer je razvoj rađen u Linux okruženju bez pristupa Windows-u. Do tada, program se pokreće iz izvornog
-koda (vidi "Pokretanje iz izvornog koda").
-
-Kada installer bude napravljen:
+Installer se automatski pravi i testira na pravom Windows serveru pri svakoj izmeni koda (GitHub
+Actions, `windows-latest`) — nije samo napisan i pretpostavljen da radi. Preuzmite ga sa stranice
+Actions build-a (Artifacts → `NPVideoStudio-Setup`) ili ga napravite sami preko
+`scripts\build-release.ps1` (vidi "Pravljenje instalacije" ispod).
 
 1. Pokrenite `NPVideoStudio-Setup-X.X.X.exe`.
 2. Pratite čarobnjak za instalaciju (može bez administratorskih prava — instalira se za trenutnog
@@ -117,6 +123,14 @@ U otvorenom projektu kliknite „Dodaj medije" i izaberite fajlove, ili ih jedno
 prozor programa. Podržani su MP4, MOV, MKV, AVI, WEBM, M4V, MPEG (video); MP3, WAV, AAC, M4A, FLAC,
 OGG, WMA (audio); JPG, PNG, WEBP, BMP, GIF, TIFF (slike). Svaki fajl se odmah analizira i prikazuje
 trajanje, rezoluciju, fps i veličinu.
+
+### Isečci iz pesme za Shorts najavu
+
+Na početnom ekranu, sekcija „Alati" → „Isečci iz pesme". Izaberite audio fajl, po želji podesite
+min/maks trajanje isečka (podrazumevano 30-50 sek) i broj isečaka (podrazumevano 3), kliknite
+„Analiziraj pesmu". Program prikazuje predložene isečke sa vremenskim opsegom i prosečnom glasnoćom;
+dugme „Izvezi sve" snima svaki kao poseban MP3 fajl u folder koji izaberete, a „Otvori" pokreće
+izvezeni isečak u podrazumevanom plejeru da ga preslušate.
 
 ### Tekst, titlovi, animacije, efekti, export
 
@@ -180,7 +194,7 @@ src/
   NPVideoStudio.Domain/          Modeli: Project, MediaAsset, ProjectFormat, AppSettings
   NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics...)
   NPVideoStudio.Infrastructure/  SQLite, JSON perzistencija, auto-save, logovanje (Serilog)
-  NPVideoStudio.Media/           FFprobe analiza medijskih fajlova
+  NPVideoStudio.Media/           FFprobe analiza medijskih fajlova, isečci iz pesme (FFmpeg astats)
   NPVideoStudio.Diagnostics/     Sistemska dijagnostika i paket za podršku
 tests/
   NPVideoStudio.UnitTests/       xUnit + Avalonia.Headless testovi
