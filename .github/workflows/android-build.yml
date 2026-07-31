@@ -60,14 +60,30 @@ jobs:
         # keystore instead of relying on Gradle's per-machine auto-generated
         # one (see android/keystore/debug.keystore and the signingConfigs
         # block). A mismatch here means the signing fix regressed silently.
+        #
+        # Uses apksigner (from the Android SDK build-tools), not keytool
+        # -printcert -jarfile: AGP debug builds sign with the APK Signature
+        # Scheme v2/v3 (stored in an APK Signing Block, not classic
+        # META-INF/*.RSA JAR-signature entries), which keytool's JAR-signing
+        # tooling cannot read -- only apksigner understands all schemes.
         run: |
           set -euo pipefail
           APK=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
-          EXPECTED_FPR=$(keytool -list -v -keystore android/keystore/debug.keystore -storepass android -alias androiddebugkey | grep 'SHA256:' | awk '{print $2}')
-          ACTUAL_FPR=$(keytool -printcert -jarfile "$APK" | grep 'SHA256:' | head -1 | awk '{print $2}')
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          echo "Using apksigner: $APKSIGNER"
+
+          EXPECTED_FPR=$(keytool -list -v -keystore android/keystore/debug.keystore -storepass android -alias androiddebugkey \
+            | grep 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+
+          echo "--- apksigner verify --print-certs output ---"
+          "$APKSIGNER" verify --print-certs "$APK"
+          echo "----------------------------------------------"
+
+          ACTUAL_FPR=$("$APKSIGNER" verify --print-certs "$APK" | grep 'certificate SHA-256 digest' | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')
+
           echo "Expected (committed keystore): $EXPECTED_FPR"
           echo "Actual   (built APK):          $ACTUAL_FPR"
-          if [ "$EXPECTED_FPR" != "$ACTUAL_FPR" ]; then
+          if [ -z "$EXPECTED_FPR" ] || [ -z "$ACTUAL_FPR" ] || [ "$EXPECTED_FPR" != "$ACTUAL_FPR" ]; then
             echo "SIGNATURE MISMATCH -- the APK was NOT signed with the committed debug keystore. signingConfigs.debug is not taking effect." >&2
             exit 1
           fi
