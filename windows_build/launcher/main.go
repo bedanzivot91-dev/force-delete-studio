@@ -51,14 +51,14 @@ const (
 )
 
 var (
-	user32          = syscall.NewLazyDLL("user32.dll")
-	kernel32        = syscall.NewLazyDLL("kernel32.dll")
-	messageBoxW     = user32.NewProc("MessageBoxW")
-	findWindowW     = user32.NewProc("FindWindowW")
-	setForegroundW  = user32.NewProc("SetForegroundWindow")
-	showWindowProc  = user32.NewProc("ShowWindow")
-	createMutexW    = kernel32.NewProc("CreateMutexW")
-	getLastError    = kernel32.NewProc("GetLastError")
+	user32         = syscall.NewLazyDLL("user32.dll")
+	kernel32       = syscall.NewLazyDLL("kernel32.dll")
+	messageBoxW    = user32.NewProc("MessageBoxW")
+	findWindowW    = user32.NewProc("FindWindowW")
+	setForegroundW = user32.NewProc("SetForegroundWindow")
+	showWindowProc = user32.NewProc("ShowWindow")
+	createMutexW   = kernel32.NewProc("CreateMutexW")
+	getLastError   = kernel32.NewProc("GetLastError")
 )
 
 func u16(s string) *uint16 { p, _ := syscall.UTF16PtrFromString(s); return p }
@@ -167,6 +167,55 @@ func shutdownBackend() {
 	}
 }
 
+// tail returns roughly the last maxBytes of a text file, or "" if it
+// doesn't exist / can't be read. Used to put the ACTUAL cause of a
+// startup failure directly in front of the user instead of just a path
+// they'd have to go dig up in Notepad themselves.
+func tail(path string, maxBytes int64) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	size := st.Size()
+	start := int64(0)
+	if size > maxBytes {
+		start = size - maxBytes
+	}
+	if _, err := f.Seek(start, 0); err != nil {
+		return ""
+	}
+	buf := make([]byte, size-start)
+	n, _ := f.Read(buf)
+	text := strings.TrimSpace(string(buf[:n]))
+	if start > 0 {
+		if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+			text = text[idx+1:]
+		}
+		text = "…\r\n" + text
+	}
+	return strings.ReplaceAll(text, "\n", "\r\n")
+}
+
+func startupDiagnostics() string {
+	data := userDataDir()
+	var parts []string
+	if wd := tail(filepath.Join(data, "data", "watchdog.log"), 2000); wd != "" {
+		parts = append(parts, "watchdog.log (poslednji deo):\r\n"+wd)
+	}
+	if sv := tail(filepath.Join(data, "data", "server-konzola.log"), 2000); sv != "" {
+		parts = append(parts, "server-konzola.log (poslednji deo):\r\n"+sv)
+	}
+	if len(parts) == 0 {
+		return "Ni watchdog.log ni server-konzola.log još ne postoje ili su prazni — server verovatno nije uspeo da se ni pokrene."
+	}
+	return strings.Join(parts, "\r\n\r\n")
+}
+
 func selfTest(root string) error {
 	if missing := missingFiles(root); len(missing) > 0 {
 		return fmt.Errorf("nedostaju fajlovi:\n• %s", strings.Join(missing, "\n• "))
@@ -254,7 +303,14 @@ func main() {
 			message(appName+" — greška pokretanja", err.Error(), mbOK|mbIconError)
 			return
 		}
-		deadline := time.Now().Add(60 * time.Second)
+		// 90s, not 60s: real end-user machines (unlike the CI runner this
+		// was built and self-tested on) commonly run antivirus real-time
+		// scanning that can add real delay the first time this many fresh
+		// binaries/DLLs execute after install/upgrade. This only helps a
+		// genuinely-slow-but-working startup; a hard failure (e.g. a port
+		// already held by a previous instance) still surfaces the same
+		// diagnostics below, just after a slightly longer wait.
+		deadline := time.Now().Add(90 * time.Second)
 		for time.Now().Before(deadline) {
 			if healthReady() {
 				break
@@ -263,9 +319,10 @@ func main() {
 		}
 	}
 	if !healthReady() {
-		logPath := filepath.Join(userDataDir(), "data", "server-konzola.log")
+		logPath := filepath.Join(userDataDir(), "data")
 		message(appName+" — server se nije pokrenuo",
-			"Lokalni deo programa se nije pokrenuo za 60 sekundi.\r\n\r\nDijagnostika:\r\n"+logPath,
+			"Lokalni deo programa se nije pokrenuo na vreme.\r\n\r\nFajlovi za dijagnostiku: "+logPath+
+				"\r\n\r\n"+startupDiagnostics(),
 			mbOK|mbIconError)
 		return
 	}

@@ -5136,7 +5136,26 @@ class Handler(BaseHTTPRequestHandler):
 
 class AppHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # SO_REUSEADDR is intentionally left off on Windows. Combined with
+    # Windows' looser reuse semantics, SO_REUSEADDR there can let a second
+    # process silently bind the same 127.0.0.1:8765 address instead of
+    # raising the clear "port already in use" OSError main() below already
+    # handles -- turning a real startup failure (e.g. a previous crashed
+    # instance still holding the port) into unpredictable request routing
+    # between two processes, which is consistent with launcher/main.go's
+    # /api/health check timing out with no obvious cause in the log.
+    # SO_EXCLUSIVEADDRUSE (set in server_bind below) is the Windows-
+    # documented replacement: still allows rebinding after a clean
+    # shutdown, but fails loudly if another process actually owns the port.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self) -> None:
+        if os.name == "nt":
+            try:
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            except (AttributeError, OSError):
+                pass
+        super().server_bind()
 
 
 def main() -> None:
