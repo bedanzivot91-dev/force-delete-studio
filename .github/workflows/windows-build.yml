@@ -26,14 +26,24 @@ jobs:
           go-version: "1.24"
 
       - name: Go build all 4 windows_build targets (real windows/amd64, native runner)
+        # $ErrorActionPreference alone does NOT make PowerShell fail the step
+        # on a native command's non-zero exit code (that's a PowerShell
+        # gotcha this workflow got bitten by elsewhere -- see the explicit
+        # $LASTEXITCODE checks below and in the packaging steps), so each
+        # go build is checked explicitly.
         working-directory: windows_build
         run: |
           go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw "go vet failed" }
           New-Item -ItemType Directory -Force -Path ..\build_out | Out-Null
           go build -ldflags="-H windowsgui" -o ..\build_out\SunoPesmeStudio.exe ./launcher
+          if ($LASTEXITCODE -ne 0) { throw "go build ./launcher failed" }
           go build -ldflags="-H windowsgui" -o ..\build_out\INSTALIRAJ_PROGRAM.exe ./setup
+          if ($LASTEXITCODE -ne 0) { throw "go build ./setup failed" }
           go build -ldflags="-H windowsgui" -o ..\build_out\INSTALACIJA_NAPREDAK.exe ./progress
+          if ($LASTEXITCODE -ne 0) { throw "go build ./progress failed" }
           go build -ldflags="-H windowsgui" -o ..\build_out\Deinstaliraj_Suno_Pesme_Studio.exe ./uninstaller
+          if ($LASTEXITCODE -ne 0) { throw "go build ./uninstaller failed" }
 
       - name: Verify real PE binaries were produced
         run: |
@@ -91,6 +101,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path package\Program | Out-Null
           .\build_out\INSTALIRAJ_PROGRAM.exe --stage-components package\Program
+          if ($LASTEXITCODE -ne 0) { throw "--stage-components failed with exit code $LASTEXITCODE -- see its own stdout/stderr above for which component failed" }
 
       - name: Assemble Program/ folder structure (section 7 of the spec)
         run: |
@@ -124,6 +135,7 @@ jobs:
         run: |
           $py = "package\Program\python\python.exe"
           & $py tests\import_smoke_test.py
+          if ($LASTEXITCODE -ne 0) { throw "import_smoke_test.py failed under the staged embeddable Python, exit code $LASTEXITCODE" }
 
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |
@@ -137,7 +149,9 @@ jobs:
 
       - name: Self-test the launcher against the real staged package
         working-directory: package
-        run: '& "Program\Suno Pesme Studio.exe" --self-test'
+        run: |
+          & "Program\Suno Pesme Studio.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "launcher --self-test failed with exit code $LASTEXITCODE -- the staged Program/ folder is missing required files, see selfTest()/missingFiles() in launcher/main.go" }
 
       - name: Assemble final release folder and ZIP
         run: |
