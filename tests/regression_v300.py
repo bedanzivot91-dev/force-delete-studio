@@ -188,8 +188,16 @@ def main() -> int:
         migrated=LibraryDB(legacy)
         migrated_song=migrated.get_song('legacy-1') or {}
         with sqlite3.connect(legacy) as conn:
+            # `with conn:` only commits/rolls back the transaction on exit,
+            # it does not close the connection (documented sqlite3
+            # behavior) -- this is a raw stdlib connection, not one of
+            # LibraryDB's (whose _connect() now closes automatically), so
+            # it needs the explicit close below or it leaks a handle to
+            # legacy.db, which then blocks this test's own tempdir cleanup
+            # on Windows with WinError 32.
             columns={row[1] for row in conn.execute('PRAGMA table_info(songs)')}
             integrity=conn.execute('PRAGMA integrity_check').fetchone()[0]
+        conn.close()
         ok('legacy database migration',migrated_song.get('title')=='Stara pesma' and 'created_at' in columns and integrity=='ok',str((migrated_song,columns,integrity)))
 
         # ID3v2.4 footer must be skipped, not copied into the audio body.

@@ -1,0 +1,16 @@
+# Force LF line endings for all text files regardless of the checkout
+# platform's git config. Without this, GitHub's windows-latest runners
+# (core.autocrlf=true by default there) silently convert every LF in a
+# checked-out text file to CRLF, changing its byte content -- confirmed
+# directly via CI: app/web/style.css checked out at 86259 bytes on
+# windows-latest vs. 85572 bytes as stored in the repo, a difference of
+# exactly 687 bytes = the file's 687 LF line endings each becoming CRLF.
+# That silently broke tests/original_plus_test.py's byte-exact comparison
+# there while passing everywhere else, and would affect any other exact
+# byte/hash comparison (or the actual shipped app reading its own web/
+# source files) the same way.
+* text=auto eol=lf
+
+# Real binary files: never touch line endings in these.
+android/keystore/debug.keystore binary
+android/gradle/wrapper/gradle-wrapper.jar binary
