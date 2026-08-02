@@ -146,6 +146,20 @@ jobs:
         run: |
           Copy-Item -Recurse -Force app package\Program\app
           Copy-Item -Recurse -Force plugins package\Program\plugins
+          # __pycache__/*.pyc is a pure derived cache CPython regenerates on
+          # its own, keyed to the source .py's mtime -- it must never be
+          # shipped or checksum-verified. The earlier "py_compile every
+          # module" step (and later steps that actually import app code
+          # under the staged embeddable Python) create these locally; a
+          # real user hit "kontrolni zbir nije ispravan za ...
+          # advanced_features.cpython-313.pyc" during install because a
+          # shipped .pyc's embedded source-mtime no longer matched its
+          # sibling .py by the time the installer checked it -- entirely
+          # avoidable by just never packaging bytecode cache in the first
+          # place. Python runs fine straight from .py source and will
+          # (re)build its own cache, on the user's own machine, the first
+          # time the app actually runs post-install.
+          Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program\app, package\Program\plugins -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           New-Item -ItemType Directory -Force -Path package\Program\runtime\webview2, package\Program\runtime\vcruntime, package\Program\models, package\Program\licences, package\Program\recovery, package\Program\manifests | Out-Null
           Copy-Item build_out\SunoPesmeStudio.exe "package\Program\Suno Pesme Studio.exe"
           Copy-Item build_out\Deinstaliraj_Suno_Pesme_Studio.exe "package\Program\Deinstaliraj Suno Pesme Studio.exe"
@@ -328,6 +342,13 @@ jobs:
 
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |
+          # The staged embeddable Python actually imported app code in the
+          # steps above (import-smoke-test, server startup, song-finder
+          # e2e), which can silently rewrite __pycache__/*.pyc if CPython's
+          # mtime-based cache check finds anything stale -- strip it again
+          # right before the manifest is built, so nothing checksum-tracked
+          # can go stale between here and when the installer verifies it.
+          Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           $lines = Get-ChildItem -Recurse -File package\Program | ForEach-Object {
             $rel = $_.FullName.Substring((Resolve-Path package).Path.Length + 1) -replace '\\','/'
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
