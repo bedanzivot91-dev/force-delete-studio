@@ -11,6 +11,7 @@ namespace NPVideoStudio.UnitTests;
 /// environments block - see docs/README for why the download path is exercised on CI instead of
 /// asserted to work everywhere unconditionally.
 /// </summary>
+[Collection("Whisper model tests")]
 public class LyricSearchServiceIntegrationTests : IAsyncLifetime
 {
     private readonly string _modelPath = Path.Combine(Path.GetTempPath(), "npvs_test_models", "ggml-tiny.bin");

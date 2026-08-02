@@ -32,7 +32,9 @@ public sealed class WhisperTranscriber
         Directory.CreateDirectory(directory);
 
         progress?.Report("Preuzimanje modela za prepoznavanje govora...");
-        var tempPath = _modelPath + ".tmp";
+        // Unique per call, not a fixed ".tmp" suffix - two callers racing to download the same model
+        // (e.g. two tools sharing the default model path) must not collide on the same temp file.
+        var tempPath = $"{_modelPath}.{Guid.NewGuid():N}.tmp";
 
         try
         {

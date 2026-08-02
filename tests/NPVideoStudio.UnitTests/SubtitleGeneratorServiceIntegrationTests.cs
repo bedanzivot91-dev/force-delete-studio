@@ -9,6 +9,7 @@ namespace NPVideoStudio.UnitTests;
 /// to huggingface.co, same as LyricSearchServiceIntegrationTests - see that file for why this only runs
 /// unconditionally on CI, not in every sandboxed dev environment.
 /// </summary>
+[Collection("Whisper model tests")]
 public class SubtitleGeneratorServiceIntegrationTests : IAsyncLifetime
 {
     private readonly string _modelPath = Path.Combine(Path.GetTempPath(), "npvs_test_models", "ggml-tiny.bin");
