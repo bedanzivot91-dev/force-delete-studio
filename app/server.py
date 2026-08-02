@@ -2672,18 +2672,19 @@ def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
     task.finish(f"Indeksiranje završeno: {ok} obrađeno, {failed} neuspešno, {no_audio} pesama nema lokalni audio fajl.")
 
 
-def song_finder_analyze(path: Path) -> dict[str, Any]:
-    """Compare an uploaded Shorts/video/audio file against the local song
-    index only -- no AudD, no YouTube, no Google, no Suno token, no
-    network call of any kind."""
-    path = Path(path).expanduser().resolve()
-    if not path.exists() or not path.is_file():
-        raise RuntimeError("Fajl nije pronađen.")
-    if not song_finder.is_supported_file(path):
-        raise RuntimeError(f"Format {path.suffix or '?'} nije podržan za Pronalazač mojih pesama.")
-    file_sha256 = sha256_file(path)
-    upload_signature = extract_signature(path)
-    songs = [s for s in DB.export_rows() if _existing_audio_path(s)]
+# A clip played back even slightly faster/slower is common (Shorts/reels
+# pacing edits) and, uncompensated, comes back completely unmatched: real
+# ffmpeg time-stretching (WSOLA) changes the actual audio samples, so a
+# sped-up/slowed-down clip's chromaprint fingerprint is genuinely different
+# from the original at normal speed, not just shifted in time -- recovering
+# it needs a REAL re-extraction of the clip's signature at a compensating
+# tempo (extract_signature(..., tempo=X)), not a reshuffle of the already
+# extracted fingerprint. Confirmed against a real Windows CI run: a naive
+# fingerprint-array resampling approach was tried first and did NOT work.
+SONG_FINDER_TEMPO_VARIANTS = (0.97, 1.03, 0.93, 1.08)
+
+
+def _song_finder_candidates(upload_signature: dict[str, Any], songs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     candidates: list[dict[str, Any]] = []
     checked = 0
     for song in songs:
@@ -2713,7 +2714,46 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
             "clip_start": analysis.get("video_start"), "clip_end": analysis.get("video_end"),
             "reason": analysis.get("reason"),
         })
+    return candidates, checked
+
+
+def song_finder_analyze(path: Path) -> dict[str, Any]:
+    """Compare an uploaded Shorts/video/audio file against the local song
+    index only -- no AudD, no YouTube, no Google, no Suno token, no
+    network call of any kind."""
+    path = Path(path).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError("Fajl nije pronađen.")
+    if not song_finder.is_supported_file(path):
+        raise RuntimeError(f"Format {path.suffix or '?'} nije podržan za Pronalazač mojih pesama.")
+    file_sha256 = sha256_file(path)
+    upload_signature = extract_signature(path)
+    songs = [s for s in DB.export_rows() if _existing_audio_path(s)]
+    candidates, checked = _song_finder_candidates(upload_signature, songs)
+    for item in candidates:
+        item["tempo_hint"] = 1.0
     ranked = song_finder.rank_song_candidates(candidates)
+
+    if not ranked or ranked[0]["status"] != song_finder.STATUS_CONFIRMED:
+        for tempo in SONG_FINDER_TEMPO_VARIANTS:
+            try:
+                variant_signature = extract_signature(path, tempo=tempo)
+            except AudioMatchError:
+                continue
+            variant_candidates, variant_checked = _song_finder_candidates(variant_signature, songs)
+            checked = max(checked, variant_checked)
+            for item in variant_candidates:
+                item["tempo_hint"] = tempo
+            candidates.extend(variant_candidates)
+        best_by_song: dict[str, dict[str, Any]] = {}
+        for item in candidates:
+            song_id = str(item.get("song_id") or "")
+            existing = best_by_song.get(song_id)
+            if existing is None or float(item.get("audio_score") or 0) > float(existing.get("audio_score") or 0):
+                best_by_song[song_id] = item
+        candidates = list(best_by_song.values())
+        ranked = song_finder.rank_song_candidates(candidates)
+
     primary = ranked[0] if ranked else None
     overall_status = primary["status"] if primary else song_finder.STATUS_NOT_FOUND
     distinct_matches = song_finder.select_distinct_matches(ranked)
