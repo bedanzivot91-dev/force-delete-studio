@@ -20,6 +20,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+import math
+from array import array
+
 from audio_tools import ensure_ffmpeg, ffmpeg_path, ffprobe_path, probe_audio
 from suno_client import format_lrc, format_srt, sanitize_filename
 
@@ -234,6 +237,139 @@ def _run_ffmpeg_capture(args: list[str], timeout: int = 600) -> str:
     return proc.stdout or ""
 
 
+# -- BPM (tempo) and musical key: honest FFmpeg-only estimates, not a
+# librosa/essentia-grade analyzer. Both are clearly labelled "procena"
+# (estimate) wherever they reach the UI. --
+
+_BEAT_SAMPLE_RATE = 8000
+_BEAT_FRAME_SAMPLES = 400  # 8000/400 = 50ms per frame (20fps), fine enough to autocorrelate 60-180 BPM
+_BEAT_FRAME_SECONDS = _BEAT_FRAME_SAMPLES / _BEAT_SAMPLE_RATE
+
+
+def _beat_envelope(audio_path: Path, temp_dir: Path) -> list[float]:
+    ensure_ffmpeg()
+    metadata = temp_dir / "beat.txt"
+    escaped_metadata = str(metadata).replace(":", "\\:").replace("'", "\\'")
+    filt = f"aresample={_BEAT_SAMPLE_RATE},asetnsamples=n={_BEAT_FRAME_SAMPLES}:p=0,astats=metadata=1:reset=1,ametadata=print:file='{escaped_metadata}'"
+    cmd = [str(ffmpeg_path()), "-hide_banner", "-nostats", "-y", "-i", str(audio_path), "-vn", "-af", filt, "-f", "null", "-"]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
+    if not metadata.exists():
+        return []
+    values: list[float] = []
+    for line in metadata.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "lavfi.astats.Overall.RMS_level=" in line:
+            raw = line.rsplit("=", 1)[-1].strip()
+            try:
+                value = float(raw)
+            except ValueError:
+                value = -100.0
+            values.append(value if math.isfinite(value) else -100.0)
+    return values
+
+
+def estimate_bpm(values: list[float], min_bpm: float = 60.0, max_bpm: float = 180.0) -> dict[str, Any] | None:
+    """Autocorrelate the half-wave-rectified onset flux of an RMS envelope
+    to find the strongest periodicity in the 60-180 BPM range."""
+    if len(values) < 40:
+        return None
+    onset = [max(0.0, values[i] - values[i - 1]) for i in range(1, len(values))]
+    mean = sum(onset) / len(onset)
+    onset = [v - mean for v in onset]
+    energy = sum(v * v for v in onset)
+    if energy <= 0:
+        return None
+    min_lag = max(1, int(round((60.0 / max_bpm) / _BEAT_FRAME_SECONDS)))
+    max_lag = min(len(onset) - 1, int(round((60.0 / min_bpm) / _BEAT_FRAME_SECONDS)))
+    if max_lag <= min_lag:
+        return None
+    best_lag = 0
+    best_score = 0.0
+    for lag in range(min_lag, max_lag + 1):
+        score = sum(onset[i] * onset[i - lag] for i in range(lag, len(onset)))
+        if score > best_score:
+            best_lag, best_score = lag, score
+    if best_lag <= 0 or best_score <= 0:
+        return None
+    bpm = 60.0 / (best_lag * _BEAT_FRAME_SECONDS)
+    confidence = round(min(100.0, max(0.0, (best_score / energy) * 100)), 1)
+    return {"bpm": round(bpm, 1), "confidence": confidence}
+
+
+_KEY_SAMPLE_RATE = 2000  # Nyquist 1000Hz still covers C2..B4 pitch classes used below
+_KEY_FRAME_SECONDS = 2.0
+_KS_MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+_KS_MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+_NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _goertzel_power(frame: "array[int]", frequency: float, sample_rate: int) -> float:
+    n = len(frame)
+    if n == 0:
+        return 0.0
+    k = int(0.5 + n * frequency / sample_rate)
+    omega = 2.0 * math.pi * k / n
+    coeff = 2.0 * math.cos(omega)
+    s_prev = 0.0
+    s_prev2 = 0.0
+    for sample in frame:
+        s = sample + coeff * s_prev - s_prev2
+        s_prev2 = s_prev
+        s_prev = s
+    power = s_prev2 * s_prev2 + s_prev * s_prev - coeff * s_prev * s_prev2
+    return power / n
+
+
+def estimate_musical_key(audio_path: Path, max_seconds: int = 60) -> dict[str, Any] | None:
+    """Krumhansl-Schmuckler key estimate from a Goertzel-built chroma vector.
+    Not a substitute for a real chroma/HPCP analyzer, but real signal
+    processing rather than a guess -- always labelled as an estimate."""
+    ensure_ffmpeg()
+    cmd = [
+        str(ffmpeg_path()), "-hide_banner", "-nostats", "-y", "-i", str(audio_path), "-vn",
+        "-ac", "1", "-ar", str(_KEY_SAMPLE_RATE), "-t", str(max_seconds), "-f", "s16le", "pipe:1",
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=180, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
+    raw = proc.stdout or b""
+    usable = len(raw) - (len(raw) % 2)
+    if usable < _KEY_SAMPLE_RATE * 4 * 2:
+        return None
+    samples: "array[int]" = array("h")
+    samples.frombytes(raw[:usable])
+    frame_size = int(_KEY_SAMPLE_RATE * _KEY_FRAME_SECONDS)
+    chroma = [0.0] * 12
+    frames_used = 0
+    for start in range(0, len(samples) - frame_size, frame_size):
+        frame = samples[start:start + frame_size]
+        frames_used += 1
+        for octave in range(2, 5):
+            for pitch_class in range(12):
+                freq = 16.3516 * (2 ** octave) * (2 ** (pitch_class / 12.0))
+                if freq >= _KEY_SAMPLE_RATE / 2:
+                    continue
+                power = _goertzel_power(frame, freq, _KEY_SAMPLE_RATE)
+                chroma[pitch_class] += max(0.0, math.log10(power + 1e-9) + 9)
+    if frames_used == 0:
+        return None
+    total = sum(chroma)
+    if total <= 0:
+        return None
+    chroma = [c / total for c in chroma]
+    best_tonic = 0
+    best_mode = "major"
+    best_score = float("-inf")
+    for tonic in range(12):
+        for mode, profile in (("major", _KS_MAJOR_PROFILE), ("minor", _KS_MINOR_PROFILE)):
+            score = sum(chroma[pc] * profile[(pc - tonic) % 12] for pc in range(12))
+            if score > best_score:
+                best_score, best_tonic, best_mode = score, tonic, mode
+    mode_label = "dur" if best_mode == "major" else "mol"
+    return {
+        "key": _NOTE_NAMES[best_tonic], "mode": best_mode,
+        "label": f"{_NOTE_NAMES[best_tonic]} {mode_label}",
+        "confidence": round(min(100.0, max(0.0, best_score * 100)), 1),
+    }
+
+
 def analyze_audio_quality(path: Path) -> dict[str, Any]:
     path = path.expanduser().resolve()
     if not path.exists():
@@ -281,7 +417,17 @@ def analyze_audio_quality(path: Path) -> dict[str, Any]:
     if int(info.get("channels") or 0) == 1:
         warnings.append("audio je mono")
     score = max(0, min(100, score))
-    return {**info, "path": str(path), "integrated_lufs": integrated, "loudness_range_lu": lra, "true_peak_dbfs": true_peak, "leading_silence": round(leading_silence, 3), "trailing_silence": round(trailing_silence, 3), "nan_samples": nan_samples, "infinite_samples": inf_samples, "clipping_risk": clipping_risk, "score": score, "ready": score >= 80, "warnings": warnings}
+    bpm_info = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="suno-beat-") as tmp:
+            bpm_info = estimate_bpm(_beat_envelope(path, Path(tmp)))
+    except Exception:
+        bpm_info = None
+    try:
+        key_info = estimate_musical_key(path)
+    except Exception:
+        key_info = None
+    return {**info, "path": str(path), "integrated_lufs": integrated, "loudness_range_lu": lra, "true_peak_dbfs": true_peak, "leading_silence": round(leading_silence, 3), "trailing_silence": round(trailing_silence, 3), "nan_samples": nan_samples, "infinite_samples": inf_samples, "clipping_risk": clipping_risk, "bpm_estimate": bpm_info, "key_estimate": key_info, "score": score, "ready": score >= 80, "warnings": warnings}
 
 
 _LRC_RE = re.compile(r"^\[(\d+):(\d+(?:\.\d+)?)\](.*)$")

@@ -3836,7 +3836,11 @@ def advanced_quality_task(task: TaskState, options: dict[str, Any]) -> None:
         try:
             result = analyze_audio_quality(Path(raw))
             rows.append({"id": song_id, "title": song.get("title"), **result})
-            task.log(f"{song.get('title')}: kvalitet {result.get('score')}/100.", "success" if result.get("ready") else "warning")
+            bpm = result.get("bpm_estimate") or {}
+            key = result.get("key_estimate") or {}
+            extra = f", BPM procena {bpm['bpm']}" if bpm.get("bpm") else ""
+            extra += f", tonalitet procena {key['label']}" if key.get("label") else ""
+            task.log(f"{song.get('title')}: kvalitet {result.get('score')}/100{extra}.", "success" if result.get("ready") else "warning")
         except Exception as exc:
             task.errors.append(str(exc)); task.log(f"{song.get('title') or song_id}: {exc}", "error")
         task.set_progress(idx, len(ids), str(song.get("title") or song_id))
