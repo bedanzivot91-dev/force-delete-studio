@@ -1243,6 +1243,16 @@ async function runSongFinderIndex(force){
   try{await startBackground('/api/song-finder/index',{force:!!force});}catch(e){toast(e.message,'error',12000);}
 }
 function rebuildSongFinderIndex(){if(!confirm('Ponovo obraditi sve pesme u indeksu Pronalazača mojih pesama? Ovo može potrajati za veliku biblioteku.'))return;runSongFinderIndex(true);}
+async function autoRefreshSongFinderIndex(){
+  // Runs quietly on every program start so the index is ready by the time
+  // the user drops in a Shorts clip, without them having to remember to
+  // click "INDEKSIRAJ SVE MOJE PESME" themselves. force=false means already
+  // -fingerprinted songs (local or remote) are skipped, not re-processed,
+  // so this is cheap after the very first run.
+  try{const status=await api('/api/song-finder/status',{timeoutMs:15000,retries:0});
+    if(Number(status.songs_with_audio||0)>Number(status.songs_indexed||0))await runSongFinderIndex(false);
+  }catch(e){/* silent: this is a background convenience, not a user action */}
+}
 
-async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); applyA11ySettings(loadA11ySettings()); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
+async function init() { applyTheme(localStorage.getItem('suno-theme') || 'default', false); applyA11ySettings(loadA11ySettings()); bindEvents(); protectLibrarySearchFromAutofill(); renderThemes(); await loadSecurityStatus(); if(state.security?.locked)return; await Promise.all([loadStatus(), loadCollections(), loadStats()]); await loadSongs(true); loadAudioToolsStatus(); loadAdvancedStatus(); loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); autoRefreshSongFinderIndex(); loadWatchedFolders(); checkProgramUpdate(); setInterval(()=>{if(!state.security?.locked)loadStatus();},3000); }
 document.addEventListener('DOMContentLoaded', init);
