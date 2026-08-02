@@ -864,3 +864,18 @@ def format_srt(lines: list[dict[str, Any]]) -> str:
     for idx, line in enumerate(lines, 1):
         blocks.append(f"{idx}\n{stamp(float(line['start_s']))} --> {stamp(float(line['end_s']))}\n{line['text']}")
     return "\n\n".join(blocks)
+
+
+def format_vtt(lines: list[dict[str, Any]]) -> str:
+    def stamp(value: float) -> str:
+        value = max(0.0, value)
+        ms = int(round(value * 1000))
+        h, rem = divmod(ms, 3_600_000)
+        m, rem = divmod(rem, 60_000)
+        s, milli = divmod(rem, 1000)
+        return f"{h:02d}:{m:02d}:{s:02d}.{milli:03d}"
+
+    blocks = ["WEBVTT"]
+    for line in lines:
+        blocks.append(f"{stamp(float(line['start_s']))} --> {stamp(float(line['end_s']))}\n{line['text']}")
+    return "\n\n".join(blocks) + "\n"

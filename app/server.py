@@ -65,7 +65,7 @@ from audio_match import (
 )
 from advanced_features import (
     analyze_audio_quality, check_update, compare_lyrics_transcript, create_cloud_backup, restore_cloud_backup,
-    create_incremental_backup, download_update, install_ai_plugin, list_incremental_backups, load_subtitle_cues,
+    create_incremental_backup, download_update, has_manual_subtitle_cues, install_ai_plugin, list_incremental_backups, load_subtitle_cues,
     plugin_status, relocate_missing_files, restore_incremental_item, run_stem_separation,
     run_transcription, save_subtitle_files,
 )
@@ -3932,10 +3932,13 @@ def transcription_task(task: TaskState, options: dict[str, Any]) -> None:
         metadata = {"language": result.get("language") or options.get("language") or "auto", "model": options.get("model") or "small", "device": result.get("device") or "", "language_probability": result.get("language_probability") or 0}
         DB.add_derived_file(song_id, "transcription", "Lokalna transkripcija", str(target), "txt", float(song.get("duration") or 0), metadata)
         if bool(options.get("align_original_lyrics", True)) and str(song.get("lyrics") or "").strip():
-            cues = align_original_lyrics(str(song.get("lyrics") or ""), result, float(song.get("duration") or 0))
-            if cues:
-                paths = save_subtitle_files(song, cues, DB, source.parent, get_download_dir() / "Tekstovi")
-                task.log(f"{song.get('title') or song_id}: originalni tekst je vremenski poravnat; LRC/SRT su sačuvani.", "success")
+            if has_manual_subtitle_cues(DB, song_id) and not bool(options.get("overwrite_manual_cues", False)):
+                task.log(f"{song.get('title') or song_id}: već postoje ručno uređeni titlovi; nisu prepisani automatskom transkripcijom.", "warning")
+            else:
+                cues = align_original_lyrics(str(song.get("lyrics") or ""), result, float(song.get("duration") or 0))
+                if cues:
+                    paths = save_subtitle_files(song, cues, DB, source.parent, get_download_dir() / "Tekstovi", source="auto")
+                    task.log(f"{song.get('title') or song_id}: originalni tekst je vremenski poravnat; LRC/SRT/VTT su sačuvani.", "success")
         if bool(options.get("replace_lyrics", False)):
             DB.update_song_user_fields(song_id, {"lyrics": text})
         completed += 1

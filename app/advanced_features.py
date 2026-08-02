@@ -24,7 +24,7 @@ import math
 from array import array
 
 from audio_tools import ensure_ffmpeg, ffmpeg_path, ffprobe_path, probe_audio
-from suno_client import format_lrc, format_srt, sanitize_filename
+from suno_client import format_lrc, format_srt, format_vtt, sanitize_filename
 
 
 def now_iso() -> str:
@@ -481,7 +481,7 @@ def load_subtitle_cues(song: dict[str, Any], db: Any) -> list[dict[str, Any]]:
     return [{"cue_index": i + 1, "start_s": i * step, "end_s": (i + 1) * step, "text": line, "source": "generated-draft"} for i, line in enumerate(lyrics)]
 
 
-def save_subtitle_files(song: dict[str, Any], cues: list[dict[str, Any]], db: Any, target_dir: Path | None = None, fallback_dir: Path | None = None) -> dict[str, str]:
+def save_subtitle_files(song: dict[str, Any], cues: list[dict[str, Any]], db: Any, target_dir: Path | None = None, fallback_dir: Path | None = None, source: str = "manual") -> dict[str, str]:
     song_id = str(song.get("id") or "")
     normalized = []
     for cue in cues:
@@ -489,7 +489,7 @@ def save_subtitle_files(song: dict[str, Any], cues: list[dict[str, Any]], db: An
         end = float(cue.get("end_s", cue.get("end", start + 0.1)) or (start + 0.1))
         normalized.append({"start_s": max(0.0, start), "end_s": max(start + 0.05, end), "text": str(cue.get("text") or "").strip()})
     cues = [cue for cue in normalized if cue["text"]]
-    db.save_subtitle_cues(song_id, cues, source="manual")
+    db.save_subtitle_cues(song_id, cues, source=source)
     local_raw = str(song.get("local_audio") or song.get("local_wav") or "").strip()
     if target_dir is not None:
         base_dir = target_dir.expanduser().resolve()
@@ -503,10 +503,19 @@ def save_subtitle_files(song: dict[str, Any], cues: list[dict[str, Any]], db: An
     base = sanitize_filename(str(song.get("title") or song_id), 100)
     lrc_path = base_dir / f"{base}.lrc"
     srt_path = base_dir / f"{base}.srt"
+    vtt_path = base_dir / f"{base}.vtt"
     lrc_path.write_text(format_lrc(cues), encoding="utf-8")
     srt_path.write_text(format_srt(cues), encoding="utf-8")
+    vtt_path.write_text(format_vtt(cues), encoding="utf-8")
     db.update_song_files(song_id, local_lrc=str(lrc_path.resolve()), local_srt=str(srt_path.resolve()))
-    return {"lrc": str(lrc_path), "srt": str(srt_path)}
+    return {"lrc": str(lrc_path), "srt": str(srt_path), "vtt": str(vtt_path)}
+
+
+def has_manual_subtitle_cues(db: Any, song_id: str) -> bool:
+    """True if the user already saved hand-edited timing/text for this song
+    via the subtitle segment editor -- used to stop an automatic
+    transcription re-run from silently overwriting manual corrections."""
+    return any(str(cue.get("source") or "") == "manual" for cue in db.list_subtitle_cues(song_id))
 
 
 def normalize_text_lines(text: str) -> list[str]:
