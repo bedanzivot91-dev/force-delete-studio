@@ -73,7 +73,7 @@ from security_lock import AppSecurity
 from music_recognition import MusicRecognitionError, decode_audio_base64, recognize_audd
 from v3_features import (
     align_original_lyrics, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
-    library_integrity_scan, organize_library, panako_index, panako_query, panako_status,
+    library_integrity_scan, organize_library, install_panako_jar, panako_index, panako_query, panako_status,
     render_lyric_video, render_short_clip, sha256_file, storage_report as v3_storage_report, cleanup_storage,
     suggest_short_clips, suggest_teaser_clips, teaser_clip_from_text, system_preflight, youtube_metadata, youtube_resumable_upload,
 )
@@ -4034,7 +4034,7 @@ def v3_panako_index_task(task: TaskState, options: dict[str, Any]) -> None:
         try: files.append(_v3_audio_path(song))
         except Exception: pass
     task.set_progress(0,max(1,len(files)),"Panako indeks")
-    result=panako_index(ROOT,files); task.set_progress(len(files),max(1,len(files)),"Panako indeks završen")
+    result=panako_index(ROOT,files,DATA_DIR); task.set_progress(len(files),max(1,len(files)),"Panako indeks završen")
     task.finish(f"Panako je indeksirao {result.get('indexed',0)} fajlova.")
 
 
@@ -4865,7 +4865,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/v3/panako/index":
                 payload=dict(body); task=start_task("v3_panako_index","Panako Content-ID indeks",lambda t:v3_panako_index_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/v3/panako/query":
-                result=panako_query(ROOT,Path(str(body.get("path") or ""))); self._send_json({"ok":True,"result":result}); return
+                result=panako_query(ROOT,Path(str(body.get("path") or "")),DATA_DIR); self._send_json({"ok":True,"result":result}); return
+            if path == "/api/v3/panako/install":
+                source_path = str(body.get("source_path") or "").strip()
+                if not source_path:
+                    raise RuntimeError("Izaberi Panako .jar fajl koji si sam preuzeo/preuzela.")
+                result = install_panako_jar(ROOT, Path(source_path))
+                self._send_json({"ok": True, "result": result, "status": panako_status(ROOT)}); return
             if path == "/api/v3/snapshot":
                 payload=dict(body); task=start_task("v3_snapshot","Snapshot cele verzije programa",lambda t:v3_snapshot_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/v3/watch/save":

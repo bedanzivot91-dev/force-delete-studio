@@ -714,11 +714,85 @@ def create_proof_package(song: dict[str, Any], target_dir: Path) -> dict[str, An
     return {"path": str(package), "sha256": sha256_file(package), "files": len(manifest["files"]), "manifest_sha256": manifest_hash}
 
 
+PANAKO_LICENSE_NOTICE = (
+    "Panako (Joren Six, panako.be) je odvojen projekat pod GPL-3.0 licencom i NIJE deo ovog "
+    "programa niti se automatski preuzima. Ako ga želiš kao dodatni (opcioni) fingerprint motor, "
+    "sam preuzmi panako.jar sa zvaničnog izvora, pa ga ovde poveži -- program samo proverava da "
+    "li stvarno radi, ne šalje ga niti ga menja."
+)
+
+
+def _panako_paths(root: Path) -> tuple[Path, Path]:
+    jar = root / "tools" / "panako" / "panako.jar"
+    marker = root / "tools" / "panako" / ".verified"
+    return jar, marker
+
+
+def _panako_java() -> str | None:
+    return shutil.which("java")
+
+
 def panako_status(root: Path) -> dict[str, Any]:
-    candidates = [root / "tools" / "panako" / "panako.bat", root / "tools" / "panako" / "panako.jar", root / "tools" / "panako" / "Panako.jar", root / "plugins" / "panako" / "panako.bat"]
-    java = root / "tools" / "java" / "bin" / "java.exe"
-    executable = next((p for p in candidates if p.exists()), None)
-    return {"ready": bool(executable and (java.exists() or shutil.which("java"))), "executable": str(executable or ""), "java": str(java if java.exists() else (shutil.which("java") or "")), "message": "Panako je spreman." if executable else "Panako još nije fizički prisutan u tools/panako."}
+    jar, marker = _panako_paths(root)
+    legacy_candidates = [root / "tools" / "panako" / "panako.bat", root / "tools" / "panako" / "Panako.jar", root / "plugins" / "panako" / "panako.bat"]
+    executable = jar if jar.exists() else next((p for p in legacy_candidates if p.exists()), None)
+    java = _panako_java()
+    verified = False
+    if executable and executable.exists() and marker.exists():
+        try:
+            verified = marker.read_text(encoding="utf-8").strip() == sha256_file(executable)
+        except Exception:
+            verified = False
+    if not executable:
+        message = "Panako još nije instaliran. Opcioni dodatak -- osnovne funkcije rade i bez njega."
+    elif not java:
+        message = "Panako fajl postoji, ali Java runtime nije pronađen na ovom računaru."
+    elif not verified:
+        message = "Panako fajl postoji, ali još nije stvarno testiran. Klikni „Instaliraj / testiraj Panako“."
+    else:
+        message = "Panako je instaliran i stvarni test je uspeo."
+    return {
+        "ready": bool(executable and java and verified),
+        "executable": str(executable or ""), "java": java or "",
+        "verified": verified, "license": PANAKO_LICENSE_NOTICE,
+        "message": message,
+    }
+
+
+def install_panako_jar(root: Path, source_jar: Path) -> dict[str, Any]:
+    """User-supplied panako.jar only -- this never downloads Panako itself
+    (separate GPL-3.0 project, see PANAKO_LICENSE_NOTICE). Copies the file
+    in, then runs it for real with Java and only marks it "ready" if that
+    real run actually looks like a working jar, not just because a file
+    with the right name exists."""
+    source_jar = Path(source_jar).expanduser().resolve()
+    if not source_jar.is_file():
+        raise RuntimeError("Izabrani Panako .jar fajl ne postoji.")
+    if source_jar.suffix.lower() != ".jar":
+        raise RuntimeError("Izaberi .jar fajl (Panako se distribuira kao Java .jar).")
+    if not zipfile.is_zipfile(source_jar):
+        raise RuntimeError("Izabrani fajl nije ispravan .jar (nije validan ZIP arhiv).")
+    if source_jar.stat().st_size < 200_000:
+        raise RuntimeError("Izabrani fajl je premali da bi bio pravi Panako .jar -- proveri da li je preuzimanje završeno.")
+    java = _panako_java()
+    if not java:
+        raise RuntimeError("Java runtime (java.exe) nije pronađen na ovom računaru. Instaliraj Java 17+ pre Panaka.")
+    jar, marker = _panako_paths(root)
+    jar.parent.mkdir(parents=True, exist_ok=True)
+    # Verify against the SOURCE file first, before touching the installed
+    # jar -- a bad candidate must never overwrite (and thereby break) a
+    # previously working install.
+    proc = subprocess.run(
+        [java, "-jar", str(source_jar)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        encoding="utf-8", errors="replace", timeout=60, cwd=str(source_jar.parent),
+        creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0),
+    )
+    output = proc.stdout or ""
+    if re.search(r"no main manifest attribute|unable to access jarfile|error: could not find or load main class", output, re.I):
+        raise RuntimeError("Java je pokrenuo fajl, ali ovo ne izgleda kao pravi izvršni Panako .jar:\n" + output[-1500:])
+    shutil.copy2(source_jar, jar)
+    marker.write_text(sha256_file(jar), encoding="utf-8")
+    return {"installed": True, "executable": str(jar), "java": java, "output": output[-3000:], "exit_code": proc.returncode}
 
 
 def _panako_command(root: Path) -> list[str]:
@@ -732,22 +806,31 @@ def _panako_command(root: Path) -> list[str]:
     return [str(status["java"]), "-jar", str(executable)]
 
 
-def panako_index(root: Path, files: list[Path]) -> dict[str, Any]:
+def _panako_data_dir(root: Path, data_dir: Path | None = None) -> Path:
+    """Panako's own index must live in the writable per-user data folder,
+    never under Program Files -- passed as the subprocess cwd since that's
+    where a Java CLI tool with relative-path storage will write."""
+    base = (data_dir or (root / "data")).expanduser().resolve() / "panako_index"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def panako_index(root: Path, files: list[Path], data_dir: Path | None = None) -> dict[str, Any]:
     existing = [x.expanduser().resolve() for x in files if x.expanduser().is_file()]
     if not existing:
         raise RuntimeError("Nema postojećih audio fajlova za Panako indeksiranje.")
     command = _panako_command(root) + ["store"] + [str(x) for x in existing]
-    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=7200, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=7200, cwd=str(_panako_data_dir(root, data_dir)), creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
     if proc.returncode != 0: raise RuntimeError("Panako indeksiranje nije uspelo: " + (proc.stdout or "")[-1800:])
     return {"indexed": len(existing), "output": (proc.stdout or "")[-5000:]}
 
 
-def panako_query(root: Path, file: Path) -> dict[str, Any]:
+def panako_query(root: Path, file: Path, data_dir: Path | None = None) -> dict[str, Any]:
     file = file.expanduser().resolve()
     if not file.is_file():
         raise RuntimeError("Audio fajl za Panako proveru ne postoji.")
     command = _panako_command(root) + ["query", str(file)]
-    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=1800, creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=1800, cwd=str(_panako_data_dir(root, data_dir)), creationflags=(subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0))
     if proc.returncode != 0: raise RuntimeError("Panako provera nije uspela: " + (proc.stdout or "")[-1800:])
     return {"file": str(file), "output": proc.stdout or "", "matched": bool(re.search(r"match|matched|hits?", proc.stdout or "", re.I))}
 
