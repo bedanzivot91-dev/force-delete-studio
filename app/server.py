@@ -2724,6 +2724,39 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
     return result
 
 
+def song_finder_analyze_batch_task(task: TaskState, options: dict[str, Any]) -> None:
+    """Batch import: run song_finder_analyze() over every dropped Shorts/
+    video/audio file. Each analysis already persists its own recognized_tracks
+    row, so this task just walks the list and logs per-file outcomes -- the
+    UI re-reads /api/song-finder/results once the task finishes."""
+    paths = [str(p).strip() for p in (options.get("paths") or []) if str(p).strip()]
+    if not paths:
+        raise RuntimeError("Nijedan fajl nije izabran.")
+    task.total = len(paths)
+    found = 0
+    not_found = 0
+    errors = 0
+    for index, raw_path in enumerate(paths, 1):
+        if task.cancel_event.is_set():
+            break
+        wait_if_paused(task)
+        name = Path(raw_path).name
+        task.set_progress(index - 1, len(paths), name)
+        try:
+            result = song_finder_analyze(Path(raw_path))
+            if result.get("found"):
+                found += 1
+                task.log(f"{name}: {result.get('status_label')}", "success")
+            else:
+                not_found += 1
+                task.log(f"{name}: {song_finder.STATUS_LABELS_SR.get(song_finder.STATUS_NOT_FOUND)}", "info")
+        except Exception as exc:
+            errors += 1
+            task.log(f"{name}: {exc}", "error")
+        task.set_progress(index, len(paths), name)
+    task.finish(f"Batch provera završena: {found} pronađeno, {not_found} nije pronađeno, {errors} grešaka.")
+
+
 def _unique_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -2781,6 +2814,29 @@ def choose_file_dialog(initial: str = "", filter_text: str = "Backup ZIP (*.zip)
         selected = (result.stdout or "").strip().splitlines()
         return selected[-1].strip() if selected else ""
     return ""
+
+
+def choose_files_dialog(initial: str = "", filter_text: str = "Svi fajlovi (*.*)|*.*") -> list[str]:
+    """Multi-select variant of choose_file_dialog(), for batch Shorts/video/
+    audio import into the local song finder -- still the native Windows
+    file dialog, never a base64/multipart upload."""
+    if os.name == "nt":
+        safe_initial = str(initial or EXPORT_DIR).replace("'", "''")
+        safe_filter = str(filter_text).replace("'", "''")
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$d=New-Object System.Windows.Forms.OpenFileDialog; "
+            f"$d.InitialDirectory='{safe_initial}'; $d.Filter='{safe_filter}'; $d.Multiselect=$true; "
+            "if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){"
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $d.FileNames | ForEach-Object { Write-Output $_ }}"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+        return [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+    return []
 
 
 def _safe_archive_member(name: str) -> bool:
@@ -4782,6 +4838,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise RuntimeError("Izaberi Shorts, video ili audio fajl.")
                 result = song_finder_analyze(Path(source_path))
                 self._send_json({"ok": True, "result": result}); return
+            if path == "/api/song-finder/analyze-batch":
+                payload = {"paths": [str(p) for p in (body.get("paths") or []) if str(p).strip()]}
+                task = start_task("song_finder_batch", "Provera više Shorts/video/audio fajlova", lambda t: song_finder_analyze_batch_task(t, payload), persistent_payload=payload)
+                self._send_json({"ok": True, "task": task.as_dict()}); return
             if path == "/api/song-finder/result/confirm":
                 recognition_id = int(body.get("id") or 0)
                 song_id = str(body.get("song_id") or "")
@@ -5140,6 +5200,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/choose-file":
                 selected = choose_file_dialog(str(body.get("initial") or EXPORT_DIR), str(body.get("filter") or "Backup ZIP (*.zip)|*.zip|SQLite baza (*.db)|*.db|Svi fajlovi (*.*)|*.*"))
                 self._send_json({"ok": True, "path": selected, "cancelled": not bool(selected)})
+                return
+            if path == "/api/choose-files":
+                selected = choose_files_dialog(str(body.get("initial") or EXPORT_DIR), str(body.get("filter") or "Svi fajlovi (*.*)|*.*"))
+                self._send_json({"ok": True, "paths": selected, "cancelled": not bool(selected)})
                 return
             if path == "/api/save-to-folder":
                 ids = [str(x) for x in (body.get("ids") or []) if str(x)]
