@@ -1139,3 +1139,13 @@ body[data-theme="label-command"][data-motion="reduced"] .song-card:hover{transfo
 .version-member.is-master{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .version-member-title{display:flex;flex-direction:column;gap:2px}
 @media(max-width:760px){.version-member{grid-template-columns:1fr}}
+
+/* Release Center readiness table */
+.release-readiness-table{display:flex;flex-direction:column;gap:2px;margin-top:10px;overflow-x:auto}
+.release-row{display:grid;grid-template-columns:2fr repeat(7,1fr);gap:6px;align-items:center;padding:8px 10px;border-radius:8px}
+.release-row-head{font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+.release-row:not(.release-row-head){background:var(--panel2);border:1px solid var(--line)}
+.release-mark{text-align:center;font-weight:800}
+.release-mark.yes{color:var(--green)}
+.release-mark.no{color:var(--muted)}
+@media(max-width:900px){.release-row{grid-template-columns:1fr;text-align:left}.release-mark{text-align:left}}

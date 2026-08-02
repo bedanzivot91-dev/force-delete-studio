@@ -114,6 +114,7 @@ const viewText = {
   recognition: ['Pronalazač pesme', 'Pronađi naziv pesme iz Shortsa ili audio/video isečka i trajno sačuvaj istoriju.'],
   smart: ['Pametna biblioteka', 'Pravila po poljima pesme (I/ILI), živ pregled trenutne biblioteke i sačuvane pametne kolekcije.'],
   versions: ['Version Lab', 'Poredi više Suno verzija iste pesme, oceni ih i označi glavnu (master) verziju.'],
+  release: ['Release Center', 'Zbirni pregled spremnosti za objavu i jedan klik za organizovan izvozni folder po pesmi.'],
   tools: ['Pametni alati', 'YouTube ↔ Suno audio prepoznavanje, kompletnost objave, kanali, datumi i zaštita pesama.'],
   production: ['Produkcija v3', 'Lyric video, Shorts, YouTube objava, integritet, zaštita i rollback.'],
   stats: ['Statistika biblioteke', 'Broj pesama, trajanje, modeli i preuzimanja.'],
@@ -131,7 +132,7 @@ function showView(name) {
   if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadSongFinderResults(); }
   if (name === 'smart') { if (!qsa('.smart-rule-row', $('smartRulesList')).length) addSmartRule(); loadSmartCollections(); }
   if (name === 'versions') loadVersionGroups();
-  if (name === 'versions') loadVersionGroups();
+  if (name === 'release') loadReleaseReadiness();
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
   if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
@@ -905,6 +906,35 @@ function renderVersionGroupHtml(group) {
     <div class="version-members">${rows}</div>
   </div>`;
 }
+
+// -- Release Center: aggregated per-song readiness (audio/cover/lyrics/
+// subtitles/stems/YouTube-published) plus a one-button organized export
+// folder per song. Every file in the export is a COPY -- originals and
+// the library's own local_* paths are never touched. --
+const RELEASE_CHECKS = [
+  ['has_audio', 'Audio'], ['has_cover', 'Omot'], ['has_lyrics', 'Tekst'],
+  ['has_subtitles', 'LRC/SRT'], ['has_stems', 'Stemovi'], ['has_transcription', 'Transkripcija'], ['youtube_published', 'YouTube'],
+];
+
+async function loadReleaseReadiness() {
+  const ids = selectedIds();
+  if (!ids.length) { $('releaseReadinessTable').innerHTML = '<p class="muted">Izaberi pesme u Biblioteci pa se vrati ovde.</p>'; return; }
+  try {
+    const data = await api(`/api/release/readiness?ids=${encodeURIComponent(ids.join(','))}`);
+    const rows = data.songs || [];
+    const header = `<div class="release-row release-row-head"><div>Pesma</div>${RELEASE_CHECKS.map(([, label]) => `<div>${escapeHtml(label)}</div>`).join('')}</div>`;
+    const body = rows.map((s) => `<div class="release-row"><div>${escapeHtml(s.title || 'Bez naslova')}</div>${RELEASE_CHECKS.map(([key]) => `<div class="release-mark ${s[key] ? 'yes' : 'no'}">${s[key] ? '✓' : '✗'}</div>`).join('')}</div>`).join('');
+    $('releaseReadinessTable').innerHTML = header + body;
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+async function buildReleasePackages() {
+  const ids = requireSelection(); if (!ids) return;
+  let target = $('releaseTargetFolder').value.trim();
+  if (!target) { target = await chooseFolder('releaseTargetFolder'); if (!target) return; }
+  try { await startBackground('/api/release/build', { ids, target }); toast(`Pravljenje release paketa za ${ids.length} pesama je pokrenuto.`, 'success'); }
+  catch (e) { toast(e.message, 'error', 12000); }
+}
 function toolOutput(html){$('toolsOutput').innerHTML=html;}
 async function runReport(){const type=$('reportType').value; toolOutput('Pripremam izveštaj...'); try{const data=await api(`/api/reports?type=${encodeURIComponent(type)}`,{timeoutMs:type==='audio_quality'?120000:30000}); if(type==='duplicates'){const a=data.report?.same_title_duration||[],b=data.report?.same_audio||[];toolOutput(`<h3>Isti naslov i trajanje: ${a.length}</h3>${a.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key)}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}<h3>Isti audio sadržaj: ${b.length}</h3>${b.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key.slice(0,16))}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}`);}else{const rows=data.rows||[];toolOutput(`<h3>Rezultati: ${rows.length}</h3>${rows.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.title||x.id)}</strong><span>${x.duration!==undefined?formatDuration(x.duration):''} ${escapeHtml(x.source_group||x.codec||x.error||'')}</span></div>`).join('')||'<p>Nema stavki za ovaj izveštaj.</p>'}`);}}catch(e){toolOutput(`<p class="danger-text">${escapeHtml(e.message)}</p>`);} }
 
@@ -1403,6 +1433,7 @@ function bindEvents() {
   $('saveAuddTokenBtn')?.addEventListener('click',saveAuddToken); $('recognizeMusicBtn')?.addEventListener('click',recognizeMusic); $('chooseMusicRecognitionFileBtn')?.addEventListener('click',chooseMusicRecognitionFile); $('refreshRecognitionHistoryBtn')?.addEventListener('click',loadMusicRecognitionHistory); $('openRecognitionFolderBtn')?.addEventListener('click',openRecognitionFolder); $('musicRecognitionHistory')?.addEventListener('click',(e)=>{const show=e.target.closest('.recognition-show');if(show){const r=state.recognitionHistory.find(x=>Number(x.id)===Number(show.dataset.id));if(r)showRecognitionResult({...r,...(r.result||{}),history_id:r.id});}const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));}); $('musicRecognitionResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));});
   $('smartAddRuleBtn')?.addEventListener('click',()=>addSmartRule()); $('smartPreviewBtn')?.addEventListener('click',previewSmartLibrary); $('smartSaveBtn')?.addEventListener('click',saveSmartCollection); $('smartSelectAllBtn')?.addEventListener('click',selectSmartPreview); $('smartGoLibraryBtn')?.addEventListener('click',openSmartSelectionInLibrary); $('smartRefreshBtn')?.addEventListener('click',loadSmartCollections);
   $('versionCreateGroupBtn')?.addEventListener('click',createVersionGroup);
+  $('releaseRefreshBtn')?.addEventListener('click',loadReleaseReadiness); $('releaseChooseFolderBtn')?.addEventListener('click',()=>chooseFolder('releaseTargetFolder')); $('releaseBuildBtn')?.addEventListener('click',buildReleasePackages);
   $('songFinderGoDownloadBtn')?.addEventListener('click',()=>showView('download')); $('chooseSongFinderFileBtn')?.addEventListener('click',chooseSongFinderFile); $('chooseSongFinderBatchBtn')?.addEventListener('click',chooseSongFinderBatch); $('analyzeSongFinderBtn')?.addEventListener('click',analyzeSongFinder); $('songFinderIndexAllBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRefreshBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRebuildBtn')?.addEventListener('click',rebuildSongFinderIndex); $('refreshSongFinderResultsBtn')?.addEventListener('click',loadSongFinderResults); $('songFinderResults')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));}); $('songFinderResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));});
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('songModal').classList.add('hidden'); if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();showView('library');$('searchInput').focus();} if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();checkNewSongs();} if(e.code==='Space'&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)===false){e.preventDefault();const a=$('audioPlayer');a.paused?a.play().catch(()=>{}):a.pause();} });
 }

@@ -72,9 +72,9 @@ from advanced_features import (
 from security_lock import AppSecurity
 from music_recognition import MusicRecognitionError, decode_audio_base64, recognize_audd
 from v3_features import (
-    align_original_lyrics, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
+    align_original_lyrics, build_release_package, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
     library_integrity_scan, organize_library, install_panako_jar, match_smart_collection, panako_index, panako_query, panako_status,
-    render_lyric_video, render_short_clip, sha256_file, SMART_LIBRARY_FIELDS, storage_report as v3_storage_report, cleanup_storage,
+    release_readiness, render_lyric_video, render_short_clip, sha256_file, SMART_LIBRARY_FIELDS, storage_report as v3_storage_report, cleanup_storage,
     suggest_short_clips, suggest_teaser_clips, teaser_clip_from_text, system_preflight, youtube_metadata, youtube_resumable_upload,
 )
 import song_finder
@@ -3850,6 +3850,34 @@ def advanced_quality_task(task: TaskState, options: dict[str, Any]) -> None:
     task.finish(f"Analiza kvaliteta završena: {len(rows)}/{len(ids)}. Izveštaj: {report.name}")
 
 
+def release_build_task(task: TaskState, options: dict[str, Any]) -> None:
+    ids = [str(x) for x in (options.get("ids") or []) if str(x)]
+    if not ids:
+        raise RuntimeError("Izaberi bar jednu pesmu.")
+    target = str(options.get("target") or "").strip()
+    if not target:
+        raise RuntimeError("Izaberi ciljni folder za release pakete.")
+    target_root = Path(target).expanduser()
+    task.total = len(ids)
+    done = 0
+    for idx, song_id in enumerate(ids, 1):
+        if task.cancel_event.is_set():
+            break
+        wait_if_paused(task)
+        song = DB.get_song(song_id) or {}
+        try:
+            result = build_release_package(song, target_root)
+            missing_note = f" (nedostaje: {', '.join(result['missing'])})" if result["missing"] else ""
+            task.log(f"{song.get('title') or song_id}: release folder spreman{missing_note}.", "success" if not result["missing"] else "warning")
+            done += 1
+        except Exception as exc:
+            task.errors.append(str(exc))
+            task.log(f"{song.get('title') or song_id}: {exc}", "error")
+        task.set_progress(idx, len(ids), str(song.get("title") or song_id))
+    status = "done" if done == len(ids) else ("partial" if done else "error")
+    task.finish(f"Release paketi napravljeni: {done}/{len(ids)} u {target_root}.", status=status)
+
+
 def incremental_backup_task(task: TaskState, options: dict[str, Any]) -> None:
     target = Path(str(options.get("target") or options.get("folder") or DB.get_setting("incremental_backup_dir", str(EXPORT_DIR / "Inkrementalni_backup"))))
     DB.set_setting("incremental_backup_dir", str(target))
@@ -4007,6 +4035,7 @@ def run_persistent_job(job_id: int) -> TaskState:
         "v3_youtube_upload": ("YouTube upload", lambda t: v3_youtube_upload_task(t, payload)),
         "v3_panako_index": ("Panako Content-ID indeks", lambda t: v3_panako_index_task(t, payload)),
         "v3_snapshot": ("Snapshot cele verzije programa", lambda t: v3_snapshot_task(t, payload)),
+        "release_build": ("Pravljenje release paketa", lambda t: release_build_task(t, payload)),
     }
     if task_type not in mapping: raise RuntimeError(f"Nastavak za tip posla „{task_type}“ nije podržan.")
     title, runner = mapping[task_type]
@@ -4496,6 +4525,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/version-lab":
                 self._send_json({"ok": True, "groups": DB.list_version_groups()})
+                return
+            if path == "/api/release/readiness":
+                ids = [str(x) for x in (query.get("ids", [""])[0] or "").split(",") if str(x)]
+                songs = [DB.get_song(sid) for sid in ids] if ids else DB.export_rows()
+                readiness = [release_readiness(s) for s in songs if s]
+                self._send_json({"ok": True, "songs": readiness})
                 return
             if path == "/api/v3/shorts/suggest":
                 song_id = (query.get("id") or [""])[0]; song = DB.get_song(song_id)
@@ -5496,6 +5531,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/version-lab/delete":
                 deleted = DB.delete_version_group(int(body.get("id") or 0))
                 self._send_json({"ok": True, "deleted": deleted}); return
+            if path == "/api/release/build":
+                payload = dict(body)
+                task = start_task("release_build", "Pravljenje release paketa", lambda t: release_build_task(t, payload), persistent_payload=payload)
+                self._send_json({"ok": True, "task": task.as_dict()}); return
             if path == "/api/bulk/update":
                 ids = [str(x) for x in (body.get("ids") or []) if str(x)]
                 fields = body.get("fields") if isinstance(body.get("fields"), dict) else {}

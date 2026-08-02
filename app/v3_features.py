@@ -311,6 +311,66 @@ def match_smart_collection(songs: Iterable[dict[str, Any]], rules: list[dict[str
     return [song for song in songs if evaluate_smart_rules(song, rules, match_mode)]
 
 
+# -- Release Center: an aggregated "is this song actually ready to publish"
+# view plus a one-button organized export folder per song. Read-only --
+# every file is COPIED, the originals (and the library's own local_*
+# paths) are never touched or moved. --
+
+def release_readiness(song: dict[str, Any]) -> dict[str, Any]:
+    stems = [d for d in (song.get("derived_files") or []) if str(d.get("kind")) == "stem"]
+    transcriptions = [d for d in (song.get("derived_files") or []) if str(d.get("kind")) == "transcription"]
+    return {
+        "song_id": song.get("id"), "title": song.get("title"),
+        "has_audio": bool(str(song.get("local_audio") or song.get("local_wav") or "").strip()),
+        "has_cover": bool(str(song.get("local_cover") or "").strip()),
+        "has_lyrics": bool(str(song.get("local_lyrics") or song.get("lyrics") or "").strip()),
+        "has_subtitles": bool(str(song.get("local_lrc") or "").strip() or str(song.get("local_srt") or "").strip()),
+        "has_stems": bool(stems),
+        "has_transcription": bool(transcriptions),
+        "youtube_published": bool(str(song.get("youtube_url") or "").strip()),
+    }
+
+
+def build_release_package(song: dict[str, Any], target_root: Path) -> dict[str, Any]:
+    target_root = target_root.expanduser().resolve()
+    base = sanitize_filename(str(song.get("title") or song.get("id") or "Bez naslova"), 100)
+    folder = target_root / base
+    folder.mkdir(parents=True, exist_ok=True)
+    included: list[str] = []
+    missing: list[str] = []
+
+    def copy_if_exists(label: str, raw_path: Any, subfolder: str = "") -> None:
+        raw = str(raw_path or "").strip()
+        if not raw:
+            missing.append(label)
+            return
+        source = Path(raw)
+        if not source.exists() or not source.is_file():
+            missing.append(label)
+            return
+        dest_dir = (folder / subfolder) if subfolder else folder
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest_dir / source.name)
+        included.append(label)
+
+    copy_if_exists("audio", song.get("local_audio") or song.get("local_wav"))
+    copy_if_exists("cover", song.get("local_cover"))
+    copy_if_exists("lyrics_txt", song.get("local_lyrics"))
+    copy_if_exists("lrc", song.get("local_lrc"))
+    copy_if_exists("srt", song.get("local_srt"))
+    for stem in (song.get("derived_files") or []):
+        if str(stem.get("kind")) == "stem":
+            copy_if_exists(f"stem:{stem.get('label') or 'stem'}", stem.get("path"), subfolder="Stemovi")
+    manifest = {
+        "song_id": song.get("id"), "title": song.get("title"), "generated_at": now_iso(),
+        "included": included, "missing": missing,
+        "youtube_published": bool(str(song.get("youtube_url") or "").strip()),
+    }
+    manifest_path = folder / "release-info.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"path": str(folder), "included": included, "missing": missing, "manifest": str(manifest_path)}
+
+
 def _template_values(song: dict[str, Any]) -> dict[str, str]:
     created = str(song.get("created_at") or song.get("first_seen_at") or "")
     try: dt = datetime.fromisoformat(created.replace("Z", "+00:00"))

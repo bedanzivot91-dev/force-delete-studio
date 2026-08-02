@@ -19,6 +19,7 @@
         <button class="nav-item" data-view="recognition"><span>⌕</span> Pronalazač pesme</button>
         <button class="nav-item" data-view="smart"><span>⚑</span> Pametna biblioteka</button>
         <button class="nav-item" data-view="versions"><span>⇄</span> Version Lab</button>
+        <button class="nav-item" data-view="release"><span>▣</span> Release Center</button>
         <button class="nav-item" data-view="tools"><span>✦</span> Pametni alati</button>
         <button class="nav-item" data-view="production"><span>⚡</span> Produkcija v3</button>
         <button class="nav-item" data-view="stats"><span>◔</span> Statistika</button>
@@ -204,6 +205,19 @@
           <div class="two-inputs"><label>Naziv grupe<input id="versionGroupName" placeholder="npr. Nedostaješ mi — verzije"></label><div class="button-row" style="align-items:flex-end"><button id="versionCreateGroupBtn" class="btn primary">Napravi grupu od izabranih</button></div></div>
         </div>
         <div id="versionGroupsList" class="version-groups-list"></div>
+      </section>
+
+      <section id="view-release" class="view">
+        <div class="panel form-panel">
+          <div class="section-title"><div><h2>Spremnost za objavu</h2><p class="muted">Izaberi pesme u Biblioteci pa ovde vidi šta svaka ima spremno: audio, omot, tekst, titlove, stemove i da li je već objavljena na YouTube.</p></div><button id="releaseRefreshBtn" class="btn secondary small">Osveži prikaz izabranih</button></div>
+          <div id="releaseReadinessTable" class="release-readiness-table"></div>
+        </div>
+        <div class="panel form-panel">
+          <h3>Napravi release folder</h3>
+          <p class="muted">Za svaku izabranu pesmu pravi se poseban podfolder sa kopijama audia, omota, teksta, LRC/SRT i stemova (ako postoje). Originali se ne menjaju niti premeštaju.</p>
+          <div class="folder-path-row"><input id="releaseTargetFolder" placeholder="Folder za release pakete"><button id="releaseChooseFolderBtn" class="btn ghost small">Izaberi</button></div>
+          <button id="releaseBuildBtn" class="btn primary full">Napravi release foldere za izabrane pesme</button>
+        </div>
       </section>
 
       <section id="view-tools" class="view">
