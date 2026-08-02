@@ -87,7 +87,8 @@ USER_DATA_ROOT = Path(os.environ.get("SUNO_STUDIO_USER_DIR") or ROOT).expanduser
 DATA_DIR = Path(os.environ.get("SUNO_STUDIO_DATA_DIR") or (USER_DATA_ROOT / "data")).expanduser().resolve()
 DEFAULT_DOWNLOAD_DIR = Path(os.environ.get("SUNO_STUDIO_DOWNLOAD_DIR") or (USER_DATA_ROOT / "Preuzete_pesme")).expanduser().resolve()
 EXPORT_DIR = Path(os.environ.get("SUNO_STUDIO_EXPORT_DIR") or (USER_DATA_ROOT / "Izvoz")).expanduser().resolve()
-PUBLISHED_DIR = Path(os.environ.get("SUNO_STUDIO_PUBLISHED_DIR") or (USER_DATA_ROOT / "Objavljene_pesme")).expanduser().resolve()
+PUBLISHED_DIR = Path(os.environ.get("SUNO_STUDIO_PUBLISHED_DIR") or (USER_DATA_ROOT / "OBRAĐENO NA YOUTUBE")).expanduser().resolve()
+YOUTUBE_PROCESSED_STATUSES = ("complete", "almost_complete", "partial", "short_clip")
 LOCAL_LIBRARY_DIR = Path(os.environ.get("SUNO_STUDIO_LIBRARY_DIR") or (USER_DATA_ROOT / "Biblioteka_pesama")).expanduser().resolve()
 RECOGNITION_ROOT = Path(os.environ.get("SUNO_STUDIO_RECOGNITION_DIR") or (USER_DATA_ROOT / "Pronalazac_pesme")).expanduser().resolve()
 RECOGNITION_INPUT_DIR = RECOGNITION_ROOT / "Ulazni_isecci"
@@ -101,34 +102,93 @@ for _folder in (DATA_DIR, DEFAULT_DOWNLOAD_DIR, EXPORT_DIR, PUBLISHED_DIR, LOCAL
 
 
 
-def copy_song_to_published_folder(song: dict[str, Any], video: dict[str, Any] | None = None) -> dict[str, Any]:
-    target_root = PUBLISHED_DIR
-    target_root.mkdir(parents=True, exist_ok=True)
-    title = sanitize_filename(str(song.get("title") or song.get("display_name") or song.get("id") or "pesma"))
-    copied = []
-    for key in ("local_audio", "local_wav", "local_video", "local_cover", "local_lyrics", "local_lrc", "local_srt"):
+def get_youtube_processed_dir() -> Path:
+    raw = str(DB.get_setting("youtube_processed_dir", "") or "").strip()
+    return Path(raw).expanduser() if raw else PUBLISHED_DIR
+
+
+def copy_song_to_published_folder(song: dict[str, Any], video: dict[str, Any] | None = None, status: str = "") -> dict[str, Any]:
+    """Copy the FULL original Suno audio into
+    OBRAĐENO NA YOUTUBE/<kanal>/<status>/<naziv> [<suno-id>]/<video-id>/,
+    downloading it via the (refreshed if needed) Suno audio_url when no
+    local file exists yet -- never silently skipping just because nothing
+    is downloaded locally. Never touches/moves/deletes the song's own
+    original files. Re-running on the same song+video updates the
+    manifest in place instead of duplicating the folder."""
+    video = video or {}
+    channel = sanitize_filename(str(video.get("channel_title") or "Nepoznat kanal"), 80)
+    status_folder = str(status or video.get("completeness_status") or "complete")
+    if status_folder not in YOUTUBE_PROCESSED_STATUSES:
+        status_folder = "complete"
+    song_id = str(song.get("id") or "")
+    video_id = str(video.get("video_id") or video.get("id") or "")
+    title = sanitize_filename(str(song.get("title") or song.get("display_name") or song_id or "pesma"), 100)
+    base = get_youtube_processed_dir() / channel / status_folder / f"{title} [{song_id[:8]}]" / (video_id or "video")
+    base.mkdir(parents=True, exist_ok=True)
+
+    audio_path = _existing_audio_path(song)
+    if audio_path is None:
+        def refresh_url() -> str:
+            try:
+                detail = get_client().get_clip(song_id)
+                if isinstance(detail, dict):
+                    DB.upsert_song(detail)
+                    return str((DB.get_song(song_id) or {}).get("audio_url") or "")
+            except Exception:
+                pass
+            return ""
+        remote = str(song.get("audio_url") or "").strip() or refresh_url()
+        if remote:
+            candidate = base / f"{title}.mp3"
+            try:
+                get_client().download_file(remote, candidate, refresh_url=refresh_url)
+                if float(probe_audio(candidate).get("duration") or 0) <= 0:
+                    raise RuntimeError("preuzeti fajl nema čitljivo trajanje (verovatno HTML/JSON greška)")
+                audio_path = candidate
+            except Exception as exc:
+                candidate.unlink(missing_ok=True)
+                runtime_log(f"OBRAĐENO NA YOUTUBE: preuzimanje punog originala nije uspelo za {song_id}: {exc}", "warning")
+
+    copied: list[str] = []
+    if audio_path is not None and Path(audio_path).exists():
+        audio_path = Path(audio_path)
+        dst = base / f"{title}{audio_path.suffix.lower()}"
+        if not dst.exists() or audio_path.stat().st_size != dst.stat().st_size:
+            shutil.copy2(audio_path, dst)
+        copied.append(str(dst))
+    for key, out_name in (("local_cover", None), ("local_lyrics", "lyrics.txt")):
         raw = str(song.get(key) or "").strip()
         if not raw:
             continue
         src = Path(raw)
         if not src.exists() or not src.is_file():
             continue
-        dst = target_root / f"{title}{src.suffix.lower()}"
-        if dst.exists() and dst.resolve() != src.resolve():
-            dst = target_root / f"{title}-{str(song.get('id') or '')[:8]}{src.suffix.lower()}"
-        if not dst.exists() or src.stat().st_mtime_ns != dst.stat().st_mtime_ns or src.stat().st_size != dst.stat().st_size:
+        dst = base / (out_name or f"cover{src.suffix.lower()}")
+        if not dst.exists() or src.stat().st_size != dst.stat().st_size:
             shutil.copy2(src, dst)
         copied.append(str(dst))
+
+    video_url = str(video.get("video_url") or video.get("url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else ""))
+    if video_url:
+        (base / "YouTube.url").write_text(f"[InternetShortcut]\r\nURL={video_url}\r\n", encoding="utf-8")
+
+    file_hash = ""
+    if copied:
+        try:
+            file_hash = sha256_file(Path(copied[0]))
+        except Exception:
+            file_hash = ""
     manifest = {
-        "song_id": str(song.get("id") or ""),
-        "title": str(song.get("title") or ""),
-        "youtube_url": str((video or {}).get("url") or (video or {}).get("video_url") or song.get("youtube_url") or ""),
-        "published_at": str((video or {}).get("published_at") or song.get("youtube_published_at") or ""),
-        "copied_files": copied,
-        "updated_at": now_iso(),
+        "suno_song_id": song_id, "suno_url": str(song.get("source_url") or ""),
+        "youtube_video_id": video_id, "youtube_url": video_url, "channel": channel,
+        "video_title": str(video.get("title") or ""), "status": status_folder,
+        "score": float(video.get("audio_score") or video.get("score") or 0),
+        "match_start_s": video.get("video_start"), "match_end_s": video.get("video_end"),
+        "checked_at": now_iso(), "engine_version": AUDIO_MATCH_VERSION, "audio_file_sha256": file_hash,
+        "copied_files": copied, "has_full_audio": bool(copied and copied[0].lower().endswith((".mp3", ".wav", ".m4a", ".flac"))),
     }
-    (target_root / f"{title}-{str(song.get('id') or '')[:8]}.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"folder": str(target_root), "copied": copied}
+    (base / "match.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"folder": str(base), "copied": copied, "has_full_audio": manifest["has_full_audio"]}
 
 DB = LibraryDB(DATA_DIR / "suno_biblioteka.db")
 DB.mark_interrupted_jobs()
@@ -1397,9 +1457,20 @@ def _analyse_video_against_songs(
             current_date = str(song.get("youtube_published_at") or "")
             if not current_date or (published_at and published_at[:10] < current_date[:10]):
                 DB.update_song_user_fields(str(song["id"]), {"youtube_published_at": published_at[:10], "youtube_url": video_url})
+        if status in YOUTUBE_PROCESSED_STATUSES:
             refreshed_song = DB.get_song(str(song["id"])) or song
-            copied = copy_song_to_published_folder(refreshed_song, {**video, "video_url": video_url})
-            task.log(f"Prebačeno u Objavljene_pesme: {len(copied.get('copied') or [])} fajlova.", "success")
+            copied = copy_song_to_published_folder(
+                refreshed_song,
+                {**video, "video_url": video_url, "audio_score": analysis.get("audio_score"),
+                 "video_start": analysis.get("video_start"), "video_end": analysis.get("video_end")},
+                status=status,
+            )
+            task.log(
+                f"Prebačeno u {get_youtube_processed_dir().name}: "
+                f"{'pun original + ' if copied.get('has_full_audio') else 'BEZ audio fajla (nije preuzet) + '}"
+                f"{len(copied.get('copied') or [])} fajlova.",
+                "success" if copied.get("has_full_audio") else "warning",
+            )
         task.log(
             f"„{video.get('title')}“ → Suno „{song.get('title')}“: audio {analysis.get('audio_score')}%, "
             f"pokrivenost {analysis.get('coverage_percent')}%, status {status}, tip {version_type}.",
@@ -2671,37 +2742,60 @@ def add_recognition_to_library(recognition_id: int) -> dict[str, Any]:
 
 
 def _song_finder_source(song: dict[str, Any]) -> tuple[str | Path | None, bool]:
-    """Prefer an already-downloaded local file; otherwise fall back to the
-    song's own Suno CDN URL so indexing works like Shazam -- FFmpeg streams
-    the remote audio just long enough to compute the compact fingerprint
-    (already all audio_fingerprints ever stores), and nothing of the full
-    audio is kept afterward. No permanent per-song download is required."""
+    """Unified with _song_audio_source_for_match() (the YouTube-matching
+    pipeline's own source picker) so there is exactly one place that
+    decides "what audio do we use for this song" -- including refreshing
+    an expired Suno audio_url via the Suno client and persisting the new
+    URL. Prefers an already-downloaded local file; otherwise streams the
+    song's own Suno CDN URL just long enough to compute the compact
+    fingerprint (already all audio_fingerprints ever stores) -- no
+    permanent per-song download is required."""
+    source = _song_audio_source_for_match(song)
+    if source is None:
+        return None, False
+    is_remote = isinstance(source, str) and source.startswith(("http://", "https://"))
+    return source, is_remote
+
+
+def _song_finder_source_cheap(song: dict[str, Any]) -> tuple[str | Path | None, bool]:
+    """Same source preference as _song_finder_source() (local file, then
+    the cached Suno audio_url) but WITHOUT the network call that refreshes
+    an expired URL -- used for the status readout, which must stay fast
+    and must never make ~3000 Suno API calls just to render a number."""
     local = _existing_audio_path(song)
     if local is not None:
         return local, False
     remote = str(song.get("audio_url") or "").strip()
-    if remote:
-        return remote, True
-    return None, False
+    return (remote, True) if remote else (None, False)
 
 
 def song_finder_status() -> dict[str, Any]:
     """Pronalazač mojih pesama: index status. No token/internet is needed to
     ANALYZE a clip (that only ever reads the already-cached fingerprints
     below); building the index itself can stream a song's own Suno audio
-    directly, without keeping a permanent local copy."""
+    directly, without keeping a permanent local copy. Songs with neither a
+    local file nor a cached audio_url still count as indexed if a fingerprint
+    was already computed for them earlier (the source may since have gone
+    stale/unreachable, but the fingerprint itself is still valid)."""
     songs = DB.export_rows()
-    sources = [_song_finder_source(s) for s in songs]
+    sources = [_song_finder_source_cheap(s) for s in songs]
     with_audio = [s for s, (source, _) in zip(songs, sources) if source]
     remote_only = sum(1 for source, is_remote in sources if source and is_remote)
-    indexed = sum(1 for s in with_audio if DB.get_audio_fingerprint("suno", str(s.get("id") or ""), AUDIO_MATCH_VERSION))
+    fingerprinted_ids = {
+        str(s.get("id") or "") for s in songs
+        if DB.get_audio_fingerprint("suno", str(s.get("id") or ""), AUDIO_MATCH_VERSION)
+    }
+    indexed = len(fingerprinted_ids)
+    no_source_but_indexed = sum(1 for s, (source, _) in zip(songs, sources) if not source and str(s.get("id") or "") in fingerprinted_ids)
     return {
         "ok": True,
         "songs_total": len(songs),
         "songs_with_audio": len(with_audio),
         "songs_remote_only": remote_only,
         "songs_indexed": indexed,
-        "songs_not_indexed": len(with_audio) - indexed,
+        "songs_indexed_without_current_source": no_source_but_indexed,
+        "songs_not_indexed": max(0, len(with_audio) - (indexed - no_source_but_indexed)),
+        "songs_without_any_source": sum(1 for source, _ in sources if not source) - no_source_but_indexed,
         "algorithm_version": AUDIO_MATCH_VERSION,
         "last_indexed_at": DB.get_setting("song_finder_last_index_at", ""),
     }
@@ -4574,6 +4668,7 @@ class Handler(BaseHTTPRequestHandler):
                     "connected": connected,
                     "songs": DB.count_songs(),
                     "download_dir": str(get_download_dir()),
+                    "youtube_processed_dir": str(get_youtube_processed_dir()),
                     "task": task,
                     "browser_found": bool(CONNECTOR.find_browser()),
                     "last_new_check_at": DB.get_setting("last_new_check_at", ""),
@@ -5630,6 +5725,11 @@ class Handler(BaseHTTPRequestHandler):
                         DB.set_setting("download_dir", value)
                 if "theme" in body:
                     DB.set_setting("theme", str(body.get("theme") or "default"))
+                if "youtube_processed_dir" in body:
+                    value = str(body.get("youtube_processed_dir") or "").strip()
+                    if value:
+                        Path(value).expanduser().mkdir(parents=True, exist_ok=True)
+                    DB.set_setting("youtube_processed_dir", value)
                 if "auto_check_minutes" in body:
                     DB.set_setting("auto_check_minutes", str(max(0, min(int(body.get("auto_check_minutes") or 0), 1440))))
                 if "auto_backup_before_sync" in body:
@@ -5649,7 +5749,7 @@ class Handler(BaseHTTPRequestHandler):
                     if value not in {"none", "chrome", "edge", "brave", "firefox", "opera", "vivaldi"}:
                         raise RuntimeError("Nepodržan browser za YouTube kolačiće.")
                     DB.set_setting("youtube_cookies_browser", value)
-                self._send_json({"ok": True, "download_dir": str(get_download_dir()), "theme": DB.get_setting("theme", "default"), "auto_check_minutes": int(DB.get_setting("auto_check_minutes", "0") or 0), "auto_backup_before_sync": DB.get_setting("auto_backup_before_sync", "0") == "1", "suno_keepalive_enabled": _suno_keepalive_enabled(), "suno_keepalive_minutes": _suno_keepalive_minutes(), "suno_auto_reopen_browser": _suno_auto_reopen_browser(), "suno_session": suno_session_public_state(), "has_youtube_api_key": bool(get_youtube_api_key()), "youtube_oauth": YOUTUBE_OAUTH.status(), "copyright_owner_name": DB.get_setting("copyright_owner_name", ""), "youtube_cookies_browser": DB.get_setting("youtube_cookies_browser", "none")})
+                self._send_json({"ok": True, "download_dir": str(get_download_dir()), "youtube_processed_dir": str(get_youtube_processed_dir()), "theme": DB.get_setting("theme", "default"), "auto_check_minutes": int(DB.get_setting("auto_check_minutes", "0") or 0), "auto_backup_before_sync": DB.get_setting("auto_backup_before_sync", "0") == "1", "suno_keepalive_enabled": _suno_keepalive_enabled(), "suno_keepalive_minutes": _suno_keepalive_minutes(), "suno_auto_reopen_browser": _suno_auto_reopen_browser(), "suno_session": suno_session_public_state(), "has_youtube_api_key": bool(get_youtube_api_key()), "youtube_oauth": YOUTUBE_OAUTH.status(), "copyright_owner_name": DB.get_setting("copyright_owner_name", ""), "youtube_cookies_browser": DB.get_setting("youtube_cookies_browser", "none")})
                 return
             if path == "/api/open-folder":
                 target = Path(str(body.get("path") or get_download_dir()))

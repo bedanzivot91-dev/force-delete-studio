@@ -1879,7 +1879,7 @@ class LibraryDB:
     def youtube_publication_matrix(self) -> dict[str, Any]:
         with self._connect() as conn:
             channels = [dict(r) for r in conn.execute("SELECT * FROM youtube_channels WHERE is_owned=1 ORDER BY title COLLATE NOCASE").fetchall()]
-            songs = [dict(r) for r in conn.execute("SELECT id,title,duration,youtube_url,youtube_published_at FROM songs WHERE archived=0 ORDER BY title COLLATE NOCASE").fetchall()]
+            songs = [dict(r) for r in conn.execute("SELECT id,title,duration,youtube_url,youtube_published_at,source_url FROM songs WHERE archived=0 ORDER BY title COLLATE NOCASE").fetchall()]
             analyses = [dict(r) for r in conn.execute(
                 """SELECT m.song_id,v.channel_id,m.completeness_status,m.audio_score,m.coverage_percent,m.video_id,
                           v.url video_url,v.published_at,v.title video_title

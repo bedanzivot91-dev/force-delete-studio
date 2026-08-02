@@ -1,0 +1,126 @@
+from __future__ import annotations
+import json, sys, tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'app'))
+import server as server_module
+from database import LibraryDB
+
+
+def main():
+    checks = []
+
+    # -- Regression case: 3091-song-shaped library, 0 local files, valid
+    # remote Suno audio_url on every song -- status must NOT be 0/0. --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-status-") as raw:
+        db = LibraryDB(Path(raw) / "test.db")
+        for i in range(50):  # scaled down from 3091 for test speed; same shape
+            db.upsert_song({"id": f"song{i}", "title": f"Pesma {i}", "audio_url": f"https://cdn.suno.com/{i}.mp3", "duration": 120})
+        with patch.object(server_module, "DB", db):
+            status = server_module.song_finder_status()
+        assert status["songs_total"] == 50, status
+        assert status["songs_with_audio"] == 50, status
+        assert status["songs_remote_only"] == 50, status
+        checks.append("50 remote-only songs (0 local files) all count as songs_with_audio -- the exact regression shape")
+        assert not (status["songs_with_audio"] == 0 and status["songs_total"] > 0), "must never regress to 0/0 with real remote audio available"
+        checks.append("song_finder_status never reports 0 available sources when audio_url exists on every song")
+
+        # -- a song with a cached fingerprint but no current source (e.g. the
+        # local file was deleted and there's no audio_url) must still count
+        # as indexed, not silently disappear from the indexed count. --
+        db.upsert_song({"id": "orphan", "title": "Orphan", "audio_url": "", "local_wav": "", "duration": 90})
+        db.save_audio_fingerprint("suno", "orphan", server_module.AUDIO_MATCH_VERSION, 90.0, 0.5, b"fake-signature-bytes", "old-identity", 0.0, 0)
+        with patch.object(server_module, "DB", db):
+            status2 = server_module.song_finder_status()
+        assert status2["songs_indexed_without_current_source"] >= 1, status2
+        assert status2["songs_indexed"] >= 1, status2
+        checks.append("a song with a cached fingerprint but no resolvable current source still counts as indexed")
+
+    # -- song_finder_status must never trigger a Suno API call per song
+    # (that would hammer the API and block the UI for a 3000+ song library). --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-status2-") as raw2:
+        db2 = LibraryDB(Path(raw2) / "test.db")
+        db2.upsert_song({"id": "no-source", "title": "Bez izvora", "audio_url": "", "local_wav": "", "duration": 60})
+        api_calls = {"n": 0}
+        class FakeClient:
+            def get_clip(self, song_id):
+                api_calls["n"] += 1
+                return {"id": song_id, "audio_url": "https://cdn.suno.com/refreshed.mp3"}
+        with patch.object(server_module, "DB", db2), patch.object(server_module, "get_client", return_value=FakeClient()):
+            server_module.song_finder_status()
+        assert api_calls["n"] == 0, f"song_finder_status must not call the Suno API, got {api_calls['n']} calls"
+        checks.append("song_finder_status stays network-free even for songs with neither a local file nor audio_url")
+
+    # -- copy_song_to_published_folder: remote-only song downloads the full
+    # original instead of silently finishing with zero copied audio. --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-copy-") as raw3:
+        db3 = LibraryDB(Path(raw3) / "test.db")
+        song = {"id": "abcd1234", "title": "Puna Pesma", "audio_url": "https://cdn.suno.com/abcd1234.mp3", "source_url": "https://suno.com/song/abcd1234"}
+        db3.upsert_song(song)
+        target_root = Path(raw3) / "OBRAĐENO NA YOUTUBE"
+
+        def fake_download_file(url, target, **kwargs):
+            Path(target).write_bytes(b"ID3" + b"\x00" * 4096)
+
+        class FakeClient2:
+            def get_clip(self, song_id):
+                return {"id": song_id, "audio_url": song["audio_url"]}
+            def download_file(self, url, target, **kwargs):
+                fake_download_file(url, target, **kwargs)
+
+        video = {"video_id": "yt123", "video_url": "https://www.youtube.com/watch?v=yt123", "channel_title": "Moj Kanal", "title": "Video naslov"}
+        with patch.object(server_module, "DB", db3), \
+             patch.object(server_module, "get_client", return_value=FakeClient2()), \
+             patch.object(server_module, "get_youtube_processed_dir", return_value=target_root), \
+             patch.object(server_module, "probe_audio", return_value={"duration": 91.2}):
+            result = server_module.copy_song_to_published_folder(db3.get_song("abcd1234"), video, status="complete")
+
+        assert result["has_full_audio"] is True, result
+        checks.append("a remote-only song (no local file) downloads the full original via the refreshed Suno URL")
+        folder = Path(result["folder"])
+        assert folder.name == "yt123" and folder.parent.name.startswith("Puna Pesma [")
+        assert folder.parent.parent.name == "complete" and folder.parent.parent.parent.name == "Moj Kanal"
+        checks.append("folder structure matches <kanal>/<status>/<naslov> [<id>]/<video-id>/")
+        assert (folder / "YouTube.url").exists()
+        shortcut = (folder / "YouTube.url").read_text(encoding="utf-8")
+        assert "[InternetShortcut]" in shortcut and video["video_url"] in shortcut
+        checks.append("YouTube.url is a valid Windows internet shortcut pointing at the real video")
+        manifest = json.loads((folder / "match.json").read_text(encoding="utf-8"))
+        assert manifest["suno_song_id"] == "abcd1234" and manifest["youtube_video_id"] == "yt123"
+        checks.append("match.json contains the Suno ID and YouTube ID")
+
+        # -- re-running (rescan) must update the manifest in place, not
+        # duplicate the folder. --
+        with patch.object(server_module, "DB", db3), \
+             patch.object(server_module, "get_client", return_value=FakeClient2()), \
+             patch.object(server_module, "get_youtube_processed_dir", return_value=target_root), \
+             patch.object(server_module, "probe_audio", return_value={"duration": 91.2}):
+            result2 = server_module.copy_song_to_published_folder(db3.get_song("abcd1234"), video, status="complete")
+        assert result2["folder"] == result["folder"]
+        assert len(list(target_root.rglob("match.json"))) == 1
+        checks.append("re-running on the same song+video updates the existing manifest instead of duplicating the folder")
+
+    # -- a title-only (unconfirmed) result must never reach the copy path;
+    # this is enforced by the caller only invoking it for confirmed
+    # statuses, verified here at the status-gate boundary. --
+    assert "possible" not in server_module.YOUTUBE_PROCESSED_STATUSES
+    assert "title_only" not in server_module.YOUTUBE_PROCESSED_STATUSES
+    assert set(server_module.YOUTUBE_PROCESSED_STATUSES) == {"complete", "almost_complete", "partial", "short_clip"}
+    checks.append("only audio-confirmed statuses (complete/almost_complete/partial/short_clip) are eligible for auto-copy")
+
+    # -- the publication matrix must expose source_url so the UI can offer
+    # an "Otvori Suno original" button. --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-matrix-") as raw4:
+        db4 = LibraryDB(Path(raw4) / "test.db")
+        db4.upsert_song({"id": "s1", "title": "Pesma", "source_url": "https://suno.com/song/s1"})
+        matrix = db4.youtube_publication_matrix()
+        assert matrix["rows"][0]["song"].get("source_url") == "https://suno.com/song/s1"
+        checks.append("youtube_publication_matrix rows include source_url for the Suno-original button")
+
+    print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()
