@@ -84,6 +84,17 @@ automated or manual verification found/performed.
 (`App.axaml.cs`); changing them here and saving only takes effect after restarting the app — disclosed
 in the View's own help text.
 
+## Teme (Themes) — Podešavanja ComboBox, Phase 3
+
+Not a per-control row (theme selection is a plain `SelectedItem` binding, not a `Command`), so this is
+tracked as a feature note rather than a matrix row. All 8 themes (`AppTheme` enum, `App.axaml.cs:
+ApplyTheme`) are `WORKING_VERIFIED`: `ThemeResourceCompletenessTests.cs` (9 tests) confirms exactly 8
+theme files exist and each defines all 15 required semantic resource keys; `AppSmokeTests.cs:
+AllEightThemes_LoadAsRealAvaloniaResourceDictionaries` goes further and loads each one through
+Avalonia's real `ResourceInclude`/`avares://` XAML parser (the same class `ApplyTheme` uses at runtime)
+and resolves `ThemeAccentBrush` from it — a malformed color or a typo'd file name would throw here, not
+just fail an XML check.
+
 ## Alati i modeli — DependencyManagerView / DependencyManagerViewModel (new screen, Phase 1)
 
 | Control | Command | Status | Evidence |
@@ -169,8 +180,9 @@ mechanically counted — not hand-tallied):
 - `NOT_PRESENT`: 7 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-
   song-library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in
   Phase 1), and the 6 disabled planned-feature tiles (counted as one summary row on the start screen
-  above). The dependency-manager screen gap from Phase 0 is closed. Not double-counted with the
-  5-extra-themes gap, which is tracked in BASELINE_AUDIT §6 rather than as
-  a per-control row here since it isn't a single UI control.
+  above). The dependency-manager screen gap from Phase 0 is closed. The 5-extra-themes gap tracked in
+  BASELINE_AUDIT §6 is also closed as of Phase 3 (all 8 themes now exist) — it was never counted as a
+  per-control row here since it isn't a single UI control, so the row count/counts above are unchanged
+  by Phase 3.
 - `BLOCKED_BY_DEPENDENCY`: 0 (nothing found that's implemented but permanently blocked; the Whisper/
   yt-dlp paths work once their tool is present, which the app already detects and reports)

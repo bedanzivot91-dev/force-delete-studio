@@ -9,7 +9,7 @@ giant prompt again.
 | 0 | Audit | DONE | f850ace |
 | 1 | Build, dependencies, release foundation | DONE (partial - see below) | 1193f77 |
 | 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
-| 3 | Five new themes | NOT_STARTED | — |
+| 3 | Five new themes | DONE (partial - see below) | (pending push) |
 | 4 | Song library + fingerprinting | NOT_STARTED | — |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
 | 6 | Caption/word data model + editor | NOT_STARTED | — |
@@ -124,6 +124,47 @@ remaining `IMPLEMENTED_NOT_RUNTIME_VERIFIED` row in one pass would far exceed a 
   screen remain `IMPLEMENTED_NOT_RUNTIME_VERIFIED` - none of these surfaced a real bug when reasoned
   through, and file-browser-opening commands are inherently hard to assert against in a headless test.
 
+## What Phase 3 actually delivered
+
+Delivered:
+- Five new theme resource dictionaries under `src/NPVideoStudio.App/Themes/`, matching the master
+  prompt's palettes and the existing themes' exact structural template (Color keys → SolidColorBrush
+  keys → `ThemeCornerRadius`/`ThemeCardCornerRadius`/`ThemeBorderThickness`): `ObsidianNeon` (dark,
+  violet accent), `ArcticGlass` (light, semi-transparent glass panel, blue accent), `CrimsonCyber`
+  (dark, sharp/geometric corners, cyan accent), `MidnightPro` (dark, matches DarkCinematic's corner
+  radii, blue accent), `OceanGlass` (light glass, teal accent). Total: 3 → 8 themes, closing the
+  5-extra-themes gap from BASELINE_AUDIT §6.
+- `AppTheme` enum (`Domain/Enums.cs`) extended with the 5 new values; `EnumLabelConverter` gives each a
+  Serbian display label; `App.axaml.cs: ApplyTheme` extended to map all 8 to their files and to treat
+  `ArcticGlass`/`OceanGlass` as Light-variant themes (alongside the existing `MinimalLight`) so
+  Avalonia's built-in Light/Dark control styling matches each theme's actual background lightness.
+  Runtime theme switching (already supported, no restart needed) covers all 8 without changes to that
+  mechanism.
+- Two new/extended test layers: `ThemeResourceCompletenessTests.cs` (9 tests, plain XML parsing, no
+  Avalonia runtime) asserts exactly 8 theme files exist and each defines all 15 required semantic
+  resource keys — catches a missing key that would otherwise silently render nothing at runtime.
+  `AppSmokeTests.cs: AllEightThemes_LoadAsRealAvaloniaResourceDictionaries` goes further and loads each
+  theme through Avalonia's real `ResourceInclude`/`avares://` parser (the same class `ApplyTheme` uses)
+  and resolves `ThemeAccentBrush` from it, so a malformed color value or a typo'd file name throws here
+  instead of only failing at manual runtime. Local (non-integration) test count: 85 → 95, all passing.
+- Function matrix: no per-control row changes (theme selection is a plain `SelectedItem` binding, not a
+  `Command`), but the 5-extra-themes gap noted in the `NOT_PRESENT` summary is now marked closed.
+
+Deliberately not done this phase, per the explicit token-conscious instruction to keep Phase 3 lean:
+- No dedicated theme-gallery screen with live preview cards (MASTER_SPEC §Phase 3 mentions this) — the
+  existing Settings ComboBox already lets users pick and immediately see any of the 8 themes applied
+  app-wide with no restart, which covers the actual user need; a separate gallery screen is a bigger,
+  lower-value UI addition with no new functional coverage, deferred.
+- No per-theme caption presets (MASTER_SPEC ties these to captions, "≥3 presets per theme") — there is
+  no caption editor yet (that's Phase 6), so there is nothing for a caption preset to style; building
+  presets now would mean designing against a UI that doesn't exist. Deferred to whichever phase adds
+  the caption editor.
+- No full CI round-trip verification cycle for this phase — this is a pure Avalonia XAML-resource
+  change with no OS-specific process behavior (no ffmpeg/yt-dlp/Whisper involved), already exercised by
+  Avalonia's real headless renderer locally; a full Windows CI run adds no additional confidence here
+  proportional to its cost, so local verification (build + full non-integration test pass, both green)
+  was treated as sufficient before pushing.
+
 ## Next action
 
-Start Phase 3 (five new themes) only when told to proceed.
+Start Phase 4 (song library + fingerprinting) only when told to proceed.

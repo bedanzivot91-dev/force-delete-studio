@@ -37,6 +37,11 @@ public sealed class EnumLabelConverter : IValueConverter
         [AppTheme.DarkCinematic] = "Dark Cinematic",
         [AppTheme.MinimalLight] = "Minimal Light",
         [AppTheme.ProfessionalStudio] = "Professional Studio",
+        [AppTheme.ObsidianNeon] = "Obsidian Neon",
+        [AppTheme.ArcticGlass] = "Arctic Glass",
+        [AppTheme.CrimsonCyber] = "Crimson Cyber",
+        [AppTheme.MidnightPro] = "Midnight Pro",
+        [AppTheme.OceanGlass] = "Ocean Glass",
     };
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

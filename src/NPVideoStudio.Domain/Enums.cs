@@ -54,5 +54,10 @@ public enum AppTheme
 {
     DarkCinematic,
     MinimalLight,
-    ProfessionalStudio
+    ProfessionalStudio,
+    ObsidianNeon,
+    ArcticGlass,
+    CrimsonCyber,
+    MidnightPro,
+    OceanGlass
 }

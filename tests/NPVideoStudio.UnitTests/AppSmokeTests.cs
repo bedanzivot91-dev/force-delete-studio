@@ -89,4 +89,28 @@ public class AppSmokeTests
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFmpeg" && d.IsInstalled);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFprobe" && d.IsInstalled);
     }
+
+    [AvaloniaFact]
+    public void AllEightThemes_LoadAsRealAvaloniaResourceDictionaries()
+    {
+        // Real avares:// resolution + real XAML parsing via Avalonia's own asset loader - the same
+        // ResourceInclude class App.axaml.cs: ApplyTheme uses. A typo in a file name or a malformed
+        // color would throw here, not just fail an XML well-formedness check.
+        var themeFiles = new[]
+        {
+            "DarkCinematic", "MinimalLight", "ProfessionalStudio",
+            "ObsidianNeon", "ArcticGlass", "CrimsonCyber", "MidnightPro", "OceanGlass"
+        };
+
+        foreach (var name in themeFiles)
+        {
+            var uri = new Uri($"avares://NPVideoStudio/Themes/{name}.axaml");
+            var include = new Avalonia.Markup.Xaml.Styling.ResourceInclude(uri) { Source = uri };
+
+            var found = include.Loaded.TryGetResource("ThemeAccentBrush", null, out var resource);
+
+            Assert.True(found, $"{name}: ThemeAccentBrush nije pronađen posle stvarnog XAML parsiranja.");
+            Assert.NotNull(resource);
+        }
+    }
 }

@@ -118,6 +118,11 @@ public partial class App : Avalonia.Application
             AppTheme.DarkCinematic => "DarkCinematic",
             AppTheme.MinimalLight => "MinimalLight",
             AppTheme.ProfessionalStudio => "ProfessionalStudio",
+            AppTheme.ObsidianNeon => "ObsidianNeon",
+            AppTheme.ArcticGlass => "ArcticGlass",
+            AppTheme.CrimsonCyber => "CrimsonCyber",
+            AppTheme.MidnightPro => "MidnightPro",
+            AppTheme.OceanGlass => "OceanGlass",
             _ => "DarkCinematic"
         };
 
@@ -132,7 +137,7 @@ public partial class App : Avalonia.Application
         Resources.MergedDictionaries.Add(themeDictionary);
         _currentThemeDictionary = themeDictionary;
 
-        RequestedThemeVariant = theme == AppTheme.MinimalLight
+        RequestedThemeVariant = theme is AppTheme.MinimalLight or AppTheme.ArcticGlass or AppTheme.OceanGlass
             ? Avalonia.Styling.ThemeVariant.Light
             : Avalonia.Styling.ThemeVariant.Dark;
     }

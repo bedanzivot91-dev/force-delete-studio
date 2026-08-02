@@ -34,7 +34,8 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   i lokalnog Whisper modela — svaki alat se stvarno pokreće (verzija + izlazni kod), ne samo proverava
   da li fajl postoji. Whisper model može da se preuzme (i otkaže tokom preuzimanja) direktno sa ovog
   ekrana.
-- Tri od planiranih deset tema: Dark Cinematic, Minimal Light, Professional Studio.
+- Svih 8 planiranih tema: Dark Cinematic, Minimal Light, Professional Studio, Obsidian Neon, Arctic
+  Glass, Crimson Cyber, Midnight Pro, Ocean Glass. Menjaju se bez restarta programa.
 - Dijagnostički ekran koji stvarno proverava .NET okruženje, FFmpeg/FFprobe, foldere, slobodan
   prostor na disku i lokalnu bazu — sa objašnjenjem problema, razlogom i predlogom rešenja, i dugmetom
   za automatsku popravku gde je to moguće. Uključuje i pravljenje ZIP paketa za podršku (logovi +
@@ -63,7 +64,7 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   koji drugi editor. Ovo je samostalan `.srt` fajl, ne titlovi urezani u sliku na NP Video Studio
   timeline-u (to je i dalje planirano za kasniju fazu, videti ispod).
 
-Sve navedeno je pokriveno sa 85 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 95 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
