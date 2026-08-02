@@ -1109,6 +1109,51 @@ def _signature_for_source(
     return signature
 
 
+DUPLICATE_AUDIO_CONFIRM_LIMIT = 40
+
+
+def _duplicate_audio_confirm(probable: list[dict[str, Any]], limit: int = DUPLICATE_AUDIO_CONFIRM_LIMIT) -> dict[str, Any]:
+    """Take duplicate_detection()'s cheap title+duration 'probable' pairs and
+    confirm the ones we actually CAN check with real audio fingerprints
+    (Chromaprint via audio_match, the same engine as Pronalazac mojih pesama).
+    Only pairs where BOTH songs already have a local audio file are checked --
+    this reuses the same fingerprint cache song-finder indexing already fills,
+    and is capped so a 3000+ song library never blocks the HTTP response.
+    Tempo/pitch-shifted re-uploads of the same song can still score low here;
+    that limitation is shown to the user in the UI, not hidden."""
+    checked = 0
+    confirmed: list[dict[str, Any]] = []
+    skipped_no_local_audio = 0
+    for pair in probable:
+        if checked >= limit:
+            break
+        song_a = DB.get_song(str(pair.get("a", {}).get("id") or "")) or {}
+        song_b = DB.get_song(str(pair.get("b", {}).get("id") or "")) or {}
+        source_a = _existing_audio_path(song_a)
+        source_b = _existing_audio_path(song_b)
+        if not source_a or not source_b:
+            skipped_no_local_audio += 1
+            continue
+        checked += 1
+        try:
+            sig_a = _signature_for_source("suno", str(song_a.get("id") or ""), source_a, label=str(song_a.get("title") or song_a.get("id") or ""))
+            sig_b = _signature_for_source("suno", str(song_b.get("id") or ""), source_b, label=str(song_b.get("title") or song_b.get("id") or ""))
+            result = compare_signatures(sig_a, sig_b)
+        except AudioMatchError:
+            continue
+        status = song_finder.classify_match(result)
+        entry = dict(pair)
+        entry["audio_score"] = round(float(result.get("audio_score") or 0), 1)
+        entry["audio_status"] = status
+        entry["audio_confirmed"] = status == song_finder.STATUS_CONFIRMED
+        confirmed.append(entry)
+    return {
+        "checked": checked, "confirmed": confirmed, "confirmed_count": sum(1 for c in confirmed if c["audio_confirmed"]),
+        "skipped_no_local_audio": skipped_no_local_audio, "limit": limit,
+        "remaining": max(0, len(probable) - checked - skipped_no_local_audio),
+    }
+
+
 def _metadata_candidates_for_video(
     video: dict[str, Any], songs: list[dict[str, Any]], owned_ids: set[str], limit: int = 12, deep: bool = False,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -4430,6 +4475,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/v3/duplicates":
                 self._send_json({"ok": True, "report": duplicate_detection(DB)})
+                return
+            if path == "/api/v3/duplicates/audio-confirm":
+                report = duplicate_detection(DB)
+                self._send_json({"ok": True, "report": report, "audio_check": _duplicate_audio_confirm(report.get("probable") or [])})
                 return
             if path == "/api/v3/shorts/suggest":
                 song_id = (query.get("id") or [""])[0]; song = DB.get_song(song_id)
