@@ -18,39 +18,14 @@ const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 
 const THEMES = [
-  { id:'default', name:'Original Purple', colors:['#8b5cf6','#121620','#0b0d12'] },
-  { id:'neon-purple', name:'Neon Purple', colors:['#c026ff','#25113d','#090611'] },
-  { id:'cyber-blue', name:'Cyber Blue', colors:['#00b7ff','#102638','#061018'] },
-  { id:'midnight-red', name:'Midnight Red', colors:['#ff334f','#2c1118','#0f0709'] },
-  { id:'emerald-city', name:'Emerald City', colors:['#16e09a','#102821','#06110e'] },
-  { id:'gold-noir', name:'Gold Noir', colors:['#eab84b','#282116','#0d0b08'] },
-  { id:'graphite', name:'Urban Graphite', colors:['#aab4c3','#20242b','#0d0f12'] },
-  { id:'ocean-glass', name:'Ocean Glass', colors:['#2dd4bf','#102833','#061217'] },
-  { id:'magenta-pulse', name:'Magenta Pulse', colors:['#ff3dad','#321126','#11070d'] },
-  { id:'tangerine-night', name:'Tangerine Night', colors:['#ff812d','#302015','#100a06'] },
-  { id:'arctic', name:'Arctic City', colors:['#66d9ff','#dcecf3','#c6dce7'], light:true },
-  { id:'concrete', name:'Concrete Metro', colors:['#7f8ea3','#252a31','#111419'] },
-  { id:'violet-smoke', name:'Violet Smoke', colors:['#a78bfa','#262132','#0e0c13'] },
-  { id:'electric-lime', name:'Electric Lime', colors:['#a3ff12','#24300f','#0b1005'] },
-  { id:'rose-chrome', name:'Rose Chrome', colors:['#fb7185','#302027','#100b0d'] },
-  { id:'sapphire', name:'Sapphire District', colors:['#4f7cff','#17213d','#080c18'] },
-  { id:'crimson', name:'Crimson Underground', colors:['#dc2626','#2d1616','#100707'] },
-  { id:'bronze', name:'Bronze Loft', colors:['#d28b47','#2b2119','#0e0b08'] },
-  { id:'teal-underground', name:'Teal Underground', colors:['#13c8c0','#122b2b','#061010'] },
-  { id:'metro-gray', name:'Metro Gray', colors:['#94a3b8','#1e2229','#0c0e12'] },
-  { id:'nightclub', name:'Nightclub Neon', colors:['#7c3cff','#17102e','#06040c'] },
-  // Full redesigns (own layout/shape/pattern language, not just a palette
-  // swap of the shared component CSS above) -- see the
-  // body[data-theme="..."] blocks near the end of style.css.
-  { id:'neon-district', name:'Neon District', colors:['#00f0ff','#ff2bd6','#050914'], full:true },
-  { id:'urban-concrete', name:'Urban Concrete', colors:['#c6ff3a','#2b2b28','#141412'], full:true },
-  { id:'midnight-studio', name:'Midnight Studio', colors:['#6c8cff','#0e0e12','#050506'], full:true },
-  { id:'aurora-glass', name:'Aurora Glass', colors:['#7ee8fa','#c084fc','#080a14'], full:true },
-  { id:'vinyl-loft', name:'Vinyl Loft', colors:['#e8a33d','#2a1c12','#120b06'], full:true },
-  { id:'signal-grid', name:'Signal Grid', colors:['#39ff9e','#0b1512','#040806'], full:true },
-  { id:'broadcast-redline', name:'Broadcast Redline', colors:['#ff2d3d','#180909','#0a0404'], full:true },
-  { id:'street-mixtape', name:'Street Mixtape', colors:['#ffd23f','#ff2fa0','#0c0c10'], full:true },
-  { id:'label-command', name:'Label Command', colors:['#7bdcff','#12161f','#080a10'], full:true },
+  { id:'default', name:'Original Purple', colors:['#8b5cf6','#121620','#0b0d12'], desc:'Originalni izgled programa.' },
+  // Full redesigns (own layout/shape/pattern language, not a palette swap)
+  // -- see the body[data-theme="..."] blocks near the end of style.css.
+  { id:'vinyl-loft', name:'Vinyl Loft', colors:['#e8a33d','#c96b3a','#160f09'], full:true, desc:'Tamni drveni studio sa vinilnom kolekcijom, amber i bakarni detalji.' },
+  { id:'signal-grid', name:'Signal Grid', colors:['#3d8bff','#ff8a3d','#0d0f11'], full:true, desc:'Modularni sintisajzer/audio-rack izgled, tehnički redovi i OLED brojevi.' },
+  { id:'broadcast-redline', name:'Broadcast Redline', colors:['#ff2d3d','#f5f5f5','#0b0b0c'], full:true, desc:'Radio/TV kontrolni studio sa ON AIR oznakom i VU metrima.' },
+  { id:'street-mixtape', name:'Street Mixtape', colors:['#ffd23f','#2f5fdb','#0c0c0d'], full:true, desc:'Urbani mixtape studio, kasetne naslovnice i cassette deck plejer.' },
+  { id:'label-command', name:'Label Command', colors:['#c9ccd2','#e2434f','#0a0a0b'], full:true, desc:'Luksuzni komandni centar izdavačke kuće, hrom i jedan crveni akcenat.' },
 ];
 
 function escapeHtml(value) {
@@ -623,7 +598,7 @@ function applyTheme(themeId, persist = true) {
 function renderThemes() {
   if (!$('themeGrid')) return;
   $('themeSelect').innerHTML = THEMES.map((t)=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  $('themeGrid').innerHTML = THEMES.slice(1).map((t)=>`<button class="theme-card" data-theme="${t.id}"><span class="theme-colors">${t.colors.map((c)=>`<i style="background:${c}"></i>`).join('')}</span><strong>${escapeHtml(t.name)}</strong></button>`).join('');
+  $('themeGrid').innerHTML = THEMES.slice(1).map((t)=>`<button class="theme-card" data-theme="${t.id}"><span class="theme-colors">${t.colors.map((c)=>`<i style="background:${c}"></i>`).join('')}</span><strong>${escapeHtml(t.name)}</strong>${t.desc?`<small>${escapeHtml(t.desc)}</small>`:''}</button>`).join('');
   applyTheme(localStorage.getItem('suno-theme') || state.status?.theme || 'default', false);
 }
 

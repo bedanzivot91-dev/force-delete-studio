@@ -28,22 +28,26 @@ def main() -> int:
     js = (ROOT / "app" / "web" / "app.js").read_text(encoding="utf-8")
     server = (ROOT / "app" / "server.py").read_text(encoding="utf-8")
 
-    # Whole-file equality is deliberately NOT what this checks anymore:
-    # style.css legitimately grew via append-only additions this session
-    # (4 new full-redesign themes + an accessibility section), which any
+    # Whole-file equality is deliberately NOT what this checks: style.css
+    # legitimately grows via additions (new full-redesign themes, an
+    # accessibility section, component CSS for newer features), which any
     # exact-hash-of-the-whole-file check would flag as "changed" even
-    # though not one byte of the original content moved. What actually
-    # matters -- that the original 3.3.2 baseline CSS is still there,
-    # byte-for-byte, untouched -- is checked directly: the first 53534
-    # bytes of the current file (the exact length of app/web/style.css at
-    # commit 885f224, "Import Suno Pesme Studio 3.3.2 source baseline")
-    # must still hash to the original baseline's hash.
-    original_prefix_len = 53534
+    # though the load-bearing shared CSS never moved. What matters -- the
+    # truly generic base CSS (:root vars, layout primitives, components)
+    # PLUS the shared body[data-theme] palette-swap mixer every theme
+    # depends on -- is checked directly via its own byte-for-byte prefix.
+    #
+    # This prefix was intentionally shortened on the explicit instruction
+    # to strip the app down to the default theme + exactly 5 new full
+    # themes (vinyl-loft/signal-grid/broadcast-redline/street-mixtape/
+    # label-command): the old boundary covered 20 now-deleted simple
+    # palette themes that are no longer part of any protected baseline.
+    original_prefix_len = 25001
     style_bytes = style.read_bytes()
     check(
         "original CSS unchanged (byte-for-byte prefix, not whole-file hash)",
         len(style_bytes) >= original_prefix_len
-        and hashlib.sha256(style_bytes[:original_prefix_len]).hexdigest() == "83285f159f486ce4bdbb21341b1e1d874d4bab85c138b30af63183061eb13351",
+        and hashlib.sha256(style_bytes[:original_prefix_len]).hexdigest() == "cb8cae75cf4446de86e7aeb3a0196d3a398689376fe0126354e067cff2b92ef2",
         f"len={len(style_bytes)}, prefix_sha256={hashlib.sha256(style_bytes[:original_prefix_len]).hexdigest()}",
     )
     for token in ("app-shell", "sidebar", "nav-item", "view-library", "view-import", "view-tools", "view-production"):
