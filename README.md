@@ -63,7 +63,7 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   koji drugi editor. Ovo je samostalan `.srt` fajl, ne titlovi urezani u sliku na NP Video Studio
   timeline-u (to je i dalje planirano za kasniju fazu, videti ispod).
 
-Sve navedeno je pokriveno sa 73 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 85 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo

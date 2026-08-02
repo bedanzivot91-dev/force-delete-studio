@@ -73,8 +73,8 @@ automated or manual verification found/performed.
 |---|---|---|---|
 | "Izaberi..." (projects folder) | `BrowseProjectsFolderCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] |
 | "Izaberi..." (cache folder) | `BrowseCacheFolderCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] |
-| "Sačuvaj podešavanja" | `SaveCommand` → `ISettingsService.SaveAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `SettingsServiceTests.cs` covers the service, not this command |
-| "Vrati podrazumevano" | `ResetToDefaultsCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] same file |
+| "Sačuvaj podešavanja" | `SaveCommand` → `ISettingsService.SaveAsync` | WORKING_VERIFIED | [Phase 2] `SettingsViewModelTests.cs` drives the real command against an isolated real `SettingsService`, then reloads from disk with a fresh instance to prove persistence, including the new FFmpeg/FFprobe/yt-dlp fields |
+| "Vrati podrazumevano" | `ResetToDefaultsCommand` | WORKING_VERIFIED | [Phase 2] `SettingsViewModelTests.cs: ResetToDefaultsCommand_RestoresDefaultsAndRefreshesViewModel` |
 | FFmpeg putanja "Izaberi..." | `BrowseFfmpegPathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — **Phase 1**: field now exists, wired to `AppSettings.FfmpegPath` (closes BASELINE_AUDIT §8) |
 | FFprobe putanja "Izaberi..." | `BrowseFfprobePathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — Phase 1 |
 | yt-dlp putanja "Izaberi..." | `BrowseYtDlpPathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — Phase 1 |
@@ -112,9 +112,9 @@ instalirano are reported, both backed by a real version-command exit code, not j
 
 | Control | Command | Status | Evidence |
 |---|---|---|---|
-| "Izaberi pesmu..." | `PickSongCommand` | WORKING_VERIFIED (render only) | [Screenshot] this session |
-| "Analiziraj pesmu" | `AnalyzeCommand` → `ISongHighlightService.FindHighlightsAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `SongHighlightServiceTests.cs` (5 tests, synthetic audio) covers the service directly; this exact command not executed this session |
-| "Izvezi sve" | `ExportAllCommand` → `ExportHighlightAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] same file covers export |
+| "Izaberi pesmu..." | `PickSongCommand` | WORKING_VERIFIED | [Screenshot] render; [Phase 2] `SongHighlightsViewModelTests.cs: PickSongCommand_UsesStorageServiceResult_SetsSelectedFile` with a `FakeStorageService` |
+| "Analiziraj pesmu" | `AnalyzeCommand` → `ISongHighlightService.FindHighlightsAsync` | WORKING_VERIFIED | [Phase 2] `SongHighlightsViewModelTests.cs` drives the real command through real ffmpeg on the real `lyric_test_song.mp3` fixture; `SongHighlightServiceTests.cs` (5 tests) separately covers the windowed-selection algorithm |
+| "Izvezi sve" | `ExportAllCommand` → `ExportHighlightAsync` | WORKING_VERIFIED | [Phase 2] `SongHighlightsViewModelTests.cs: ExportAllCommand_RealFfmpegExport_WritesRealAudioFiles` asserts real non-empty files on disk |
 | Per-result "Otvori" | `SongHighlightItemViewModel.OpenExportedCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] |
 | Chorus/refrain detection (loudness + energy + repetition) | — | NOT_PRESENT (loudness-only exists) | Master prompt asks for combined analysis; current tool is loudness-only and says so in its own UI text |
 
@@ -133,17 +133,20 @@ instalirano are reported, both backed by a real version-command exit code, not j
 
 | Control | Command | Status | Evidence |
 |---|---|---|---|
-| "Učitaj podatke" | `FetchInfoCommand` → `IYouTubeDownloadService.GetVideoInfoAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `YouTubeDownloadHelpersTests.cs` covers URL validation/sanitization only; the yt-dlp process call itself has no automated test (requires real yt-dlp + network, only exercised manually on CI via the "Install yt-dlp" step succeeding, not via a dedicated test) |
-| "Preuzmi pesmu" | `DownloadCommand` → `DownloadAudioAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | same gap — no automated integration test for the actual download call |
+| "Učitaj podatke" | `FetchInfoCommand` → `IYouTubeDownloadService.GetVideoInfoAsync` | WORKING_VERIFIED | [Phase 2] `YouTubeDownloadServiceTests.cs` against `tests/FakeYtDlp` (a real, cross-platform mock-process yt-dlp CLI — the "yt-dlp servis sa mock procesom" test MASTER_SPEC calls out by name) — real process launch, real JSON parsing, non-YouTube-URL and non-zero-exit-code paths all covered |
+| "Preuzmi pesmu" | `DownloadCommand` → `DownloadAudioAsync` | WORKING_VERIFIED | [Phase 2] `YouTubeDownloadServiceTests.cs: DownloadAudioAsync_RealProcessCall_ProducesFileNamedAfterSanitizedTitle` (real process, real rename/sanitization) + `DownloadAudioAsync_ProcessFails_ThrowsAndLeavesNoOutputFile` |
 | "Otvori u Isečci iz pesme" | `OpenInHighlightsCommand` | WORKING_VERIFIED | [Screenshot] this session — executed the real command, confirmed navigation + file preload via `LoadFile` |
 | "Otvori u Pronađi tekst u pesmi" | `OpenInLyricSearchCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | same code path as above, not individually screenshotted |
 | "Otvori u Generiši titlove" | `OpenInSubtitleGeneratorCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | same |
 | Ownership confirmation gate | `OwnershipConfirmed` bool required by `DownloadAudioAsync` | WORKING_VERIFIED (logic) | [Screenshot] confirmed the checkbox gates `CanDownload`; `DownloadAudioAsync` throws if false (code-reviewed, not unit-tested directly) |
 
-**Real gap found here**: there is no automated test (unit, mocked-process, or CI integration) for
-`YouTubeDownloadService.GetVideoInfoAsync`/`DownloadAudioAsync` actually invoking yt-dlp — only the pure
-helper logic (`YouTubeDownloadHelpers`) is tested. The master prompt explicitly asks for a "yt-dlp
-servis sa mock procesom" integration test; that does not exist yet. Flagged for a later phase.
+**Gap closed in Phase 2**: `tests/FakeYtDlp` is a tiny real console app (built by `dotnet build`/
+`dotnet test` like any other project, ProjectReference'd from the test project so its native apphost
+lands next to the test binary) that understands exactly the argument shapes
+`YouTubeDownloadService` sends and answers with canned JSON / a placeholder output file. This is the
+master prompt's "yt-dlp servis sa mock procesom" test - it exercises the real `Process.Start`/argument-
+construction/stdout-parsing/file-rename code paths without the real tool or network, and works
+identically on Linux and Windows CI.
 
 ## Generiši titlove (SRT) — SubtitleGeneratorView / SubtitleGeneratorViewModel
 
@@ -159,8 +162,8 @@ servis sa mock procesom" integration test; that does not exist yet. Flagged for 
 Authoritative counts come from `docs/function-contracts.json` (67 rows, one per control/command,
 mechanically counted — not hand-tallied):
 
-- `WORKING_VERIFIED`: 22
-- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 38
+- `WORKING_VERIFIED`: 28
+- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 32
 - `BROKEN`: 0
 - `PLACEHOLDER` (deceptive/fake-active): 0
 - `NOT_PRESENT`: 7 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-

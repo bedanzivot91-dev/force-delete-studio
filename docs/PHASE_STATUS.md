@@ -7,8 +7,8 @@ giant prompt again.
 | Phase | Name | Status | Finished commit |
 |---|---|---|---|
 | 0 | Audit | DONE | f850ace |
-| 1 | Build, dependencies, release foundation | DONE (partial - see below) | 7047885 |
-| 2 | Existing-feature hardening | NOT_STARTED | — |
+| 1 | Build, dependencies, release foundation | DONE (partial - see below) | 1193f77 |
+| 2 | Existing-feature hardening | DONE (partial - see below) | (this commit) |
 | 3 | Five new themes | NOT_STARTED | — |
 | 4 | Song library + fingerprinting | NOT_STARTED | — |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
@@ -66,10 +66,64 @@ without downloading large binaries, per the token-saving and dependency-vetting 
   same as before. This remains a real, open gap.
 - Richer dependency states (Ažuriranje dostupno/Oštećeno/Nekompatibilno) — no checksum or
   expected-version pinning system exists to honestly back those, so they weren't faked.
-- The CI artifact fix (upload the extracted folder) and the release-cleanup script changes are written
-  and reviewed but can only be fully confirmed once this branch's next Windows CI run completes and its
-  artifacts are inspected — flagged here rather than claimed as proven before that happens.
+Phase 1 was confirmed on real Windows CI at commit `1193f77` (after fixing 2 test failures the first
+Phase 1 CI run caught - see below): `Verzija: 0.1.0` printed by the script, PDB/non-win-x64 runtime
+cleanup confirmed by inspecting the actual Inno Setup compression log (only `runtimes\win-x64\*.dll`
+present, no `.pdb` files), and the portable artifact upload confirmed to send 238 raw files (not a
+pre-made zip), fixing the double-zip for real.
+
+**Real CI-only failures caught and fixed during Phase 1** (both were test-design bugs exposed by real
+Windows CI, not app bugs): `DependencyManagerServiceTests`'s "yt-dlp not installed" test assumed a
+nonexistent override path meant "not installed", but `FfmpegLocator` falls back to bare `"yt-dlp"` on
+PATH when the override file doesn't exist - and the Windows runner genuinely has yt-dlp on PATH (via
+choco), so the fallback silently found the real tool. Fixed by pointing the override at a real
+non-executable file, forcing that exact (broken) path to be used regardless of environment. Separately,
+the new `AppSmokeTests` dependency-manager test budgeted only ~1s for 3 real sequential process
+launches - too tight under real CI load; bumped to 15s.
+
+## What Phase 2 actually delivered
+
+Delivered (targeted, not exhaustive - see "not done" below):
+- `tests/FakeYtDlp`: a real, cross-platform mock `yt-dlp` CLI (built like any other project, its native
+  apphost lands next to the test binary via a normal ProjectReference) that understands exactly the
+  argument shapes `YouTubeDownloadService` sends. This is the master spec's explicitly-named "yt-dlp
+  servis sa mock procesom" test. `YouTubeDownloadServiceTests.cs` (6 tests) now covers real process
+  launch, JSON parsing, non-YouTube-URL rejection, non-zero-exit-code handling, the ownership-
+  confirmation guard, and output-file renaming - closing the single gap the master spec called out by
+  name for this phase.
+- `SongHighlightsViewModelTests.cs` (3 tests): drives `PickSongCommand`/`AnalyzeCommand`/
+  `ExportAllCommand` end to end through real ffmpeg against the real `lyric_test_song.mp3` fixture, with
+  a `FakeStorageService` standing in for file/folder pickers. Found and fixed a real test-authoring bug
+  along the way (used a 2s highlight window; the ViewModel itself enforces a 10s floor and was silently
+  rejecting the request) - not an app bug, but proof the test was actually exercising the real
+  validation path.
+- `SettingsViewModelTests.cs` (3 tests): drives `SaveCommand`/`ResetToDefaultsCommand` against a real,
+  isolated `SettingsService`, reloading from disk with a fresh instance to prove persistence rather than
+  just checking the in-memory object.
+- These upgrades are all ViewModel-level tests constructed directly (no `Application`/`Window`), a
+  deliberately different pattern from the `[AvaloniaFact]` tests added in Phase 1 - ViewModels are plain
+  MVVM objects, and constructing them directly avoids both the Avalonia-dispatcher-pumping complexity
+  hit in Phase 1 and any risk of mutating the shared `App.Services` singleton state that other
+  `[AvaloniaFact]` tests in the same run also depend on.
+- Local (non-integration) test count: 73 → 85, all passing. Function matrix: 22 → 28 `WORKING_VERIFIED`,
+  38 → 32 `IMPLEMENTED_NOT_RUNTIME_VERIFIED` (67 rows total, 0 `BROKEN`/`PLACEHOLDER` throughout).
+
+Deliberately not done this phase (Phase 2's full scope per MASTER_SPEC lists ~15 areas; converting every
+remaining `IMPLEMENTED_NOT_RUNTIME_VERIFIED` row in one pass would far exceed a reasonable phase size):
+- Project lifecycle (`newproject.create`, `workspace.save-project`, `start.open-project`,
+  `start.recent.open`) was considered but deliberately skipped this phase: testing it through the real
+  `App.Services` DI container (the only place these ViewModels' full dependency graph is wired) would
+  mean writing real files into this sandbox's real Documents folder and a real shared SQLite db that
+  other `[AvaloniaFact]` tests in the same test run also touch, with no isolation mechanism in place yet
+  (the app's composition root doesn't support an injectable settings path). Doing this safely needs
+  either a settings-path override hook in `App.axaml.cs` or a way to isolate the DI container per test -
+  neither exists yet, so it's flagged for a future phase rather than risking test pollution.
+- Media import (drag-and-drop + file picker), Diagnostics run-checks/auto-fix/support-package via the
+  ViewModel (only ever tested at the service level), and the per-item `OpenExportedCommand`/
+  `OpenFolderCommand`/`OpenGeneratedSrtCommand` "open in OS file browser" commands across every tool
+  screen remain `IMPLEMENTED_NOT_RUNTIME_VERIFIED` - none of these surfaced a real bug when reasoned
+  through, and file-browser-opening commands are inherently hard to assert against in a headless test.
 
 ## Next action
 
-Start Phase 2 (existing-feature hardening) only when told to proceed.
+Start Phase 3 (five new themes) only when told to proceed.
