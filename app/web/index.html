@@ -142,11 +142,11 @@
 
       <section id="view-recognition" class="view">
         <div class="tools-hero panel"><div><h2>PRONALAZAČ MOJIH PESAMA</h2><p class="muted">Ubaci Shorts, video ili audio. Program lokalno proverava da li sadrži neku pesmu iz tvoje biblioteke. Nije potreban token niti internet.</p></div><div class="tool-status"><strong id="songFinderIndexedCount">0</strong><span>indeksiranih pesama</span></div></div>
-        <div id="songFinderNoAudioWarning" class="panel inline-message error hidden"><strong>Nijedna od tvojih pesama još nema preuzet lokalni audio fajl, zato nema šta da se indeksira.</strong><br>Sinhronizacija sa Suno naloga učitava samo naslove i tekstove — sami MP3/WAV fajlovi se preuzimaju posebno, u kartici „Preuzimanje”. Prvo tamo pokreni preuzimanje svojih pesama, pa se ovde vrati.<div class="button-row" style="margin-top:8px"><button id="songFinderGoDownloadBtn" class="btn primary small">IDI NA PREUZIMANJE</button></div></div>
+        <div id="songFinderNoAudioWarning" class="panel inline-message error hidden"><strong>Nijedna od tvojih pesama nema dostupan audio izvor, zato nema šta da se indeksira.</strong><br>Ovo obično znači da pesme nisu ni sinhronizovane sa Suno naloga. Program NE mora prvo da preuzme sve pesme na disk — indeksiranje samostalno pravi lokalni otisak pesme direktno sa Suno servera (čuva se samo mali otisak, ne cela pesma), a ako je neka pesma već ranije preuzeta, koristi taj fajl. Ako ipak želiš da trajno sačuvaš MP3/WAV fajlove, to i dalje možeš u kartici „Preuzimanje”.<div class="button-row" style="margin-top:8px"><button id="songFinderGoDownloadBtn" class="btn ghost small">IDI NA PREUZIMANJE</button></div></div>
         <div class="two-col">
           <div class="panel form-panel">
             <h2>Indeks mojih pesama</h2>
-            <p class="muted">Pesme se otiskuju lokalno preko FFmpeg-a; nepromenjene pesme se ne obrađuju ponovo.</p>
+            <p class="muted">Pesme se otiskuju preko FFmpeg-a — koristi se već preuzet fajl ako postoji, a ako ne, pravi se otisak direktno sa Suno servera bez trajnog čuvanja cele pesme (čuva se samo mali otisak). Nepromenjene pesme se ne obrađuju ponovo.</p>
             <div id="songFinderIndexStatus" class="inline-message">Indeksiranje još nije pokrenuto.</div>
             <div class="button-row"><button id="songFinderIndexAllBtn" class="btn primary small">INDEKSIRAJ SVE MOJE PESME</button><button id="songFinderIndexRefreshBtn" class="btn secondary small">OSVEŽI IZMENJENE</button><button id="songFinderIndexRebuildBtn" class="btn ghost small">OBRIŠI I PONOVO NAPRAVI INDEKS</button></div>
           </div>

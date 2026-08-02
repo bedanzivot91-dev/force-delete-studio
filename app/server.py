@@ -2625,15 +2625,36 @@ def add_recognition_to_library(recognition_id: int) -> dict[str, Any]:
     return DB.get_song(song_id) or {"id": song_id, "title": title, "display_name": artist}
 
 
+def _song_finder_source(song: dict[str, Any]) -> tuple[str | Path | None, bool]:
+    """Prefer an already-downloaded local file; otherwise fall back to the
+    song's own Suno CDN URL so indexing works like Shazam -- FFmpeg streams
+    the remote audio just long enough to compute the compact fingerprint
+    (already all audio_fingerprints ever stores), and nothing of the full
+    audio is kept afterward. No permanent per-song download is required."""
+    local = _existing_audio_path(song)
+    if local is not None:
+        return local, False
+    remote = str(song.get("audio_url") or "").strip()
+    if remote:
+        return remote, True
+    return None, False
+
+
 def song_finder_status() -> dict[str, Any]:
-    """Pronalazač mojih pesama: local-only index status, no token, no internet."""
+    """Pronalazač mojih pesama: index status. No token/internet is needed to
+    ANALYZE a clip (that only ever reads the already-cached fingerprints
+    below); building the index itself can stream a song's own Suno audio
+    directly, without keeping a permanent local copy."""
     songs = DB.export_rows()
-    with_audio = [s for s in songs if _existing_audio_path(s)]
+    sources = [_song_finder_source(s) for s in songs]
+    with_audio = [s for s, (source, _) in zip(songs, sources) if source]
+    remote_only = sum(1 for source, is_remote in sources if source and is_remote)
     indexed = sum(1 for s in with_audio if DB.get_audio_fingerprint("suno", str(s.get("id") or ""), AUDIO_MATCH_VERSION))
     return {
         "ok": True,
         "songs_total": len(songs),
         "songs_with_audio": len(with_audio),
+        "songs_remote_only": remote_only,
         "songs_indexed": indexed,
         "songs_not_indexed": len(with_audio) - indexed,
         "algorithm_version": AUDIO_MATCH_VERSION,
@@ -2644,35 +2665,61 @@ def song_finder_status() -> dict[str, Any]:
 def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
     force = bool(options.get("force"))
     all_songs = DB.export_rows()
-    songs = [s for s in all_songs if _existing_audio_path(s)]
-    task.total = len(songs)
+    items: list[tuple[dict[str, Any], str, bool]] = []
+    for song in all_songs:
+        source, is_remote = _song_finder_source(song)
+        if source:
+            items.append((song, str(source), is_remote))
+    task.total = len(items)
+    if not items and all_songs:
+        task.finish(f"Nijedna od {len(all_songs)} pesama nema lokalni fajl niti Suno link, zato nema šta da se indeksira.")
+        return
+
     ok = 0
     failed = 0
-    for idx, song in enumerate(songs, 1):
+    completed = 0
+    lock = threading.Lock()
+
+    def index_one(item: tuple[dict[str, Any], str, bool]) -> None:
+        nonlocal ok, failed, completed
+        song, source, _is_remote = item
         if task.cancel_event.is_set():
-            break
+            return
         wait_if_paused(task)
         song_id = str(song.get("id") or "")
-        path = _existing_audio_path(song)
         title = str(song.get("title") or song.get("display_name") or song_id)
         try:
             # _signature_for_source already skips recomputation when the
-            # file's SHA-256/mtime identity hasn't changed since the last
-            # index (force=False here just means "don't force a redo of
+            # file's/URL's identity hasn't changed since the last index
+            # (force=False here just means "don't force a redo of
             # unchanged songs" -- true force=True, from "OBRIŠI I PONOVO
             # NAPRAVI INDEKS", recomputes every song regardless).
-            _signature_for_source("suno", song_id, path, task, title, force=force)
-            ok += 1
+            _signature_for_source("suno", song_id, source, task, title, force=force)
+            with lock:
+                ok += 1
         except Exception as exc:
-            failed += 1
+            with lock:
+                failed += 1
             task.log(f"{title}: {exc}", "warning")
-        task.set_progress(idx, len(songs), title)
+        with lock:
+            completed += 1
+            task.set_progress(completed, len(items), title)
+
+    # Local files fingerprint fast (disk-bound); remote-only songs stream
+    # over the network via FFmpeg instead, so a small worker pool keeps
+    # thousands of remote-only songs from being indexed one at a time
+    # while still being gentle with Suno's CDN.
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="song-finder-index") as pool:
+        list(pool.map(index_one, items))
+
     DB.set_setting("song_finder_last_index_at", now_iso())
-    no_audio = len(all_songs) - len(songs)
-    if not songs and all_songs:
-        task.finish(f"Nijedna od {len(all_songs)} pesama nema preuzet lokalni audio fajl, zato nema šta da se indeksira. Prvo pokreni preuzimanje pesama u kartici „Preuzimanje”, pa se vrati ovde.")
-        return
-    task.finish(f"Indeksiranje završeno: {ok} obrađeno, {failed} neuspešno, {no_audio} pesama nema lokalni audio fajl.")
+    no_source = len(all_songs) - len(items)
+    remote_count = sum(1 for _, _, is_remote in items if is_remote)
+    task.finish(
+        f"Indeksiranje završeno: {ok} obrađeno"
+        + (f" ({remote_count} direktno sa Suno servera, bez trajnog čuvanja fajla)" if remote_count else "")
+        + f", {failed} neuspešno, {no_source} pesama nema lokalni fajl niti Suno link."
+    )
 
 
 # A clip played back even slightly faster/slower is common (Shorts/reels

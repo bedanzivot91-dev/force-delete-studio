@@ -1171,13 +1171,16 @@ async function openRecognitionFolder(){try{const d=await api('/api/music-recogni
 async function loadSongFinderStatus(){
   try{const d=await api('/api/song-finder/status',{timeoutMs:15000,retries:0});
     if($('songFinderIndexedCount'))$('songFinderIndexedCount').textContent=String(Number(d.songs_indexed||0));
-    const noLocalAudio=Number(d.songs_total||0)>0&&Number(d.songs_with_audio||0)===0;
-    if($('songFinderNoAudioWarning'))$('songFinderNoAudioWarning').classList.toggle('hidden',!noLocalAudio);
+    const noSource=Number(d.songs_total||0)>0&&Number(d.songs_with_audio||0)===0;
+    if($('songFinderNoAudioWarning'))$('songFinderNoAudioWarning').classList.toggle('hidden',!noSource);
     const box=$('songFinderIndexStatus');
     if(box){
       const ok=Number(d.songs_indexed||0)>0;
-      box.className=`inline-message ${ok?'success':(noLocalAudio?'error':'warning')}`;
-      box.textContent=`Indeksirano: ${Number(d.songs_indexed||0)} / ${Number(d.songs_with_audio||0)} pesama sa lokalnim audio fajlom (od ukupno ${Number(d.songs_total||0)} u Biblioteci).`+(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.');
+      const remote=Number(d.songs_remote_only||0);
+      box.className=`inline-message ${ok?'success':(noSource?'error':'warning')}`;
+      box.textContent=`Indeksirano: ${Number(d.songs_indexed||0)} / ${Number(d.songs_with_audio||0)} pesama sa dostupnim audio izvorom (od ukupno ${Number(d.songs_total||0)} u Biblioteci).`
+        +(remote?` ${remote} od njih se otiskuje direktno sa Suno servera bez trajnog preuzimanja.`:'')
+        +(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.');
     }
   }catch(e){const box=$('songFinderIndexStatus');if(box){box.className='inline-message error';box.textContent=e.message;}}
 }
