@@ -85,9 +85,39 @@ public class AppSmokeTests
 
         Assert.False(dependencyManager.IsLoading);
         Assert.Null(dependencyManager.StatusMessage);
-        Assert.Equal(4, dependencyManager.Dependencies.Count);
+        Assert.Equal(5, dependencyManager.Dependencies.Count);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFmpeg" && d.IsInstalled);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFprobe" && d.IsInstalled);
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToMySongs_LoadsRealLibraryWithoutThrowing()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenMySongsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var mySongs = Assert.IsType<MySongsViewModel>(viewModel.CurrentPage);
+
+        // Same fire-and-forget InitializeAsync pattern as the dependency-manager page above - this one
+        // only touches the (already shared-across-tests, per Phase 0/1 precedent) real SQLite database,
+        // no external process, so a short budget is enough.
+        for (var i = 0; i < 100 && mySongs.IsLoading; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(20);
+        }
+
+        Assert.False(mySongs.IsLoading);
     }
 
     [AvaloniaFact]

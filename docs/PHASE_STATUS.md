@@ -10,7 +10,7 @@ giant prompt again.
 | 1 | Build, dependencies, release foundation | DONE (partial - see below) | 1193f77 |
 | 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
 | 3 | Five new themes | DONE (partial - see below) | 5114fbb |
-| 4 | Song library + fingerprinting | NOT_STARTED | — |
+| 4 | Song library + fingerprinting | DONE (partial - see below) | (pending push) |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
 | 6 | Caption/word data model + editor | NOT_STARTED | — |
 | 7 | Caption styling + video layout/OCR | NOT_STARTED | — |
@@ -165,6 +165,49 @@ Deliberately not done this phase, per the explicit token-conscious instruction t
   proportional to its cost, so local verification (build + full non-integration test pass, both green)
   was treated as sufficient before pushing.
 
+## What Phase 4 actually delivered
+
+Delivered:
+- New "Moje pesme" library screen (`MySongsView`/`MySongsViewModel`), reachable from the start screen:
+  import audio, see it analyzed, decide whether it's a duplicate or a new song, delete a record with or
+  without its audio file, re-analyze an existing entry.
+- Real Chromaprint/fpcalc fingerprinting (`SongRecognitionService`, `NPVideoStudio.Media`): five windows
+  per track (start/quarter/mid/three-quarter/end, 5-15s configurable) - `ffmpeg` extracts each window
+  (fpcalc itself can only read from the start of a file), `fpcalc -raw` fingerprints it. Matching
+  (`FingerprintMatcher`, pure/testable) uses best-alignment average Hamming distance across a bounded
+  offset search - the same bit-population-count technique real Chromaprint-based matchers use.
+  Auto-accept requires ≥2 agreeing windows, confidence ≥0.80, and a sane duration ratio - never guesses
+  off a single window, and the UI never auto-adds a match on its own initiative regardless of
+  confidence; the user always sees the top 3 candidates (or none) and decides.
+- New `SongLibrary` SQLite table (`AppDatabase` schema v2) with a real file backup taken before the
+  v1→v2 migration actually runs (spec: "migration + backup-before-migration") - verified by a test that
+  builds a genuine v1-only database file, runs the real migration, and asserts both the backup file and
+  the new table exist afterward.
+- `fpcalc` (Chromaprint) added to "Alati i modeli" as a 5th tracked dependency, same optional treatment
+  as yt-dlp (rest of the app works without it); CI now installs it via `choco install chromaprint` with
+  `continue-on-error: true` so a missing/renamed choco package can never fail the whole Windows build.
+- New tests: `FingerprintMatcherTests.cs` (7, pure Hamming-distance logic, no process),
+  `SongRecognitionServiceTests.cs` (5, real ffmpeg + a new `tests/FakeFpcalc` mock process - same "mock
+  process, not a fake in test code alone" pattern as `tests/FakeYtDlp`), `SongLibraryRepositoryTests.cs`
+  (7, real SQLite CRUD + the migration/backup path), `MySongsViewModelTests.cs` (6, ViewModel-level
+  decision flow against fakes), plus one new `AppSmokeTests.cs` navigation test. Local (non-integration)
+  test count: 95 → 121, all passing.
+- Function matrix: 28 → 33 `WORKING_VERIFIED`, 32 → 34 `IMPLEMENTED_NOT_RUNTIME_VERIFIED` (74 rows
+  total, 0 `BROKEN`/`PLACEHOLDER` throughout).
+
+Deliberately simplified vs. the master prompt's full Phase 4 wording (see FUNCTION_MATRIX.md's "Moje
+pesme" section for the fuller reasoning):
+- `SongLibraryEntry` doesn't store sample-rate/channel-count columns - this codebase has no ffprobe
+  stream-level parsing to source them from honestly (`MediaAsset` only exposes `Duration`), and faking
+  those values would violate the "never guess" rule more than simply omitting them.
+- No "linked Shorts projects" / "find projects using this song" - the `Project` domain model has no
+  concept of song usage yet; that's naturally Phase 8 (timeline) territory, not Phase 4's.
+- Tempo-ratio/pitch-shift warnings are approximated by a duration-ratio check only. Real tempo/pitch
+  detection is a DSP feature well beyond fingerprint comparison and was not implemented or faked.
+- No AcoustID web-service lookup exists or was considered - Phase 4's fingerprinting is purely local
+  (match against your own library), so the "check AGPL licensing" spec instruction is satisfied by not
+  having an AcoustID client at all; only the LGPL-2.1 `fpcalc` *tool* is shelled out to, never linked.
+
 ## Next action
 
-Start Phase 4 (song library + fingerprinting) only when told to proceed.
+Start Phase 5 (AI pipeline: known song → verified lyrics; unknown song → ASR) only when told to proceed.

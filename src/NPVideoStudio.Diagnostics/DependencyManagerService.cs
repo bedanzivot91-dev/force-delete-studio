@@ -43,6 +43,12 @@ public sealed class DependencyManagerService : IDependencyManagerService
                 "--version",
                 "Potreban samo za alat „Preuzmi sa YouTube-a“ - ostatak programa radi i bez njega.",
                 cancellationToken).ConfigureAwait(false),
+            await CheckToolAsync(
+                "fpcalc (Chromaprint)",
+                FfmpegLocator.ResolveFpcalcPath(null),
+                "-version",
+                "Potreban samo za prepoznavanje pesama u „Moje pesme“ (otisak pesme) - ostatak programa radi i bez njega.",
+                cancellationToken).ConfigureAwait(false),
             CheckWhisperModel()
         };
     }

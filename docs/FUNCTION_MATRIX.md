@@ -34,6 +34,7 @@ automated or manual verification found/performed.
 | "Pronađi tekst u pesmi" tile | `OpenLyricSearchCommand` | raises `LyricSearchRequested` | WORKING_VERIFIED | [Screenshot] this session |
 | "Preuzmi sa YouTube-a" tile | `OpenYouTubeDownloadCommand` | raises `YouTubeDownloadRequested` | WORKING_VERIFIED | [Screenshot] this session |
 | "Generiši titlove (SRT)" tile | `OpenSubtitleGeneratorCommand` | raises `SubtitleGeneratorRequested` | WORKING_VERIFIED | [Screenshot] this session |
+| "Moje pesme" tile | `OpenMySongsCommand` | raises `MySongsRequested` | WORKING_VERIFIED | [Smoke] `AppSmokeTests.cs: Navigating_ToMySongs_LoadsRealLibraryWithoutThrowing` (Phase 4) |
 | Nastavi od auto-save | `RecoverAutoSaveCommand` | `IAutoSaveService` + `IProjectRepository` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `AutoSaveServiceTests.cs` covers the service, not this command |
 | Zanemari (recovery) | `DismissRecoveryCommand` | clears `RecoveryMessage` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] (trivial, no side effect beyond a bound property) |
 | Podešavanja tile | `OpenSettingsCommand` | raises `SettingsRequested` | WORKING_VERIFIED | [Smoke] indirectly (`MainWindowViewModel.GoToSettingsCommand` uses the same `CreateSettingsPage`) |
@@ -168,21 +169,54 @@ identically on Linux and Windows CI.
 | "Generiši titlove" | `GenerateCommand` → `SubtitleGeneratorService.GenerateSrtAsync` | WORKING_VERIFIED | [Svc][CI] `SubtitleGeneratorServiceIntegrationTests`, run `30748256836`; `SrtWriterTests.cs` (9 tests) covers the pure `.srt` formatting locally |
 | "Otvori .srt fajl" | `OpenGeneratedSrtCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] |
 
+## Moje pesme — MySongsView / MySongsViewModel (new screen, Phase 4)
+
+Song library with Chromaprint/fpcalc multi-window fingerprinting (spec Phase 4): import audio, compute a
+5-window fingerprint (start/quarter/mid/three-quarter/end, via `SongRecognitionService` shelling out to
+`ffmpeg` + `fpcalc`), check the existing library for matches (`FingerprintMatcher`'s Hamming-distance
+comparer), and only ever show the top 3 candidates for the user to confirm or reject — never auto-add a
+possible duplicate on the app's own initiative, even when a match would technically qualify for
+auto-accept.
+
+| Control | Command | Status | Evidence |
+|---|---|---|---|
+| "Uvezi pesmu..." | `ImportCommand` → `ISongRecognitionService.ComputeFingerprintAsync` + `FindMatches` | WORKING_VERIFIED | [VM] `MySongsViewModelTests.cs` (duplicate-detection decision flow, fakes); [Svc] `SongRecognitionServiceTests.cs` (real ffmpeg + fake `fpcalc`, 5 tests) and `FingerprintMatcherTests.cs` (7 tests, pure Hamming-distance logic) cover the real fingerprinting/matching underneath |
+| "Dodaj kao novu pesmu" | `ConfirmAddNewCommand` → `ISongLibraryRepository.AddAsync` | WORKING_VERIFIED | [VM] `MySongsViewModelTests.cs: ConfirmAddNewCommand_AddsEntryToRepositoryAndSongsList` |
+| "Otkaži" (import) | `CancelImportCommand` | WORKING_VERIFIED | [VM] `MySongsViewModelTests.cs: CancelImportCommand_ClearsPendingStateWithoutAdding` |
+| "Ponovo analiziraj" (per red) | `SongLibraryItemViewModel.ReanalyzeCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `SongRecognitionServiceTests.cs` covers the underlying fingerprint recompute this delegates to, not this exact command wiring |
+| "Obriši zapis" (per red) | `SongLibraryItemViewModel.DeleteRecordOnlyCommand` | WORKING_VERIFIED | [VM] `MySongsViewModelTests.cs: DeleteRecordOnlyCommand_OnLoadedItem_RemovesFromRepositoryAndList` |
+| "Obriši zapis i fajl" (per red) | `SongLibraryItemViewModel.DeleteRecordAndFileCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `SongLibraryRepositoryTests.cs: DeleteAsync_WithDeleteAudioFile_RemovesRecordAndFile` covers the repository call this delegates to, not this exact command wiring |
+
+Storage: new `SongLibrary` SQLite table (`AppDatabase` schema v2), with a real file backup taken before
+the v1→v2 migration runs (`SongLibraryRepositoryTests.cs: EnsureCreatedAsync_MigratingFromV1_...`,
+spec Phase 4 "migration + backup-before-migration"). `fpcalc` (Chromaprint) is tracked as an optional
+dependency in "Alati i modeli", same treatment as yt-dlp - the rest of the app works without it.
+Licensing: no AcoustID web-service client exists anywhere in this codebase; `fpcalc` (LGPL-2.1) is
+shelled out to as an external process, never linked, same pattern as ffmpeg/yt-dlp (see
+`FingerprintMatcher.cs`'s doc comment).
+
+Deliberately simplified vs. the master prompt's full Phase 4 wording: `SongLibraryEntry` does not store
+sample-rate/channel-count columns (this codebase has no ffprobe stream-level parsing to source them
+from honestly - `MediaAsset` only exposes `Duration`, not sample rate/channels - and faking those values
+would violate the "never guess" rule) or "linked Shorts projects" (the `Project` domain model has no
+concept of song usage yet - premature to add before Phase 8's timeline exists). Tempo-ratio/pitch-shift
+warnings from the original spec wording are approximated by a duration-ratio check only; real tempo/
+pitch detection is a DSP feature beyond fingerprint comparison and is not implemented.
+
 ## Feature-level summary counts
 
-Authoritative counts come from `docs/function-contracts.json` (67 rows, one per control/command,
+Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,
 mechanically counted — not hand-tallied):
 
-- `WORKING_VERIFIED`: 28
-- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 32
+- `WORKING_VERIFIED`: 33
+- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 34
 - `BROKEN`: 0
 - `PLACEHOLDER` (deceptive/fake-active): 0
 - `NOT_PRESENT`: 7 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-
   song-library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in
   Phase 1), and the 6 disabled planned-feature tiles (counted as one summary row on the start screen
-  above). The dependency-manager screen gap from Phase 0 is closed. The 5-extra-themes gap tracked in
-  BASELINE_AUDIT §6 is also closed as of Phase 3 (all 8 themes now exist) — it was never counted as a
-  per-control row here since it isn't a single UI control, so the row count/counts above are unchanged
-  by Phase 3.
+  above). The dependency-manager screen gap from Phase 0 is closed. The 5-extra-themes gap (Phase 3) and
+  the song-library gap (Phase 4) are both closed and were never counted as `NOT_PRESENT` rows here since
+  neither was a single UI control, so this count is unchanged since Phase 2.
 - `BLOCKED_BY_DEPENDENCY`: 0 (nothing found that's implemented but permanently blocked; the Whisper/
-  yt-dlp paths work once their tool is present, which the app already detects and reports)
+  yt-dlp/fpcalc paths work once their tool is present, which the app already detects and reports)

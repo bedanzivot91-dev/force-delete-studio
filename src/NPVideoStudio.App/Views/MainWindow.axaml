@@ -38,6 +38,9 @@
     <DataTemplate DataType="vm:DependencyManagerViewModel">
       <views:DependencyManagerView />
     </DataTemplate>
+    <DataTemplate DataType="vm:MySongsViewModel">
+      <views:MySongsView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

@@ -30,10 +30,10 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
 - Lista nedavnih projekata u lokalnoj SQLite bazi.
 - Podešavanja: tema, folder za projekte, cache folder, auto-save, čuvanje logova, putanje za
   FFmpeg/FFprobe/yt-dlp (opciono — prazno polje znači „nađi sam").
-- **Alati i modeli** (ekran, dostupan sa početnog ekrana): stvarno stanje FFmpeg-a, FFprobe-a, yt-dlp-a
-  i lokalnog Whisper modela — svaki alat se stvarno pokreće (verzija + izlazni kod), ne samo proverava
-  da li fajl postoji. Whisper model može da se preuzme (i otkaže tokom preuzimanja) direktno sa ovog
-  ekrana.
+- **Alati i modeli** (ekran, dostupan sa početnog ekrana): stvarno stanje FFmpeg-a, FFprobe-a, yt-dlp-a,
+  fpcalc-a (Chromaprint, za prepoznavanje pesama) i lokalnog Whisper modela — svaki alat se stvarno
+  pokreće (verzija + izlazni kod), ne samo proverava da li fajl postoji. Whisper model može da se
+  preuzme (i otkaže tokom preuzimanja) direktno sa ovog ekrana.
 - Svih 8 planiranih tema: Dark Cinematic, Minimal Light, Professional Studio, Obsidian Neon, Arctic
   Glass, Crimson Cyber, Midnight Pro, Ocean Glass. Menjaju se bez restarta programa.
 - Dijagnostički ekran koji stvarno proverava .NET okruženje, FFmpeg/FFprobe, foldere, slobodan
@@ -63,8 +63,12 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   fajl sa tačnim vremenima svake linije - spreman za otpremanje na YouTube/TikTok/Reels ili uvoz u bilo
   koji drugi editor. Ovo je samostalan `.srt` fajl, ne titlovi urezani u sliku na NP Video Studio
   timeline-u (to je i dalje planirano za kasniju fazu, videti ispod).
+- **Moje pesme** (Alati → Moje pesme): lokalna biblioteka vaših pesama. Uvezete audio fajl, program
+  izračuna otisak pesme (Chromaprint/fpcalc, 5 delova numere) i proveri da li je pesma već u biblioteci
+  pre nego što je doda - nikad automatski, uvek vam pokaže moguća poklapanja i traži potvrdu. Obrisati
+  zapis iz biblioteke ne briše i sam audio fajl, osim ako to izričito ne zatražite.
 
-Sve navedeno je pokriveno sa 95 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 121 automatizovanim testom (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo

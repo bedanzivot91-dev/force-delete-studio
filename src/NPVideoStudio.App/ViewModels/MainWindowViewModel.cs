@@ -44,6 +44,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.YouTubeDownloadRequested += () => CurrentPage = CreateYouTubeDownloadPage();
         vm.SubtitleGeneratorRequested += () => CurrentPage = _services.GetRequiredService<SubtitleGeneratorViewModel>();
         vm.DependencyManagerRequested += () => CurrentPage = CreateDependencyManagerPage();
+        vm.MySongsRequested += () => CurrentPage = CreateMySongsPage();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
@@ -52,6 +53,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private DependencyManagerViewModel CreateDependencyManagerPage()
     {
         var vm = _services.GetRequiredService<DependencyManagerViewModel>();
+        _ = vm.InitializeAsync();
+        return vm;
+    }
+
+    private MySongsViewModel CreateMySongsPage()
+    {
+        var vm = _services.GetRequiredService<MySongsViewModel>();
         _ = vm.InitializeAsync();
         return vm;
     }

@@ -14,6 +14,8 @@ public static class FfmpegLocator
 
     public static string ResolveYtDlpPath(string? overridePath) => Resolve(overridePath, "yt-dlp", "yt-dlp");
 
+    public static string ResolveFpcalcPath(string? overridePath) => Resolve(overridePath, "fpcalc", "fpcalc");
+
     private static string Resolve(string? overridePath, string toolName, string bundledSubfolder)
     {
         if (!string.IsNullOrWhiteSpace(overridePath) && File.Exists(overridePath))

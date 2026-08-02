@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\NPVideoStudio.Diagnostics\NPVideoStudio.Diagnostics.csproj" />
     <ProjectReference Include="..\..\src\NPVideoStudio.App\NPVideoStudio.App.csproj" />
     <ProjectReference Include="..\FakeYtDlp\FakeYtDlp.csproj" />
+    <ProjectReference Include="..\FakeFpcalc\FakeFpcalc.csproj" />
   </ItemGroup>
 
 </Project>

@@ -51,6 +51,7 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? YouTubeDownloadRequested;
     public event Action? SubtitleGeneratorRequested;
     public event Action? DependencyManagerRequested;
+    public event Action? MySongsRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -164,6 +165,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSubtitleGenerator() => SubtitleGeneratorRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenMySongs() => MySongsRequested?.Invoke();
 
     private async Task OpenProjectFromPathAsync(string path, string? originalPathOverride = null)
     {

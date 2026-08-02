@@ -44,14 +44,15 @@ public class DependencyManagerServiceTests : IDisposable
     public void Dispose() => Directory.Delete(_tempDir, recursive: true);
 
     [Fact]
-    public async Task GetDependenciesAsync_ReturnsFourEntries()
+    public async Task GetDependenciesAsync_ReturnsFiveEntries()
     {
         var results = await _service.GetDependenciesAsync();
 
-        Assert.Equal(4, results.Count);
+        Assert.Equal(5, results.Count);
         Assert.Contains(results, d => d.Name == "FFmpeg");
         Assert.Contains(results, d => d.Name == "FFprobe");
         Assert.Contains(results, d => d.Name == "yt-dlp");
+        Assert.Contains(results, d => d.Name.Contains("fpcalc"));
         Assert.Contains(results, d => d.Name.Contains("Whisper"));
     }
 

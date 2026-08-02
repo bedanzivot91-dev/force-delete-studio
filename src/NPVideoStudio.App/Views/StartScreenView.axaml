@@ -106,6 +106,13 @@
             <TextBlock Classes="subtle" Text="Automatski titlovi iz govora/pevanja (lokalni Whisper)" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenMySongsCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="🎵" /></Border>
+            <TextBlock Text="Moje pesme" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="Biblioteka pesama sa prepoznavanjem otiska (fingerprint)" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
       </WrapPanel>
 
       <TextBlock Text="Nedavni projekti" Classes="section" />

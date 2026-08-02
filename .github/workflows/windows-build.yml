@@ -30,6 +30,13 @@ jobs:
       - name: Install yt-dlp
         run: choco install yt-dlp -y --no-progress
 
+      - name: Install Chromaprint (fpcalc)
+        # Optional dependency (song-fingerprint recognition in "Moje pesme" only, Phase 4) - the rest of
+        # the app works without it, same as yt-dlp/Whisper, so a failed install here must not fail the
+        # whole build. If missing, DependencyManagerService honestly reports it as NotInstalled.
+        run: choco install chromaprint -y --no-progress
+        continue-on-error: true
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 
