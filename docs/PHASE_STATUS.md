@@ -7,7 +7,7 @@ giant prompt again.
 | Phase | Name | Status | Finished commit |
 |---|---|---|---|
 | 0 | Audit | DONE | f850ace |
-| 1 | Build, dependencies, release foundation | DONE (partial - see below) | (this commit) |
+| 1 | Build, dependencies, release foundation | DONE (partial - see below) | 7047885 |
 | 2 | Existing-feature hardening | NOT_STARTED | — |
 | 3 | Five new themes | NOT_STARTED | — |
 | 4 | Song library + fingerprinting | NOT_STARTED | — |
