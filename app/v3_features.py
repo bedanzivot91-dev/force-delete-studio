@@ -214,6 +214,103 @@ def duplicate_detection(db: Any) -> dict[str, Any]:
     return {"exact_groups": exact_groups, "probable": probable[:1000], "exact_count": len(exact_groups), "probable_count": len(probable), "created_at": now_iso()}
 
 
+# -- Smart Library: rule-based AND/OR filters saved as a named definition
+# and re-evaluated live against the current library every time it's opened
+# (a "live view", never a copy -- nothing is duplicated or moved). --
+
+SMART_LIBRARY_FIELDS = {
+    "title": "text", "display_name": "text", "tags": "text", "custom_tags": "text",
+    "prompt": "text", "lyrics": "text", "notes": "text", "model_version": "text",
+    "duration": "number", "rating": "number",
+    "favorite": "bool", "is_liked": "bool", "is_public": "bool",
+    "has_local_audio": "bool", "has_lyrics": "bool", "has_youtube": "bool",
+    "created_at": "date",
+}
+
+_TEXT_OPS = {"contains", "not_contains", "equals", "starts_with"}
+_NUMBER_OPS = {"gt", "gte", "lt", "lte", "eq"}
+_BOOL_OPS = {"is_true", "is_false"}
+_DATE_OPS = {"before", "after"}
+
+
+def _smart_field_value(song: dict[str, Any], field: str) -> Any:
+    if field == "has_local_audio":
+        return bool(str(song.get("local_audio") or song.get("local_wav") or "").strip())
+    if field == "has_lyrics":
+        return bool(str(song.get("lyrics") or "").strip())
+    if field == "has_youtube":
+        return bool(str(song.get("youtube_url") or "").strip())
+    return song.get(field)
+
+
+def evaluate_smart_rule(song: dict[str, Any], rule: dict[str, Any]) -> bool:
+    field = str(rule.get("field") or "")
+    kind = SMART_LIBRARY_FIELDS.get(field)
+    if kind is None:
+        return False
+    op = str(rule.get("op") or "")
+    value = _smart_field_value(song, field)
+    target = rule.get("value")
+    if kind == "text":
+        haystack = str(value or "").casefold()
+        needle = str(target or "").casefold()
+        if op == "contains":
+            return needle in haystack
+        if op == "not_contains":
+            return needle not in haystack
+        if op == "equals":
+            return haystack == needle
+        if op == "starts_with":
+            return haystack.startswith(needle)
+        return False
+    if kind == "number":
+        try:
+            actual = float(value or 0)
+            target_num = float(target)
+        except (TypeError, ValueError):
+            return False
+        if op == "gt":
+            return actual > target_num
+        if op == "gte":
+            return actual >= target_num
+        if op == "lt":
+            return actual < target_num
+        if op == "lte":
+            return actual <= target_num
+        if op == "eq":
+            return actual == target_num
+        return False
+    if kind == "bool":
+        actual_bool = bool(value)
+        if op == "is_true":
+            return actual_bool
+        if op == "is_false":
+            return not actual_bool
+        return False
+    if kind == "date":
+        actual_text = str(value or "")[:10]
+        target_text = str(target or "")[:10]
+        if not actual_text or not target_text:
+            return False
+        if op == "before":
+            return actual_text < target_text
+        if op == "after":
+            return actual_text > target_text
+        return False
+    return False
+
+
+def evaluate_smart_rules(song: dict[str, Any], rules: list[dict[str, Any]], match_mode: str = "all") -> bool:
+    if not rules:
+        return False
+    results = [evaluate_smart_rule(song, rule) for rule in rules]
+    return all(results) if match_mode != "any" else any(results)
+
+
+def match_smart_collection(songs: Iterable[dict[str, Any]], rules: list[dict[str, Any]], match_mode: str = "all") -> list[dict[str, Any]]:
+    return [song for song in songs if evaluate_smart_rules(song, rules, match_mode)]
+
+
 def _template_values(song: dict[str, Any]) -> dict[str, str]:
     created = str(song.get("created_at") or song.get("first_seen_at") or "")
     try: dt = datetime.fromisoformat(created.replace("Z", "+00:00"))

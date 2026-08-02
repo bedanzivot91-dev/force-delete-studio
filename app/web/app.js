@@ -112,6 +112,7 @@ const viewText = {
   download: ['Preuzimanje pesama', 'Izaberi folder, format i prateće fajlove.'],
   import: ['Povezivanje i uvoz', 'Uvezi ceo nalog, Workspaces, linkove ili lokalne fajlove.'],
   recognition: ['Pronalazač pesme', 'Pronađi naziv pesme iz Shortsa ili audio/video isečka i trajno sačuvaj istoriju.'],
+  smart: ['Pametna biblioteka', 'Pravila po poljima pesme (I/ILI), živ pregled trenutne biblioteke i sačuvane pametne kolekcije.'],
   tools: ['Pametni alati', 'YouTube ↔ Suno audio prepoznavanje, kompletnost objave, kanali, datumi i zaštita pesama.'],
   production: ['Produkcija v3', 'Lyric video, Shorts, YouTube objava, integritet, zaštita i rollback.'],
   stats: ['Statistika biblioteke', 'Broj pesama, trajanje, modeli i preuzimanja.'],
@@ -127,6 +128,7 @@ function showView(name) {
   if (name === 'download' || name === 'tools') updateSelectionUi();
   if (name === 'tools') { loadYoutubeCenter(); loadAdvancedStatus(); }
   if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadSongFinderResults(); }
+  if (name === 'smart') { if (!qsa('.smart-rule-row', $('smartRulesList')).length) addSmartRule(); loadSmartCollections(); }
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
   if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
@@ -728,6 +730,122 @@ async function bulkPublished(published) { const ids=requireSelection(); if(!ids)
 async function bulkFolder(slug) { const ids=requireSelection(); if(!ids)return; try{const data=await api('/api/bulk/collection',{method:'POST',body:{ids,slug}}); toast(`U folder je dodato ${data.count} pesama.`,'success'); await loadCollections();}catch(e){toast(e.message,'error');} }
 async function quickAudioPreset(preset) { const ids=requireSelection(); if(!ids)return; try{await startBackground('/api/audio/quick-preset',{ids,preset}); showView('audio'); toast('Masovna audio radnja je pokrenuta.','success');}catch(e){toast(e.message,'error');} }
 async function exportSpecial(path) { const ids=state.selected.size?selectedIds():null; try{const data=await api(path,{method:'POST',body:{ids},timeoutMs:120000}); downloadFromUrl(data.download_url); toast(`Izvoz je napravljen: ${data.path}`,'success',9000);}catch(e){toast(e.message,'error',10000);} }
+
+// -- Smart Library: AND/OR rule builder over song fields, saved as a named
+// live view (re-evaluated against the current library every time it's
+// opened -- never a copy or a physical move of any song). --
+const SMART_FIELD_LABELS = {
+  title: 'Naslov', display_name: 'Izvođač/persona', tags: 'Tagovi (Suno)', custom_tags: 'Moje oznake',
+  prompt: 'Prompt', lyrics: 'Tekst pesme', notes: 'Beleške', model_version: 'Model',
+  duration: 'Trajanje (sek)', rating: 'Ocena', favorite: 'Omiljena', is_liked: 'Lajkovana na Suno',
+  is_public: 'Javna na Suno', has_local_audio: 'Ima lokalni fajl', has_lyrics: 'Ima tekst', has_youtube: 'Objavljena na YouTube',
+  created_at: 'Datum kreiranja',
+};
+const SMART_OPS_BY_KIND = {
+  text: [['contains', 'sadrži'], ['not_contains', 'ne sadrži'], ['equals', 'jednako'], ['starts_with', 'počinje sa']],
+  number: [['gt', '>'], ['gte', '>='], ['lt', '<'], ['lte', '<='], ['eq', '=']],
+  bool: [['is_true', 'da'], ['is_false', 'ne']],
+  date: [['before', 'pre'], ['after', 'posle']],
+};
+state.smartFields = state.smartFields || null;
+
+function smartFieldKind(field) { return (state.smartFields || {})[field] || 'text'; }
+
+function smartRuleRowHtml(rule) {
+  const fields = state.smartFields || {};
+  const fieldOptions = Object.keys(fields).length ? Object.keys(fields) : Object.keys(SMART_FIELD_LABELS);
+  const field = rule?.field || fieldOptions[0];
+  const kind = smartFieldKind(field);
+  const ops = SMART_OPS_BY_KIND[kind] || SMART_OPS_BY_KIND.text;
+  const valueInput = kind === 'bool' ? '' : `<input class="smart-rule-value" type="${kind === 'number' ? 'number' : (kind === 'date' ? 'date' : 'text')}" value="${escapeHtml(String(rule?.value ?? ''))}" placeholder="vrednost">`;
+  return `<div class="smart-rule-row">
+    <select class="smart-rule-field">${fieldOptions.map((f) => `<option value="${f}" ${f === field ? 'selected' : ''}>${escapeHtml(SMART_FIELD_LABELS[f] || f)}</option>`).join('')}</select>
+    <select class="smart-rule-op">${ops.map(([v, l]) => `<option value="${v}" ${rule?.op === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
+    ${valueInput}
+    <button class="btn ghost small smart-rule-remove" type="button">Ukloni</button>
+  </div>`;
+}
+
+function wireSmartRuleRow(row) {
+  const fieldSelect = row.querySelector('.smart-rule-field');
+  fieldSelect.addEventListener('change', () => { const fresh = document.createElement('div'); fresh.innerHTML = smartRuleRowHtml({ field: fieldSelect.value }); const newRow = fresh.firstElementChild; row.replaceWith(newRow); wireSmartRuleRow(newRow); });
+  row.querySelector('.smart-rule-remove').addEventListener('click', () => { row.remove(); if (!qsa('.smart-rule-row', $('smartRulesList')).length) addSmartRule(); });
+}
+
+function addSmartRule(rule) {
+  const wrap = document.createElement('div'); wrap.innerHTML = smartRuleRowHtml(rule);
+  const row = wrap.firstElementChild; $('smartRulesList').appendChild(row); wireSmartRuleRow(row);
+}
+
+function gatherSmartRules() {
+  return qsa('.smart-rule-row', $('smartRulesList')).map((row) => {
+    const field = row.querySelector('.smart-rule-field').value;
+    const op = row.querySelector('.smart-rule-op').value;
+    const valueEl = row.querySelector('.smart-rule-value');
+    return { field, op, value: valueEl ? valueEl.value : true };
+  }).filter((r) => r.field && r.op);
+}
+
+function renderSmartRules(rules) {
+  $('smartRulesList').innerHTML = '';
+  (rules && rules.length ? rules : [null]).forEach((r) => addSmartRule(r));
+}
+
+async function previewSmartLibrary() {
+  const rules = gatherSmartRules();
+  if (!rules.length) return toast('Dodaj bar jedno pravilo.', 'error');
+  try {
+    const data = await api('/api/smart-library/preview', { method: 'POST', body: { rules, match_mode: $('smartMatchMode').value } });
+    state.smartPreviewIds = (data.songs || []).map((s) => s.id);
+    $('smartPreviewCount').textContent = `${data.count} pesama${data.truncated ? ' (prikazano prvih 200)' : ''}`;
+    $('smartPreviewList').innerHTML = (data.songs || []).length
+      ? data.songs.map((s) => `<div class="file-item"><div><strong>${escapeHtml(s.title || 'Bez naslova')}</strong><span>${escapeHtml(s.display_name || '')} · ${formatDuration(s.duration)}</span></div></div>`).join('')
+      : '<p class="muted">Nijedna pesma ne odgovara ovim pravilima.</p>';
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+function selectSmartPreview() {
+  if (!state.smartPreviewIds || !state.smartPreviewIds.length) return toast('Prvo prikaži pesme.', 'warning');
+  state.selected = new Set(state.smartPreviewIds);
+  toast(`Izabrano je ${state.selected.size} pesama iz pametne pretrage.`, 'success');
+  updateSelectionUi();
+}
+
+function openSmartSelectionInLibrary() {
+  selectSmartPreview();
+  if (state.selected.size) showView('library');
+}
+
+async function saveSmartCollection() {
+  const name = $('smartCollectionName').value.trim();
+  if (!name) return toast('Upiši naziv pametne kolekcije.', 'error');
+  const rules = gatherSmartRules();
+  if (!rules.length) return toast('Dodaj bar jedno pravilo.', 'error');
+  try {
+    await api('/api/smart-library/save', { method: 'POST', body: { name, match_mode: $('smartMatchMode').value, rules } });
+    toast('Pametna kolekcija je sačuvana.', 'success');
+    await loadSmartCollections();
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+async function loadSmartCollections() {
+  try {
+    const data = await api('/api/smart-library');
+    state.smartFields = data.fields || null;
+    const rows = data.collections || [];
+    $('smartCollectionsList').innerHTML = rows.length ? rows.map((c) => `<div class="file-item"><div><strong>${escapeHtml(c.name)}</strong><span>${c.rules.length} pravila (${c.match_mode === 'any' ? 'ILI' : 'I'}) · ${c.count} pesama</span></div><div class="derived-actions"><button class="link-button smart-open" data-id="${c.id}">Otvori</button><button class="link-button danger-text smart-delete" data-id="${c.id}">Obriši</button></div></div>`).join('') : '<p class="muted">Još nema sačuvanih pametnih kolekcija.</p>';
+    qsa('.smart-open', $('smartCollectionsList')).forEach((b) => b.addEventListener('click', () => openSmartCollection(rows.find((c) => c.id === Number(b.dataset.id)))));
+    qsa('.smart-delete', $('smartCollectionsList')).forEach((b) => b.addEventListener('click', async () => { if (!confirm('Obrisati ovu pametnu kolekciju? Pesme ostaju netaknute.')) return; try { await api('/api/smart-library/delete', { method: 'POST', body: { id: Number(b.dataset.id) } }); await loadSmartCollections(); } catch (e) { toast(e.message, 'error'); } }));
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+function openSmartCollection(collection) {
+  if (!collection) return;
+  $('smartCollectionName').value = collection.name;
+  $('smartMatchMode').value = collection.match_mode === 'any' ? 'any' : 'all';
+  renderSmartRules(collection.rules);
+  previewSmartLibrary();
+}
 function toolOutput(html){$('toolsOutput').innerHTML=html;}
 async function runReport(){const type=$('reportType').value; toolOutput('Pripremam izveštaj...'); try{const data=await api(`/api/reports?type=${encodeURIComponent(type)}`,{timeoutMs:type==='audio_quality'?120000:30000}); if(type==='duplicates'){const a=data.report?.same_title_duration||[],b=data.report?.same_audio||[];toolOutput(`<h3>Isti naslov i trajanje: ${a.length}</h3>${a.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key)}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}<h3>Isti audio sadržaj: ${b.length}</h3>${b.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key.slice(0,16))}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}`);}else{const rows=data.rows||[];toolOutput(`<h3>Rezultati: ${rows.length}</h3>${rows.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.title||x.id)}</strong><span>${x.duration!==undefined?formatDuration(x.duration):''} ${escapeHtml(x.source_group||x.codec||x.error||'')}</span></div>`).join('')||'<p>Nema stavki za ovaj izveštaj.</p>'}`);}}catch(e){toolOutput(`<p class="danger-text">${escapeHtml(e.message)}</p>`);} }
 
@@ -1224,6 +1342,7 @@ function bindEvents() {
   $('resetSunoFieldsBtn').addEventListener('click', resetCurrentSongEdits); $('deleteLibrarySongBtn').addEventListener('click', deleteCurrentSong); $('refreshHistoryBtn').addEventListener('click',loadSongHistory); $('saveSubtitleCuesBtn').addEventListener('click',saveSubtitleCues); $('compareYoutubeTextBtn').addEventListener('click',compareYoutubeText); $('shiftCuesBackBtn').addEventListener('click',()=>shiftSubtitleCues(-0.1)); $('shiftCuesForwardBtn').addEventListener('click',()=>shiftSubtitleCues(0.1)); $('addCueBtn').addEventListener('click',()=>{syncCuesFromEditor();const start=state.subtitleCues.length?state.subtitleCues.at(-1).end:0;state.subtitleCues.push({start,end:start+3,text:''});renderSubtitleCues();}); $('subtitleCueEditor').addEventListener('click',e=>{const b=e.target.closest('.cue-delete');if(!b)return;const row=b.closest('.subtitle-cue-row');row.remove();syncCuesFromEditor();renderSubtitleCues();});
   $('refreshAdvancedStatusBtn').addEventListener('click',loadAdvancedStatus); $('chooseIncrementalBackupDirBtn').addEventListener('click',()=>chooseFolder('incrementalBackupDir')); $('runIncrementalBackupBtn').addEventListener('click',runIncrementalBackup); $('chooseRelocateRootBtn').addEventListener('click',()=>chooseFolder('relocateRootDir')); $('runRelocateBtn').addEventListener('click',runRelocate); $('runQualityAnalysisBtn').addEventListener('click',runQuality); $('saveYoutubeScheduleBtn').addEventListener('click',saveYoutubeSchedule); $('chooseCloudBackupDirBtn').addEventListener('click',()=>chooseFolder('cloudBackupDir')); $('runCloudBackupBtn').addEventListener('click',runCloudBackup); $('chooseCloudRestoreBtn').addEventListener('click',chooseCloudRestore); $('restoreCloudBackupBtn').addEventListener('click',restoreCloudBackup); $('runStemsBtn').addEventListener('click',runStems); $('runTranscriptionBtn').addEventListener('click',runTranscription); $('installStemsBtn').addEventListener('click',installStemsPlugin); $('installTranscriptionBtn').addEventListener('click',installTranscriptionPlugin); $('saveUpdateUrlBtn').addEventListener('click',saveUpdateUrl); $('checkUpdateBtn').addEventListener('click',checkProgramUpdate); $('downloadUpdateBtn').addEventListener('click',downloadProgramUpdate);
   $('saveAuddTokenBtn')?.addEventListener('click',saveAuddToken); $('recognizeMusicBtn')?.addEventListener('click',recognizeMusic); $('chooseMusicRecognitionFileBtn')?.addEventListener('click',chooseMusicRecognitionFile); $('refreshRecognitionHistoryBtn')?.addEventListener('click',loadMusicRecognitionHistory); $('openRecognitionFolderBtn')?.addEventListener('click',openRecognitionFolder); $('musicRecognitionHistory')?.addEventListener('click',(e)=>{const show=e.target.closest('.recognition-show');if(show){const r=state.recognitionHistory.find(x=>Number(x.id)===Number(show.dataset.id));if(r)showRecognitionResult({...r,...(r.result||{}),history_id:r.id});}const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));}); $('musicRecognitionResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));});
+  $('smartAddRuleBtn')?.addEventListener('click',()=>addSmartRule()); $('smartPreviewBtn')?.addEventListener('click',previewSmartLibrary); $('smartSaveBtn')?.addEventListener('click',saveSmartCollection); $('smartSelectAllBtn')?.addEventListener('click',selectSmartPreview); $('smartGoLibraryBtn')?.addEventListener('click',openSmartSelectionInLibrary); $('smartRefreshBtn')?.addEventListener('click',loadSmartCollections);
   $('songFinderGoDownloadBtn')?.addEventListener('click',()=>showView('download')); $('chooseSongFinderFileBtn')?.addEventListener('click',chooseSongFinderFile); $('chooseSongFinderBatchBtn')?.addEventListener('click',chooseSongFinderBatch); $('analyzeSongFinderBtn')?.addEventListener('click',analyzeSongFinder); $('songFinderIndexAllBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRefreshBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRebuildBtn')?.addEventListener('click',rebuildSongFinderIndex); $('refreshSongFinderResultsBtn')?.addEventListener('click',loadSongFinderResults); $('songFinderResults')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));}); $('songFinderResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));});
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('songModal').classList.add('hidden'); if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();showView('library');$('searchInput').focus();} if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();checkNewSongs();} if(e.code==='Space'&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)===false){e.preventDefault();const a=$('audioPlayer');a.paused?a.play().catch(()=>{}):a.pause();} });
 }

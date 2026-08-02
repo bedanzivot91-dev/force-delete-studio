@@ -17,6 +17,7 @@
         <button class="nav-item" data-view="download"><span>⇩</span> Preuzimanje</button>
         <button class="nav-item" data-view="import"><span>＋</span> Uvoz</button>
         <button class="nav-item" data-view="recognition"><span>⌕</span> Pronalazač pesme</button>
+        <button class="nav-item" data-view="smart"><span>⚑</span> Pametna biblioteka</button>
         <button class="nav-item" data-view="tools"><span>✦</span> Pametni alati</button>
         <button class="nav-item" data-view="production"><span>⚡</span> Produkcija v3</button>
         <button class="nav-item" data-view="stats"><span>◔</span> Statistika</button>
@@ -176,6 +177,24 @@
           <div class="section-title"><div><h3>Istorija AudD pokušaja</h3></div><button id="refreshRecognitionHistoryBtn" class="btn ghost small">Osveži</button></div>
           <div id="musicRecognitionHistory" class="youtube-matches-list"></div>
         </details>
+      </section>
+
+      <section id="view-smart" class="view">
+        <div class="panel form-panel">
+          <div class="section-title"><div><h2>Pravila (I/ILI)</h2><p class="muted">Kombinuj pravila po poljima pesme. Rezultat je uvek živ pregled trenutne biblioteke, ne kopija — ništa se ne premešta niti duplira.</p></div><label>Uslov<select id="smartMatchMode"><option value="all">Sva pravila (I)</option><option value="any">Bilo koje pravilo (ILI)</option></select></label></div>
+          <div id="smartRulesList" class="smart-rules-list"></div>
+          <div class="button-row"><button id="smartAddRuleBtn" class="btn ghost small">+ Dodaj pravilo</button><button id="smartPreviewBtn" class="btn secondary">Prikaži pesme</button></div>
+          <div class="two-inputs" style="margin-top:10px"><label>Naziv pametne kolekcije<input id="smartCollectionName" placeholder="npr. Neobjavljene duže pesme"></label><div class="button-row" style="align-items:flex-end"><button id="smartSaveBtn" class="btn primary">Sačuvaj kao pametnu kolekciju</button></div></div>
+        </div>
+        <div class="panel form-panel">
+          <div class="section-title"><h2>Rezultat pretrage</h2><span id="smartPreviewCount" class="muted"></span></div>
+          <div id="smartPreviewList" class="file-list"></div>
+          <div class="button-row"><button id="smartSelectAllBtn" class="btn secondary small">Izaberi sve prikazane</button><button id="smartGoLibraryBtn" class="btn ghost small">Otvori izbor u Biblioteci</button></div>
+        </div>
+        <div class="panel form-panel">
+          <div class="section-title"><h2>Sačuvane pametne kolekcije</h2><button id="smartRefreshBtn" class="btn ghost small">Osveži</button></div>
+          <div id="smartCollectionsList" class="file-list"></div>
+        </div>
       </section>
 
       <section id="view-tools" class="view">

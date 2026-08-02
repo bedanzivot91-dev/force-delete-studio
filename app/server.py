@@ -73,8 +73,8 @@ from security_lock import AppSecurity
 from music_recognition import MusicRecognitionError, decode_audio_base64, recognize_audd
 from v3_features import (
     align_original_lyrics, create_program_snapshot, create_proof_package, create_youtube_package, duplicate_detection,
-    library_integrity_scan, organize_library, install_panako_jar, panako_index, panako_query, panako_status,
-    render_lyric_video, render_short_clip, sha256_file, storage_report as v3_storage_report, cleanup_storage,
+    library_integrity_scan, organize_library, install_panako_jar, match_smart_collection, panako_index, panako_query, panako_status,
+    render_lyric_video, render_short_clip, sha256_file, SMART_LIBRARY_FIELDS, storage_report as v3_storage_report, cleanup_storage,
     suggest_short_clips, suggest_teaser_clips, teaser_clip_from_text, system_preflight, youtube_metadata, youtube_resumable_upload,
 )
 import song_finder
@@ -4487,6 +4487,13 @@ class Handler(BaseHTTPRequestHandler):
                 report = duplicate_detection(DB)
                 self._send_json({"ok": True, "report": report, "audio_check": _duplicate_audio_confirm(report.get("probable") or [])})
                 return
+            if path == "/api/smart-library":
+                songs = DB.export_rows()
+                collections = DB.list_smart_collections()
+                for collection in collections:
+                    collection["count"] = len(match_smart_collection(songs, collection.get("rules") or [], str(collection.get("match_mode") or "all")))
+                self._send_json({"ok": True, "collections": collections, "fields": SMART_LIBRARY_FIELDS})
+                return
             if path == "/api/v3/shorts/suggest":
                 song_id = (query.get("id") or [""])[0]; song = DB.get_song(song_id)
                 if not song: raise RuntimeError("Pesma nije pronađena.")
@@ -5445,6 +5452,29 @@ class Handler(BaseHTTPRequestHandler):
                 collection_ids = body.get("collection_ids") if isinstance(body.get("collection_ids"), list) else []
                 DB.set_song_collections(song_id, [int(x) for x in collection_ids])
                 self._send_json({"ok": True, "song": DB.get_song(song_id), "collections": DB.list_collections()})
+                return
+            if path == "/api/smart-library/preview":
+                rules = body.get("rules") if isinstance(body.get("rules"), list) else []
+                match_mode = str(body.get("match_mode") or "all")
+                matched = match_smart_collection(DB.export_rows(), rules, match_mode)
+                preview = [{"id": s.get("id"), "title": s.get("title"), "display_name": s.get("display_name"), "duration": s.get("duration")} for s in matched[:200]]
+                self._send_json({"ok": True, "count": len(matched), "songs": preview, "truncated": len(matched) > 200})
+                return
+            if path == "/api/smart-library/save":
+                name = str(body.get("name") or "").strip()
+                if not name:
+                    raise RuntimeError("Naziv pametne kolekcije je prazan.")
+                rules = body.get("rules") if isinstance(body.get("rules"), list) else []
+                if not rules:
+                    raise RuntimeError("Dodaj bar jedno pravilo.")
+                match_mode = str(body.get("match_mode") or "all")
+                collection_id = int(body.get("id") or 0) or None
+                saved = DB.save_smart_collection(name, match_mode, rules, collection_id)
+                self._send_json({"ok": True, "collection": saved})
+                return
+            if path == "/api/smart-library/delete":
+                deleted = DB.delete_smart_collection(int(body.get("id") or 0))
+                self._send_json({"ok": True, "deleted": deleted})
                 return
             if path == "/api/bulk/update":
                 ids = [str(x) for x in (body.get("ids") or []) if str(x)]

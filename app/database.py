@@ -395,6 +395,15 @@ class LibraryDB:
                 );
                 CREATE INDEX IF NOT EXISTS idx_subtitle_cues_song ON subtitle_cues(song_id, cue_index);
 
+                CREATE TABLE IF NOT EXISTS smart_collections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    match_mode TEXT NOT NULL DEFAULT 'all',
+                    rules_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE TABLE IF NOT EXISTS text_comparisons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     song_id TEXT NOT NULL,
@@ -1279,6 +1288,56 @@ class LibraryDB:
                 "models": models,
                 "months": months,
             }
+
+    def list_smart_collections(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = [dict(r) for r in conn.execute("SELECT * FROM smart_collections ORDER BY name COLLATE NOCASE").fetchall()]
+        for row in rows:
+            try:
+                row["rules"] = json.loads(row.pop("rules_json") or "[]")
+            except Exception:
+                row["rules"] = []
+        return rows
+
+    def get_smart_collection(self, collection_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM smart_collections WHERE id=?", (int(collection_id),)).fetchone()
+        if not row:
+            return None
+        result = dict(row)
+        try:
+            result["rules"] = json.loads(result.pop("rules_json") or "[]")
+        except Exception:
+            result["rules"] = []
+        return result
+
+    def save_smart_collection(self, name: str, match_mode: str, rules: list[dict[str, Any]], collection_id: int | None = None) -> dict[str, Any]:
+        name = str(name or "").strip()
+        if not name:
+            raise ValueError("Naziv pametne kolekcije je prazan.")
+        match_mode = "any" if str(match_mode or "all") == "any" else "all"
+        rules_json = json.dumps(rules or [], ensure_ascii=False)
+        with self._lock, self._connect() as conn:
+            if collection_id:
+                conn.execute(
+                    "UPDATE smart_collections SET name=?, match_mode=?, rules_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (name, match_mode, rules_json, int(collection_id)),
+                )
+                new_id = int(collection_id)
+            else:
+                cur = conn.execute(
+                    "INSERT INTO smart_collections(name,match_mode,rules_json) VALUES(?,?,?) "
+                    "ON CONFLICT(name) DO UPDATE SET match_mode=excluded.match_mode, rules_json=excluded.rules_json, updated_at=CURRENT_TIMESTAMP",
+                    (name, match_mode, rules_json),
+                )
+                row = conn.execute("SELECT id FROM smart_collections WHERE name=?", (name,)).fetchone()
+                new_id = int(row["id"]) if row else int(cur.lastrowid or 0)
+        return self.get_smart_collection(new_id) or {"id": new_id, "name": name, "match_mode": match_mode, "rules": rules or []}
+
+    def delete_smart_collection(self, collection_id: int) -> bool:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM smart_collections WHERE id=?", (int(collection_id),))
+            return cur.rowcount > 0
 
     def list_collections(self) -> list[dict[str, Any]]:
         with self._connect() as conn:

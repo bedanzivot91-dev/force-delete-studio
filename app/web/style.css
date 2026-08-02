@@ -1126,3 +1126,8 @@ body[data-theme="label-command"][data-motion="reduced"] .song-card:hover{transfo
 .stem-mixer-transport{align-items:center;gap:10px;margin-top:8px}
 .stem-mixer-transport input[type="range"]{flex:1}
 @media(max-width:760px){.stem-mixer-track{grid-template-columns:1fr;gap:8px}}
+
+/* Smart Library rule builder */
+.smart-rules-list{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.smart-rule-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center}
+@media(max-width:760px){.smart-rule-row{grid-template-columns:1fr}}
