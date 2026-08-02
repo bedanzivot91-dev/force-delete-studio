@@ -2669,6 +2669,9 @@ def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
         task.set_progress(idx, len(songs), title)
     DB.set_setting("song_finder_last_index_at", now_iso())
     no_audio = len(all_songs) - len(songs)
+    if not songs and all_songs:
+        task.finish(f"Nijedna od {len(all_songs)} pesama nema preuzet lokalni audio fajl, zato nema šta da se indeksira. Prvo pokreni preuzimanje pesama u kartici „Preuzimanje”, pa se vrati ovde.")
+        return
     task.finish(f"Indeksiranje završeno: {ok} obrađeno, {failed} neuspešno, {no_audio} pesama nema lokalni audio fajl.")
 
 
