@@ -252,6 +252,20 @@ jobs:
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_b.wav" -ss 10 -t 15 "$fixturesDir\clip_negative_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the negative clip" }
 
+          # Distorted variants of the SAME positive window (section 2.4 of
+          # the spec: speed changes, fades, noise, loudness normalization)
+          # -- the local matcher must still find these, not just pristine cuts.
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=1.03" "$fixturesDir\clip_speed_up_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the sped-up (1.03x) clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=0.97" "$fixturesDir\clip_slow_down_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the slowed-down (0.97x) clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "afade=t=in:st=0:d=2,afade=t=out:st=13:d=2" "$fixturesDir\clip_fade_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the fade-in/fade-out clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "loudnorm=I=-16:TP=-1.5:LRA=11" "$fixturesDir\clip_normalized_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the loudness-normalized clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -f lavfi -t 15 -i "anoisesrc=color=white:amplitude=0.06" -filter_complex "[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.25" "$fixturesDir\clip_noisy_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the background-noise clip" }
+
           $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) $dataDir)
           $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\downloads")
           $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\exports")
@@ -287,7 +301,12 @@ jobs:
             foreach ($case in @(
               @{ name = "15s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_15s.wav"; expectFound = $true },
               @{ name = "60s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_60s.wav"; expectFound = $true },
-              @{ name = "15s negative clip (from an UNINDEXED different song)"; path = "$fixturesDir\clip_negative_15s.wav"; expectFound = $false }
+              @{ name = "15s negative clip (from an UNINDEXED different song)"; path = "$fixturesDir\clip_negative_15s.wav"; expectFound = $false },
+              @{ name = "sped-up 1.03x clip (distortion matrix)"; path = "$fixturesDir\clip_speed_up_15s.wav"; expectFound = $true },
+              @{ name = "slowed-down 0.97x clip (distortion matrix)"; path = "$fixturesDir\clip_slow_down_15s.wav"; expectFound = $true },
+              @{ name = "fade in/out clip (distortion matrix)"; path = "$fixturesDir\clip_fade_15s.wav"; expectFound = $true },
+              @{ name = "loudness-normalized clip (distortion matrix)"; path = "$fixturesDir\clip_normalized_15s.wav"; expectFound = $true },
+              @{ name = "background-noise clip (distortion matrix)"; path = "$fixturesDir\clip_noisy_15s.wav"; expectFound = $true }
             )) {
               $full = Join-Path (Get-Location) $case.path
               $body = (@{ source_path = $full } | ConvertTo-Json)
