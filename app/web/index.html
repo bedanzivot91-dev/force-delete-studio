@@ -408,6 +408,17 @@
           <div id="shortsTextClipStatus" class="inline-message"></div>
         </div>
         <h3>Obrađene verzije</h3><div id="derivedFilesList" class="file-list"></div>
+        <div id="stemMixerPanel" class="panel form-panel hidden">
+          <h3>Mikser stemova</h3>
+          <p class="muted">Uskladi vokal, bubnjeve, bas i ostale izdvojene stemove iz poslednjeg izdvajanja — utišaj, solo, jačina i balans, svi u istom tempu. Radi u browseru (Web Audio), ne pravi nove fajlove dok ne sačuvaš mix.</p>
+          <div id="stemMixerTracks" class="stem-mixer-tracks"></div>
+          <div class="stem-mixer-transport button-row">
+            <button id="stemMixerPlayBtn" class="btn primary small">▶ Pusti mix</button>
+            <button id="stemMixerStopBtn" class="btn secondary small">■ Stani</button>
+            <input id="stemMixerSeek" type="range" min="0" max="1000" value="0" step="1">
+            <span id="stemMixerTime" class="muted">0:00 / 0:00</span>
+          </div>
+        </div>
       </div>
 
       <div id="modalTab-tags" class="modal-tab">

@@ -1111,3 +1111,18 @@ body[data-theme="label-command"] .theme-card.active{box-shadow:0 0 0 1px var(--l
 body[data-theme="label-command"][data-motion="reduced"] .song-card,body[data-theme="label-command"][data-motion="reduced"] .btn{transition:none!important}
 body[data-theme="label-command"][data-motion="reduced"] .song-card:hover{transform:none}
 @media(max-width:760px){body[data-theme="label-command"] .nav-item{font-size:0}}
+
+/* Stem mixer (mute/solo/volume/pan for separated stems) -- theme-neutral,
+   reuses existing .panel/.form-panel/.btn styling so it already looks
+   correct under every theme above without per-theme overrides. */
+.stem-mixer-tracks{display:flex;flex-direction:column;gap:10px;margin:10px 0}
+.stem-mixer-track{display:grid;grid-template-columns:1fr auto 1fr 1fr;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.stem-mixer-label{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stem-mixer-buttons{display:flex;gap:6px}
+.stem-mixer-buttons .stem-mute.active{background:rgba(220,38,38,.18);border-color:var(--red);color:#ffb4b4}
+.stem-mixer-buttons .stem-solo.active{background:rgba(234,179,8,.18);border-color:var(--yellow);color:#ffe38a}
+.stem-mixer-slider{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.stem-mixer-slider input[type="range"]{width:100%}
+.stem-mixer-transport{align-items:center;gap:10px;margin-top:8px}
+.stem-mixer-transport input[type="range"]{flex:1}
+@media(max-width:760px){.stem-mixer-track{grid-template-columns:1fr;gap:8px}}

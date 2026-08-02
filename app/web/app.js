@@ -390,6 +390,96 @@ function renderDerivedFiles(song) {
   const rows = song.derived_files || []; $('derivedFilesList').innerHTML = rows.length ? rows.map((f) => `<div class="file-item derived-item"><div><strong>${escapeHtml(f.label || 'Obrađena verzija')}</strong><span>${escapeHtml(String(f.format || '').toUpperCase())} · ${formatDuration(f.duration)} · ${escapeHtml(f.path)}</span></div><div class="derived-actions"><button class="link-button play-derived" data-id="${f.id}">Pusti</button><a href="/api/song/audio?file_id=${f.id}&download=1">Preuzmi</a><button class="link-button danger-text delete-derived" data-id="${f.id}">Obriši</button></div></div>`).join('') : '<p class="muted">Još nema obrađenih verzija.</p>';
   qsa('.play-derived', $('derivedFilesList')).forEach((b) => b.addEventListener('click', () => playSong(song, Number(b.dataset.id))));
   qsa('.delete-derived', $('derivedFilesList')).forEach((b) => b.addEventListener('click', async () => { if (!confirm('Obrisati ovu obrađenu verziju i njen fajl?')) return; try { await api('/api/derived/delete', { method: 'POST', body: { file_id: Number(b.dataset.id), delete_from_disk: true } }); await openSong(song.id, false); } catch (e) { toast(e.message, 'error'); } }));
+  renderStemMixer(song);
+}
+
+// -- Stem mixer: several synced <audio> elements (one per separated stem
+// file, e.g. vocals/drums/bass/other from htdemucs), each routed through
+// its own Web Audio GainNode + StereoPannerNode for real-time mute/solo/
+// volume/pan while staying in sync. Runs entirely client-side; it does not
+// touch the underlying stem files on disk. --
+let stemMixerCtx = null;
+let stemMixerTracks = [];
+let stemMixerTimer = null;
+
+function stopStemMixer() {
+  stemMixerTracks.forEach((t) => { try { t.audio.pause(); } catch (_) {} });
+  stemMixerTracks = [];
+  if (stemMixerTimer) { clearInterval(stemMixerTimer); stemMixerTimer = null; }
+  const tracksEl = $('stemMixerTracks'); if (tracksEl) tracksEl.innerHTML = '';
+}
+
+function stemMixTrackVolume(tracksEl, id) {
+  const el = tracksEl.querySelector(`.stem-volume[data-id="${id}"]`);
+  return el ? Number(el.value) / 100 : 1;
+}
+
+function applyStemMixState(tracksEl) {
+  const anySolo = stemMixerTracks.some((t) => t.solo);
+  stemMixerTracks.forEach((t) => {
+    const audible = anySolo ? t.solo : !t.muted;
+    t.gainNode.gain.value = audible ? stemMixTrackVolume(tracksEl, t.id) : 0;
+  });
+}
+
+function renderStemMixer(song) {
+  const panel = $('stemMixerPanel'); if (!panel) return;
+  stopStemMixer();
+  const stems = (song.derived_files || []).filter((f) => f.kind === 'stem');
+  if (stems.length < 2) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  const tracksEl = $('stemMixerTracks');
+  tracksEl.innerHTML = stems.map((f) => `
+    <div class="stem-mixer-track" data-id="${f.id}">
+      <div class="stem-mixer-label">${escapeHtml(f.label || 'Stem')}</div>
+      <div class="stem-mixer-buttons"><button class="btn ghost small stem-mute" data-id="${f.id}">Utišaj</button><button class="btn ghost small stem-solo" data-id="${f.id}">Solo</button></div>
+      <label class="stem-mixer-slider">Jačina<input type="range" class="stem-volume" data-id="${f.id}" min="0" max="150" value="100"></label>
+      <label class="stem-mixer-slider">Balans<input type="range" class="stem-pan" data-id="${f.id}" min="-100" max="100" value="0"></label>
+    </div>`).join('');
+  if (!stemMixerCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; stemMixerCtx = new AC(); }
+  stemMixerTracks = stems.map((f) => {
+    const audio = new Audio(`/api/song/audio?file_id=${f.id}`);
+    audio.preload = 'auto'; audio.crossOrigin = 'anonymous';
+    const source = stemMixerCtx.createMediaElementSource(audio);
+    const gainNode = stemMixerCtx.createGain();
+    const panNode = typeof stemMixerCtx.createStereoPanner === 'function' ? stemMixerCtx.createStereoPanner() : null;
+    if (panNode) source.connect(gainNode).connect(panNode).connect(stemMixerCtx.destination);
+    else source.connect(gainNode).connect(stemMixerCtx.destination);
+    return { id: f.id, audio, gainNode, panNode, muted: false, solo: false };
+  });
+  qsa('.stem-volume', tracksEl).forEach((el) => el.addEventListener('input', () => applyStemMixState(tracksEl)));
+  qsa('.stem-pan', tracksEl).forEach((el) => el.addEventListener('input', () => {
+    const track = stemMixerTracks.find((t) => t.id === Number(el.dataset.id));
+    if (track && track.panNode) track.panNode.pan.value = Number(el.value) / 100;
+  }));
+  qsa('.stem-mute', tracksEl).forEach((el) => el.addEventListener('click', () => {
+    const track = stemMixerTracks.find((t) => t.id === Number(el.dataset.id));
+    if (!track) return; track.muted = !track.muted; el.classList.toggle('active', track.muted); applyStemMixState(tracksEl);
+  }));
+  qsa('.stem-solo', tracksEl).forEach((el) => el.addEventListener('click', () => {
+    const track = stemMixerTracks.find((t) => t.id === Number(el.dataset.id));
+    if (!track) return; track.solo = !track.solo; el.classList.toggle('active', track.solo); applyStemMixState(tracksEl);
+  }));
+  applyStemMixState(tracksEl);
+  if (stemMixerTimer) clearInterval(stemMixerTimer);
+  stemMixerTimer = setInterval(() => {
+    const ref = stemMixerTracks[0]; if (!ref || !ref.audio.duration) return;
+    const seekEl = $('stemMixerSeek'); if (seekEl && !seekEl.matches(':active')) seekEl.value = String((ref.audio.currentTime / ref.audio.duration) * 1000);
+    $('stemMixerTime').textContent = `${formatDuration(ref.audio.currentTime)} / ${formatDuration(ref.audio.duration)}`;
+  }, 400);
+}
+
+async function playStemMix() {
+  if (!stemMixerTracks.length || !stemMixerCtx) return;
+  if (stemMixerCtx.state === 'suspended') await stemMixerCtx.resume();
+  const time = stemMixerTracks[0].audio.currentTime || 0;
+  stemMixerTracks.forEach((t) => { t.audio.currentTime = time; t.audio.play().catch(() => {}); });
+}
+function stopStemMixTransport() { stemMixerTracks.forEach((t) => t.audio.pause()); }
+function seekStemMix(value) {
+  const ref = stemMixerTracks[0]; if (!ref || !ref.audio.duration) return;
+  const target = (Number(value) / 1000) * ref.audio.duration;
+  stemMixerTracks.forEach((t) => { t.audio.currentTime = target; });
 }
 async function updateCurrent(fields, message = 'Promene su sačuvane.') { if (!state.currentSong) return; try { const data = await api('/api/song/update', { method: 'POST', body: { id: state.currentSong.id, fields } }); state.currentSong = data.song; await loadSongs(); toast(message, 'success'); return data.song; } catch (e) { toast(e.message, 'error'); } }
 
@@ -1105,13 +1195,14 @@ function bindEvents() {
   }); $('startDownloadBtn').addEventListener('click', () => startDownload(false)); $('chooseDownloadTargetBtn').addEventListener('click', () => chooseFolder('downloadTargetInput'));
   $('openSelectedAudioBtn').addEventListener('click', () => { const id = selectedIds()[0]; if (!id) return toast('Izaberi jednu pesmu u Biblioteci.', 'error'); openSong(id).then(() => switchModalTab('audio')); }); $('prepareAudioToolsBtn').addEventListener('click', prepareAudioTools); $('installAudioToolsSettingsBtn').addEventListener('click', prepareAudioTools);
   $('cancelTaskBtn').addEventListener('click', async () => { try { await api('/api/task/cancel', { method: 'POST', body: {} }); } catch (e) { toast(e.message, 'error'); } }); $('pauseTaskBtn').addEventListener('click',async()=>{try{const paused=$('pauseTaskBtn').dataset.paused==='1';const d=await api(paused?'/api/task/resume':'/api/task/pause',{method:'POST',body:{}});renderTask(d.task);}catch(e){toast(e.message,'error');}}); $('resetSyncCheckpointBtn').addEventListener('click',resetSyncCheckpoints);
-  qsa('[data-close-modal]').forEach((el) => el.addEventListener('click', () => $('songModal').classList.add('hidden'))); qsa('[data-modal-tab]').forEach((el) => el.addEventListener('click', () => switchModalTab(el.dataset.modalTab)));
+  qsa('[data-close-modal]').forEach((el) => el.addEventListener('click', () => { $('songModal').classList.add('hidden'); stopStemMixer(); })); qsa('[data-modal-tab]').forEach((el) => el.addEventListener('click', () => switchModalTab(el.dataset.modalTab)));
   $('modalPlayBtn').addEventListener('click', () => state.currentSong && playSong(state.currentSong)); $('modalDownloadBrowserBtn').addEventListener('click', () => state.currentSong && downloadFromUrl(`/api/song/audio?id=${encodeURIComponent(state.currentSong.id)}&download=1`)); $('modalSaveToFolderBtn').addEventListener('click', () => state.currentSong && saveToFolder([state.currentSong.id]));
   $('modalLyrics').addEventListener('input', updateTextStats); qsa('[data-text-action]').forEach((b) => b.addEventListener('click', () => transformLyrics(b.dataset.textAction))); $('replaceLyricsBtn').addEventListener('click', () => { const find = $('lyricsFind').value; if (!find) return; $('modalLyrics').value = $('modalLyrics').value.split(find).join($('lyricsReplace').value); updateTextStats(); }); $('saveLyricsBtn').addEventListener('click', () => updateCurrent({ lyrics: $('modalLyrics').value })); $('copyLyricsBtn').addEventListener('click', async () => { await navigator.clipboard.writeText($('modalLyrics').value); toast('Tekst je kopiran.', 'success'); }); qsa('.lyric-download').forEach((b) => b.addEventListener('click', () => state.currentSong && downloadFromUrl(`/api/song/text?id=${encodeURIComponent(state.currentSong.id)}&format=${b.dataset.format}`)));
   $('saveNotesBtn').addEventListener('click', () => updateCurrent({ notes: $('modalNotes').value, custom_tags: $('modalCustomTags').value, rating: Number($('modalRating').value || 0), favorite: $('modalFavorite').checked ? 1 : 0 })); $('copyPromptBtn').addEventListener('click', async () => { await navigator.clipboard.writeText($('modalPrompt').value); toast('Prompt je kopiran.', 'success'); });
   $('saveTagFieldsBtn').addEventListener('click', saveTagsToLibrary); $('writeMp3TagsBtn').addEventListener('click', writeMp3Tags); $('renameSongFilesBtn').addEventListener('click', renameSongFiles); $('saveFoldersBtn').addEventListener('click', saveFoldersAndPublication);
   $('previewFullBtn').addEventListener('click', () => state.currentSong && playSong(state.currentSong)); $('previewClipBtn').addEventListener('click', () => state.currentSong && playSong(state.currentSong, 0, Number($('trimStart').value || 0), Number($('trimEnd').value || state.currentSong.duration || 0))); $('setStartCurrentBtn').addEventListener('click', () => { $('trimStart').value = $('audioPlayer').currentTime.toFixed(1); drawWaveform(state.waveformPeaks); }); $('setEndCurrentBtn').addEventListener('click', () => { $('trimEnd').value = $('audioPlayer').currentTime.toFixed(1); drawWaveform(state.waveformPeaks); }); ['trimStart', 'trimEnd'].forEach((id) => $(id).addEventListener('input', () => drawWaveform(state.waveformPeaks)));
   qsa('[data-quick-clip]').forEach((b) => b.addEventListener('click', () => { const length = Number(b.dataset.quickClip); const start = Number($('trimStart').value || 0); $('trimEnd').value = length ? Math.min(Number(state.currentSong?.duration || start + length), start + length).toFixed(1) : Number(state.currentSong?.duration || 0).toFixed(1); drawWaveform(state.waveformPeaks); })); $('chooseProcessedFolderBtn').addEventListener('click', () => chooseFolder('processedTargetFolder')); $('quickCutBtn').addEventListener('click', () => processCurrentAudio('quick')); $('processAudioBtn').addEventListener('click', () => processCurrentAudio(null)); $('processSelectedBatchBtn').addEventListener('click', processSelectedBatch); $('shortsTeasersBtn')?.addEventListener('click', runShortsTeasers); $('shortsTextClipBtn')?.addEventListener('click', cutShortsByText);
+  $('stemMixerPlayBtn')?.addEventListener('click', playStemMix); $('stemMixerStopBtn')?.addEventListener('click', stopStemMixTransport); $('stemMixerSeek')?.addEventListener('input', (e) => seekStemMix(e.target.value));
   $('waveformCanvas').addEventListener('click', (e) => { const duration = Number(state.currentSong?.duration || 0); if (!duration) return; const rect = e.currentTarget.getBoundingClientRect(); const seconds = Math.max(0, Math.min(duration, (e.clientX - rect.left) / rect.width * duration)); $('audioPlayer').currentTime = seconds; });
   $('audioPlayer').addEventListener('timeupdate', () => { if (state.previewEnd !== null && $('audioPlayer').currentTime >= Number(state.previewEnd)) { $('audioPlayer').pause(); state.previewEnd = null; } }); $('audioPlayer').addEventListener('error', () => toast('Pesma nije mogla da se pusti. Pogledaj Dnevnik ili ponovo sinhronizuj podatke.', 'error', 8000)); $('audioPlayer').addEventListener('ended', playNextQueue); $('playerSpeed').addEventListener('change',()=>{$('audioPlayer').playbackRate=Number($('playerSpeed').value||1);}); $('repeatPlayerBtn').addEventListener('click',()=>{state.repeat=!state.repeat;$('repeatPlayerBtn').classList.toggle('active',state.repeat);toast(state.repeat?'Ponavljanje uključeno.':'Ponavljanje isključeno.','info');}); $('playQueueBtn').addEventListener('click',playSelectedQueue); $('closePlayerBtn').addEventListener('click', () => { $('audioPlayer').pause(); $('playerBar').classList.remove('visible'); });
   $('refreshLogsBtn').addEventListener('click', loadLogs); $('chooseSettingsFolderBtn').addEventListener('click', () => chooseFolder('downloadDirInput')); $('saveSettingsBtn').addEventListener('click', saveSettings); $('openDownloadFolderBtn').addEventListener('click', openFolder); $('backupBtn').addEventListener('click', backup); $('chooseRestoreFileBtn').addEventListener('click', chooseBackupFile); $('restoreBackupBtn').addEventListener('click', restoreBackup); $('runSelfTestBtn').addEventListener('click', runProgramSelfTest); $('exportDiagnosticsBtn').addEventListener('click', exportDiagnostics); $('refreshStorageBtn').addEventListener('click', loadStorageSummary); $('checkLibraryBtn').addEventListener('click', () => checkLibraryHealth(false)); $('repairLibraryBtn').addEventListener('click', () => { if (confirm('Očistiti samo putanje ka fajlovima koji više ne postoje? Postojeći fajlovi se ne brišu.')) checkLibraryHealth(true); }); qsa('.export-all').forEach((b) => b.addEventListener('click', () => exportData(b.dataset.format))); $('disconnectBtn').addEventListener('click', async () => { try { const data = await api('/api/connect/disconnect', { method: 'POST', body: {} }); toast(data.message, 'success'); loadStatus(); } catch (e) { toast(e.message, 'error'); } });
