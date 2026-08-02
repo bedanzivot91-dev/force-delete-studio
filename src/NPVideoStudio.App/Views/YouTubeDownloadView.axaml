@@ -55,6 +55,7 @@
         <StackPanel Orientation="Horizontal" Spacing="10">
           <Button Classes="cta" Content="Otvori u „Isečci iz pesme“" Command="{Binding OpenInHighlightsCommand}" />
           <Button Classes="ghost" Content="Otvori u „Pronađi tekst u pesmi“" Command="{Binding OpenInLyricSearchCommand}" />
+          <Button Classes="ghost" Content="Otvori u „Generiši titlove“" Command="{Binding OpenInSubtitleGeneratorCommand}" />
         </StackPanel>
       </StackPanel>
     </StackPanel>

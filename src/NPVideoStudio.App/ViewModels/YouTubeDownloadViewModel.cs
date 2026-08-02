@@ -51,6 +51,7 @@ public sealed partial class YouTubeDownloadViewModel : ViewModelBase
 
     public event Action<string>? OpenInHighlightsRequested;
     public event Action<string>? OpenInLyricSearchRequested;
+    public event Action<string>? OpenInSubtitleGeneratorRequested;
 
     public YouTubeDownloadViewModel(
         IYouTubeDownloadService downloadService, IStorageService storageService, ISettingsService settingsService, ILogger logger)
@@ -172,6 +173,15 @@ public sealed partial class YouTubeDownloadViewModel : ViewModelBase
         if (DownloadedFilePath is not null)
         {
             OpenInLyricSearchRequested?.Invoke(DownloadedFilePath);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenInSubtitleGenerator()
+    {
+        if (DownloadedFilePath is not null)
+        {
+            OpenInSubtitleGeneratorRequested?.Invoke(DownloadedFilePath);
         }
     }
 }

@@ -32,6 +32,9 @@
     <DataTemplate DataType="vm:YouTubeDownloadViewModel">
       <views:YouTubeDownloadView />
     </DataTemplate>
+    <DataTemplate DataType="vm:SubtitleGeneratorViewModel">
+      <views:SubtitleGeneratorView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

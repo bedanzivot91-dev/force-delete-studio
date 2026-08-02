@@ -2,150 +2,43 @@ using System.Diagnostics;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
 using NPVideoStudio.Media;
-using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace NPVideoStudio.AI;
 
 /// <summary>
-/// Finds a typed lyric phrase inside a song using a local Whisper speech-recognition model, then can
-/// cut the matched moment out as a clip. Singing recognition is far less reliable than spoken speech,
-/// so results always carry a confidence score and the raw recognized text - never a bare "found it".
-/// The model (~75 MB) is only ever downloaded after the caller explicitly asks (spec §38).
+/// Finds a typed lyric phrase inside a song using a local Whisper speech-recognition model (via
+/// <see cref="WhisperTranscriber"/>), then can cut the matched moment out as a clip. Singing recognition
+/// is far less reliable than spoken speech, so results always carry a confidence score and the raw
+/// recognized text - never a bare "found it".
 /// </summary>
 public sealed class LyricSearchService : ILyricSearchService
 {
+    private readonly WhisperTranscriber _transcriber;
     private readonly string _ffmpegPath;
-    private readonly string _modelPath;
 
     public LyricSearchService(string? ffmpegOverridePath = null, string? modelPathOverride = null)
     {
+        _transcriber = new WhisperTranscriber(ffmpegOverridePath, modelPathOverride);
         _ffmpegPath = FfmpegLocator.ResolveFfmpegPath(ffmpegOverridePath);
-        _modelPath = modelPathOverride ?? Path.Combine(AppSettings.ModelsFolder(), "ggml-tiny.bin");
     }
 
-    public bool IsModelReady => File.Exists(_modelPath);
+    public bool IsModelReady => _transcriber.IsModelReady;
 
-    public string ModelSizeLabel => "~75 MB (Whisper tiny, radi lokalno bez interneta nakon preuzimanja)";
+    public string ModelSizeLabel => _transcriber.ModelSizeLabel;
 
-    public async Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
-    {
-        var directory = Path.GetDirectoryName(_modelPath)!;
-        Directory.CreateDirectory(directory);
-
-        progress?.Report("Preuzimanje modela za prepoznavanje govora...");
-        var tempPath = _modelPath + ".tmp";
-
-        try
-        {
-            await using var modelStream = await WhisperGgmlDownloader.Default.GetGgmlModelAsync(
-                GgmlType.Tiny, QuantizationType.NoQuantization, cancellationToken);
-            await using (var fileStream = File.Create(tempPath))
-            {
-                await modelStream.CopyToAsync(fileStream, cancellationToken);
-            }
-
-            File.Move(tempPath, _modelPath, overwrite: true);
-            progress?.Report("Model je preuzet i spreman za upotrebu.");
-        }
-        catch (Exception ex)
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
-            throw new InvalidOperationException($"Preuzimanje modela nije uspelo: {ex.Message}", ex);
-        }
-    }
+    public Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
+        _transcriber.DownloadModelAsync(progress, cancellationToken);
 
     public async Task<IReadOnlyList<LyricMatch>> FindPhraseInSongAsync(
         string audioFilePath, string phrase, CancellationToken cancellationToken = default)
     {
-        if (!IsModelReady)
-        {
-            throw new InvalidOperationException(
-                "Model za prepoznavanje govora nije preuzet. Idite u Podešavanja → AI modeli i preuzmite ga.");
-        }
-
-        if (!File.Exists(audioFilePath))
-        {
-            throw new FileNotFoundException("Audio fajl nije pronađen.", audioFilePath);
-        }
-
         if (string.IsNullOrWhiteSpace(phrase))
         {
             throw new ArgumentException("Unesite tekst koji se traži.", nameof(phrase));
         }
 
-        var wavPath = Path.Combine(Path.GetTempPath(), $"npvs_lyric_{Guid.NewGuid():N}.wav");
-        try
-        {
-            await ConvertToWhisperWavAsync(audioFilePath, wavPath, cancellationToken);
-            var segments = await TranscribeAsync(wavPath, cancellationToken);
-            var transcribed = segments.Select(s => new TranscribedSegment(s.Start, s.End, s.Text)).ToList();
-            return LyricMatcher.Search(transcribed, phrase);
-        }
-        finally
-        {
-            if (File.Exists(wavPath))
-            {
-                File.Delete(wavPath);
-            }
-        }
-    }
-
-    private async Task ConvertToWhisperWavAsync(string inputPath, string outputWavPath, CancellationToken cancellationToken)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = _ffmpegPath,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
-
-        process.StartInfo.ArgumentList.Add("-y");
-        process.StartInfo.ArgumentList.Add("-i");
-        process.StartInfo.ArgumentList.Add(inputPath);
-        process.StartInfo.ArgumentList.Add("-ar");
-        process.StartInfo.ArgumentList.Add("16000");
-        process.StartInfo.ArgumentList.Add("-ac");
-        process.StartInfo.ArgumentList.Add("1");
-        process.StartInfo.ArgumentList.Add("-c:a");
-        process.StartInfo.ArgumentList.Add("pcm_s16le");
-        process.StartInfo.ArgumentList.Add(outputWavPath);
-
-        process.Start();
-        var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var stdErr = await stdErrTask;
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(stdErr)
-                ? $"Priprema audio fajla nije uspela (kod {process.ExitCode})."
-                : stdErr.Trim());
-        }
-    }
-
-    private async Task<List<SegmentData>> TranscribeAsync(string wavPath, CancellationToken cancellationToken)
-    {
-        using var factory = WhisperFactory.FromPath(_modelPath);
-        using var processor = factory.CreateBuilder()
-            .WithLanguage("auto")
-            .Build();
-
-        var segments = new List<SegmentData>();
-        await using var stream = File.OpenRead(wavPath);
-        await foreach (var segment in processor.ProcessAsync(stream, cancellationToken))
-        {
-            segments.Add(segment);
-        }
-
-        return segments;
+        var segments = await _transcriber.TranscribeAsync(audioFilePath, cancellationToken);
+        return LyricMatcher.Search(segments, phrase);
     }
 
     public async Task ExportMatchAsync(

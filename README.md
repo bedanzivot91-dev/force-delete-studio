@@ -50,12 +50,18 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   pesma napravljena u Suno-u i postavljena na sopstveni kanal), program preko yt-dlp učita naslov,
   kanal i trajanje, tražite da potvrdite da je sadržaj vaš, pa preuzima kompletan audio kao MP3. Radi
   isključivo sa YouTube linkovima (youtube.com/youtu.be) - nije opšti downloader za tuđe video. Preuzeti
-  fajl se jednim klikom otvara direktno u alatima „Isečci iz pesme" ili „Pronađi tekst u pesmi".
+  fajl se jednim klikom otvara direktno u alatima „Isečci iz pesme", „Pronađi tekst u pesmi" ili
+  „Generiši titlove".
+- **Generiši titlove (SRT)** (Alati → Generiši titlove): učitate audio ili video fajl, program ga
+  lokalno transkribuje preko Whisper-a (isti model kao za pretragu teksta) i sačuva standardni `.srt`
+  fajl sa tačnim vremenima svake linije - spreman za otpremanje na YouTube/TikTok/Reels ili uvoz u bilo
+  koji drugi editor. Ovo je samostalan `.srt` fajl, ne titlovi urezani u sliku na NP Video Studio
+  timeline-u (to je i dalje planirano za kasniju fazu, videti ispod).
 
-Sve navedeno je pokriveno sa 60 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 70 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
-dijagnostika rade bez grešaka. Tri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
+dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
 gde ima interneta do huggingface.co (radi na CI-ju i na krajnjem korisničkom računaru; ne radi u
 ograničenom razvojnom sandboxu bez tog pristupa - videćete jasno zbog čega u samom testu).
 
@@ -65,8 +71,9 @@ Ovo je **jasno označeno u samom programu** (dugmad su vidljivo onemogućena, sa
 razvoju"), ne prikazuje se kao gotovo:
 
 - Timeline montaža: sečenje, trake, prelazi, keyframe animacije.
-- Tekstualni sistem i automatski titlovi za video (Whisper transkripcija sada postoji za pretragu
-  teksta u pesmi, ali još nije povezana sa generisanjem titlova na video timeline-u).
+- Tekstualni sistem na video timeline-u i titlovi urezani u sliku (Whisper transkripcija sada postoji i
+  za pretragu teksta u pesmi i za izvoz samostalnog `.srt` fajla, ali još nije povezana sa timeline-om
+  za titlove urezane u samu sliku videa).
 - Video-efekti, maske, chroma key, prelazi.
 - Audio editor (EQ, noise reduction, ducking...), snimanje mikrofona.
 - Render/export videa (MP4/H.264 i ostali formati).
@@ -154,6 +161,12 @@ Na početnom ekranu, sekcija „Alati" → „Preuzmi sa YouTube-a". Nalepite li
 „Preuzmi pesmu". Nakon preuzimanja, dugmad „Otvori u Isečci iz pesme" / „Otvori u Pronađi tekst u
 pesmi" vode direktno u odgovarajući alat sa već učitanim fajlom.
 
+### Generisanje titlova (SRT)
+
+Na početnom ekranu, sekcija „Alati" → „Generiši titlove (SRT)". Izaberite audio ili video fajl,
+kliknite „Generiši titlove", izaberite gde da se sačuva `.srt` fajl. Program ga lokalno transkribuje i
+sačuva sa tačnim vremenima - spreman za otpremanje na YouTube/TikTok/Reels ili uvoz u drugi editor.
+
 ### Tekst, titlovi, animacije, efekti, export
 
 Ove funkcije su planirane za naredne faze i još nisu deo programa — videćete ih jasno označene kao „u
@@ -219,7 +232,7 @@ src/
   NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics...)
   NPVideoStudio.Infrastructure/  SQLite, JSON perzistencija, auto-save, logovanje (Serilog)
   NPVideoStudio.Media/           FFprobe analiza, isečci iz pesme (FFmpeg astats), YouTube preuzimanje (yt-dlp)
-  NPVideoStudio.AI/              Lokalna Whisper transkripcija za pretragu teksta u pesmi
+  NPVideoStudio.AI/              Lokalna Whisper transkripcija: pretraga teksta u pesmi, SRT titlovi
   NPVideoStudio.Diagnostics/     Sistemska dijagnostika i paket za podršku
 tests/
   NPVideoStudio.UnitTests/       xUnit + Avalonia.Headless testovi

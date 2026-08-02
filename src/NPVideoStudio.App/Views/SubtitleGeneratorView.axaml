@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.SubtitleGeneratorView"
+             x:DataType="vm:SubtitleGeneratorViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="820">
+      <StackPanel Spacing="2">
+        <TextBlock Text="ALAT ZA PESME" Classes="eyebrow" />
+        <TextBlock Text="Generiši titlove (SRT)" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Učitajte audio ili video fajl, program ga lokalno transkribuje preko Whisper-a i sačuva standardni .srt fajl sa tačnim vremenima - spreman za otpremanje na YouTube/TikTok/Reels ili uvoz u bilo koji drugi editor. Prepoznavanje pevanja je manje pouzdano od govora - uvek proverite titlove pre upotrebe." />
+
+      <Border Classes="panel" Padding="20" IsVisible="{Binding !IsModelReady}"
+              Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Potreban je lokalni model za prepoznavanje govora" FontWeight="SemiBold" />
+          <TextBlock Classes="subtle" Text="{Binding ModelSizeLabel}" TextWrapping="Wrap" />
+          <TextBlock Classes="subtle" Text="{Binding ModelStatusMessage}" TextWrapping="Wrap"
+                     IsVisible="{Binding ModelStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+          <Button Classes="cta" Content="Preuzmi model" Command="{Binding DownloadModelCommand}"
+                  IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Audio ili video fajl" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding SelectedFileName}" IsReadOnly="True" Watermark="Nijedan fajl nije izabran" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi fajl..." Command="{Binding PickFileCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <Button Classes="cta" Content="Generiši titlove" Command="{Binding GenerateCommand}"
+                  IsEnabled="{Binding !IsGenerating}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
+                 IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <Button Classes="ghost" Content="Otvori .srt fajl" Command="{Binding OpenGeneratedSrtCommand}"
+              HorizontalAlignment="Left" IsVisible="{Binding HasGeneratedSrt}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -69,6 +69,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<ILyricSearchService>(_ => new LyricSearchService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IYouTubeDownloadService>(_ =>
             new YouTubeDownloadService(settingsService.Current.FfmpegPath, settingsService.Current.YtDlpPath));
+        services.AddSingleton<ISubtitleGeneratorService>(_ => new SubtitleGeneratorService(settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
@@ -76,6 +77,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<SongHighlightsViewModel>();
         services.AddTransient<LyricSearchViewModel>();
         services.AddTransient<YouTubeDownloadViewModel>();
+        services.AddTransient<SubtitleGeneratorViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

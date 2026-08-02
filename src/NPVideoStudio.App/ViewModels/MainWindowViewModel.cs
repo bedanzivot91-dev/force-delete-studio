@@ -42,6 +42,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
         vm.LyricSearchRequested += () => CurrentPage = _services.GetRequiredService<LyricSearchViewModel>();
         vm.YouTubeDownloadRequested += () => CurrentPage = CreateYouTubeDownloadPage();
+        vm.SubtitleGeneratorRequested += () => CurrentPage = _services.GetRequiredService<SubtitleGeneratorViewModel>();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
@@ -52,6 +53,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var vm = _services.GetRequiredService<YouTubeDownloadViewModel>();
         vm.OpenInHighlightsRequested += path => CurrentPage = CreateSongHighlightsPage(path);
         vm.OpenInLyricSearchRequested += path => CurrentPage = CreateLyricSearchPage(path);
+        vm.OpenInSubtitleGeneratorRequested += path => CurrentPage = CreateSubtitleGeneratorPage(path);
         return vm;
     }
 
@@ -65,6 +67,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private LyricSearchViewModel CreateLyricSearchPage(string preloadedFilePath)
     {
         var vm = _services.GetRequiredService<LyricSearchViewModel>();
+        vm.LoadFile(preloadedFilePath);
+        return vm;
+    }
+
+    private SubtitleGeneratorViewModel CreateSubtitleGeneratorPage(string preloadedFilePath)
+    {
+        var vm = _services.GetRequiredService<SubtitleGeneratorViewModel>();
         vm.LoadFile(preloadedFilePath);
         return vm;
     }
