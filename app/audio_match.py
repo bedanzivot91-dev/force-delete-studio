@@ -557,16 +557,30 @@ def _chromaprint_bit_similarity(a: int, b: int) -> float:
     return 1.0 - ((int(a) ^ int(b)).bit_count() / 32.0)
 
 
-def _chromaprint_candidates(source: dict[str, Any], video: dict[str, Any]) -> list[dict[str, Any]]:
-    src = [int(x) for x in (source.get("chromaprint") or [])]
-    vid = [int(x) for x in (video.get("chromaprint") or [])]
-    if len(src) < 80 or len(vid) < 80:
+def _resample_int_sequence(seq: list[int], new_len: int) -> list[int]:
+    """Nearest-neighbor resample, used to test a global speed/tempo
+    hypothesis: a clip played back at T times the original speed has its
+    fingerprint sequence compressed/expanded by T relative to the source,
+    which a fixed 1:1 frame-offset search can't compensate for on its own."""
+    if new_len <= 0 or not seq:
         return []
-    source_duration = float(source.get("duration") or 0)
-    video_duration = float(video.get("duration") or 0)
-    src_step = source_duration / len(src) if source_duration > 0 else 0.128
-    vid_step = video_duration / len(vid) if video_duration > 0 else src_step
-    min_frames = max(60, int(10.0 / max(src_step, 0.05)))
+    if new_len == len(seq):
+        return list(seq)
+    scale = len(seq) / new_len
+    return [seq[min(len(seq) - 1, int(i * scale))] for i in range(new_len)]
+
+
+# A modest global speed change is common (Shorts/reels sped up or slowed
+# down for pacing) and would otherwise silently defeat the fixed 1:1
+# frame-offset comparison below. 1.0 (no change) is tried first and alone
+# covers the overwhelming majority of real matches cheaply; the other
+# hypotheses only run when that pass didn't already find a solid match, to
+# avoid paying this ~5x search cost on every ordinary comparison.
+_TEMPO_HYPOTHESES = (1.0, 1.03, 0.97, 1.08, 0.93)
+_TEMPO_HYPOTHESIS_GOOD_ENOUGH_RANK = 0.60
+
+
+def _chromaprint_offset_search(src: list[int], vid: list[int], src_step: float, vid_step: float, min_frames: int, tempo_hint: float) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     for offset in range(-len(src) + min_frames, len(vid) - min_frames + 1):
         src_start = max(0, -offset)
@@ -591,8 +605,34 @@ def _chromaprint_candidates(source: dict[str, Any], video: dict[str, Any]) -> li
             "frames": seg_len, "source_start": source_index * src_step,
             "source_end": source_index * src_step + duration_sec,
             "video_start": video_index * vid_step, "video_end": video_index * vid_step + duration_sec,
-            "matched_seconds": duration_sec, "metric": "chromaprint",
+            "matched_seconds": duration_sec, "metric": "chromaprint", "tempo_hint": tempo_hint,
         })
+    return candidates
+
+
+def _chromaprint_candidates(source: dict[str, Any], video: dict[str, Any]) -> list[dict[str, Any]]:
+    src = [int(x) for x in (source.get("chromaprint") or [])]
+    vid_original = [int(x) for x in (video.get("chromaprint") or [])]
+    if len(src) < 80 or len(vid_original) < 80:
+        return []
+    source_duration = float(source.get("duration") or 0)
+    video_duration = float(video.get("duration") or 0)
+    src_step = source_duration / len(src) if source_duration > 0 else 0.128
+    min_frames = max(60, int(10.0 / max(src_step, 0.05)))
+
+    baseline_vid_step = video_duration / len(vid_original) if video_duration > 0 else src_step
+    candidates = _chromaprint_offset_search(src, vid_original, src_step, baseline_vid_step, min_frames, 1.0)
+    if candidates and max(float(c["rank"]) for c in candidates) >= _TEMPO_HYPOTHESIS_GOOD_ENOUGH_RANK:
+        return candidates
+
+    for hypothesis in _TEMPO_HYPOTHESES:
+        if hypothesis == 1.0:
+            continue
+        resampled = _resample_int_sequence(vid_original, max(80, round(len(vid_original) * hypothesis)))
+        if len(resampled) < 80:
+            continue
+        vid_step = video_duration / len(resampled) if video_duration > 0 else src_step
+        candidates.extend(_chromaprint_offset_search(src, resampled, src_step, vid_step, min_frames, hypothesis))
     return candidates
 
 
