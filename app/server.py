@@ -929,6 +929,12 @@ def scan_global_youtube(task: TaskState, options: dict[str, Any]) -> None:
     results_per_query = max(5, min(int(options.get("results_per_song") or 20), 50))
     max_queries = max(1, min(int(options.get("query_variants") or 3), 5))
     max_pages = max(1, min(int(options.get("max_pages") or 1), 2))
+    # Off by default: a title match is only ever a candidate, and audio
+    # confirmation normally needs an explicit "Potvrdi audio" click precisely
+    # because downloading+fingerprinting is real bandwidth/time cost per
+    # video. When the user explicitly opts in, this budget lets the scan
+    # itself confirm the top few candidates instead of requiring N clicks.
+    auto_confirm_budget = max(0, min(int(options.get("auto_confirm_budget") or 0), 20))
     api_call_budget = max(1, min(int(options.get("api_call_budget") or 80), 95))
     cookie_browser = DB.get_setting("youtube_cookies_browser", "none")
     run_id = DB.start_youtube_scan_run("global_search", len(owned_ids), len(songs))
@@ -1002,7 +1008,7 @@ def scan_global_youtube(task: TaskState, options: dict[str, Any]) -> None:
                 if float(match.get("score") or 0) < threshold:
                     continue
                 DB.upsert_youtube_video(video, is_owned_channel=is_owned)
-                DB.upsert_youtube_match(str(song["id"]), str(video["video_id"]), match)
+                match_row = DB.upsert_youtube_match(str(song["id"]), str(video["video_id"]), match)
                 local_count += 1
                 candidates += 1
                 if not is_owned:
@@ -1011,6 +1017,15 @@ def scan_global_youtube(task: TaskState, options: dict[str, Any]) -> None:
                         DB.add_songs_to_collection(int(suspicious_collection["id"]), [str(song["id"])])
                 if found_collection:
                     DB.add_songs_to_collection(int(found_collection["id"]), [str(song["id"])])
+                if auto_confirm_budget > 0 and not str(match_row.get("audio_checked_at") or ""):
+                    try:
+                        task.log(f"Automatska audio potvrda: {video.get('title')}", "info")
+                        _analyse_video_against_songs(task, video, [song], owned_ids, options)
+                        auto_confirm_budget -= 1
+                    except (AudioMatchCancelled, AudioCancelled):
+                        raise
+                    except Exception as exc:
+                        task.log(f"Audio potvrda nije uspela za „{video.get('title')}“: {exc}", "warning")
             task.log(
                 f"„{title}“: pregledano {len(by_id)} jedinstvenih videa, pronađeno {local_count} kandidata ({external_count} van tvojih kanala).",
                 "success" if local_count else "info",
