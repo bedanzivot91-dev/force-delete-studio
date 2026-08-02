@@ -46,6 +46,19 @@ AndroidX (core, lifecycle,
 Material Components / Material3  Apache-2.0
 Gradle                           Apache-2.0   https://gradle.org
 
+== Maintenance note (5 new themes, fingerprint duplicate check, BPM/key
+   estimate, subtitle VTT export, stem mixer, Smart Library, Version Lab,
+   Release Center) ==
+
+All eight features above were implemented using only: Python's standard
+library (math, array, subprocess, json, sqlite3, shutil, hashlib), the
+existing FFmpeg CLI already listed above, and the browser's native Web
+Audio API (built into every browser engine, not a third-party package).
+No new Python package, Go module, or Android dependency was added, no
+code was copied from MusicBrainz Picard, Panako was not embedded (the
+existing bring-your-own-jar flow is unchanged), and no GPL/AGPL
+dependency was introduced. This file did not need a new entry.
+
 == This project's own code ==
 
 Suno Pesme Studio 3.3.2 application code (app/, plugins/, app/web/,
