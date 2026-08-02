@@ -13,26 +13,54 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $repoRoot 'publish\win-x64'
 $distDir = Join-Path $repoRoot 'dist'
+$portableDir = Join-Path $distDir 'NPVideoStudio-Portable-x64'
 
-Write-Host "== 1/4: Cišćenje prethodnog build-a ==" -ForegroundColor Cyan
+$versionMatch = Select-String -Path (Join-Path $repoRoot 'Directory.Build.props') -Pattern '<Version>(.*?)</Version>'
+$version = if ($versionMatch) { $versionMatch.Matches[0].Groups[1].Value } else { '0.0.0' }
+Write-Host "Verzija: $version" -ForegroundColor Cyan
+
+Write-Host "== 1/5: Cišćenje prethodnog build-a ==" -ForegroundColor Cyan
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
+if (Test-Path $portableDir) { Remove-Item $portableDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
-Write-Host "== 2/4: dotnet publish (self-contained, win-x64) ==" -ForegroundColor Cyan
+Write-Host "== 2/5: dotnet publish (self-contained, win-x64) ==" -ForegroundColor Cyan
 dotnet publish (Join-Path $repoRoot 'src\NPVideoStudio.App\NPVideoStudio.App.csproj') `
     -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=false `
     -o $publishDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish nije uspeo (kod $LASTEXITCODE)." }
 
-Write-Host "== 3/4: Pravljenje portable ZIP verzije ==" -ForegroundColor Cyan
-$zipPath = Join-Path $distDir 'NPVideoStudio-Portable.zip'
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
-Write-Host "Portable verzija: $zipPath" -ForegroundColor Green
+Write-Host "== 3/5: Ciscenje release paketa (PDB fajlovi, native biblioteke za druge platforme) ==" -ForegroundColor Cyan
+Get-ChildItem -Path $publishDir -Filter '*.pdb' -Recurse | Remove-Item -Force
+$runtimesDir = Join-Path $publishDir 'runtimes'
+if (Test-Path $runtimesDir) {
+    Get-ChildItem -Path $runtimesDir -Directory | Where-Object { $_.Name -ne 'win-x64' } | Remove-Item -Recurse -Force
+}
+Write-Host "Uklonjeni PDB fajlovi i runtime folderi osim win-x64." -ForegroundColor Green
 
-Write-Host "== 4/4: Pravljenje Windows instalacije (Inno Setup) ==" -ForegroundColor Cyan
+Write-Host "== 4/5: Pravljenje portable ZIP verzije ==" -ForegroundColor Cyan
+New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+Copy-Item -Path (Join-Path $publishDir '*') -Destination $portableDir -Recurse -Force
+Set-Content -Path (Join-Path $portableDir 'VERSION.txt') -Value $version
+Set-Content -Path (Join-Path $portableDir 'README-FIRST.txt') -Value @"
+NP Video Studio - Portable verzija $version
+
+Ovo je portable (bez instalacije) verzija programa - raspakujte ovaj folder bilo gde na disku i
+pokrenite NPVideoStudio.exe direktno.
+
+Ako neki alat (FFmpeg, FFprobe, yt-dlp) nije pronadjen, pokrenite scripts\check-dependencies.ps1 iz
+izvornog koda ili instalirajte alat rucno i podesite putanju u Podesavanja unutar programa.
+"@
+
+$zipPath = Join-Path $distDir "NPVideoStudio-Portable-x64-$version.zip"
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+Compress-Archive -Path (Join-Path $portableDir '*') -DestinationPath $zipPath
+Write-Host "Portable verzija: $zipPath" -ForegroundColor Green
+Write-Host "Portable folder (za CI artifact, izbegava ZIP-u-ZIP-u): $portableDir" -ForegroundColor Green
+
+Write-Host "== 5/5: Pravljenje Windows instalacije (Inno Setup) ==" -ForegroundColor Cyan
 $iscc = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue
 if ($null -eq $iscc) {
     Write-Host "ISCC.exe (Inno Setup) nije pronadjen na PATH-u." -ForegroundColor Yellow

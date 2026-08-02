@@ -35,6 +35,9 @@
     <DataTemplate DataType="vm:SubtitleGeneratorViewModel">
       <views:SubtitleGeneratorView />
     </DataTemplate>
+    <DataTemplate DataType="vm:DependencyManagerViewModel">
+      <views:DependencyManagerView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

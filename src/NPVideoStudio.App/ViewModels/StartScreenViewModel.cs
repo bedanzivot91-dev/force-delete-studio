@@ -50,6 +50,7 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? LyricSearchRequested;
     public event Action? YouTubeDownloadRequested;
     public event Action? SubtitleGeneratorRequested;
+    public event Action? DependencyManagerRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -148,6 +149,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenDiagnostics() => DiagnosticsRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenDependencyManager() => DependencyManagerRequested?.Invoke();
 
     [RelayCommand]
     private void OpenSongHighlights() => SongHighlightsRequested?.Invoke();

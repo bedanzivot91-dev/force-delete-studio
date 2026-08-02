@@ -57,6 +57,38 @@
         </StackPanel>
       </Border>
 
+      <TextBlock Text="Alati" Classes="section" />
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="18">
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Ostavite prazno da program sam pronađe alat (pored programa ili u PATH-u). Stvarno stanje svakog alata proverite na ekranu „Alati i modeli“. Izmena ovde važi tek posle ponovnog pokretanja programa." />
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="FFmpeg putanja" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding FfmpegPath}" Watermark="Automatski pronađi" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi..." Command="{Binding BrowseFfmpegPathCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="FFprobe putanja" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding FfprobePath}" Watermark="Automatski pronađi" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi..." Command="{Binding BrowseFfprobePathCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="yt-dlp putanja" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding YtDlpPath}" Watermark="Automatski pronađi" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi..." Command="{Binding BrowseYtDlpPathCommand}" />
+            </Grid>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
       <TextBlock Text="{Binding StatusMessage}" Classes="subtle" IsVisible="{Binding HasStatusMessage}" />
 
       <StackPanel Orientation="Horizontal" Spacing="10">

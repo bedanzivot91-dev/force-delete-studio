@@ -146,6 +146,12 @@
             <TextBlock Text="Dijagnostika sistema" FontWeight="SemiBold" />
           </StackPanel>
         </Button>
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenDependencyManagerCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="🧩" /></Border>
+            <TextBlock Text="Alati i modeli" FontWeight="SemiBold" />
+          </StackPanel>
+        </Button>
         <ItemsControl ItemsSource="{Binding PlannedFeatures}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>

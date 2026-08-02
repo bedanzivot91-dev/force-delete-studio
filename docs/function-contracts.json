@@ -46,7 +46,9 @@
     { "id": "settings.browse-cache-folder", "screen": "SettingsView", "control": "Izaberi... (cache)", "command": "BrowseCacheFolderCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" },
     { "id": "settings.save", "screen": "SettingsView", "control": "Sačuvaj podešavanja", "command": "SaveCommand", "viewModel": "SettingsViewModel", "service": "ISettingsService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "SettingsServiceTests.cs (service-level)" },
     { "id": "settings.reset", "screen": "SettingsView", "control": "Vrati podrazumevano", "command": "ResetToDefaultsCommand", "viewModel": "SettingsViewModel", "service": "ISettingsService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "SettingsServiceTests.cs (service-level)" },
-    { "id": "settings.tool-paths", "screen": "SettingsView", "control": "FFmpeg/FFprobe/yt-dlp path fields", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "AppSettings has the fields; no UI exposes them" },
+    { "id": "settings.browse-ffmpeg-path", "screen": "SettingsView", "control": "FFmpeg putanja: Izaberi...", "command": "BrowseFfmpegPathCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "Phase 1: added, not yet exercised by an automated test" },
+    { "id": "settings.browse-ffprobe-path", "screen": "SettingsView", "control": "FFprobe putanja: Izaberi...", "command": "BrowseFfprobePathCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "Phase 1: added, not yet exercised by an automated test" },
+    { "id": "settings.browse-ytdlp-path", "screen": "SettingsView", "control": "yt-dlp putanja: Izaberi...", "command": "BrowseYtDlpPathCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "Phase 1: added, not yet exercised by an automated test" },
     { "id": "settings.ai-model-section", "screen": "SettingsView", "control": "AI modeli section", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "master-prompt-requested, does not exist" },
     { "id": "settings.captions-section", "screen": "SettingsView", "control": "Titlovi section", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "master-prompt-requested, does not exist" },
     { "id": "settings.export-section", "screen": "SettingsView", "control": "Izvoz section", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "master-prompt-requested, does not exist" },
@@ -54,7 +56,11 @@
     { "id": "diagnostics.run-checks", "screen": "DiagnosticsView", "control": "Pokreni ponovo", "command": "RunChecksCommand", "viewModel": "DiagnosticsViewModel", "service": "IDiagnosticsService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "DiagnosticsServiceTests.cs (5 tests, service-level)" },
     { "id": "diagnostics.support-package", "screen": "DiagnosticsView", "control": "Napravi paket za podršku", "command": "CreateSupportPackageCommand", "viewModel": "DiagnosticsViewModel", "service": "IDiagnosticsService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "DiagnosticsServiceTests.cs (service-level)" },
     { "id": "diagnostics.auto-fix", "screen": "DiagnosticsView", "control": "Pokušaj automatsku popravku", "command": "DiagnosticCheckItemViewModel.AutoFixCommand", "viewModel": "DiagnosticCheckItemViewModel", "service": "IDiagnosticsService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "DiagnosticsServiceTests.cs (service-level)" },
-    { "id": "diagnostics.dependency-manager-screen", "screen": "DiagnosticsView", "control": "Alati i modeli screen", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "master-prompt-requested, does not exist" },
+    { "id": "start.open-dependency-manager", "screen": "StartScreenView", "control": "Alati i modeli tile", "command": "OpenDependencyManagerCommand", "viewModel": "StartScreenViewModel", "service": null, "status": "WORKING_VERIFIED", "evidence": "AppSmokeTests.cs: OpeningDependencyManager_LoadsRealDependencyStatusesWithoutThrowing (Phase 1)" },
+    { "id": "depmgr.refresh", "screen": "DependencyManagerView", "control": "Proveri ponovo / initial load", "command": "RefreshCommand", "viewModel": "DependencyManagerViewModel", "service": "IDependencyManagerService", "status": "WORKING_VERIFIED", "evidence": "AppSmokeTests.cs: OpeningDependencyManager_LoadsRealDependencyStatusesWithoutThrowing asserts real FFmpeg/FFprobe detection via this exact command chain; DependencyManagerServiceTests.cs (6 tests) covers the service directly, including real ffmpeg/ffprobe and a genuinely-absent yt-dlp (Phase 1)" },
+    { "id": "depmgr.open-folder", "screen": "DependencyManagerView", "control": "Otvori folder (per dependency)", "command": "DependencyItemViewModel.OpenFolderCommand", "viewModel": "DependencyItemViewModel", "service": "IDependencyManagerService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "Phase 1: added, not yet exercised by an automated test (would need a real desktop file browser to observe)" },
+    { "id": "depmgr.download-whisper-model", "screen": "DependencyManagerView", "control": "Preuzmi model", "command": "DownloadWhisperModelCommand", "viewModel": "DependencyManagerViewModel", "service": "IDependencyManagerService -> ILyricSearchService -> WhisperTranscriber", "status": "WORKING_VERIFIED", "evidence": "delegates to the same WhisperTranscriber path already verified end-to-end on Windows CI via LyricSearchServiceIntegrationTests.cs / SubtitleGeneratorServiceIntegrationTests.cs (Phase 1)" },
+    { "id": "depmgr.cancel-download", "screen": "DependencyManagerView", "control": "Otkaži", "command": "CancelDownloadCommand", "viewModel": "DependencyManagerViewModel", "service": null, "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "Phase 1: first cancellable long-running operation in the app; the cancel path itself (mid-download) has not been exercised by any test - only that CanExecute toggles correctly with IsDownloadingModel" },
 
     { "id": "highlights.pick-song", "screen": "SongHighlightsView", "control": "Izaberi pesmu...", "command": "PickSongCommand", "viewModel": "SongHighlightsViewModel", "service": "IStorageService", "status": "WORKING_VERIFIED", "evidence": "headless screenshot session (render only, this audit)" },
     { "id": "highlights.analyze", "screen": "SongHighlightsView", "control": "Analiziraj pesmu", "command": "AnalyzeCommand", "viewModel": "SongHighlightsViewModel", "service": "ISongHighlightService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "SongHighlightServiceTests.cs (5 tests, service-level, synthetic audio)" },
@@ -82,11 +88,11 @@
     { "id": "srt.open-generated", "screen": "SubtitleGeneratorView", "control": "Otvori .srt fajl", "command": "OpenGeneratedSrtCommand", "viewModel": "SubtitleGeneratorViewModel", "service": null, "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" }
   ],
   "summary": {
-    "WORKING_VERIFIED": 19,
-    "IMPLEMENTED_NOT_RUNTIME_VERIFIED": 33,
+    "WORKING_VERIFIED": 22,
+    "IMPLEMENTED_NOT_RUNTIME_VERIFIED": 38,
     "BROKEN": 0,
     "PLACEHOLDER": 0,
-    "NOT_PRESENT": 9,
+    "NOT_PRESENT": 7,
     "BLOCKED_BY_DEPENDENCY": 0
   }
 }

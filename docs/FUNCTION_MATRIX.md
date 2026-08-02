@@ -75,8 +75,29 @@ automated or manual verification found/performed.
 | "Izaberi..." (cache folder) | `BrowseCacheFolderCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] |
 | "Sačuvaj podešavanja" | `SaveCommand` → `ISettingsService.SaveAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `SettingsServiceTests.cs` covers the service, not this command |
 | "Vrati podrazumevano" | `ResetToDefaultsCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] same file |
-| FFmpeg/FFprobe/yt-dlp path fields | — | NOT_PRESENT | `AppSettings` has the fields; no UI exposes them (BASELINE_AUDIT §8) |
+| FFmpeg putanja "Izaberi..." | `BrowseFfmpegPathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — **Phase 1**: field now exists, wired to `AppSettings.FfmpegPath` (closes BASELINE_AUDIT §8) |
+| FFprobe putanja "Izaberi..." | `BrowseFfprobePathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — Phase 1 |
+| yt-dlp putanja "Izaberi..." | `BrowseYtDlpPathCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — Phase 1 |
 | AI-model / caption / export settings sections | — | NOT_PRESENT | Master-prompt-requested sections; none exist yet |
+
+**Note (Phase 1)**: tool-path fields are read into DI-registered services once at app startup
+(`App.axaml.cs`); changing them here and saving only takes effect after restarting the app — disclosed
+in the View's own help text.
+
+## Alati i modeli — DependencyManagerView / DependencyManagerViewModel (new screen, Phase 1)
+
+| Control | Command | Status | Evidence |
+|---|---|---|---|
+| Početni ekran tile | `StartScreenViewModel.OpenDependencyManagerCommand` | WORKING_VERIFIED | [Smoke] `AppSmokeTests.cs: OpeningDependencyManager_LoadsRealDependencyStatusesWithoutThrowing` executes this exact command and asserts real results |
+| "Proveri ponovo" / initial load | `RefreshCommand` → `IDependencyManagerService.GetDependenciesAsync` | WORKING_VERIFIED | [Smoke] same test asserts FFmpeg/FFprobe correctly reported `Installed` with a real version string on the real (non-mocked) tools present in this environment; [Svc] `DependencyManagerServiceTests.cs` (6 tests) covers found/not-found/Whisper-ready/not-ready directly, including a genuinely-absent yt-dlp |
+| "Otvori folder" (per row) | `DependencyItemViewModel.OpenFolderCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — opens a real OS file browser, not asserted by any test |
+| "Preuzmi model" (Whisper) | `DownloadWhisperModelCommand` → `WhisperTranscriber` (via `ILyricSearchService`) | WORKING_VERIFIED | [CI] same download path already verified end-to-end via `LyricSearchServiceIntegrationTests.cs`/`SubtitleGeneratorServiceIntegrationTests.cs` |
+| "Otkaži" | `CancelDownloadCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — first cancellable long-running operation in the app; the mid-download cancel path itself hasn't been exercised by a test, only that `CanExecute` toggles correctly |
+
+**Real gap, not fabricated**: the master prompt's richer status vocabulary (Ažuriranje dostupno /
+Oštećeno / Nekompatibilno) isn't implemented — there's no checksum or expected-version pinning system
+to honestly back those states yet (see `DependencyInfo`'s doc comment). Only Instalirano/Nije
+instalirano are reported, both backed by a real version-command exit code, not just file existence.
 
 ## Dijagnostika — DiagnosticsView / DiagnosticsViewModel
 
@@ -85,7 +106,7 @@ automated or manual verification found/performed.
 | "Pokreni ponovo" | `RunChecksCommand` → `IDiagnosticsService.RunAllChecksAsync` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `DiagnosticsServiceTests.cs` (5 tests) covers the service; command itself untested this session |
 | "Napravi paket za podršku" | `CreateSupportPackageCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] same file covers `CreateSupportPackageAsync` |
 | Per-check "Pokušaj automatsku popravku" | `DiagnosticCheckItemViewModel.AutoFixCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [Svc] `TryAutoFixAsync` covered by service tests |
-| "Alati i modeli" screen (Dependency Manager) | — | NOT_PRESENT | Master-prompt-requested; only inline diagnostic rows for FFmpeg/FFprobe/yt-dlp exist |
+| "Alati i modeli" screen (Dependency Manager) | — | now a real screen, see its own section below | Phase 1 |
 
 ## Isečci iz pesme — SongHighlightsView / SongHighlightsViewModel
 
@@ -135,17 +156,18 @@ servis sa mock procesom" integration test; that does not exist yet. Flagged for 
 
 ## Feature-level summary counts
 
-Authoritative counts come from `docs/function-contracts.json` (61 rows, one per control/command,
+Authoritative counts come from `docs/function-contracts.json` (67 rows, one per control/command,
 mechanically counted — not hand-tallied):
 
-- `WORKING_VERIFIED`: 19
-- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 33
+- `WORKING_VERIFIED`: 22
+- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 38
 - `BROKEN`: 0
 - `PLACEHOLDER` (deceptive/fake-active): 0
-- `NOT_PRESENT`: 9 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-
-  song-library lookup, dependency-manager screen, Settings tool-path/AI-model/caption/export sections,
-  and the 6 disabled planned-feature tiles (counted as one summary row on the start screen above).
-  Not double-counted with the 5-extra-themes gap, which is tracked in BASELINE_AUDIT §6 rather than as
+- `NOT_PRESENT`: 7 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-
+  song-library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in
+  Phase 1), and the 6 disabled planned-feature tiles (counted as one summary row on the start screen
+  above). The dependency-manager screen gap from Phase 0 is closed. Not double-counted with the
+  5-extra-themes gap, which is tracked in BASELINE_AUDIT §6 rather than as
   a per-control row here since it isn't a single UI control.
 - `BLOCKED_BY_DEPENDENCY`: 0 (nothing found that's implemented but permanently blocked; the Whisper/
   yt-dlp paths work once their tool is present, which the app already detects and reports)

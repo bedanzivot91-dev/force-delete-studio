@@ -70,6 +70,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IYouTubeDownloadService>(_ =>
             new YouTubeDownloadService(settingsService.Current.FfmpegPath, settingsService.Current.YtDlpPath));
         services.AddSingleton<ISubtitleGeneratorService>(_ => new SubtitleGeneratorService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
@@ -78,6 +79,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<LyricSearchViewModel>();
         services.AddTransient<YouTubeDownloadViewModel>();
         services.AddTransient<SubtitleGeneratorViewModel>();
+        services.AddTransient<DependencyManagerViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();
@@ -135,6 +137,11 @@ public partial class App : Avalonia.Application
             : Avalonia.Styling.ThemeVariant.Dark;
     }
 
-    private static string ThisAssemblyVersion() =>
-        typeof(App).Assembly.GetName().Version?.ToString() ?? "0.1.0";
+    private static string ThisAssemblyVersion()
+    {
+        var version = typeof(App).Assembly.GetName().Version;
+        // Only major.minor.build - the SDK-generated 4th component (revision) isn't meaningful here
+        // and would make this drift from installer/NPVideoStudio.iss's three-part MyAppVersion.
+        return version is null ? "0.1.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+    }
 }

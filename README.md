@@ -28,7 +28,12 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   program neočekivano zatvori, pri sledećem pokretanju program to prepoznaje i nudi nastavak od
   poslednje automatski sačuvane verzije.
 - Lista nedavnih projekata u lokalnoj SQLite bazi.
-- Podešavanja: tema, folder za projekte, cache folder, auto-save, čuvanje logova.
+- Podešavanja: tema, folder za projekte, cache folder, auto-save, čuvanje logova, putanje za
+  FFmpeg/FFprobe/yt-dlp (opciono — prazno polje znači „nađi sam").
+- **Alati i modeli** (ekran, dostupan sa početnog ekrana): stvarno stanje FFmpeg-a, FFprobe-a, yt-dlp-a
+  i lokalnog Whisper modela — svaki alat se stvarno pokreće (verzija + izlazni kod), ne samo proverava
+  da li fajl postoji. Whisper model može da se preuzme (i otkaže tokom preuzimanja) direktno sa ovog
+  ekrana.
 - Tri od planiranih deset tema: Dark Cinematic, Minimal Light, Professional Studio.
 - Dijagnostički ekran koji stvarno proverava .NET okruženje, FFmpeg/FFprobe, foldere, slobodan
   prostor na disku i lokalnu bazu — sa objašnjenjem problema, razlogom i predlogom rešenja, i dugmetom
@@ -58,7 +63,7 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   koji drugi editor. Ovo je samostalan `.srt` fajl, ne titlovi urezani u sliku na NP Video Studio
   timeline-u (to je i dalje planirano za kasniju fazu, videti ispod).
 
-Sve navedeno je pokriveno sa 70 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 73 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
@@ -117,8 +122,9 @@ sačuvali) niti podešavanja/logove, osim ako to izričito potvrdite kada vas pr
 
 ### Portable verzija
 
-`scripts\build-release.ps1` takođe pravi `NPVideoStudio-Portable.zip` — raspakujte ga bilo gde i
-pokrenite `NPVideoStudio.exe` direktno, bez instalacije.
+`scripts\build-release.ps1` takođe pravi `NPVideoStudio-Portable-x64-<verzija>.zip` — raspakujte ga
+bilo gde i pokrenite `NPVideoStudio.exe` direktno, bez instalacije. Unutra su i `VERSION.txt` i
+`README-FIRST.txt`.
 
 ## Pokretanje iz izvornog koda (za razvoj / testiranje pre nego što installer bude gotov)
 
@@ -215,9 +221,14 @@ powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
 ```
 
 Ovo pravi:
-1. Self-contained publish u `publish\win-x64`.
-2. Portable ZIP u `dist\NPVideoStudio-Portable.zip`.
+1. Self-contained publish u `publish\win-x64`, očišćen od PDB fajlova i native biblioteka za platforme
+   koje Windows x64 verzija ne koristi (Linux/macOS/win-arm64/win-x86 Whisper runtime-ovi).
+2. Portable folder `dist\NPVideoStudio-Portable-x64` i ZIP `dist\NPVideoStudio-Portable-x64-X.X.X.zip`.
 3. Windows installer u `dist\NPVideoStudio-Setup-X.X.X.exe` (ako je Inno Setup instaliran).
+
+Verzija (`X.X.X`) se čita iz `Directory.Build.props` u korenu repozitorijuma — to je jedino mesto gde
+se menja pri podizanju verzije (installer-ov `MyAppVersion` u `installer\NPVideoStudio.iss` treba ručno
+održavati usklađenim s njim).
 
 **Pre prve zvanične verzije, ovo mora da se pokrene i testira na Windows računaru** — instalacija,
 pokretanje, otvaranje projekta, uvoz medija, deinstalacija — ovaj korak još nije urađen jer je razvoj

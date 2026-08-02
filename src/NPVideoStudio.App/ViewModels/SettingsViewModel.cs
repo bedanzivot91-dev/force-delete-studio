@@ -25,6 +25,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _cacheFolder = string.Empty;
 
     [ObservableProperty]
+    private string? _ffmpegPath;
+
+    [ObservableProperty]
+    private string? _ffprobePath;
+
+    [ObservableProperty]
+    private string? _ytDlpPath;
+
+    [ObservableProperty]
     private bool _autoSaveEnabled;
 
     [ObservableProperty]
@@ -52,6 +61,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _theme = current.Theme;
         _projectsFolder = current.ProjectsFolder;
         _cacheFolder = current.CacheFolder;
+        _ffmpegPath = current.FfmpegPath;
+        _ffprobePath = current.FfprobePath;
+        _ytDlpPath = current.YtDlpPath;
         _autoSaveEnabled = current.AutoSaveEnabled;
         _autoSaveIntervalSeconds = current.AutoSaveIntervalSeconds;
         _logRetentionDays = current.LogRetentionDays;
@@ -78,12 +90,45 @@ public sealed partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task BrowseFfmpegPathAsync()
+    {
+        var files = await _storageService.PickFilesAsync("Izaberite ffmpeg", Array.Empty<(string, string[])>(), allowMultiple: false);
+        if (files.Count > 0)
+        {
+            FfmpegPath = files[0];
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowseFfprobePathAsync()
+    {
+        var files = await _storageService.PickFilesAsync("Izaberite ffprobe", Array.Empty<(string, string[])>(), allowMultiple: false);
+        if (files.Count > 0)
+        {
+            FfprobePath = files[0];
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowseYtDlpPathAsync()
+    {
+        var files = await _storageService.PickFilesAsync("Izaberite yt-dlp", Array.Empty<(string, string[])>(), allowMultiple: false);
+        if (files.Count > 0)
+        {
+            YtDlpPath = files[0];
+        }
+    }
+
+    [RelayCommand]
     private async Task SaveAsync()
     {
         var current = _settingsService.Current;
         current.Theme = Theme;
         current.ProjectsFolder = ProjectsFolder;
         current.CacheFolder = CacheFolder;
+        current.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? null : FfmpegPath;
+        current.FfprobePath = string.IsNullOrWhiteSpace(FfprobePath) ? null : FfprobePath;
+        current.YtDlpPath = string.IsNullOrWhiteSpace(YtDlpPath) ? null : YtDlpPath;
         current.AutoSaveEnabled = AutoSaveEnabled;
         current.AutoSaveIntervalSeconds = Math.Max(10, AutoSaveIntervalSeconds);
         current.LogRetentionDays = Math.Max(1, LogRetentionDays);
@@ -102,6 +147,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Theme = current.Theme;
         ProjectsFolder = current.ProjectsFolder;
         CacheFolder = current.CacheFolder;
+        FfmpegPath = current.FfmpegPath;
+        FfprobePath = current.FfprobePath;
+        YtDlpPath = current.YtDlpPath;
         AutoSaveEnabled = current.AutoSaveEnabled;
         AutoSaveIntervalSeconds = current.AutoSaveIntervalSeconds;
         LogRetentionDays = current.LogRetentionDays;

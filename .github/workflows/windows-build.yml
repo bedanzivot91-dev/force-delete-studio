@@ -60,9 +60,13 @@ jobs:
           path: dist/NPVideoStudio-Setup-*.exe
           if-no-files-found: error
 
-      - name: Upload portable ZIP
+      - name: Upload portable build
+        # Uploads the extracted folder, not dist/NPVideoStudio-Portable-x64-*.zip - actions/upload-artifact
+        # always zips whatever it's given for download, so zipping our own output first would make a
+        # user's download a zip-of-a-zip. The real distributable NPVideoStudio-Portable-x64-<version>.zip
+        # made by build-release.ps1 is for manual releases, not this CI artifact.
         uses: actions/upload-artifact@v4
         with:
           name: NPVideoStudio-Portable
-          path: dist/NPVideoStudio-Portable.zip
+          path: dist/NPVideoStudio-Portable-x64/**
           if-no-files-found: error
