@@ -1943,7 +1943,12 @@ def retry(action: Callable[[], Any], attempts: int = 3, delay: float = 1.5) -> A
 
 def sync_library(task: TaskState, options: dict[str, Any]) -> None:
     client = get_client()
-    max_pages = max(1, min(int(options.get("max_pages") or 100), 1000))
+    # No page count reflects any expected/maximum library size -- Suno's own
+    # has_more/next_cursor is the only real stop condition (checked below on
+    # every page). This ceiling is purely a defensive bound against a
+    # malformed/looping API response, not a song-count limit; a normal
+    # "Osveži Suno" run finishes in one pass regardless of library size.
+    max_pages = max(1, min(int(options.get("max_pages") or 100000), 1000000))
     liked = bool(options.get("liked"))
     include_main = bool(options.get("include_main", True))
     include_workspaces = bool(options.get("include_workspaces", True))

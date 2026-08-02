@@ -12,11 +12,14 @@ from database import LibraryDB
 def main():
     checks = []
 
-    # -- Regression case: 3091-song-shaped library, 0 local files, valid
-    # remote Suno audio_url on every song -- status must NOT be 0/0. --
+    # -- Regression case: an arbitrarily-sized remote-only library (0 local
+    # files, valid remote Suno audio_url on every song) -- status must NOT
+    # be 0/0, whatever the actual song count happens to be. Uses a small N
+    # only for test speed; the assertions below never assume any specific
+    # library size. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-status-") as raw:
         db = LibraryDB(Path(raw) / "test.db")
-        for i in range(50):  # scaled down from 3091 for test speed; same shape
+        for i in range(50):
             db.upsert_song({"id": f"song{i}", "title": f"Pesma {i}", "audio_url": f"https://cdn.suno.com/{i}.mp3", "duration": 120})
         with patch.object(server_module, "DB", db):
             status = server_module.song_finder_status()
