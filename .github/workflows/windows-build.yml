@@ -311,7 +311,7 @@ jobs:
               $full = Join-Path (Get-Location) $case.path
               $body = (@{ source_path = $full } | ConvertTo-Json)
               $r = Invoke-RestMethod -Uri "$base/api/song-finder/analyze-file" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
-              Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.confidence)"
+              Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.primary.confidence) audio_score=$($r.result.primary.audio_score)"
               if ($r.result.found -ne $case.expectFound) {
                 throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found) (real local matcher, no token, no internet)"
               }
