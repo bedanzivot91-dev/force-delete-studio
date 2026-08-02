@@ -69,10 +69,18 @@ public class DependencyManagerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDependenciesAsync_YtDlpNotOnPath_ReportsNotInstalled()
+    public async Task GetDependenciesAsync_YtDlpPathIsNotAnExecutable_ReportsNotInstalled()
     {
-        // yt-dlp is genuinely absent from this sandbox - real negative-path coverage, not simulated.
-        _settingsService.Current.YtDlpPath = Path.Combine(_tempDir, "does-not-exist-yt-dlp");
+        // A *nonexistent* override path would NOT reliably test "not installed": FfmpegLocator.Resolve
+        // only honors an override when File.Exists is true, otherwise it falls back to bare "yt-dlp" on
+        // PATH - and real CI runners genuinely have yt-dlp installed (via choco) and on PATH, so that
+        // fallback would silently find the real tool and this test would flake depending on the
+        // environment. Pointing the override at a real file that exists but isn't a valid executable
+        // forces FfmpegLocator to use (and fail to run) exactly this path, independent of PATH/environment.
+        var notAnExecutable = Path.Combine(_tempDir, "not-a-real-yt-dlp.txt");
+        File.WriteAllText(notAnExecutable, "this is not an executable");
+        _settingsService.Current.YtDlpPath = notAnExecutable;
+
         var results = await _service.GetDependenciesAsync();
         var ytDlp = results.Single(d => d.Name == "yt-dlp");
 

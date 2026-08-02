@@ -73,11 +73,14 @@ public class AppSmokeTests
 
         // The page's own fire-and-forget InitializeAsync (real production navigation pattern - not
         // awaited by the caller, matching how a real desktop app's dispatcher keeps pumping on its own)
-        // needs the same headless dispatcher pump AppSmokeTests already relies on elsewhere.
-        for (var i = 0; i < 50 && dependencyManager.IsLoading; i++)
+        // needs the same headless dispatcher pump AppSmokeTests already relies on elsewhere. This check
+        // genuinely launches FFmpeg/FFprobe/yt-dlp as real processes one after another (real -version/
+        // --version calls), so a generous budget is needed on a loaded CI runner, not just the near-
+        // instant case where a tool is absent and fails fast.
+        for (var i = 0; i < 300 && dependencyManager.IsLoading; i++)
         {
             Dispatcher.UIThread.RunJobs();
-            Thread.Sleep(20);
+            Thread.Sleep(50);
         }
 
         Assert.False(dependencyManager.IsLoading);
