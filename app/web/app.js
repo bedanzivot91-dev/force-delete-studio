@@ -46,6 +46,11 @@ const THEMES = [
   { id:'urban-concrete', name:'Urban Concrete', colors:['#c6ff3a','#2b2b28','#141412'], full:true },
   { id:'midnight-studio', name:'Midnight Studio', colors:['#6c8cff','#0e0e12','#050506'], full:true },
   { id:'aurora-glass', name:'Aurora Glass', colors:['#7ee8fa','#c084fc','#080a14'], full:true },
+  { id:'vinyl-loft', name:'Vinyl Loft', colors:['#e8a33d','#2a1c12','#120b06'], full:true },
+  { id:'signal-grid', name:'Signal Grid', colors:['#39ff9e','#0b1512','#040806'], full:true },
+  { id:'broadcast-redline', name:'Broadcast Redline', colors:['#ff2d3d','#180909','#0a0404'], full:true },
+  { id:'street-mixtape', name:'Street Mixtape', colors:['#ffd23f','#ff2fa0','#0c0c10'], full:true },
+  { id:'label-command', name:'Label Command', colors:['#7bdcff','#12161f','#080a10'], full:true },
 ];
 
 function escapeHtml(value) {
