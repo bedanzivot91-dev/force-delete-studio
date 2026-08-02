@@ -113,6 +113,7 @@ const viewText = {
   import: ['Povezivanje i uvoz', 'Uvezi ceo nalog, Workspaces, linkove ili lokalne fajlove.'],
   recognition: ['Pronalazač pesme', 'Pronađi naziv pesme iz Shortsa ili audio/video isečka i trajno sačuvaj istoriju.'],
   smart: ['Pametna biblioteka', 'Pravila po poljima pesme (I/ILI), živ pregled trenutne biblioteke i sačuvane pametne kolekcije.'],
+  versions: ['Version Lab', 'Poredi više Suno verzija iste pesme, oceni ih i označi glavnu (master) verziju.'],
   tools: ['Pametni alati', 'YouTube ↔ Suno audio prepoznavanje, kompletnost objave, kanali, datumi i zaštita pesama.'],
   production: ['Produkcija v3', 'Lyric video, Shorts, YouTube objava, integritet, zaštita i rollback.'],
   stats: ['Statistika biblioteke', 'Broj pesama, trajanje, modeli i preuzimanja.'],
@@ -129,6 +130,8 @@ function showView(name) {
   if (name === 'tools') { loadYoutubeCenter(); loadAdvancedStatus(); }
   if (name === 'recognition') { loadMusicRecognitionStatus(); loadMusicRecognitionHistory(); loadSongFinderStatus(); loadSongFinderResults(); }
   if (name === 'smart') { if (!qsa('.smart-rule-row', $('smartRulesList')).length) addSmartRule(); loadSmartCollections(); }
+  if (name === 'versions') loadVersionGroups();
+  if (name === 'versions') loadVersionGroups();
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
   if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
@@ -356,7 +359,16 @@ async function deleteCurrentSong() {
   if (!state.currentSong) return; const deleteFiles = $('deleteLocalFilesCheckbox').checked; const title = state.currentSong.title || 'ovu pesmu';
   const message = deleteFiles ? `Ukloniti „${title}” iz biblioteke I obrisati njene lokalne fajlove sa diska? Ova radnja se ne može poništiti.` : `Ukloniti „${title}” samo iz lokalne biblioteke programa? Pesma na Suno nalogu i lokalni fajlovi ostaju.`;
   if (!confirm(message)) return;
-  try { const id = state.currentSong.id; await api('/api/song/delete', { method: 'POST', body: { id, delete_files: deleteFiles } }); state.selected.delete(id); state.currentSong = null; $('songModal').classList.add('hidden'); await Promise.all([loadSongs(), loadCollections(), loadStats()]); toast('Pesma je uklonjena iz lokalne biblioteke.', 'success'); } catch (e) { toast(e.message, 'error', 9000); }
+  const id = state.currentSong.id;
+  try {
+    await api('/api/song/delete', { method: 'POST', body: { id, delete_files: deleteFiles } });
+    state.selected.delete(id); state.currentSong = null; $('songModal').classList.add('hidden'); await Promise.all([loadSongs(), loadCollections(), loadStats()]); toast('Pesma je uklonjena iz lokalne biblioteke.', 'success');
+  } catch (e) {
+    if (String(e.message || '').includes('MASTER') && confirm(`${e.message}\n\nDa li ipak želiš da obrišeš ovu MASTER verziju?`)) {
+      try { await api('/api/song/delete', { method: 'POST', body: { id, delete_files: deleteFiles, force_master_delete: true } }); state.selected.delete(id); state.currentSong = null; $('songModal').classList.add('hidden'); await Promise.all([loadSongs(), loadCollections(), loadStats()]); toast('Pesma je uklonjena iz lokalne biblioteke.', 'success'); }
+      catch (e2) { toast(e2.message, 'error', 9000); }
+    } else toast(e.message, 'error', 9000);
+  }
 }
 
 async function loadStats() {
@@ -845,6 +857,53 @@ function openSmartCollection(collection) {
   $('smartMatchMode').value = collection.match_mode === 'any' ? 'any' : 'all';
   renderSmartRules(collection.rules);
   previewSmartLibrary();
+}
+
+// -- Version Lab: manual groups of songs the user identifies as different
+// Suno versions of "the same song" (Suno's API exposes no stable
+// version-linking id of its own), for A/B/C playback comparison, ratings
+// and master-marking (with delete protection enforced server-side). --
+async function createVersionGroup() {
+  const ids = requireSelection(); if (!ids) return;
+  if (ids.length < 2) return toast('Izaberi bar 2 pesme (verzije) u Biblioteci.', 'warning');
+  const name = $('versionGroupName').value.trim();
+  try {
+    await api('/api/version-lab/create', { method: 'POST', body: { name, ids } });
+    $('versionGroupName').value = '';
+    toast('Grupa verzija je napravljena.', 'success');
+    showView('versions'); await loadVersionGroups();
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+async function loadVersionGroups() {
+  try {
+    const data = await api('/api/version-lab');
+    const groups = data.groups || [];
+    $('versionGroupsList').innerHTML = groups.length ? groups.map(renderVersionGroupHtml).join('') : '<p class="muted">Još nema grupa verzija. Izaberi pesme u Biblioteci pa napravi grupu iznad.</p>';
+    qsa('.version-play', $('versionGroupsList')).forEach((b) => b.addEventListener('click', () => playSong({ id: b.dataset.id, title: b.dataset.title, local_audio: b.dataset.local || '' })));
+    qsa('.version-rating', $('versionGroupsList')).forEach((el) => el.addEventListener('change', async () => { try { await api('/api/song/update', { method: 'POST', body: { id: el.dataset.id, fields: { rating: Number(el.value || 0) } } }); toast('Ocena je sačuvana.', 'success'); } catch (e) { toast(e.message, 'error'); } }));
+    qsa('.version-master', $('versionGroupsList')).forEach((b) => b.addEventListener('click', async () => { try { await api('/api/version-lab/master', { method: 'POST', body: { group_id: Number(b.dataset.group), song_id: b.dataset.id, is_master: true } }); toast('Master verzija je postavljena.', 'success'); await loadVersionGroups(); } catch (e) { toast(e.message, 'error'); } }));
+    qsa('.version-remove', $('versionGroupsList')).forEach((b) => b.addEventListener('click', async () => { try { await api('/api/version-lab/remove', { method: 'POST', body: { group_id: Number(b.dataset.group), song_id: b.dataset.id } }); await loadVersionGroups(); } catch (e) { toast(e.message, 'error'); } }));
+    qsa('.version-delete-group', $('versionGroupsList')).forEach((b) => b.addEventListener('click', async () => { if (!confirm('Obrisati ovu grupu verzija? Pesme ostaju netaknute.')) return; try { await api('/api/version-lab/delete', { method: 'POST', body: { id: Number(b.dataset.group) } }); await loadVersionGroups(); } catch (e) { toast(e.message, 'error'); } }));
+  } catch (e) { toast(e.message, 'error', 10000); }
+}
+
+function renderVersionGroupHtml(group) {
+  const members = group.members || [];
+  const rows = members.map((m) => `
+    <div class="version-member${m.is_master ? ' is-master' : ''}">
+      <div class="version-member-title"><strong>${escapeHtml(m.title || 'Bez naslova')}</strong>${m.is_master ? ' <span class="badge saved">MASTER</span>' : ''}<span class="muted">${escapeHtml(m.display_name || '')} · ${formatDuration(m.duration)}</span></div>
+      <select class="version-rating" data-id="${m.song_id}">${[0, 1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${Number(m.rating || 0) === n ? 'selected' : ''}>${n ? starText(n) : 'Bez ocene'}</option>`).join('')}</select>
+      <div class="button-row">
+        <button class="btn secondary small version-play" data-id="${m.song_id}" data-title="${escapeHtml(m.title || '')}" data-local="${escapeHtml(m.local_audio || m.local_wav || '')}">▶ Pusti</button>
+        <button class="btn ghost small version-master" data-group="${group.id}" data-id="${m.song_id}" ${m.is_master ? 'disabled' : ''}>Postavi kao master</button>
+        <button class="btn ghost small danger-text version-remove" data-group="${group.id}" data-id="${m.song_id}">Ukloni iz grupe</button>
+      </div>
+    </div>`).join('');
+  return `<div class="panel form-panel version-group-card">
+    <div class="section-title"><h3>${escapeHtml(group.name || 'Verzije pesme')}</h3><button class="btn ghost small version-delete-group" data-group="${group.id}">Obriši grupu</button></div>
+    <div class="version-members">${rows}</div>
+  </div>`;
 }
 function toolOutput(html){$('toolsOutput').innerHTML=html;}
 async function runReport(){const type=$('reportType').value; toolOutput('Pripremam izveštaj...'); try{const data=await api(`/api/reports?type=${encodeURIComponent(type)}`,{timeoutMs:type==='audio_quality'?120000:30000}); if(type==='duplicates'){const a=data.report?.same_title_duration||[],b=data.report?.same_audio||[];toolOutput(`<h3>Isti naslov i trajanje: ${a.length}</h3>${a.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key)}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}<h3>Isti audio sadržaj: ${b.length}</h3>${b.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.duplicate_key.slice(0,16))}</strong><span>${escapeHtml(x.songs)}</span></div>`).join('')||'<p>Nema duplikata.</p>'}`);}else{const rows=data.rows||[];toolOutput(`<h3>Rezultati: ${rows.length}</h3>${rows.map((x)=>`<div class="report-row"><strong>${escapeHtml(x.title||x.id)}</strong><span>${x.duration!==undefined?formatDuration(x.duration):''} ${escapeHtml(x.source_group||x.codec||x.error||'')}</span></div>`).join('')||'<p>Nema stavki za ovaj izveštaj.</p>'}`);}}catch(e){toolOutput(`<p class="danger-text">${escapeHtml(e.message)}</p>`);} }
@@ -1343,6 +1402,7 @@ function bindEvents() {
   $('refreshAdvancedStatusBtn').addEventListener('click',loadAdvancedStatus); $('chooseIncrementalBackupDirBtn').addEventListener('click',()=>chooseFolder('incrementalBackupDir')); $('runIncrementalBackupBtn').addEventListener('click',runIncrementalBackup); $('chooseRelocateRootBtn').addEventListener('click',()=>chooseFolder('relocateRootDir')); $('runRelocateBtn').addEventListener('click',runRelocate); $('runQualityAnalysisBtn').addEventListener('click',runQuality); $('saveYoutubeScheduleBtn').addEventListener('click',saveYoutubeSchedule); $('chooseCloudBackupDirBtn').addEventListener('click',()=>chooseFolder('cloudBackupDir')); $('runCloudBackupBtn').addEventListener('click',runCloudBackup); $('chooseCloudRestoreBtn').addEventListener('click',chooseCloudRestore); $('restoreCloudBackupBtn').addEventListener('click',restoreCloudBackup); $('runStemsBtn').addEventListener('click',runStems); $('runTranscriptionBtn').addEventListener('click',runTranscription); $('installStemsBtn').addEventListener('click',installStemsPlugin); $('installTranscriptionBtn').addEventListener('click',installTranscriptionPlugin); $('saveUpdateUrlBtn').addEventListener('click',saveUpdateUrl); $('checkUpdateBtn').addEventListener('click',checkProgramUpdate); $('downloadUpdateBtn').addEventListener('click',downloadProgramUpdate);
   $('saveAuddTokenBtn')?.addEventListener('click',saveAuddToken); $('recognizeMusicBtn')?.addEventListener('click',recognizeMusic); $('chooseMusicRecognitionFileBtn')?.addEventListener('click',chooseMusicRecognitionFile); $('refreshRecognitionHistoryBtn')?.addEventListener('click',loadMusicRecognitionHistory); $('openRecognitionFolderBtn')?.addEventListener('click',openRecognitionFolder); $('musicRecognitionHistory')?.addEventListener('click',(e)=>{const show=e.target.closest('.recognition-show');if(show){const r=state.recognitionHistory.find(x=>Number(x.id)===Number(show.dataset.id));if(r)showRecognitionResult({...r,...(r.result||{}),history_id:r.id});}const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));}); $('musicRecognitionResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.recognition-retry');if(retry)retryRecognition(Number(retry.dataset.id));const add=e.target.closest('.recognition-add');if(add)addRecognitionToLibrary(Number(add.dataset.id));});
   $('smartAddRuleBtn')?.addEventListener('click',()=>addSmartRule()); $('smartPreviewBtn')?.addEventListener('click',previewSmartLibrary); $('smartSaveBtn')?.addEventListener('click',saveSmartCollection); $('smartSelectAllBtn')?.addEventListener('click',selectSmartPreview); $('smartGoLibraryBtn')?.addEventListener('click',openSmartSelectionInLibrary); $('smartRefreshBtn')?.addEventListener('click',loadSmartCollections);
+  $('versionCreateGroupBtn')?.addEventListener('click',createVersionGroup);
   $('songFinderGoDownloadBtn')?.addEventListener('click',()=>showView('download')); $('chooseSongFinderFileBtn')?.addEventListener('click',chooseSongFinderFile); $('chooseSongFinderBatchBtn')?.addEventListener('click',chooseSongFinderBatch); $('analyzeSongFinderBtn')?.addEventListener('click',analyzeSongFinder); $('songFinderIndexAllBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRefreshBtn')?.addEventListener('click',()=>runSongFinderIndex(false)); $('songFinderIndexRebuildBtn')?.addEventListener('click',rebuildSongFinderIndex); $('refreshSongFinderResultsBtn')?.addEventListener('click',loadSongFinderResults); $('songFinderResults')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));}); $('songFinderResult')?.addEventListener('click',(e)=>{const retry=e.target.closest('.song-finder-retry');if(retry)retrySongFinder(Number(retry.dataset.id));});
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('songModal').classList.add('hidden'); if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();showView('library');$('searchInput').focus();} if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();checkNewSongs();} if(e.code==='Space'&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)===false){e.preventDefault();const a=$('audioPlayer');a.paused?a.play().catch(()=>{}):a.pause();} });
 }

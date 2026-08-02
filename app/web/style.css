@@ -1131,3 +1131,11 @@ body[data-theme="label-command"][data-motion="reduced"] .song-card:hover{transfo
 .smart-rules-list{display:flex;flex-direction:column;gap:8px;margin:10px 0}
 .smart-rule-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center}
 @media(max-width:760px){.smart-rule-row{grid-template-columns:1fr}}
+
+/* Version Lab */
+.version-groups-list{display:flex;flex-direction:column;gap:14px}
+.version-members{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.version-member{display:grid;grid-template-columns:2fr 1fr 2fr;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.version-member.is-master{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.version-member-title{display:flex;flex-direction:column;gap:2px}
+@media(max-width:760px){.version-member{grid-template-columns:1fr}}

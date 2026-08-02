@@ -404,6 +404,21 @@ class LibraryDB:
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
 
+                CREATE TABLE IF NOT EXISTS version_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL DEFAULT '',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS version_group_members (
+                    group_id INTEGER NOT NULL,
+                    song_id TEXT NOT NULL,
+                    is_master INTEGER DEFAULT 0,
+                    added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY(group_id, song_id),
+                    FOREIGN KEY(group_id) REFERENCES version_groups(id) ON DELETE CASCADE,
+                    FOREIGN KEY(song_id) REFERENCES songs(id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS text_comparisons (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     song_id TEXT NOT NULL,
@@ -1338,6 +1353,72 @@ class LibraryDB:
         with self._lock, self._connect() as conn:
             cur = conn.execute("DELETE FROM smart_collections WHERE id=?", (int(collection_id),))
             return cur.rowcount > 0
+
+    # -- Version Lab: manual groups of songs the user has identified as
+    # different Suno versions of "the same song" (Suno's own API does not
+    # expose a stable version-linking id), for A/B/C comparison and
+    # master-marking. --
+
+    def list_version_groups(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            groups = [dict(r) for r in conn.execute("SELECT * FROM version_groups ORDER BY created_at DESC").fetchall()]
+            for group in groups:
+                members = conn.execute(
+                    "SELECT vgm.song_id, vgm.is_master, s.title, s.display_name, s.duration, s.rating, s.local_audio, s.local_wav "
+                    "FROM version_group_members vgm JOIN songs s ON s.id=vgm.song_id WHERE vgm.group_id=? ORDER BY vgm.added_at",
+                    (group["id"],),
+                ).fetchall()
+                group["members"] = [dict(m) for m in members]
+            return groups
+
+    def get_version_group(self, group_id: int) -> dict[str, Any] | None:
+        groups = [g for g in self.list_version_groups() if int(g["id"]) == int(group_id)]
+        return groups[0] if groups else None
+
+    def create_version_group(self, name: str, song_ids: Iterable[str]) -> dict[str, Any]:
+        ids = list(dict.fromkeys(str(x) for x in song_ids if str(x)))
+        if len(ids) < 2:
+            raise ValueError("Izaberi bar 2 pesme za poređenje verzija.")
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("INSERT INTO version_groups(name) VALUES(?)", (str(name or "").strip() or "Verzije pesme",))
+            group_id = int(cur.lastrowid or 0)
+            for song_id in ids:
+                conn.execute("INSERT OR IGNORE INTO version_group_members(group_id,song_id) VALUES(?,?)", (group_id, song_id))
+        return self.get_version_group(group_id) or {"id": group_id}
+
+    def add_to_version_group(self, group_id: int, song_ids: Iterable[str]) -> int:
+        ids = list(dict.fromkeys(str(x) for x in song_ids if str(x)))
+        added = 0
+        with self._lock, self._connect() as conn:
+            for song_id in ids:
+                cur = conn.execute("INSERT OR IGNORE INTO version_group_members(group_id,song_id) VALUES(?,?)", (int(group_id), song_id))
+                added += cur.rowcount
+        return added
+
+    def remove_from_version_group(self, group_id: int, song_id: str) -> bool:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM version_group_members WHERE group_id=? AND song_id=?", (int(group_id), str(song_id)))
+            return cur.rowcount > 0
+
+    def set_version_master(self, group_id: int, song_id: str, is_master: bool) -> None:
+        with self._lock, self._connect() as conn:
+            if is_master:
+                conn.execute("UPDATE version_group_members SET is_master=0 WHERE group_id=?", (int(group_id),))
+            conn.execute("UPDATE version_group_members SET is_master=? WHERE group_id=? AND song_id=?", (1 if is_master else 0, int(group_id), str(song_id)))
+
+    def delete_version_group(self, group_id: int) -> bool:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM version_groups WHERE id=?", (int(group_id),))
+            return cur.rowcount > 0
+
+    def master_group_names_for_song(self, song_id: str) -> list[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT vg.name FROM version_group_members vgm JOIN version_groups vg ON vg.id=vgm.group_id "
+                "WHERE vgm.song_id=? AND vgm.is_master=1",
+                (str(song_id),),
+            ).fetchall()
+            return [str(r[0]) for r in rows]
 
     def list_collections(self) -> list[dict[str, Any]]:
         with self._connect() as conn:

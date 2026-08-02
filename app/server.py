@@ -4494,6 +4494,9 @@ class Handler(BaseHTTPRequestHandler):
                     collection["count"] = len(match_smart_collection(songs, collection.get("rules") or [], str(collection.get("match_mode") or "all")))
                 self._send_json({"ok": True, "collections": collections, "fields": SMART_LIBRARY_FIELDS})
                 return
+            if path == "/api/version-lab":
+                self._send_json({"ok": True, "groups": DB.list_version_groups()})
+                return
             if path == "/api/v3/shorts/suggest":
                 song_id = (query.get("id") or [""])[0]; song = DB.get_song(song_id)
                 if not song: raise RuntimeError("Pesma nije pronađena.")
@@ -5476,6 +5479,23 @@ class Handler(BaseHTTPRequestHandler):
                 deleted = DB.delete_smart_collection(int(body.get("id") or 0))
                 self._send_json({"ok": True, "deleted": deleted})
                 return
+            if path == "/api/version-lab/create":
+                ids = [str(x) for x in (body.get("ids") or []) if str(x)]
+                group = DB.create_version_group(str(body.get("name") or ""), ids)
+                self._send_json({"ok": True, "group": group}); return
+            if path == "/api/version-lab/add":
+                ids = [str(x) for x in (body.get("ids") or []) if str(x)]
+                added = DB.add_to_version_group(int(body.get("group_id") or 0), ids)
+                self._send_json({"ok": True, "added": added, "group": DB.get_version_group(int(body.get("group_id") or 0))}); return
+            if path == "/api/version-lab/remove":
+                removed = DB.remove_from_version_group(int(body.get("group_id") or 0), str(body.get("song_id") or ""))
+                self._send_json({"ok": True, "removed": removed, "group": DB.get_version_group(int(body.get("group_id") or 0))}); return
+            if path == "/api/version-lab/master":
+                DB.set_version_master(int(body.get("group_id") or 0), str(body.get("song_id") or ""), bool(body.get("is_master", True)))
+                self._send_json({"ok": True, "group": DB.get_version_group(int(body.get("group_id") or 0))}); return
+            if path == "/api/version-lab/delete":
+                deleted = DB.delete_version_group(int(body.get("id") or 0))
+                self._send_json({"ok": True, "deleted": deleted}); return
             if path == "/api/bulk/update":
                 ids = [str(x) for x in (body.get("ids") or []) if str(x)]
                 fields = body.get("fields") if isinstance(body.get("fields"), dict) else {}
@@ -5542,6 +5562,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/song/delete":
                 song_id = str(body.get("id") or "")
+                master_groups = DB.master_group_names_for_song(song_id)
+                if master_groups and not bool(body.get("force_master_delete", False)):
+                    raise RuntimeError(
+                        "Ova pesma je označena kao MASTER verzija u Version Lab-u (" + ", ".join(master_groups) + "). "
+                        "Ako si siguran/sigurna, potvrdi brisanje ponovo (force_master_delete)."
+                    )
                 deleted = DB.delete_song(song_id, delete_files=bool(body.get("delete_files", False)))
                 if not deleted:
                     raise RuntimeError("Pesma nije pronađena u biblioteci.")

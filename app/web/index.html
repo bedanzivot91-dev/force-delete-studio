@@ -18,6 +18,7 @@
         <button class="nav-item" data-view="import"><span>＋</span> Uvoz</button>
         <button class="nav-item" data-view="recognition"><span>⌕</span> Pronalazač pesme</button>
         <button class="nav-item" data-view="smart"><span>⚑</span> Pametna biblioteka</button>
+        <button class="nav-item" data-view="versions"><span>⇄</span> Version Lab</button>
         <button class="nav-item" data-view="tools"><span>✦</span> Pametni alati</button>
         <button class="nav-item" data-view="production"><span>⚡</span> Produkcija v3</button>
         <button class="nav-item" data-view="stats"><span>◔</span> Statistika</button>
@@ -195,6 +196,14 @@
           <div class="section-title"><h2>Sačuvane pametne kolekcije</h2><button id="smartRefreshBtn" class="btn ghost small">Osveži</button></div>
           <div id="smartCollectionsList" class="file-list"></div>
         </div>
+      </section>
+
+      <section id="view-versions" class="view">
+        <div class="panel form-panel">
+          <div class="section-title"><div><h2>Nova grupa verzija</h2><p class="muted">Izaberi 2 ili više pesama u Biblioteci (verzije iste pesme) pa ih ovde poredi A/B/C, oceni i označi glavnu (master) verziju.</p></div></div>
+          <div class="two-inputs"><label>Naziv grupe<input id="versionGroupName" placeholder="npr. Nedostaješ mi — verzije"></label><div class="button-row" style="align-items:flex-end"><button id="versionCreateGroupBtn" class="btn primary">Napravi grupu od izabranih</button></div></div>
+        </div>
+        <div id="versionGroupsList" class="version-groups-list"></div>
       </section>
 
       <section id="view-tools" class="view">
