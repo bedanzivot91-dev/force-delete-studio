@@ -10,7 +10,7 @@ giant prompt again.
 | 1 | Build, dependencies, release foundation | DONE (partial - see below) | 1193f77 |
 | 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
 | 3 | Five new themes | DONE (partial - see below) | 5114fbb |
-| 4 | Song library + fingerprinting | DONE (partial - see below) | (pending push) |
+| 4 | Song library + fingerprinting | DONE (partial - see below) | 7c5d6e2 |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
 | 6 | Caption/word data model + editor | NOT_STARTED | — |
 | 7 | Caption styling + video layout/OCR | NOT_STARTED | — |
