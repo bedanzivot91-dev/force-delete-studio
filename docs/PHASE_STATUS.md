@@ -8,7 +8,7 @@ giant prompt again.
 |---|---|---|---|
 | 0 | Audit | DONE | f850ace |
 | 1 | Build, dependencies, release foundation | DONE (partial - see below) | 1193f77 |
-| 2 | Existing-feature hardening | DONE (partial - see below) | (this commit) |
+| 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
 | 3 | Five new themes | NOT_STARTED | — |
 | 4 | Song library + fingerprinting | NOT_STARTED | — |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
