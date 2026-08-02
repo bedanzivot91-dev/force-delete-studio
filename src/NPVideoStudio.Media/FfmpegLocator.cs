@@ -8,11 +8,13 @@ namespace NPVideoStudio.Media;
 /// </summary>
 public static class FfmpegLocator
 {
-    public static string ResolveFfprobePath(string? overridePath) => Resolve(overridePath, "ffprobe");
+    public static string ResolveFfprobePath(string? overridePath) => Resolve(overridePath, "ffprobe", "ffmpeg");
 
-    public static string ResolveFfmpegPath(string? overridePath) => Resolve(overridePath, "ffmpeg");
+    public static string ResolveFfmpegPath(string? overridePath) => Resolve(overridePath, "ffmpeg", "ffmpeg");
 
-    private static string Resolve(string? overridePath, string toolName)
+    public static string ResolveYtDlpPath(string? overridePath) => Resolve(overridePath, "yt-dlp", "yt-dlp");
+
+    private static string Resolve(string? overridePath, string toolName, string bundledSubfolder)
     {
         if (!string.IsNullOrWhiteSpace(overridePath) && File.Exists(overridePath))
         {
@@ -21,7 +23,7 @@ public static class FfmpegLocator
 
         var exeName = OperatingSystem.IsWindows() ? $"{toolName}.exe" : toolName;
 
-        var bundled = Path.Combine(AppContext.BaseDirectory, "Tools", "ffmpeg", exeName);
+        var bundled = Path.Combine(AppContext.BaseDirectory, "Tools", bundledSubfolder, exeName);
         if (File.Exists(bundled))
         {
             return bundled;
@@ -31,7 +33,10 @@ public static class FfmpegLocator
         return exeName;
     }
 
-    public static async Task<(bool Found, string? Version)> TryGetVersionAsync(string executablePath, CancellationToken cancellationToken = default)
+    public static Task<(bool Found, string? Version)> TryGetVersionAsync(string executablePath, CancellationToken cancellationToken = default)
+        => TryGetVersionAsync(executablePath, "-version", cancellationToken);
+
+    public static async Task<(bool Found, string? Version)> TryGetVersionAsync(string executablePath, string versionArgument, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -40,7 +45,7 @@ public static class FfmpegLocator
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = executablePath,
-                    Arguments = "-version",
+                    Arguments = versionArgument,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,

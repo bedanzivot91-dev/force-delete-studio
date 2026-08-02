@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.YouTubeDownloadView"
+             x:DataType="vm:YouTubeDownloadViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="820">
+      <StackPanel Spacing="2">
+        <TextBlock Text="ALAT ZA PESME" Classes="eyebrow" />
+        <TextBlock Text="Preuzmi pesmu sa YouTube-a" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Nalepite link ka SVOM YouTube videu (npr. pesma koju ste napravili u Suno-u i postavili na svoj kanal) - program preuzima kompletan audio, spreman za alate „Isečci iz pesme“ i „Pronađi tekst u pesmi“. Radi samo sa YouTube linkovima i samo za sadržaj koji je vaš." />
+
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Link ka vašem YouTube videu" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding VideoUrl}" Watermark="https://www.youtube.com/watch?v=..." />
+              <Button Grid.Column="1" Margin="8,0,0,0" Classes="cta" Content="Učitaj podatke"
+                      Command="{Binding FetchInfoCommand}" IsEnabled="{Binding !IsFetchingInfo}" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Spacing="4" IsVisible="{Binding HasVideoInfo}">
+            <TextBlock FontWeight="SemiBold" Text="{Binding VideoTitle}" TextWrapping="Wrap" />
+            <TextBlock Classes="subtle">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="Kanal: {0}  ·  Trajanje: {1}">
+                  <Binding Path="VideoUploader" />
+                  <Binding Path="VideoDurationLabel" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+          </StackPanel>
+
+          <StackPanel Spacing="10" IsVisible="{Binding HasVideoInfo}">
+            <CheckBox IsChecked="{Binding OwnershipConfirmed}"
+                      Content="Potvrđujem da je ovo moj sadržaj - moja pesma (Suno) postavljena na moj YouTube kanal." />
+            <Button Classes="cta" Content="Preuzmi pesmu" Command="{Binding DownloadCommand}"
+                    IsEnabled="{Binding !IsDownloading}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
+                 IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <StackPanel Spacing="10" IsVisible="{Binding HasDownloadedFile}">
+        <TextBlock Text="Šta dalje?" Classes="section" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Classes="cta" Content="Otvori u „Isečci iz pesme“" Command="{Binding OpenInHighlightsCommand}" />
+          <Button Classes="ghost" Content="Otvori u „Pronađi tekst u pesmi“" Command="{Binding OpenInLyricSearchCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

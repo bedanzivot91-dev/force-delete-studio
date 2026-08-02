@@ -67,12 +67,15 @@ public partial class App : Avalonia.Application
         services.AddSingleton<ISongHighlightService>(sp =>
             new SongHighlightService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<ILyricSearchService>(_ => new LyricSearchService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IYouTubeDownloadService>(_ =>
+            new YouTubeDownloadService(settingsService.Current.FfmpegPath, settingsService.Current.YtDlpPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<DiagnosticsViewModel>();
         services.AddTransient<SongHighlightsViewModel>();
         services.AddTransient<LyricSearchViewModel>();
+        services.AddTransient<YouTubeDownloadViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

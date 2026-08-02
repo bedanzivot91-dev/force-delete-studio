@@ -41,9 +41,32 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.DiagnosticsRequested += () => CurrentPage = CreateDiagnosticsPage();
         vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
         vm.LyricSearchRequested += () => CurrentPage = _services.GetRequiredService<LyricSearchViewModel>();
+        vm.YouTubeDownloadRequested += () => CurrentPage = CreateYouTubeDownloadPage();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
+    }
+
+    private YouTubeDownloadViewModel CreateYouTubeDownloadPage()
+    {
+        var vm = _services.GetRequiredService<YouTubeDownloadViewModel>();
+        vm.OpenInHighlightsRequested += path => CurrentPage = CreateSongHighlightsPage(path);
+        vm.OpenInLyricSearchRequested += path => CurrentPage = CreateLyricSearchPage(path);
+        return vm;
+    }
+
+    private SongHighlightsViewModel CreateSongHighlightsPage(string preloadedFilePath)
+    {
+        var vm = _services.GetRequiredService<SongHighlightsViewModel>();
+        vm.LoadFile(preloadedFilePath);
+        return vm;
+    }
+
+    private LyricSearchViewModel CreateLyricSearchPage(string preloadedFilePath)
+    {
+        var vm = _services.GetRequiredService<LyricSearchViewModel>();
+        vm.LoadFile(preloadedFilePath);
+        return vm;
     }
 
     private ViewModelBase CreateNewProjectPage(TargetPlatform? platform)

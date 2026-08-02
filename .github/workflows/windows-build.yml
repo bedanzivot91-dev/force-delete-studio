@@ -27,6 +27,9 @@ jobs:
       - name: Install FFmpeg
         run: choco install ffmpeg -y --no-progress
 
+      - name: Install yt-dlp
+        run: choco install yt-dlp -y --no-progress
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 

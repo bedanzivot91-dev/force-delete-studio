@@ -100,7 +100,27 @@ if ($ffmpegOk -and $ffprobeOk) {
     }
 }
 
-# 4. Slobodan prostor na disku (C:)
+# 4. yt-dlp (opcioni alat, samo za "Preuzmi sa YouTube-a")
+$ytDlpBundled = Join-Path $appDir 'Tools\yt-dlp'
+$ytDlpOk = (Test-Tool 'yt-dlp.exe') -or (Test-Path (Join-Path $ytDlpBundled 'yt-dlp.exe'))
+
+if ($ytDlpOk) {
+    Write-Log "yt-dlp je dostupan." 'OK'
+} else {
+    Write-Log "yt-dlp nije pronadjen - alat 'Preuzmi sa YouTube-a' nece raditi dok se ne instalira (ostatak programa radi normalno)." 'WARN'
+    $install = $Force -or (Read-Host "Da li zelite da ga sada instaliram preko winget-a? (d/n)") -eq 'd'
+    if ($install) {
+        try {
+            winget install --id yt-dlp.yt-dlp -e --accept-source-agreements --accept-package-agreements
+            Write-Log "yt-dlp instaliran preko winget-a. Mozda je potrebno ponovo pokrenuti terminal da PATH bude azuriran." 'OK'
+        } catch {
+            Write-Log "Automatska instalacija nije uspela: $($_.Exception.Message)" 'ERROR'
+            Write-Log "Preuzmite rucno sa: https://github.com/yt-dlp/yt-dlp/releases i stavite yt-dlp.exe u: $ytDlpBundled" 'ERROR'
+        }
+    }
+}
+
+# 5. Slobodan prostor na disku (C:)
 $systemDrive = Get-PSDrive -Name ($env:SystemDrive.TrimEnd(':'))
 $freeGb = [math]::Round($systemDrive.Free / 1GB, 1)
 if ($freeGb -lt 2) {

@@ -48,6 +48,7 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? DiagnosticsRequested;
     public event Action? SongHighlightsRequested;
     public event Action? LyricSearchRequested;
+    public event Action? YouTubeDownloadRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -152,6 +153,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenLyricSearch() => LyricSearchRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenYouTubeDownload() => YouTubeDownloadRequested?.Invoke();
 
     private async Task OpenProjectFromPathAsync(string path, string? originalPathOverride = null)
     {

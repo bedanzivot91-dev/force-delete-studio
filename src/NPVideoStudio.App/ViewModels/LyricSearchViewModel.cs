@@ -65,6 +65,15 @@ public sealed partial class LyricSearchViewModel : ViewModelBase
         SearchCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Preloads a file handed off from another tool (e.g. a song just downloaded from YouTube).</summary>
+    public void LoadFile(string filePath)
+    {
+        SelectedFilePath = filePath;
+        SelectedFileName = Path.GetFileName(filePath);
+        Matches.Clear();
+        StatusMessage = null;
+    }
+
     partial void OnSearchPhraseChanged(string value)
     {
         OnPropertyChanged(nameof(CanSearch));

@@ -46,8 +46,13 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   prikaže gde misli da se taj tekst peva, sa procenom tačnosti za svako mesto (prepoznavanje pevanja je
   manje pouzdano od govora, program to ne krije). Svako pronađeno mesto može da se izveze kao poseban
   audio isečak. Radi na sopstvenim pesmama - npr. numere sa Suno profila ili sopstvenih YouTube kanala.
+- **Preuzmi sa YouTube-a** (Alati → Preuzmi sa YouTube-a): nalepite link ka SVOM YouTube videu (npr.
+  pesma napravljena u Suno-u i postavljena na sopstveni kanal), program preko yt-dlp učita naslov,
+  kanal i trajanje, tražite da potvrdite da je sadržaj vaš, pa preuzima kompletan audio kao MP3. Radi
+  isključivo sa YouTube linkovima (youtube.com/youtu.be) - nije opšti downloader za tuđe video. Preuzeti
+  fajl se jednim klikom otvara direktno u alatima „Isečci iz pesme" ili „Pronađi tekst u pesmi".
 
-Sve navedeno je pokriveno sa 43 automatizovana testa (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
+Sve navedeno je pokriveno sa 60 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
 stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
 pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
 dijagnostika rade bez grešaka. Tri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
@@ -78,6 +83,8 @@ Ovaj README će se ažurirati posle svake faze da tačno odražava stvarno stanj
 - Windows 10 (verzija 1809 ili novija) ili Windows 11, 64-bit.
 - .NET 8 Desktop Runtime (instalira se automatski uz program, ili preko `scripts\check-dependencies.ps1`).
 - FFmpeg i FFprobe (isto - automatski, ili ručno ako korisnik ima svoje kopije).
+- yt-dlp (opciono, samo za alat „Preuzmi sa YouTube-a" - automatski preko `check-dependencies.ps1`;
+  ostatak programa radi normalno i bez njega).
 - Minimum 4 GB RAM (preporučeno 8+ GB), minimum 2 GB slobodnog prostora na disku za sam program (video
   projekti zahtevaju dodatni prostor prema veličini snimaka).
 
@@ -140,6 +147,13 @@ min/maks trajanje isečka (podrazumevano 30-50 sek) i broj isečaka (podrazumeva
 dugme „Izvezi sve" snima svaki kao poseban MP3 fajl u folder koji izaberete, a „Otvori" pokreće
 izvezeni isečak u podrazumevanom plejeru da ga preslušate.
 
+### Preuzimanje pesme sa YouTube-a
+
+Na početnom ekranu, sekcija „Alati" → „Preuzmi sa YouTube-a". Nalepite link ka svom videu, kliknite
+„Učitaj podatke" da vidite naslov/kanal/trajanje, potvrdite kvačicom da je sadržaj vaš, pa kliknite
+„Preuzmi pesmu". Nakon preuzimanja, dugmad „Otvori u Isečci iz pesme" / „Otvori u Pronađi tekst u
+pesmi" vode direktno u odgovarajući alat sa već učitanim fajlom.
+
 ### Tekst, titlovi, animacije, efekti, export
 
 Ove funkcije su planirane za naredne faze i još nisu deo programa — videćete ih jasno označene kao „u
@@ -170,6 +184,8 @@ samo logove i informacije o sistemu, nikad vaše video/audio/projektne fajlove.
   potražite automatsku rezervnu kopiju u `Backups` folderu pored projekta.
 - **Program se neočekivano zatvorio:** pri sledećem pokretanju program to prepoznaje i nudi nastavak
   od poslednje automatski sačuvane verzije.
+- **„Preuzmi sa YouTube-a" javlja da yt-dlp nije pronađen:** pokrenite `scripts\check-dependencies.ps1`
+  da ga instalira; ostatak programa radi normalno i bez ovog alata.
 
 ## Ažuriranje
 
@@ -202,7 +218,7 @@ src/
   NPVideoStudio.Domain/          Modeli: Project, MediaAsset, ProjectFormat, AppSettings
   NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics...)
   NPVideoStudio.Infrastructure/  SQLite, JSON perzistencija, auto-save, logovanje (Serilog)
-  NPVideoStudio.Media/           FFprobe analiza medijskih fajlova, isečci iz pesme (FFmpeg astats)
+  NPVideoStudio.Media/           FFprobe analiza, isečci iz pesme (FFmpeg astats), YouTube preuzimanje (yt-dlp)
   NPVideoStudio.AI/              Lokalna Whisper transkripcija za pretragu teksta u pesmi
   NPVideoStudio.Diagnostics/     Sistemska dijagnostika i paket za podršku
 tests/

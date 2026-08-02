@@ -29,6 +29,9 @@
     <DataTemplate DataType="vm:LyricSearchViewModel">
       <views:LyricSearchView />
     </DataTemplate>
+    <DataTemplate DataType="vm:YouTubeDownloadViewModel">
+      <views:YouTubeDownloadView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

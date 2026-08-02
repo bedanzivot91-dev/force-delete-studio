@@ -28,8 +28,9 @@ public sealed class DiagnosticsService : IDiagnosticsService
         var results = new List<DiagnosticCheckResult>
         {
             CheckDotNetRuntime(),
-            await CheckToolAsync("FFmpeg", FfmpegLocator.ResolveFfmpegPath(_settingsService.Current.FfmpegPath), cancellationToken).ConfigureAwait(false),
-            await CheckToolAsync("FFprobe", FfmpegLocator.ResolveFfprobePath(_settingsService.Current.FfprobePath), cancellationToken).ConfigureAwait(false),
+            await CheckToolAsync("FFmpeg", FfmpegLocator.ResolveFfmpegPath(_settingsService.Current.FfmpegPath), "-version", cancellationToken).ConfigureAwait(false),
+            await CheckToolAsync("FFprobe", FfmpegLocator.ResolveFfprobePath(_settingsService.Current.FfprobePath), "-version", cancellationToken).ConfigureAwait(false),
+            await CheckToolAsync("yt-dlp", FfmpegLocator.ResolveYtDlpPath(_settingsService.Current.YtDlpPath), "--version", cancellationToken).ConfigureAwait(false),
             CheckFolder("Folder za projekte", _settingsService.Current.ProjectsFolder, canAutoFix: true),
             CheckFolder("Cache folder", _settingsService.Current.CacheFolder, canAutoFix: true),
             CheckFolder("Folder za logove", AppSettings.LogsFolder(), canAutoFix: true),
@@ -59,18 +60,22 @@ public sealed class DiagnosticsService : IDiagnosticsService
         };
     }
 
-    private static async Task<DiagnosticCheckResult> CheckToolAsync(string toolLabel, string executablePath, CancellationToken cancellationToken)
+    private static async Task<DiagnosticCheckResult> CheckToolAsync(
+        string toolLabel, string executablePath, string versionArgument, CancellationToken cancellationToken)
     {
-        var (found, version) = await FfmpegLocator.TryGetVersionAsync(executablePath, cancellationToken).ConfigureAwait(false);
+        var (found, version) = await FfmpegLocator.TryGetVersionAsync(executablePath, versionArgument, cancellationToken).ConfigureAwait(false);
+        var isOptional = toolLabel == "yt-dlp";
 
         return new DiagnosticCheckResult
         {
             CheckName = toolLabel,
-            Status = found ? DiagnosticStatus.Ok : DiagnosticStatus.Error,
+            Status = found ? DiagnosticStatus.Ok : isOptional ? DiagnosticStatus.Warning : DiagnosticStatus.Error,
             Description = found
                 ? $"{toolLabel} je pronađen i radi ispravno."
                 : $"{toolLabel} nije pronađen na sistemu.",
-            WhyItMatters = $"{toolLabel} je neophodan za uvoz, analizu i obradu video i audio fajlova.",
+            WhyItMatters = isOptional
+                ? "yt-dlp je potreban samo za alat „Preuzmi sa YouTube-a“ - ostatak programa radi i bez njega."
+                : $"{toolLabel} je neophodan za uvoz, analizu i obradu video i audio fajlova.",
             HowToFix = found ? null : $"Pokrenite scripts/check-dependencies.ps1 da automatski preuzmete {toolLabel}, ili ga ručno instalirajte i dodajte u PATH, ili podesite putanju u Podešavanja → FFmpeg.",
             TechnicalDetails = found ? $"Putanja: {executablePath}\nVerzija: {version}" : $"Tražena putanja: {executablePath}"
         };

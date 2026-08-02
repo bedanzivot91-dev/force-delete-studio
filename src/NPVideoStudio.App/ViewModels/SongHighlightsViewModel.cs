@@ -65,6 +65,15 @@ public sealed partial class SongHighlightsViewModel : ViewModelBase
         AnalyzeCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Preloads a file handed off from another tool (e.g. a song just downloaded from YouTube).</summary>
+    public void LoadFile(string filePath)
+    {
+        SelectedFilePath = filePath;
+        SelectedFileName = Path.GetFileName(filePath);
+        Highlights.Clear();
+        StatusMessage = null;
+    }
+
     [RelayCommand]
     private async Task PickSongAsync()
     {

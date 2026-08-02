@@ -92,6 +92,13 @@
             <TextBlock Classes="subtle" Text="Ukucaj stih, program ga nađe u pesmi (lokalni Whisper)" TextWrapping="Wrap" />
           </StackPanel>
         </Button>
+        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenYouTubeDownloadCommand}">
+          <StackPanel Spacing="2">
+            <Border Classes="iconBadge"><TextBlock Text="⬇" /></Border>
+            <TextBlock Text="Preuzmi sa YouTube-a" FontWeight="SemiBold" />
+            <TextBlock Classes="subtle" Text="Preuzmi kompletnu pesmu sa svog kanala" TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
       </WrapPanel>
 
       <TextBlock Text="Nedavni projekti" Classes="section" />
