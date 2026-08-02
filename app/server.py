@@ -4393,7 +4393,7 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
-    def _send_file(self, path: Path, download_name: str | None = None) -> None:
+    def _send_file(self, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
         if not path.exists() or not path.is_file():
             self.send_error(404)
             return
@@ -4439,6 +4439,14 @@ class Handler(BaseHTTPRequestHandler):
         if download_name:
             quoted = urllib.parse.quote(download_name)
             self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted}")
+        if no_cache:
+            # index.html/app.js/style.css must always reflect the files
+            # actually installed on disk. Without this, WebView2's own
+            # HTTP cache (stored outside the program's install folder, so
+            # uninstall/reinstall never clears it) can keep serving an old
+            # cached copy of the UI indefinitely after an update.
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
         self._security_headers()
         self.end_headers()
         try:
@@ -4972,10 +4980,10 @@ class Handler(BaseHTTPRequestHandler):
                 web_root = WEB_DIR.resolve()
                 if asset != web_root and web_root not in asset.parents:
                     raise PermissionError("Nedozvoljena putanja statičkog fajla.")
-                self._send_file(asset)
+                self._send_file(asset, no_cache=True)
                 return
             if path in ("/", "/index.html"):
-                self._send_file(WEB_DIR / "index.html")
+                self._send_file(WEB_DIR / "index.html", no_cache=True)
                 return
             self.send_error(404)
         except RequestBodyError as exc:
