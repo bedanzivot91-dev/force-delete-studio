@@ -328,25 +328,41 @@ it does not depend on the still-missing player-preview decoder (Phase 8's known 
 `function-contracts.json` rows yet for the new export screen's individual controls - same
 deferred-to-next-refresh treatment as Phases 6/7/8.
 
+## Početni ekran — Šabloni / Brzi video (Phase 10)
+
+3 of the 6 disabled planned-feature tiles are now real screens (the `start.planned-features` row above
+was updated in place from "6" to "3", and 3 new `WORKING_VERIFIED` rows were added - this is the one
+Phase where the pre-existing planned-tiles row itself had to change, not just gain new rows, since leaving
+it saying "6" would have been actively wrong once 3 became real). "Kreiraj video iz šablona" opens a new
+`TemplateGalleryViewModel`/`View` that forwards into the existing `NewProjectViewModel` flow with a
+starter track-kind list attached. "Brzi video od slike i pesme" and "Automatski video sa utisnutim
+titlovima (na slici)" both open the same new `QuickVideoViewModel`/`View` (auto-captions toggled by
+default from whichever tile opened it) backed by a new `IQuickVideoService`/`QuickVideoService`
+(`NPVideoStudio.Media`) - real ffmpeg still-image+song rendering with optional real Whisper-generated
+caption burn-in, verified end-to-end against real ffmpeg + Tesseract OCR. The other 3 tiles
+("Upravljanje šablonima/fontovima/efektima") were removed rather than implemented - see PHASE_STATUS.md
+for why each had no real groundwork to build on.
+
 ## Feature-level summary counts
 
-Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,
-mechanically counted — not hand-tallied). Not yet refreshed for Phase 9's new export screen (see above -
-same deferred treatment as Phases 6/7/8):
+Authoritative counts come from `docs/function-contracts.json` (77 rows, one per control/command,
+mechanically counted — not hand-tallied). Refreshed this phase for the planned-tiles row change and the
+3 new template/quick-video rows above (Phases 6-9's new screens are still deferred, per their own
+sections):
 
-- `WORKING_VERIFIED`: 34 (Phase 8 closes the timeline-editor gap - `workspace.timeline` moved from
-  `NOT_PRESENT` to `WORKING_VERIFIED`)
-- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 34
+- `WORKING_VERIFIED`: 38 (+4 this phase: 3 new template/quick-video tile rows, plus `newproject.create`
+  upgraded from `IMPLEMENTED_NOT_RUNTIME_VERIFIED` now that `NewProjectViewModelTests.cs` actually
+  executes `CreateCommand`)
+- `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 33 (-1 this phase, `newproject.create` moved up per above)
 - `BROKEN`: 0
 - `PLACEHOLDER` (deceptive/fake-active): 0
-- `NOT_PRESENT`: 6 rows, covering these remaining bigger gaps: chorus/refrain detection, known-song-
-  library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in Phase 1),
-  and the 6 disabled planned-feature tiles (counted as one summary row on the start screen above). The
-  dependency-manager screen gap from Phase 0 and the timeline-editor gap (Phase 8) are both closed. The
-  5-extra-themes gap (Phase 3), song-library gap (Phase 4), and caption-editor/style-gallery/video-
-  layout-analyzer gaps (Phases 6/7) are all closed and were never counted as `NOT_PRESENT` rows here
-  since none was a single pre-existing UI control row, so this count's history before Phase 8 is
-  unchanged since Phase 2.
+- `NOT_PRESENT`: 6 rows (count unchanged - the planned-tiles row's label changed from "6" to "3" tiles but
+  is still one summary row), covering: chorus/refrain detection, known-song-library lookup, Settings
+  AI-model/caption/export sections (tool-path fields were closed in Phase 1), and the 3 remaining disabled
+  planned-feature tiles. The dependency-manager screen gap from Phase 0 and the timeline-editor gap
+  (Phase 8) are both closed. The 5-extra-themes gap (Phase 3), song-library gap (Phase 4), and
+  caption-editor/style-gallery/video-layout-analyzer gaps (Phases 6/7) are all closed and were never
+  counted as `NOT_PRESENT` rows here since none was a single pre-existing UI control row.
 - `BLOCKED_BY_DEPENDENCY`: 0 (nothing found that's implemented but permanently blocked; the Whisper/
   yt-dlp/fpcalc/Tesseract paths work once their tool is present, which the app already detects and
   reports)

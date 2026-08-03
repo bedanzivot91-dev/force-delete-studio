@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:dom="using:NPVideoStudio.Domain"
+             x:Class="NPVideoStudio.App.Views.TemplateGalleryView"
+             x:DataType="vm:TemplateGalleryViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="900" HorizontalAlignment="Left">
+      <StackPanel Spacing="2">
+        <TextBlock Text="ŠABLONI" Classes="eyebrow" />
+        <TextBlock Text="Izaberi šablon za novi projekat" Classes="heading" />
+        <TextBlock Classes="subtle" TextWrapping="Wrap"
+                   Text="Šablon samo unapred dodaje prazne trake pogodne za tu vrstu videa - format i naziv projekta se biraju na sledećem koraku." />
+      </StackPanel>
+
+      <ItemsControl ItemsSource="{Binding Templates}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="dom:ProjectTemplate">
+            <Button Classes="tile" Width="260" Margin="0,0,14,14"
+                    Command="{Binding $parent[ItemsControl].((vm:TemplateGalleryViewModel)DataContext).SelectTemplateCommand}"
+                    CommandParameter="{Binding}">
+              <StackPanel Spacing="4">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <TextBlock Classes="subtle" Text="{Binding Description}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

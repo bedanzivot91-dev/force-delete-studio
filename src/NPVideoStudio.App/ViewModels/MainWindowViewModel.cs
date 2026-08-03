@@ -48,6 +48,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.CaptionEditorRequested += () => CurrentPage = CreateCaptionEditorPage();
         vm.CaptionStyleGalleryRequested += () => CurrentPage = _services.GetRequiredService<CaptionStyleGalleryViewModel>();
         vm.VideoLayoutAnalyzerRequested += () => CurrentPage = _services.GetRequiredService<VideoLayoutAnalyzerViewModel>();
+        vm.TemplateGalleryRequested += () => CurrentPage = CreateTemplateGalleryPage();
+        vm.QuickVideoRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: false);
+        vm.QuickVideoWithCaptionsRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: true);
 
         CurrentPage = vm;
         await vm.InitializeAsync();
@@ -111,15 +114,36 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
-    private ViewModelBase CreateNewProjectPage(TargetPlatform? platform)
+    private ViewModelBase CreateNewProjectPage(TargetPlatform? platform, ProjectTemplate? template = null)
     {
         var vm = new NewProjectViewModel(
             _services.GetRequiredService<IProjectRepository>(),
             _services.GetRequiredService<IRecentProjectsService>(),
             _services.GetRequiredService<ISettingsService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
-            platform);
+            platform,
+            template);
         vm.ProjectCreated += project => CurrentPage = OpenWorkspace(project);
+        return vm;
+    }
+
+    private TemplateGalleryViewModel CreateTemplateGalleryPage()
+    {
+        var vm = _services.GetRequiredService<TemplateGalleryViewModel>();
+        vm.TemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        return vm;
+    }
+
+    private QuickVideoViewModel CreateQuickVideoPage(bool initialAutoCaptions)
+    {
+        var vm = new QuickVideoViewModel(
+            _services.GetRequiredService<IQuickVideoService>(),
+            _services.GetRequiredService<ISubtitleGeneratorService>(),
+            _services.GetRequiredService<IMediaProbeService>(),
+            _services.GetRequiredService<Services.IStorageService>(),
+            _services.GetRequiredService<Serilog.ILogger>(),
+            initialAutoCaptions);
+        vm.BackRequested += async () => await ShowStartScreenAsync();
         return vm;
     }
 

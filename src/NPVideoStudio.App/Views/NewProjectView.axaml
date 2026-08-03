@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
              xmlns:conv="using:NPVideoStudio.App.Converters"
+             xmlns:objConv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
              x:Class="NPVideoStudio.App.Views.NewProjectView"
              x:DataType="vm:NewProjectViewModel">
 
@@ -11,6 +12,11 @@
         <TextBlock Text="NOVI PROJEKAT" Classes="eyebrow" />
         <TextBlock Text="Podesi format projekta" Classes="heading" />
       </StackPanel>
+
+      <Border CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="16,14" Background="{DynamicResource ThemeAccentSubtleBrush}"
+              IsVisible="{Binding TemplateInfoLabel, Converter={x:Static objConv:ObjectConverters.IsNotNull}}">
+        <TextBlock Text="{Binding TemplateInfoLabel}" TextWrapping="Wrap" />
+      </Border>
 
       <Border Classes="panel" Padding="24">
         <StackPanel Spacing="16">

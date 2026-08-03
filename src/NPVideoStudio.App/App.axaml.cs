@@ -79,6 +79,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IProxyGeneratorService>(_ => new ProxyGeneratorService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
         services.AddSingleton<IRenderService>(_ => new RenderService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IQuickVideoService>(_ => new QuickVideoService(settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();
@@ -92,6 +93,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<CaptionEditorViewModel>();
         services.AddTransient<CaptionStyleGalleryViewModel>();
         services.AddTransient<VideoLayoutAnalyzerViewModel>();
+        services.AddTransient<TemplateGalleryViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

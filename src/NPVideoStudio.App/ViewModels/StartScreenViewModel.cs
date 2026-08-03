@@ -22,11 +22,16 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     /// <summary>Features listed in the spec that are not implemented yet. Shown disabled with a clear
     /// "uskoro" label instead of a dead button that looks functional (spec §53).</summary>
+    /// <summary>
+    /// Features from the original planned-tile list that are staying disabled a while longer (spec Phase
+    /// 10: "each must be fully implemented or removed" - the other 3 planned tiles are now real screens
+    /// below; these 3 were removed rather than faked since none has any groundwork elsewhere in the app
+    /// (no font system anywhere in caption rendering, no effects concept beyond the fade in/out that
+    /// already exists under its own name, and no user-authored template content to "manage" once template
+    /// selection itself became real - see PHASE_STATUS.md for the full reasoning).
+    /// </summary>
     public IReadOnlyList<string> PlannedFeatures { get; } = new[]
     {
-        "Kreiraj video iz šablona",
-        "Brzi video od slike i pesme",
-        "Automatski video sa utisnutim titlovima (na slici)",
         "Upravljanje šablonima",
         "Upravljanje fontovima",
         "Upravljanje efektima"
@@ -55,6 +60,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? CaptionEditorRequested;
     public event Action? CaptionStyleGalleryRequested;
     public event Action? VideoLayoutAnalyzerRequested;
+    public event Action? TemplateGalleryRequested;
+    public event Action? QuickVideoRequested;
+    public event Action? QuickVideoWithCaptionsRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -180,6 +188,15 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenVideoLayoutAnalyzer() => VideoLayoutAnalyzerRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenTemplateGallery() => TemplateGalleryRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenQuickVideo() => QuickVideoRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenQuickVideoWithCaptions() => QuickVideoWithCaptionsRequested?.Invoke();
 
     private async Task OpenProjectFromPathAsync(string path, string? originalPathOverride = null)
     {

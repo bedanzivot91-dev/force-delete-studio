@@ -16,7 +16,7 @@ giant prompt again.
 | 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
 | 9 | Render pipeline | DONE (partial - see below) | 6a4bba5 |
-| 10 | Finish or remove planned-feature tiles | NOT_STARTED | — |
+| 10 | Finish or remove planned-feature tiles | DONE (partial - see below) | PENDING |
 | 11 | Final QA + distribution | NOT_STARTED | — |
 
 ## Baseline at end of Phase 0
@@ -515,6 +515,76 @@ Deliberately not done this phase (real, explicitly-flagged gaps):
   same known gap as `WorkspaceViewModel`'s `PlayerViewModel` timer since Phase 8 (`MainWindowViewModel`
   doesn't dispose any ViewModel on navigation today); not a new problem introduced by this phase.
 
+## What Phase 10 actually delivered
+
+The spec required each of the 6 disabled planned-feature tiles to be either fully implemented or removed
+- never left "disabled forever". Split 3/3 based on what actually had real groundwork elsewhere in the
+app versus what would mean inventing a whole new subsystem from a bare tile label with no other spec
+support:
+
+Implemented for real:
+- **"Kreiraj video iz šablona"** - `ProjectTemplate` (Domain): a fixed, honest-scope list of 4 starter
+  templates (Prazan projekat/Govor sa titlovima/Muzički spot/Slike i tekst), each just a named set of
+  starter `TimelineTrackKind`s. New `TemplateGalleryViewModel`/`View` picker screen forwards straight into
+  the existing, already-tested `NewProjectViewModel` flow (extended with an optional `template` param that
+  adds those starter tracks to the new project's timeline before saving) - reuses all of that screen's
+  existing format-picker/save/recent-projects logic rather than duplicating it.
+- **"Brzi video od slike i pesme"** / **"Automatski video sa utisnutim titlovima (na slici)"** - both now
+  open the same real `QuickVideoViewModel`/`View` screen (auto-captions toggled on by default from the
+  second tile, off from the first, either way user-toggleable - the two planned tiles were the same
+  underlying wizard at two capability levels, not two different features). New `IQuickVideoService`/
+  `QuickVideoService` (`NPVideoStudio.Media`): real ffmpeg `-loop 1` still-image-as-video + `-shortest`
+  (caps output to the song's length) - verified empirically before writing any code: a 5s synthetic song +
+  a still image produced exactly a 5.0s output. Deliberately a separate, simpler pipeline from
+  `IRenderService`/`FfmpegFilterGraphBuilder` rather than teaching the general timeline pipeline to treat
+  images as looped video clips (a much bigger change for a one-off wizard). Caption burn-in reuses the
+  existing `ISubtitleGeneratorService`/Whisper pipeline to generate a real .srt, then burns it in with
+  ffmpeg's own `subtitles` filter (not per-word `drawtext` like the timeline renderer) - verified via real
+  OCR: burned-in text appeared at exactly its .srt time window and nowhere else. Proactively escapes
+  Windows drive-letter colons in the subtitles filter's path argument (documented ffmpeg-wiki behavior,
+  not reproducible in this Linux sandbox - same "verify what CI can, document the rest" treatment as
+  yt-dlp/Whisper-model paths) - a direct lesson from Phase 9's Windows-only cancellation race, so this
+  pass's cancellation handling (`Kill()` + wait for real exit before cleanup, best-effort delete that never
+  masks the real exception) was written defensively from the start instead of discovered via a second CI
+  failure.
+- New tests: `QuickVideoServiceTests.cs` (6, real ffmpeg + Tesseract OCR - duration/resolution match,
+  caption burn-in window verified by OCR, overwrite guard, real mid-encode cancellation using a 4K/10s
+  fixture for a real cancellation window, escaping unit tests), `QuickVideoViewModelTests.cs` (12, fakes -
+  auto-captions gating, SRT-then-render sequencing, failure paths, overwrite guard),
+  `TemplateGalleryViewModelTests.cs` (2), `NewProjectViewModelTests.cs` (5, template starter-track
+  addition - the plain no-template flow is unchanged/still produces an empty timeline), plus 2 new
+  `AppSmokeTests.cs` cases driving the real XAML for both new screens end to end (catches the kind of
+  runtime-only binding failure a `dotnet build` can't see - relevant here since `TemplateGalleryView.axaml`
+  uses a compiled binding path to reach the parent `ItemsControl`'s DataContext for its per-item command).
+  Local (non-integration) test count: 275 → 302, all passing.
+
+Removed (real, explicit reasoning, not silently dropped):
+- **"Upravljanje šablonima"** - with templates as a fixed built-in list (no user-authored/CRUD-able
+  content), there is nothing to actually "manage" beyond what the template gallery already shows when
+  creating a project; a separate "manage" screen would just be an empty-feeling read-only duplicate.
+- **"Upravljanje fontovima"** - no font system exists anywhere in this app (caption/timeline burn-in uses
+  ffmpeg's default `drawtext` font unconditionally, `CaptionStylePreset` has no font field) and nothing
+  else in MASTER_SPEC motivates one. Building real font selection + real `fontfile` wiring + OCR-verified
+  proof that a chosen font actually changes the render is a legitimate separate feature, not something to
+  bolt on as a rushed one-off.
+- **"Upravljanje efektima"** - no effects concept exists beyond the fade in/out that already ships under
+  its own real name; there is no spec definition anywhere of which specific effects would need to exist,
+  so building "effects management" now would mean inventing scope rather than implementing something
+  already designed.
+
+Deliberately not done this phase (real, explicitly-flagged gaps):
+- Quick Video's still-image support is intentionally NOT plumbed into the general
+  `FfmpegFilterGraphBuilder`/timeline pipeline - a project's Video track still cannot contain a still image
+  as a clip. This is a real, separate future enhancement (Phase 9's "not yet mixed in" standalone-Audio-
+  track gap is the natural companion piece to that, if ever picked up).
+- No custom/user-created templates - `ProjectTemplate.BuiltIn` is a fixed in-code list, not persisted or
+  editable from the UI.
+- `QuickVideoViewModel` has no queue (unlike `RenderQueueViewModel`) - it runs exactly one job at a time,
+  matching its "quick one-off wizard" scope rather than the render pipeline's "multiple queued export
+  jobs" spec requirement (which is Phase 9's, not Phase 10's).
+- Function matrix: no new `function-contracts.json` rows yet for the template gallery/quick video screens
+  - same deferred-to-next-refresh treatment as Phases 6-9.
+
 ## Next action
 
-Start Phase 10 (finish or remove planned-feature tiles) only when told to proceed.
+Start Phase 11 (final QA + distribution) only when told to proceed.

@@ -68,14 +68,29 @@ public sealed partial class NewProjectViewModel : ViewModelBase
         }
     }
 
+    private readonly ProjectTemplate? _template;
+
+    /// <summary>Set only when opened from the template gallery (spec Phase 10) - shown as a small info
+    /// banner so the user knows which starter tracks will be added, and null otherwise (plain "Novi
+    /// projekat" flow, unchanged).</summary>
+    public string? TemplateInfoLabel => _template is null || _template.StarterTrackKinds.Count == 0
+        ? null
+        : $"Šablon „{_template.Name}“: dodaće se {_template.StarterTrackKinds.Count} početnih traka ({string.Join(", ", _template.StarterTrackKinds.Select(TrackKindLabel))}).";
+
     public event Action<Project>? ProjectCreated;
 
-    public NewProjectViewModel(IProjectRepository projectRepository, IRecentProjectsService recentProjectsService, ISettingsService settingsService, ILogger logger, TargetPlatform? prefillPlatform = null)
+    public NewProjectViewModel(IProjectRepository projectRepository, IRecentProjectsService recentProjectsService, ISettingsService settingsService, ILogger logger, TargetPlatform? prefillPlatform = null, ProjectTemplate? template = null)
     {
         _projectRepository = projectRepository;
         _recentProjectsService = recentProjectsService;
         _settingsService = settingsService;
         _logger = logger.ForContext("SourceContext", nameof(NewProjectViewModel));
+        _template = template;
+
+        if (template is not null)
+        {
+            ProjectName = template.Name;
+        }
 
         if (prefillPlatform is { } platform)
         {
@@ -128,6 +143,14 @@ public sealed partial class NewProjectViewModel : ViewModelBase
 
             var project = new Project { Name = ProjectName.Trim(), Format = format };
 
+            if (_template is not null)
+            {
+                foreach (var kind in _template.StarterTrackKinds)
+                {
+                    project.Timeline.Tracks.Add(new TimelineTrack { Kind = kind });
+                }
+            }
+
             var safeName = SanitizeFileName(project.Name);
             var projectDir = Path.Combine(_settingsService.Current.ProjectsFolder, safeName);
             var projectFilePath = Path.Combine(projectDir, $"{safeName}.npvsproject");
@@ -147,6 +170,16 @@ public sealed partial class NewProjectViewModel : ViewModelBase
             _logger.Error(ex, "Pravljenje novog projekta nije uspelo");
         }
     }
+
+    private static string TrackKindLabel(TimelineTrackKind kind) => kind switch
+    {
+        TimelineTrackKind.Video => "video",
+        TimelineTrackKind.Audio => "audio",
+        TimelineTrackKind.Caption => "titl",
+        TimelineTrackKind.Text => "tekst",
+        TimelineTrackKind.ImageOverlay => "slika (overlay)",
+        _ => kind.ToString()
+    };
 
     private static string SanitizeFileName(string name)
     {

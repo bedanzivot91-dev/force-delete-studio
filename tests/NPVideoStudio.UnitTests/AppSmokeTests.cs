@@ -204,6 +204,64 @@ public class AppSmokeTests
     }
 
     [AvaloniaFact]
+    public void Navigating_ToTemplateGallery_SelectingOneOpensNewProjectWithStarterTracksPreselected()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenTemplateGalleryCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var gallery = Assert.IsType<TemplateGalleryViewModel>(viewModel.CurrentPage);
+        Assert.True(gallery.Templates.Count >= 3);
+
+        var template = gallery.Templates.First(t => t.StarterTrackKinds.Count > 0);
+        gallery.SelectTemplateCommand.Execute(template);
+        Dispatcher.UIThread.RunJobs();
+
+        var newProject = Assert.IsType<NewProjectViewModel>(viewModel.CurrentPage);
+        Assert.NotNull(newProject.TemplateInfoLabel);
+        Assert.Contains(template.Name, newProject.TemplateInfoLabel);
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToQuickVideo_BothPlannedTilesOpenWithExpectedInitialAutoCaptionsState()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenQuickVideoCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        var plainQuickVideo = Assert.IsType<QuickVideoViewModel>(viewModel.CurrentPage);
+        Assert.False(plainQuickVideo.AutoCaptions);
+        Assert.False(plainQuickVideo.StartCommand.CanExecute(null));
+
+        plainQuickVideo.BackCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.IsType<StartScreenViewModel>(viewModel.CurrentPage);
+
+        var startScreenAgain = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreenAgain.OpenQuickVideoWithCaptionsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        var captionedQuickVideo = Assert.IsType<QuickVideoViewModel>(viewModel.CurrentPage);
+        Assert.True(captionedQuickVideo.AutoCaptions);
+    }
+
+    [AvaloniaFact]
     public void AllEightThemes_LoadAsRealAvaloniaResourceDictionaries()
     {
         // Real avares:// resolution + real XAML parsing via Avalonia's own asset loader - the same
