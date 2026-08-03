@@ -70,10 +70,11 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IYouTubeDownloadService>(_ =>
             new YouTubeDownloadService(settingsService.Current.FfmpegPath, settingsService.Current.YtDlpPath));
         services.AddSingleton<ISubtitleGeneratorService>(_ => new SubtitleGeneratorService(settingsService.Current.FfmpegPath));
-        services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
         services.AddSingleton<ISongLibraryRepository, SongLibraryRepository>();
         services.AddSingleton<ISongRecognitionService>(sp =>
             new SongRecognitionService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
+        services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();

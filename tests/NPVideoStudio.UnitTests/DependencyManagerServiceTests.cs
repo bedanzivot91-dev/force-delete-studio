@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using NPVideoStudio.Core.Diagnostics;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Diagnostics;
@@ -26,11 +27,27 @@ public sealed class FakeLyricSearchService : ILyricSearchService
         Task.CompletedTask;
 }
 
+/// <summary>Fake so the dependency-manager tests don't need a real Python/faster-whisper install.</summary>
+public sealed class FakeAiWorkerClient : IAiWorkerClient
+{
+    public AiWorkerCapabilities CapabilitiesToReturn { get; set; } = new() { WorkerReachable = false };
+
+    public Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(CapabilitiesToReturn);
+
+    public async IAsyncEnumerable<AiWorkerEvent> RunAsync(AiWorkerRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+}
+
 public class DependencyManagerServiceTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"npvs_depmgr_test_{Guid.NewGuid():N}");
     private readonly SettingsService _settingsService;
     private readonly FakeLyricSearchService _lyricSearchService = new();
+    private readonly FakeAiWorkerClient _aiWorkerClient = new();
     private readonly DependencyManagerService _service;
 
     public DependencyManagerServiceTests()
@@ -38,22 +55,63 @@ public class DependencyManagerServiceTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         _settingsService = new SettingsService(Path.Combine(_tempDir, "settings.json"));
         _settingsService.LoadAsync().GetAwaiter().GetResult();
-        _service = new DependencyManagerService(_settingsService, _lyricSearchService);
+        _service = new DependencyManagerService(_settingsService, _lyricSearchService, _aiWorkerClient);
     }
 
     public void Dispose() => Directory.Delete(_tempDir, recursive: true);
 
     [Fact]
-    public async Task GetDependenciesAsync_ReturnsFiveEntries()
+    public async Task GetDependenciesAsync_ReturnsSixEntries()
     {
         var results = await _service.GetDependenciesAsync();
 
-        Assert.Equal(5, results.Count);
+        Assert.Equal(6, results.Count);
         Assert.Contains(results, d => d.Name == "FFmpeg");
         Assert.Contains(results, d => d.Name == "FFprobe");
         Assert.Contains(results, d => d.Name == "yt-dlp");
         Assert.Contains(results, d => d.Name.Contains("fpcalc"));
         Assert.Contains(results, d => d.Name.Contains("Whisper"));
+        Assert.Contains(results, d => d.Name.Contains("AI radnik"));
+    }
+
+    [Fact]
+    public async Task GetDependenciesAsync_AiWorkerUnreachable_ReportsNotInstalled()
+    {
+        _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities { WorkerReachable = false, Error = "python3 not found" };
+
+        var results = await _service.GetDependenciesAsync();
+        var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
+
+        Assert.Equal(DependencyStatus.NotInstalled, aiWorker.Status);
+        Assert.Contains("python3 not found", aiWorker.TechnicalDetails);
+    }
+
+    [Fact]
+    public async Task GetDependenciesAsync_AiWorkerReachableButNoEngines_ReportsNotInstalled()
+    {
+        _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities { WorkerReachable = true, PythonVersion = "3.11.0" };
+
+        var results = await _service.GetDependenciesAsync();
+        var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
+
+        Assert.Equal(DependencyStatus.NotInstalled, aiWorker.Status);
+    }
+
+    [Fact]
+    public async Task GetDependenciesAsync_AiWorkerReachableWithFasterWhisper_ReportsInstalled()
+    {
+        _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
+        {
+            WorkerReachable = true,
+            PythonVersion = "3.11.0",
+            FasterWhisperAvailable = true
+        };
+
+        var results = await _service.GetDependenciesAsync();
+        var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
+
+        Assert.Equal(DependencyStatus.Installed, aiWorker.Status);
+        Assert.Equal("3.11.0", aiWorker.Version);
     }
 
     [Fact]

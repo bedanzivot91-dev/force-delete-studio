@@ -14,11 +14,14 @@ public sealed class DependencyManagerService : IDependencyManagerService
 {
     private readonly ISettingsService _settingsService;
     private readonly ILyricSearchService _lyricSearchService;
+    private readonly IAiWorkerClient _aiWorkerClient;
 
-    public DependencyManagerService(ISettingsService settingsService, ILyricSearchService lyricSearchService)
+    public DependencyManagerService(
+        ISettingsService settingsService, ILyricSearchService lyricSearchService, IAiWorkerClient aiWorkerClient)
     {
         _settingsService = settingsService;
         _lyricSearchService = lyricSearchService;
+        _aiWorkerClient = aiWorkerClient;
     }
 
     public async Task<IReadOnlyList<DependencyInfo>> GetDependenciesAsync(CancellationToken cancellationToken = default)
@@ -49,7 +52,8 @@ public sealed class DependencyManagerService : IDependencyManagerService
                 "-version",
                 "Potreban samo za prepoznavanje pesama u „Moje pesme“ (otisak pesme) - ostatak programa radi i bez njega.",
                 cancellationToken).ConfigureAwait(false),
-            CheckWhisperModel()
+            CheckWhisperModel(),
+            await CheckAiWorkerAsync(cancellationToken).ConfigureAwait(false)
         };
     }
 
@@ -85,6 +89,29 @@ public sealed class DependencyManagerService : IDependencyManagerService
             CanDownload = !ready,
             CanOpenFolder = ready,
             TechnicalDetails = ready ? $"Putanja: {modelPath}" : _lyricSearchService.ModelSizeLabel
+        };
+    }
+
+    private async Task<DependencyInfo> CheckAiWorkerAsync(CancellationToken cancellationToken)
+    {
+        var capabilities = await _aiWorkerClient.CheckCapabilitiesAsync(cancellationToken).ConfigureAwait(false);
+        var anyEngine = capabilities.FasterWhisperAvailable || capabilities.WhisperXAvailable || capabilities.DemucsAvailable;
+        var installed = capabilities.WorkerReachable && anyEngine;
+
+        var details = capabilities.WorkerReachable
+            ? $"faster-whisper: {(capabilities.FasterWhisperAvailable ? "da" : "ne")}, " +
+              $"WhisperX: {(capabilities.WhisperXAvailable ? "da" : "ne")}, " +
+              $"Demucs: {(capabilities.DemucsAvailable ? "da" : "ne")}" +
+              (capabilities.PythonVersion is null ? "" : $" (Python {capabilities.PythonVersion})")
+            : capabilities.Error ?? "AI worker nije dostupan.";
+
+        return new DependencyInfo
+        {
+            Name = "AI radnik (napredna obrada govora)",
+            Status = installed ? DependencyStatus.Installed : DependencyStatus.NotInstalled,
+            Version = capabilities.PythonVersion,
+            WhyItMatters = "Potreban samo za profile „Balanced“/„Most accurate“ - profil „Fast“ (Whisper.net) radi i bez njega.",
+            TechnicalDetails = details
         };
     }
 

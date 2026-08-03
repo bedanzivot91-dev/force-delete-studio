@@ -101,15 +101,19 @@ just fail an XML check.
 | Control | Command | Status | Evidence |
 |---|---|---|---|
 | Početni ekran tile | `StartScreenViewModel.OpenDependencyManagerCommand` | WORKING_VERIFIED | [Smoke] `AppSmokeTests.cs: OpeningDependencyManager_LoadsRealDependencyStatusesWithoutThrowing` executes this exact command and asserts real results |
-| "Proveri ponovo" / initial load | `RefreshCommand` → `IDependencyManagerService.GetDependenciesAsync` | WORKING_VERIFIED | [Smoke] same test asserts FFmpeg/FFprobe correctly reported `Installed` with a real version string on the real (non-mocked) tools present in this environment; [Svc] `DependencyManagerServiceTests.cs` (6 tests) covers found/not-found/Whisper-ready/not-ready directly, including a genuinely-absent yt-dlp |
+| "Proveri ponovo" / initial load | `RefreshCommand` → `IDependencyManagerService.GetDependenciesAsync` | WORKING_VERIFIED | [Smoke] same test asserts FFmpeg/FFprobe correctly reported `Installed` with a real version string on the real (non-mocked) tools present in this environment; [Svc] `DependencyManagerServiceTests.cs` (9 tests) covers found/not-found/Whisper-ready/not-ready/AI-worker-reachability directly, including a genuinely-absent yt-dlp |
 | "Otvori folder" (per row) | `DependencyItemViewModel.OpenFolderCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — opens a real OS file browser, not asserted by any test |
 | "Preuzmi model" (Whisper) | `DownloadWhisperModelCommand` → `WhisperTranscriber` (via `ILyricSearchService`) | WORKING_VERIFIED | [CI] same download path already verified end-to-end via `LyricSearchServiceIntegrationTests.cs`/`SubtitleGeneratorServiceIntegrationTests.cs` |
 | "Otkaži" | `CancelDownloadCommand` | IMPLEMENTED_NOT_RUNTIME_VERIFIED | [None] — first cancellable long-running operation in the app; the mid-download cancel path itself hasn't been exercised by a test, only that `CanExecute` toggles correctly |
+| AI radnik row (Phase 5) | — | WORKING_VERIFIED (row reporting itself) | [Svc] `AiWorkerClientTests.cs` (real subprocess against `tests/FakeAiWorker`) + `DependencyManagerServiceTests.cs` cover `IAiWorkerClient.CheckCapabilitiesAsync` honestly reporting python/faster-whisper/WhisperX/Demucs; the real `ai-worker/ai_worker.py` was manually run end-to-end in this sandbox (capability check + the "engine not installed" error path) since it has no automated test of its own (no xUnit runner for Python) |
 
 **Real gap, not fabricated**: the master prompt's richer status vocabulary (Ažuriranje dostupno /
 Oštećeno / Nekompatibilno) isn't implemented — there's no checksum or expected-version pinning system
 to honestly back those states yet (see `DependencyInfo`'s doc comment). Only Instalirano/Nije
 instalirano are reported, both backed by a real version-command exit code, not just file existence.
+The new AI radnik row is no exception: it reports Nije instalirano in this sandbox (and will on a fresh
+Windows install) since faster-whisper/WhisperX/Demucs are not installed anywhere yet — see the Phase 5
+section below.
 
 ## Dijagnostika — DiagnosticsView / DiagnosticsViewModel
 
@@ -202,6 +206,42 @@ would violate the "never guess" rule) or "linked Shorts projects" (the `Project`
 concept of song usage yet - premature to add before Phase 8's timeline exists). Tempo-ratio/pitch-shift
 warnings from the original spec wording are approximated by a duration-ratio check only; real tempo/
 pitch detection is a DSP feature beyond fingerprint comparison and is not implemented.
+
+## AI pipeline backend — Phase 5 (no new screen; feeds Phase 6's caption editor)
+
+Spec Phase 5 asks for a local Python AI worker (faster-whisper/WhisperX/Demucs) plus the logic to turn
+its output into correct captions for both known and unknown songs. This phase built the orchestration
+and pure-logic pieces; it deliberately has no new UI screen since there's nowhere to show word-level
+captions yet (that's Phase 6's caption editor) - these are backend building blocks, not user-facing
+functions, so none of them get a `function-contracts.json` row (that file is control/command-scoped).
+
+- `IAiWorkerClient`/`AiWorkerClient` (`NPVideoStudio.AI`): versioned (protocol v1) JSON-request-file-in
+  / JSONL-events-out subprocess protocol, real committed Python worker at `ai-worker/ai_worker.py`
+  (bundled into the publish output at `Tools/ai-worker/`, see `NPVideoStudio.App.csproj`). `CheckCapabilitiesAsync`
+  honestly reports python/faster-whisper/WhisperX/Demucs availability - in this sandbox and on any fresh
+  install, all three engines report `NotInstalled` (verified: `pip install` isn't reachable here, and no
+  install was faked). `RunAsync` for the two real job kinds (`KnownSongAlignment`/`UnknownSongTranscription`)
+  currently returns an honest `Error` event when faster-whisper isn't present, rather than a fabricated
+  transcript - this is the real, not-yet-closed gap the master prompt's phase asks for next (faster-
+  whisper/Demucs/WhisperX orchestration itself). Whisper.net (`WhisperTranscriber`) is untouched and
+  remains the always-available Fast-profile fallback.
+- `KnownSongLyricLocator` (`NPVideoStudio.AI`, pure/testable): fuzzy-match + DP (Needleman-Wunsch-style)
+  alignment of a song's verified lyrics against whatever words the worker actually heard in a clip -
+  this is the "known song → verified lyrics, ASR only helps timing" half of the spec. Verified text is
+  never replaced by an ASR guess; only short internal gaps between two confident anchors are
+  interpolated, a run with no anchor on either side is left unresolved rather than guessed. This directly
+  starts closing the `NOT_PRESENT` "known-song-library lookup" gap noted in the summary below, though it
+  has no UI wiring yet (nothing calls it outside its own tests) - closing the row fully needs Phase 6's
+  caption data model to hold the result.
+- `SerbianScriptConverter` (`NPVideoStudio.AI`, pure/testable): lossless Cyrillic↔Latin transliteration,
+  correctly handling the spec's named edge cases (đ vs dž - one is a single letter, one a digraph - and
+  č vs ć) plus digraph casing (title-case "Lj" vs all-caps "LJ" both collapsing to one Cyrillic letter).
+  Never mutates a stored original; produces a converted copy only.
+- Tests: `AiWorkerClientTests.cs` (5, real subprocess against `tests/FakeAiWorker` - launch, JSONL
+  parsing, non-zero exit handling, error-event dedup, cancellation), `KnownSongLyricLocatorTests.cs` (6,
+  pure DP-alignment logic), `SerbianScriptConverterTests.cs` (13, pure transliteration), plus 3 new
+  `DependencyManagerServiceTests.cs` cases for the new AI-worker row. Local (non-integration) test count:
+  121 → 148, all passing.
 
 ## Feature-level summary counts
 

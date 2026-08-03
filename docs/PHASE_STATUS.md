@@ -11,7 +11,7 @@ giant prompt again.
 | 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
 | 3 | Five new themes | DONE (partial - see below) | 5114fbb |
 | 4 | Song library + fingerprinting | DONE (partial - see below) | 7c5d6e2 |
-| 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | NOT_STARTED | — |
+| 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | (pending push) |
 | 6 | Caption/word data model + editor | NOT_STARTED | — |
 | 7 | Caption styling + video layout/OCR | NOT_STARTED | — |
 | 8 | Timeline + player | NOT_STARTED | — |
@@ -208,6 +208,58 @@ pesme" section for the fuller reasoning):
   (match against your own library), so the "check AGPL licensing" spec instruction is satisfied by not
   having an AcoustID client at all; only the LGPL-2.1 `fpcalc` *tool* is shelled out to, never linked.
 
+## What Phase 5 actually delivered
+
+Delivered:
+- `IAiWorkerClient`/`AiWorkerClient` (`NPVideoStudio.AI`): the local AI worker orchestration layer the
+  spec asks for - versioned (protocol v1) JSON-request-file-in / JSONL-events-out subprocess protocol,
+  no HTTP, no audio bytes through JSON. A real, committed Python worker (`ai-worker/ai_worker.py`,
+  `ai-worker/requirements.txt`) is bundled into the publish output at `Tools/ai-worker/` (wired via
+  `NPVideoStudio.App.csproj`, same "real file, not a fabricated binary" bar as Phase 1's dependency
+  work). Manually verified end-to-end in this sandbox (real `python3` + real script, no fakes): capability
+  check honestly reports `faster-whisper`/`WhisperX`/`Demucs` all absent (this sandbox has no PyPI
+  access to install them, and none of this was faked), and a transcription job request returns a clear
+  `Error` event pointing at the missing dependency instead of a fabricated transcript.
+- New 6th "Alati i modeli" dependency row ("AI radnik") via `DependencyManagerService`, following the
+  exact same honesty rule as every other row here: `Installed` only when the worker is actually reachable
+  **and** at least one heavier engine (faster-whisper/WhisperX/Demucs) is actually importable - not just
+  because the subprocess launched without throwing.
+- `KnownSongLyricLocator` (`NPVideoStudio.AI`, pure/testable): the "known song → verified lyrics, ASR
+  only helps timing" half of the spec. Fuzzy-match + DP (Needleman-Wunsch-style) sequence alignment
+  between a song's verified lyrics and whatever words the worker actually heard, so exported captions
+  carry the correct (verified) text at the time it's actually sung. Verified lyrics text is never
+  replaced by an ASR guess; interpolation is limited to short internal gaps between two confident
+  anchors, and an unanchored run on either end is left unresolved rather than guessed at.
+- `SerbianScriptConverter` (`NPVideoStudio.AI`, pure/testable): lossless Cyrillic↔Latin transliteration
+  covering the spec's explicitly-named edge cases - đ (single letter) vs dž (digraph), č vs ć, and
+  digraph casing (a single uppercase Cyrillic Љ/Њ/Џ correctly expands to title-case "Lj"/"Nj"/"Dž" or
+  all-caps "LJ"/"NJ"/"DŽ" depending on the following letter's case, since Cyrillic has no separate form
+  for the two). Never mutates a stored original - produces a converted copy only.
+- New tests: `AiWorkerClientTests.cs` (5, real subprocess against a new `tests/FakeAiWorker` mock
+  process - same "mock process" pattern as `tests/FakeYtDlp`/`tests/FakeFpcalc` - covering launch, JSONL
+  parsing, non-zero-exit handling without double-reporting an error the worker already explained, and
+  cancellation actually killing the process), `KnownSongLyricLocatorTests.cs` (6, pure DP-alignment
+  logic incl. a mid-transcript missed word and completely unrelated ASR text), `SerbianScriptConverterTests.cs`
+  (13, pure transliteration incl. round-trips). Local (non-integration) test count: 121 → 148, all
+  passing. Function matrix: no new `function-contracts.json` rows (that file is UI-control-scoped, and
+  this phase intentionally added no new screen - see FUNCTION_MATRIX.md's Phase 5 section for why).
+
+Deliberately not done this phase (the real, not-yet-closed gap, same honesty bar as every prior phase):
+- No actual faster-whisper/Demucs/WhisperX orchestration exists inside `ai_worker.py` - only capability
+  detection and an honest "not installed" error for the two real job kinds. This sandbox has no network
+  access to `pip install` any of the three, so there is no way to build and verify real transcription
+  logic against them here; faking a transcript would violate this codebase's "never guess" rule far more
+  than leaving the gap explicit. This is real, necessary follow-up work, not scope creep to defer -
+  whoever picks this up next needs either network access to install these packages or a Windows CI job
+  extended to install and exercise them.
+- No UI wiring for `KnownSongLyricLocator`/`SerbianScriptConverter` - nothing in the app calls either
+  outside their own tests yet. There is no caption screen to show the result to (that's Phase 6), and
+  wiring a script-toggle into an existing screen without a caption editor to toggle it in would be a UI
+  change with no real use, so it was deferred rather than added prematurely.
+- Balanced/Most-accurate profile selection has no UI control anywhere yet (spec's three profiles are
+  modeled as the `AiProcessingProfile` enum, used by `AiWorkerRequest`, but nothing in the UI lets a user
+  pick one) - there's no screen that would meaningfully offer this choice until Phase 6/7 exist.
+
 ## Next action
 
-Start Phase 5 (AI pipeline: known song → verified lyrics; unknown song → ASR) only when told to proceed.
+Start Phase 6 (caption/word data model + editor) only when told to proceed.

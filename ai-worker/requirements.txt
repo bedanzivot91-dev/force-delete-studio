@@ -1,0 +1,10 @@
+# Optional local AI worker dependencies (Phase 5 - Balanced/MostAccurate profiles only).
+# The "Fast" profile and everything else in NP Video Studio works without any of these installed;
+# ai_worker.py's CapabilityCheck job honestly reports which of these are missing.
+#
+# Not pinned to exact versions yet - no verified-working version combination has been tested against
+# this worker script (this sandbox has no network access to install/exercise them). Pin these once a
+# real end-to-end run has been verified on Windows CI.
+faster-whisper
+whisperx
+demucs

@@ -22,6 +22,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Real, committed AI worker script (Phase 5) - copied next to the exe so AiWorkerClient's
+         default "Tools/ai-worker/ai_worker.py" resolution finds it. Requires a user-installed Python
+         (and, for Balanced/MostAccurate, `pip install -r ai-worker/requirements.txt`) - see that file. -->
+    <None Include="..\..\ai-worker\ai_worker.py" Link="Tools\ai-worker\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ai-worker\requirements.txt" Link="Tools\ai-worker\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Infrastructure\NPVideoStudio.Infrastructure.csproj" />

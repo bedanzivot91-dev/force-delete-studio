@@ -85,7 +85,7 @@ public class AppSmokeTests
 
         Assert.False(dependencyManager.IsLoading);
         Assert.Null(dependencyManager.StatusMessage);
-        Assert.Equal(5, dependencyManager.Dependencies.Count);
+        Assert.Equal(6, dependencyManager.Dependencies.Count);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFmpeg" && d.IsInstalled);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFprobe" && d.IsInstalled);
     }
