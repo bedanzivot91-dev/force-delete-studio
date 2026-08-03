@@ -17,6 +17,14 @@ import json
 import sys
 import platform
 
+# Force UTF-8 stdout/stderr regardless of the OS locale/codepage. Matters most on Windows: a redirected
+# (piped) stream there defaults to the locale's codepage, not UTF-8, which silently mangles Serbian
+# č/ć/š/ž/đ in emitted JSON. AiWorkerClient also sets PYTHONIOENCODING=utf-8 when launching this script
+# and decodes with a matching encoding on its side - this reconfigure is the belt to that suspenders,
+# so the script is still correct if ever invoked without that env var.
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 PROTOCOL_VERSION = 1
 
 

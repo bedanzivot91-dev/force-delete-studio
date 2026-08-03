@@ -1,8 +1,16 @@
+using System.Text;
 using System.Text.Json;
 
 // Minimal stand-in for ai-worker/ai_worker.py: reads the same JSON request file (--request <path>) and
 // prints the same JSONL event shape AiWorkerClient parses, so tests exercise the real subprocess
 // launch/cancellation/JSONL-parsing code without needing Python or any ML package installed.
+//
+// Explicit no-BOM UTF-8 output: Windows' console default codepage isn't UTF-8, so without this, the
+// Serbian "reč" in the Result event below round-trips back to the parent as mangled text ("rec") on
+// Windows CI specifically - AiWorkerClient sets StandardOutputEncoding to match, but this process must
+// actually write UTF-8 bytes for that to matter.
+Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
 var argsList = args.ToList();
 var requestIndex = argsList.IndexOf("--request");
 if (requestIndex < 0 || requestIndex + 1 >= argsList.Count)

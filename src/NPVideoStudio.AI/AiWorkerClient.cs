@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NPVideoStudio.Core.Services;
@@ -203,6 +204,12 @@ public sealed class AiWorkerClient : IAiWorkerClient
         }
     }
 
+    // No-BOM UTF-8: the default Encoding.UTF8 instance writes a byte-order-mark preamble, which would
+    // corrupt the very first JSONL line's JSON parsing. Serbian č/ć/š/ž/đ in worker output only round-
+    // trips correctly on Windows if both sides agree on plain UTF-8 - Windows' console default codepage
+    // is not UTF-8, which silently mangled non-ASCII text before this was pinned down explicitly.
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     private ProcessStartInfo BuildStartInfo(string requestPath)
     {
         var startInfo = new ProcessStartInfo
@@ -210,6 +217,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             FileName = _workerCommandOverride ?? _pythonPath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -217,6 +226,10 @@ public sealed class AiWorkerClient : IAiWorkerClient
         if (_workerCommandOverride is null)
         {
             startInfo.ArgumentList.Add(_workerScriptPath);
+            // Forces Python's stdout/stderr to UTF-8 regardless of the OS locale/codepage (matters on
+            // Windows in particular, where Python's default for a *redirected* stream is the locale's
+            // codepage, not UTF-8).
+            startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
         }
 
         startInfo.ArgumentList.Add("--request");
