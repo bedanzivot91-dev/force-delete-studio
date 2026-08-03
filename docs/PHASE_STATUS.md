@@ -11,7 +11,7 @@ giant prompt again.
 | 2 | Existing-feature hardening | DONE (partial - see below) | cf63149 |
 | 3 | Five new themes | DONE (partial - see below) | 5114fbb |
 | 4 | Song library + fingerprinting | DONE (partial - see below) | 7c5d6e2 |
-| 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | (pending push) |
+| 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | 1354fb4 |
 | 6 | Caption/word data model + editor | NOT_STARTED | — |
 | 7 | Caption styling + video layout/OCR | NOT_STARTED | — |
 | 8 | Timeline + player | NOT_STARTED | — |
