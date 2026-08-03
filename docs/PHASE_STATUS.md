@@ -16,7 +16,7 @@ giant prompt again.
 | 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
 | 9 | Render pipeline | DONE (partial - see below) | 6a4bba5 |
-| 10 | Finish or remove planned-feature tiles | DONE (partial - see below) | PENDING |
+| 10 | Finish or remove planned-feature tiles | DONE (partial - see below) | 34bd14a |
 | 11 | Final QA + distribution | NOT_STARTED | — |
 
 ## Baseline at end of Phase 0
