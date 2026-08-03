@@ -63,7 +63,12 @@ jobs:
         run: dotnet test tests/NPVideoStudio.UnitTests/NPVideoStudio.UnitTests.csproj -c Release --no-build --logger "trx;LogFileName=test-results.trx"
 
       - name: Upload test results
+        # Diagnostic-only, not a build deliverable - must never fail the whole job on its own. Real CI
+        # failure hit despite the actual build+tests genuinely passing (306/306): the account's GitHub
+        # Actions artifact storage quota was hit, which fails this upload step independently of anything
+        # this repo's code does, and without continue-on-error that turns an otherwise-green run red.
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: test-results
