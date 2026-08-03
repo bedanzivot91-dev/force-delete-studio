@@ -146,7 +146,14 @@ public sealed class QuickVideoService : IQuickVideoService
             $"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1");
         if (!string.IsNullOrEmpty(subtitleSrtPath))
         {
-            filter += $",subtitles={EscapeSubtitlesFilterPath(subtitleSrtPath)}";
+            // Running with the .srt's own directory as CWD and passing just its bare filename sidesteps
+            // the subtitles filter's own path-escaping entirely - no drive-letter colon, no backslashes,
+            // nothing that needs escaping at all. Real, reproducible CI failure (Windows-only, could not
+            // be caught in this Linux sandbox since there are no drive letters to trigger it): the
+            // documented `C\:/path` colon-escaping approach this replaced made ffmpeg's own filter-option
+            // parser misread the path and throw "Unable to parse 'original_size' ... as image size".
+            startInfo.WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(subtitleSrtPath));
+            filter += $",subtitles={EscapeSubtitlesFilterPath(Path.GetFileName(subtitleSrtPath))}";
         }
 
         startInfo.ArgumentList.Add("-vf");
@@ -172,11 +179,13 @@ public sealed class QuickVideoService : IQuickVideoService
     }
 
     /// <summary>
-    /// ffmpeg's `subtitles` filter parses its argument with its own escaping rules, independent of shell
-    /// quoting - a literal Windows path's drive-letter colon (`C:\...`) is real, documented (ffmpeg wiki)
-    /// to break the filter parser unless escaped. Not reproducible in this Linux sandbox (no drive
-    /// letters), so applied proactively from documented behavior, same "verify what CI can, document the
-    /// rest" treatment as the yt-dlp/Whisper-model download paths.
+    /// Defensive escaping for whatever ends up in the `subtitles=` filter value - <see cref="BuildStartInfo"/>
+    /// avoids ever needing this in practice by running with the .srt's own directory as the working
+    /// directory and passing only its bare filename (no drive letter, no path separators), after a real
+    /// CI-only failure: a colon-escaped absolute Windows path (`C\:/Users/...`) - the documented ffmpeg
+    /// wiki approach, not reproducible in this Linux sandbox since there are no drive letters - made
+    /// ffmpeg's own filter-option parser misread the path and throw "Unable to parse 'original_size' ...
+    /// as image size" instead of finding the file.
     /// </summary>
     public static string EscapeSubtitlesFilterPath(string path) =>
         path.Replace('\\', '/').Replace(":", "\\:");
