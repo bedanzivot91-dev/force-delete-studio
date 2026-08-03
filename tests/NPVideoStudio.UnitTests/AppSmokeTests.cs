@@ -121,6 +121,38 @@ public class AppSmokeTests
     }
 
     [AvaloniaFact]
+    public void Navigating_ToCaptionEditor_StartsEmptyAndAllowsARealEditRoundTrip()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenCaptionEditorCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var editor = Assert.IsType<CaptionEditorViewModel>(viewModel.CurrentPage);
+        Assert.False(editor.HasDocument);
+
+        editor.NewDocumentCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(editor.HasDocument);
+        Assert.Empty(editor.Words);
+
+        editor.AddWordCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Single(editor.Words);
+        Assert.True(editor.UndoCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
     public void AllEightThemes_LoadAsRealAvaloniaResourceDictionaries()
     {
         // Real avares:// resolution + real XAML parsing via Avalonia's own asset loader - the same

@@ -41,6 +41,9 @@
     <DataTemplate DataType="vm:MySongsViewModel">
       <views:MySongsView />
     </DataTemplate>
+    <DataTemplate DataType="vm:CaptionEditorViewModel">
+      <views:CaptionEditorView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

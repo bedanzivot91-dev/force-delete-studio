@@ -45,8 +45,10 @@
       <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
                  IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
 
-      <Button Classes="ghost" Content="Otvori .srt fajl" Command="{Binding OpenGeneratedSrtCommand}"
-              HorizontalAlignment="Left" IsVisible="{Binding HasGeneratedSrt}" />
+      <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasGeneratedSrt}">
+        <Button Classes="ghost" Content="Otvori .srt fajl" Command="{Binding OpenGeneratedSrtCommand}" HorizontalAlignment="Left" />
+        <Button Classes="ghost" Content="Otvori u uređivaču titlova" Command="{Binding OpenInCaptionEditorCommand}" HorizontalAlignment="Left" />
+      </StackPanel>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

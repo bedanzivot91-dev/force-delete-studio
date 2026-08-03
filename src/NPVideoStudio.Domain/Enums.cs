@@ -61,3 +61,14 @@ public enum AppTheme
     MidnightPro,
     OceanGlass
 }
+
+/// <summary>File formats the caption editor can import/export (spec Phase 6). Ass has no importer yet - see CaptionFormatConverter's doc comment.</summary>
+public enum CaptionFileFormat
+{
+    Srt,
+    Vtt,
+    Ass,
+    Txt,
+    Json,
+    Lrc
+}

@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NPVideoStudio.AI;
 using NPVideoStudio.Core.Services;
+using NPVideoStudio.Domain;
 using NPVideoStudio.App.Services;
 using Serilog;
 
@@ -49,6 +51,8 @@ public sealed partial class SubtitleGeneratorViewModel : ViewModelBase
     public bool HasGeneratedSrt => !string.IsNullOrEmpty(GeneratedSrtPath);
     public bool CanGenerate => IsModelReady && HasSelectedFile && !IsGenerating;
 
+    public event Action<IReadOnlyList<CaptionWord>>? OpenInCaptionEditorRequested;
+
     public SubtitleGeneratorViewModel(ISubtitleGeneratorService subtitleService, IStorageService storageService, ILogger logger)
     {
         _subtitleService = subtitleService;
@@ -69,7 +73,11 @@ public sealed partial class SubtitleGeneratorViewModel : ViewModelBase
         GenerateCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnGeneratedSrtPathChanged(string? value) => OnPropertyChanged(nameof(HasGeneratedSrt));
+    partial void OnGeneratedSrtPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasGeneratedSrt));
+        OpenInCaptionEditorCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>Preloads a file handed off from another tool (e.g. a song just downloaded from YouTube).</summary>
     public void LoadFile(string filePath)
@@ -177,6 +185,26 @@ public sealed partial class SubtitleGeneratorViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.Error(ex, "Otvaranje fajla titlova nije uspelo: {Path}", GeneratedSrtPath);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasGeneratedSrt))]
+    private void OpenInCaptionEditor()
+    {
+        if (GeneratedSrtPath is null || !File.Exists(GeneratedSrtPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var words = CaptionFormatConverter.FromSrt(File.ReadAllText(GeneratedSrtPath));
+            OpenInCaptionEditorRequested?.Invoke(words);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Otvaranje u uređivaču titlova nije uspelo: {ex.Message}";
+            _logger.Error(ex, "Otvaranje generisanih titlova u uređivaču titlova nije uspelo: {Path}", GeneratedSrtPath);
         }
     }
 }

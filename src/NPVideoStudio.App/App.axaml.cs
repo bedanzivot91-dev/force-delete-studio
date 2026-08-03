@@ -85,6 +85,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<SubtitleGeneratorViewModel>();
         services.AddTransient<DependencyManagerViewModel>();
         services.AddTransient<MySongsViewModel>();
+        services.AddTransient<CaptionEditorViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();

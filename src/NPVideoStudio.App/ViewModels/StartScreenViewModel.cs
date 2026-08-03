@@ -52,6 +52,7 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? SubtitleGeneratorRequested;
     public event Action? DependencyManagerRequested;
     public event Action? MySongsRequested;
+    public event Action? CaptionEditorRequested;
 
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
@@ -168,6 +169,9 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenMySongs() => MySongsRequested?.Invoke();
+
+    [RelayCommand]
+    private void OpenCaptionEditor() => CaptionEditorRequested?.Invoke();
 
     private async Task OpenProjectFromPathAsync(string path, string? originalPathOverride = null)
     {

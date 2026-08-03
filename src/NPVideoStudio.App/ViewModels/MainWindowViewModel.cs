@@ -42,9 +42,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
         vm.LyricSearchRequested += () => CurrentPage = _services.GetRequiredService<LyricSearchViewModel>();
         vm.YouTubeDownloadRequested += () => CurrentPage = CreateYouTubeDownloadPage();
-        vm.SubtitleGeneratorRequested += () => CurrentPage = _services.GetRequiredService<SubtitleGeneratorViewModel>();
+        vm.SubtitleGeneratorRequested += () => CurrentPage = CreateSubtitleGeneratorPage();
         vm.DependencyManagerRequested += () => CurrentPage = CreateDependencyManagerPage();
         vm.MySongsRequested += () => CurrentPage = CreateMySongsPage();
+        vm.CaptionEditorRequested += () => CurrentPage = CreateCaptionEditorPage();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
@@ -87,10 +88,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
-    private SubtitleGeneratorViewModel CreateSubtitleGeneratorPage(string preloadedFilePath)
+    private SubtitleGeneratorViewModel CreateSubtitleGeneratorPage(string? preloadedFilePath = null)
     {
         var vm = _services.GetRequiredService<SubtitleGeneratorViewModel>();
-        vm.LoadFile(preloadedFilePath);
+        if (preloadedFilePath is not null)
+        {
+            vm.LoadFile(preloadedFilePath);
+        }
+        vm.OpenInCaptionEditorRequested += words => CurrentPage = CreateCaptionEditorPage(words, "Generiši titlove (SRT)");
+        return vm;
+    }
+
+    private CaptionEditorViewModel CreateCaptionEditorPage(IEnumerable<CaptionWord>? preloadedWords = null, string? sourceLabel = null)
+    {
+        var vm = _services.GetRequiredService<CaptionEditorViewModel>();
+        if (preloadedWords is not null)
+        {
+            vm.LoadWords(preloadedWords, sourceLabel);
+        }
         return vm;
     }
 

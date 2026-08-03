@@ -12,7 +12,7 @@ giant prompt again.
 | 3 | Five new themes | DONE (partial - see below) | 5114fbb |
 | 4 | Song library + fingerprinting | DONE (partial - see below) | 7c5d6e2 |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | 1354fb4 |
-| 6 | Caption/word data model + editor | NOT_STARTED | — |
+| 6 | Caption/word data model + editor | DONE (partial - see below) | (pending push) |
 | 7 | Caption styling + video layout/OCR | NOT_STARTED | — |
 | 8 | Timeline + player | NOT_STARTED | — |
 | 9 | Render pipeline | NOT_STARTED | — |
@@ -260,6 +260,56 @@ Deliberately not done this phase (the real, not-yet-closed gap, same honesty bar
   modeled as the `AiProcessingProfile` enum, used by `AiWorkerRequest`, but nothing in the UI lets a user
   pick one) - there's no screen that would meaningfully offer this choice until Phase 6/7 exist.
 
+## What Phase 6 actually delivered
+
+Delivered:
+- `CaptionWord` (Domain): the word-level model the spec asks for - original text, normalized text,
+  start, end, confidence, `Source` (`VerifiedLyrics|Lrc|Whisper|WhisperX|FuzzyAligned|Interpolated|Manual`,
+  matching Phase 5's `AiWorkerWord`/`KnownSongLyricLocator` output), `VerificationStatus`. One deliberate,
+  documented addition beyond the spec's exact field list: `LineBreakAfter` (bool) - the only way to
+  express "sentence/line granularity" from a word-level model without a second parallel data structure
+  that could drift out of sync with the words it groups; a caption line is just a run of words ending at
+  the first one with this flag set.
+- `CaptionEditSession` (`NPVideoStudio.AI`, pure/testable): split/merge/add/delete/undo/redo/time-nudge
+  (with optional ripple - shifts every following word to preserve relative gaps)/find-replace, plus
+  `ConvertScript` (Latin↔Cyrillic via Phase 5's `SerbianScriptConverter`, applied as an explicit, undoable
+  editing action - never a silent background normalization). Undo/redo is whole-list snapshotting, not a
+  command-pattern with a hand-written inverse per operation - simpler to get right, and every mutating
+  method is proven correct against it in tests.
+- `CaptionFormatConverter` (`NPVideoStudio.AI`, pure/testable): import + export for SRT/VTT/JSON/LRC
+  (round-trip tested both ways), export-only for ASS (correct minimal `[Script Info]`/`[V4+ Styles]`/
+  `[Events]` structure, proper `{`/`}`/`\`/newline escaping) and TXT.
+- New "Uređivač titlova" screen (`CaptionEditorView`/`CaptionEditorViewModel`/`CaptionWordItemViewModel`),
+  reachable from the start screen: new/open/save-as (format picker), per-word split/merge/delete/nudge/
+  line-break-toggle, multi-select delete, find & replace, Latin↔Cyrillic conversion, undo/redo. Also
+  reachable from "Generiši titlove (SRT)" via a new "Otvori u uređivaču titlova" button - the first real
+  hand-off from Phase 5/1-era tooling into this phase's editor.
+- New tests: `CaptionEditSessionTests.cs` (11), `CaptionFormatConverterTests.cs` (10, incl. real SRT/VTT/
+  LRC/JSON round-trips and ASS escaping), plus one new `AppSmokeTests.cs` navigation test that drives a
+  real new-document → add-word → undo-available round trip through the actual DI-wired ViewModel. Local
+  (non-integration) test count: 148 → 170, all passing.
+- Function matrix: no new `function-contracts.json` rows yet for the new screen's individual controls -
+  see FUNCTION_MATRIX.md's Phase 6 section; the screen itself will get proper per-control rows next time
+  FUNCTION_MATRIX.md is refreshed in depth, consistent with how Phase 4/5 handled this.
+
+Deliberately not done this phase (real, explicitly-flagged gaps, not fabricated completeness):
+- No ASS *import* - parsing arbitrary override tags/karaoke timing correctly is a much bigger job than
+  writing a minimal-but-correct exporter, and a fragile parser would silently mis-import real files,
+  which is worse than not supporting it yet. No TXT import either - plain text carries no timing at all,
+  and inventing timestamps for it would violate this codebase's "never guess" rule more directly than any
+  other gap here.
+- No multi-select drag/shift-click, no keyboard shortcuts for nudge/split/merge, no per-word split-ratio
+  picker (split always divides at the midpoint) - the underlying `CaptionEditSession` methods support
+  arbitrary ratios and take an `IEnumerable<Guid>` for bulk operations, but the UI only exposes the common
+  case (checkbox multi-select + always-50/50 split) this pass. A future phase can add richer UI over the
+  same already-tested session methods without touching the editing logic itself.
+- Direct in-place text edits (typing in a word's TextBox) do not go through the undo/redo stack - only
+  the explicit structural operations (split/merge/delete/nudge/find-replace/insert/script-convert) do.
+  Snapshotting on every keystroke would make undo nearly useless (one step per character); a real
+  keystroke-coalescing undo scheme is future work, not faked here.
+- `CaptionWord` is not yet wired into `.npvsproject`/the timeline - there is no timeline yet (Phase 8).
+  This phase's editor works standalone against imported/exported files, exactly as scoped.
+
 ## Next action
 
-Start Phase 6 (caption/word data model + editor) only when told to proceed.
+Start Phase 7 (caption styling + video layout/OCR) only when told to proceed.

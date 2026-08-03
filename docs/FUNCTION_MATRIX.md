@@ -243,6 +243,31 @@ functions, so none of them get a `function-contracts.json` row (that file is con
   `DependencyManagerServiceTests.cs` cases for the new AI-worker row. Local (non-integration) test count:
   121 → 148, all passing.
 
+## Uređivač titlova — CaptionEditorView / CaptionEditorViewModel (new screen, Phase 6)
+
+Central word-level caption editor (spec Phase 6): `CaptionWord` (Domain) is the word-level model
+(original/normalized text, start, end, confidence, source, verification status, plus `LineBreakAfter` -
+see PHASE_STATUS.md for why that one field was added beyond the spec's exact list). All editing logic
+lives in `CaptionEditSession` (`NPVideoStudio.AI`, pure/testable, whole-list-snapshot undo/redo) and
+`CaptionFormatConverter` (`NPVideoStudio.AI`, pure/testable SRT/VTT/ASS/TXT/JSON/LRC import/export) - the
+ViewModel only wires these to the UI and to file I/O.
+
+No `function-contracts.json` rows yet for this screen's individual controls (New/Open/Save-As/Undo/Redo/
+Find-Replace/per-word Split/Merge/Delete/Nudge/Toggle-line-break/script-conversion) - unlike prior new-
+screen phases, this pass didn't add a per-control smoke-test breakdown table; one `AppSmokeTests.cs`
+navigation test (`Navigating_ToCaptionEditor_StartsEmptyAndAllowsARealEditRoundTrip`) drives a real new-
+document → add-word → undo-available round trip through the real DI-wired ViewModel, and
+`CaptionEditSessionTests.cs`/`CaptionFormatConverterTests.cs` (21 tests total) cover the actual editing/
+format logic underneath directly. Per-control rows will be added the next time this file gets a full
+refresh pass, consistent with how Phase 4/5's backend-heavy work was documented in prose here first.
+
+Real, deliberate gaps (not fabricated completeness): no ASS importer (a fragile parser would silently
+mis-import real files - worse than not supporting it), no TXT importer (plain text carries no timing,
+inventing it would violate this codebase's "never guess" rule), no keyboard shortcuts or split-ratio
+picker in the UI (the underlying `CaptionEditSession` API already supports arbitrary ratios and bulk
+operations - only the UI surface is simplified this pass), and direct in-place text edits don't push
+undo/redo snapshots (only the structural operations do - see PHASE_STATUS.md).
+
 ## Feature-level summary counts
 
 Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,
