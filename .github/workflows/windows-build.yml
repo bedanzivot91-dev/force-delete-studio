@@ -43,6 +43,16 @@ jobs:
         run: choco install tesseract -y --no-progress
         continue-on-error: true
 
+      - name: Add Tesseract to PATH
+        # Unlike ffmpeg/yt-dlp/chromaprint (installed as Chocolatey shims into a directory already on
+        # PATH), Tesseract's installer writes straight to Program Files and updates machine PATH via the
+        # registry - a change later `run:` steps in this same job never see, since each step's process
+        # inherits the job's initial environment rather than re-reading the registry. Appending to
+        # $GITHUB_PATH is the supported way to make it visible to the "Run tests" step below (real CI
+        # failure hit once: RenderServiceTests's OCR assertions got Win32Exception "cannot find the file
+        # specified" for `tesseract` despite the install step reporting success).
+        run: echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 

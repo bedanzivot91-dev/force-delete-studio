@@ -88,10 +88,16 @@ public sealed class RenderService : IRenderService
         }
         finally
         {
-            if (File.Exists(tempPath))
+            // Best-effort: a cleanup failure here (e.g. a not-yet-released Windows file handle) must
+            // never replace/mask whatever exception is already propagating out of the try block above.
+            try
             {
-                File.Delete(tempPath);
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
             }
+            catch (IOException) { }
         }
     }
 
@@ -150,7 +156,16 @@ public sealed class RenderService : IRenderService
         {
             if (!process.HasExited)
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best-effort on cancellation */ }
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    // Kill() only requests termination - without waiting for the real exit, the temp
+                    // output file's handle can still be open when the caller's cleanup tries to delete
+                    // it right after (a real race hit on Windows CI, not reproducible on Linux since
+                    // POSIX allows deleting a file still held open by another process).
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch { /* best-effort on cancellation */ }
             }
         }
 
