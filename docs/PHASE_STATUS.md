@@ -13,7 +13,7 @@ giant prompt again.
 | 4 | Song library + fingerprinting | DONE (partial - see below) | 7c5d6e2 |
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | 1354fb4 |
 | 6 | Caption/word data model + editor | DONE (partial - see below) | 6ab46b0 |
-| 7 | Caption styling + video layout/OCR | DONE (partial - see below) | (pending push) |
+| 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
 | 8 | Timeline + player | NOT_STARTED | — |
 | 9 | Render pipeline | NOT_STARTED | — |
 | 10 | Finish or remove planned-feature tiles | NOT_STARTED | — |
