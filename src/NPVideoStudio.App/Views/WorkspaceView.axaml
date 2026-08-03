@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
              x:Class="NPVideoStudio.App.Views.WorkspaceView"
              x:DataType="vm:WorkspaceViewModel"
              DragDrop.AllowDrop="True">
@@ -29,7 +30,7 @@
       </Grid>
     </Border>
 
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="2*,Auto,2*">
       <Border Margin="20" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
@@ -62,12 +63,100 @@
         </DockPanel>
       </Border>
 
-      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,20" Padding="18">
-        <StackPanel Spacing="4">
-          <TextBlock Text="Timeline" FontWeight="SemiBold" />
+      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,12" Padding="16" DataContext="{Binding Player}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Plejer" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                      Text="Timeline montaža (sečenje, trake, tekst, titlovi, efekti) je u razvoju i dolazi u narednim fazama. Media biblioteka i uvoz fajlova iznad su potpuno funkcionalni." />
+                     Text="Stanje reprodukcije (play/pause/seek/frame-step) je stvarno i testirano - stvarno dekodiranje/renderovanje video kadra dolazi u kasnijoj fazi (ovaj sandbox nema ekran da se to proveri)." />
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding StepBackwardCommand}" />
+            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayCommand}" IsVisible="{Binding !IsPlaying}" />
+            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding PauseCommand}" IsVisible="{Binding IsPlaying}" />
+            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding StopCommand}" />
+            <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding StepForwardCommand}" />
+            <TextBlock Text="{Binding CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="{Binding TotalDurationSeconds}" Value="{Binding CurrentTimeSeconds}" Width="240" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TotalTimeLabel}" VerticalAlignment="Center" />
+            <Button Classes="ghost" Content="🔇" ToolTip.Tip="Utišaj" Command="{Binding ToggleMuteCommand}" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="1" Value="{Binding Volume}" Width="100" VerticalAlignment="Center" />
+          </StackPanel>
         </StackPanel>
+      </Border>
+
+      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" DataContext="{Binding Timeline}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Spacing="8">
+            <TextBlock Text="Timeline" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ComboBox ItemsSource="{Binding AvailableMedia}" SelectedItem="{Binding SelectedMediaAsset}" MinWidth="160" PlaceholderText="Izaberite medij za dodavanje">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MediaAssetViewModel">
+                    <TextBlock Text="{Binding FileName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Classes="ghost" Content="+ Video traka" Command="{Binding AddVideoTrackCommand}" />
+              <Button Classes="ghost" Content="+ Audio traka" Command="{Binding AddAudioTrackCommand}" />
+              <Button Classes="ghost" Content="+ Titl traka" Command="{Binding AddCaptionTrackCommand}" />
+              <Button Classes="ghost" Content="+ Tekst traka" Command="{Binding AddTextTrackCommand}" />
+              <Button Classes="ghost" Content="+ Slika (overlay)" Command="{Binding AddImageOverlayTrackCommand}" />
+              <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" />
+              <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" />
+            </StackPanel>
+          </StackPanel>
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Tracks}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TimelineTrackItemViewModel">
+                  <Border Classes="panel" Padding="10" Margin="0,8,0,0">
+                    <StackPanel Spacing="6">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding KindLabel}" Classes="subtle" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                          <ToggleButton Content="🔒" ToolTip.Tip="Zaključaj" IsChecked="{Binding IsLocked, Mode=OneWay}" Command="{Binding ToggleLockCommand}" />
+                          <ToggleButton Content="👁" ToolTip.Tip="Sakrij" IsChecked="{Binding IsHidden, Mode=OneWay}" Command="{Binding ToggleHideCommand}" />
+                          <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+                          <ToggleButton Content="S" ToolTip.Tip="Solo" IsChecked="{Binding IsSolo, Mode=OneWay}" Command="{Binding ToggleSoloCommand}" />
+                          <Button Content="+ Klip" Command="{Binding AddClipAtPlayheadCommand}" />
+                          <Button Content="Obriši traku" Command="{Binding RemoveTrackCommand}" />
+                        </StackPanel>
+                      </Grid>
+
+                      <ItemsControl ItemsSource="{Binding Clips}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
+                            <Border Classes="panel" Padding="8" Margin="0,4,0,0">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="2">
+                                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                  <TextBlock Text="{Binding TimingLabel}" Classes="subtle" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                  <Button Content="◀" ToolTip.Tip="Pomeri ranije" Command="{Binding NudgeEarlierCommand}" />
+                                  <Button Content="▶" ToolTip.Tip="Pomeri kasnije" Command="{Binding NudgeLaterCommand}" />
+                                  <Button Content="Podeli" ToolTip.Tip="Podeli na poziciji plejhed-a" Command="{Binding SplitAtPlayheadCommand}" />
+                                  <Button Content="Dupliraj" Command="{Binding DuplicateCommand}" />
+                                  <ToggleButton Content="🔇" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+                                  <ToggleButton Content="Fade↗" IsChecked="{Binding HasFadeIn, Mode=OneWay}" Command="{Binding ToggleFadeInCommand}" />
+                                  <ToggleButton Content="Fade↘" IsChecked="{Binding HasFadeOut, Mode=OneWay}" Command="{Binding ToggleFadeOutCommand}" />
+                                  <Button Content="✕" ToolTip.Tip="Obriši klip" Command="{Binding DeleteCommand}" />
+                                </StackPanel>
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
       </Border>
     </Grid>
   </DockPanel>

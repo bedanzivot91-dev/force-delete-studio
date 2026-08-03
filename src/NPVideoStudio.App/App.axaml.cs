@@ -76,6 +76,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
         services.AddSingleton<IVideoLayoutAnalysisService>(sp =>
             new TesseractOcrService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        services.AddSingleton<IProxyGeneratorService>(_ => new ProxyGeneratorService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
 
         services.AddTransient<StartScreenViewModel>();

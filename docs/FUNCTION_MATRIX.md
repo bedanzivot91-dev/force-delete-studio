@@ -289,20 +289,45 @@ refresh treatment as Phase 6. `VideoLayoutAggregatorTests.cs`/`CaptionPlacementA
 underneath directly; 2 `AppSmokeTests.cs` navigation tests cover both new screens end to end through the
 real DI-wired ViewModels.
 
+## Radni prostor — Timeline + player (Phase 8)
+
+Real, non-destructive `Timeline`/`TimelineTrack`/`TimelineClip` model (Domain) persisted inside
+`.npvsproject` (verified: a hand-built pre-Phase-8 JSON file with no `timeline` property at all still
+loads correctly). `TimelineEditSession` (`NPVideoStudio.AI`, pure/testable) implements the full spec verb
+list - add/remove track, split/trim-in/trim-out/move/delete/duplicate/mute/volume/fade/lock/hide/solo/
+undo/redo/snap. `PlayerStateMachine` (pure/testable) implements play/pause/stop/seek/frame-step/volume/
+mute/current-time/total-time. The old "Timeline je u razvoju" placeholder in `WorkspaceView` is replaced
+with a real (button-based, not drag/zoom) timeline + player transport UI - see `workspace.timeline` row
+above, now `WORKING_VERIFIED`.
+
+`IProxyGeneratorService`/`ProxyGeneratorService` (Media): real ffmpeg auto-proxy generation, verified
+end-to-end against a real generated test video (640x480 source -> confirmed 320x240 proxy via ffprobe) -
+found and fixed a real temp-filename bug along the way (see PHASE_STATUS.md). Registered in DI; no UI
+trigger button yet.
+
+No real video decode/render - this sandbox has no display to verify a decoder integration against (spec:
+"XOpenDisplay failed", confirmed since Phase 0), so the player is a fully real, tested state machine and
+transport UI without an actual rendered frame yet. No `function-contracts.json` rows yet for the new
+player controls individually - same deferred-to-next-refresh treatment as Phases 6/7.
+
 ## Feature-level summary counts
 
 Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,
 mechanically counted — not hand-tallied):
 
-- `WORKING_VERIFIED`: 33
+- `WORKING_VERIFIED`: 34 (Phase 8 closes the timeline-editor gap - `workspace.timeline` moved from
+  `NOT_PRESENT` to `WORKING_VERIFIED`)
 - `IMPLEMENTED_NOT_RUNTIME_VERIFIED`: 34
 - `BROKEN`: 0
 - `PLACEHOLDER` (deceptive/fake-active): 0
-- `NOT_PRESENT`: 7 rows, covering these bigger gaps: timeline editor, chorus/refrain detection, known-
-  song-library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in
-  Phase 1), and the 6 disabled planned-feature tiles (counted as one summary row on the start screen
-  above). The dependency-manager screen gap from Phase 0 is closed. The 5-extra-themes gap (Phase 3) and
-  the song-library gap (Phase 4) are both closed and were never counted as `NOT_PRESENT` rows here since
-  neither was a single UI control, so this count is unchanged since Phase 2.
+- `NOT_PRESENT`: 6 rows, covering these remaining bigger gaps: chorus/refrain detection, known-song-
+  library lookup, Settings AI-model/caption/export sections (tool-path fields were closed in Phase 1),
+  and the 6 disabled planned-feature tiles (counted as one summary row on the start screen above). The
+  dependency-manager screen gap from Phase 0 and the timeline-editor gap (Phase 8) are both closed. The
+  5-extra-themes gap (Phase 3), song-library gap (Phase 4), and caption-editor/style-gallery/video-
+  layout-analyzer gaps (Phases 6/7) are all closed and were never counted as `NOT_PRESENT` rows here
+  since none was a single pre-existing UI control row, so this count's history before Phase 8 is
+  unchanged since Phase 2.
 - `BLOCKED_BY_DEPENDENCY`: 0 (nothing found that's implemented but permanently blocked; the Whisper/
-  yt-dlp/fpcalc paths work once their tool is present, which the app already detects and reports)
+  yt-dlp/fpcalc/Tesseract paths work once their tool is present, which the app already detects and
+  reports)

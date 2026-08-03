@@ -50,6 +50,67 @@ public class ProjectRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoad_RoundTripsTimelineTracksAndClips()
+    {
+        var project = new Project { Name = "Sa timeline-om" };
+        var clip = new TimelineClip
+        {
+            MediaAssetId = "abc123",
+            SourceTrimInSeconds = 1.5,
+            SourceTrimOutSeconds = 6.5,
+            TimelineStartSeconds = 2,
+            FadeInSeconds = 0.5,
+            IsMuted = true,
+            Volume = 0.8
+        };
+        project.Timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.Video, Name = "Glavni video", Clips = { clip } });
+        project.Timeline.PlayheadSeconds = 3.25;
+        var path = Path.Combine(_tempDir, "timeline.npvsproject");
+
+        await _repository.SaveAsync(project, path);
+        var loaded = await _repository.LoadAsync(path);
+
+        var loadedTrack = Assert.Single(loaded.Timeline.Tracks);
+        Assert.Equal(TimelineTrackKind.Video, loadedTrack.Kind);
+        Assert.Equal("Glavni video", loadedTrack.Name);
+        var loadedClip = Assert.Single(loadedTrack.Clips);
+        Assert.Equal("abc123", loadedClip.MediaAssetId);
+        Assert.Equal(1.5, loadedClip.SourceTrimInSeconds);
+        Assert.Equal(6.5, loadedClip.SourceTrimOutSeconds);
+        Assert.Equal(2, loadedClip.TimelineStartSeconds);
+        Assert.True(loadedClip.IsMuted);
+        Assert.Equal(0.8, loadedClip.Volume);
+        Assert.Equal(3.25, loaded.Timeline.PlayheadSeconds);
+    }
+
+    [Fact]
+    public async Task Load_ProjectFileFromBeforeTimelineExisted_LoadsWithEmptyTimeline()
+    {
+        // A real Phase-1-era .npvsproject file has no "timeline" property at all - simulates that
+        // exact shape rather than assuming System.Text.Json's default-missing-property behavior.
+        var path = Path.Combine(_tempDir, "pre-timeline.npvsproject");
+        var project = new Project { Name = "Stari projekat" };
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            project.ProjectFormatVersion,
+            project.Id,
+            project.Name,
+            project.Format,
+            project.TargetPlatform,
+            project.CreatedAt,
+            project.LastModifiedAt,
+            project.MediaLibrary
+        });
+        await File.WriteAllTextAsync(path, json);
+
+        var loaded = await _repository.LoadAsync(path);
+
+        Assert.Equal("Stari projekat", loaded.Name);
+        Assert.NotNull(loaded.Timeline);
+        Assert.Empty(loaded.Timeline.Tracks);
+    }
+
+    [Fact]
     public async Task SaveAndLoad_WorksWithSpacesInPath()
     {
         var dirWithSpaces = Path.Combine(_tempDir, "folder with spaces");

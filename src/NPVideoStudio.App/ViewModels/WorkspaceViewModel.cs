@@ -10,10 +10,9 @@ using Serilog;
 namespace NPVideoStudio.App.ViewModels;
 
 /// <summary>
-/// Project workspace: media import + library today. Timeline, preview and editing land in Phase 3
-/// onward - the tab is present and clearly marked so nobody mistakes "not yet built" for "broken".
+/// Project workspace: media import/library, and (since Phase 8) the non-destructive timeline + player.
 /// </summary>
-public sealed partial class WorkspaceViewModel : ViewModelBase
+public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IMediaProbeService _mediaProbeService;
@@ -25,6 +24,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase
     public ObservableCollection<MediaAssetViewModel> MediaLibrary { get; } = new();
 
     public bool HasMedia => MediaLibrary.Count > 0;
+
+    public TimelineViewModel Timeline { get; }
+    public PlayerViewModel Player { get; }
 
     [ObservableProperty]
     private bool _isImporting;
@@ -50,7 +52,27 @@ public sealed partial class WorkspaceViewModel : ViewModelBase
         }
 
         MediaLibrary.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasMedia));
+
+        Player = new PlayerViewModel(totalDurationSeconds: ComputeInitialDuration(project));
+        Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds);
+        Timeline.TimelineChanged += () => Player.Retarget(Timeline.TotalDurationSeconds);
     }
+
+    private static double ComputeInitialDuration(Project project)
+    {
+        var fromTimeline = project.Timeline.Tracks.SelectMany(t => t.Clips)
+            .Select(c => (double?)c.TimelineEndSeconds).DefaultIfEmpty(0).Max() ?? 0;
+        if (fromTimeline > 0)
+        {
+            return fromTimeline;
+        }
+
+        var fromMedia = project.MediaLibrary.Where(a => a.Duration > TimeSpan.Zero)
+            .Select(a => (double?)a.Duration.TotalSeconds).DefaultIfEmpty(0).Max() ?? 0;
+        return fromMedia;
+    }
+
+    public void Dispose() => Player.Dispose();
 
     private MediaAssetViewModel CreateItemViewModel(Domain.MediaAsset asset)
     {
@@ -108,6 +130,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase
 
             if (!string.IsNullOrEmpty(Project.ProjectFilePath))
             {
+                Timeline.SaveToProject();
                 await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
             }
 
@@ -129,6 +152,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase
             return;
         }
 
+        Timeline.SaveToProject();
         await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
         StatusMessage = "Projekat je sačuvan.";
         _logger.Information("Projekat {ProjectName} sačuvan ručno", Project.Name);

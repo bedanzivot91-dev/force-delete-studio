@@ -40,7 +40,7 @@
     { "id": "workspace.toggle-favorite", "screen": "WorkspaceView", "control": "★ favorite toggle", "command": "MediaAssetViewModel.ToggleFavoriteCommand", "viewModel": "MediaAssetViewModel", "service": null, "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" },
     { "id": "workspace.remove-media", "screen": "WorkspaceView", "control": "Ukloni", "command": "MediaAssetViewModel.RemoveCommand", "viewModel": "MediaAssetViewModel", "service": null, "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" },
     { "id": "workspace.drag-drop", "screen": "WorkspaceView", "control": "Drag-and-drop import", "command": "OnDrop event handler", "viewModel": "WorkspaceViewModel", "service": "IStorageService, IMediaProbeService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none; legitimate async void UI handler" },
-    { "id": "workspace.timeline", "screen": "WorkspaceView", "control": "Timeline editor", "command": null, "viewModel": null, "service": null, "status": "NOT_PRESENT", "evidence": "disclosed in-UI as u razvoju" },
+    { "id": "workspace.timeline", "screen": "WorkspaceView", "control": "Timeline (add track/clip, split, undo/redo) + player transport", "command": "TimelineViewModel.*/PlayerViewModel.*", "viewModel": "TimelineViewModel, PlayerViewModel", "service": null, "status": "WORKING_VERIFIED", "evidence": "[Phase 8] WorkspaceViewModelTests.cs drives the real ViewModels end to end (add track, add clip, split-at-playhead, undo, play/pause/stop); TimelineEditSessionTests.cs (14)/PlayerStateMachineTests.cs (14) cover the underlying pure logic. Button-based UI, not drag/zoom - see PHASE_STATUS.md. No real video decode/render yet." },
 
     { "id": "settings.browse-projects-folder", "screen": "SettingsView", "control": "Izaberi... (projects)", "command": "BrowseProjectsFolderCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" },
     { "id": "settings.browse-cache-folder", "screen": "SettingsView", "control": "Izaberi... (cache)", "command": "BrowseCacheFolderCommand", "viewModel": "SettingsViewModel", "service": "IStorageService", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "none" },
@@ -95,11 +95,11 @@
     { "id": "mysongs.delete-record-and-file", "screen": "MySongsView", "control": "Obriši zapis i fajl (per row)", "command": "DeleteRecordAndFileCommand", "viewModel": "SongLibraryItemViewModel", "service": "ISongLibraryRepository", "status": "IMPLEMENTED_NOT_RUNTIME_VERIFIED", "evidence": "[Phase 4] SongLibraryRepositoryTests.cs: DeleteAsync_WithDeleteAudioFile_RemovesRecordAndFile covers the repository call this delegates to, not this exact command wiring" }
   ],
   "summary": {
-    "WORKING_VERIFIED": 33,
+    "WORKING_VERIFIED": 34,
     "IMPLEMENTED_NOT_RUNTIME_VERIFIED": 34,
     "BROKEN": 0,
     "PLACEHOLDER": 0,
-    "NOT_PRESENT": 7,
+    "NOT_PRESENT": 6,
     "BLOCKED_BY_DEPENDENCY": 0
   }
 }

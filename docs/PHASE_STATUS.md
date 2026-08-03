@@ -14,7 +14,7 @@ giant prompt again.
 | 5 | AI pipeline (worker, faster-whisper, Demucs, WhisperX) | DONE (partial - see below) | 1354fb4 |
 | 6 | Caption/word data model + editor | DONE (partial - see below) | 6ab46b0 |
 | 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
-| 8 | Timeline + player | NOT_STARTED | — |
+| 8 | Timeline + player | DONE (partial - see below) | (pending push) |
 | 9 | Render pipeline | NOT_STARTED | — |
 | 10 | Finish or remove planned-feature tiles | NOT_STARTED | — |
 | 11 | Final QA + distribution | NOT_STARTED | — |
@@ -372,6 +372,76 @@ Deliberately not done this phase (real, explicitly-flagged gaps):
   preset or placement recommendation to actually apply to, so wiring them together now would be UI with
   no real effect behind it.
 
+## What Phase 8 actually delivered
+
+Delivered:
+- `Timeline`/`TimelineTrack`/`TimelineClip` (Domain), added to `Project` and persisted inside
+  `.npvsproject` (spec: "not just current UI-control state"). Word-level-model-style design: a track is
+  just a list of clips, `TimelineClip.TimelineEndSeconds` is computed from trim in/out, and non-
+  destructive editing never touches the underlying `MediaAsset` file - only `SourceTrimInSeconds`/
+  `SourceTrimOutSeconds` change which slice plays. `Project.ProjectFormatVersion` bumped to 2;
+  verified (not assumed) that a real pre-Phase-8 project file with no `timeline` property at all still
+  loads correctly with an empty `Timeline`, via a test that hand-builds that exact old JSON shape rather
+  than trusting System.Text.Json's default behavior blindly.
+- `TimelineEditSession` (`NPVideoStudio.AI`, pure/testable): the full spec verb list - add/remove track,
+  split/trim-in/trim-out/move (incl. cross-track)/delete/duplicate/mute/volume/fade-in-out/lock/hide/
+  solo/undo/redo, plus `SnapToNearest` (spec's "snap"). Same whole-state-snapshot undo/redo approach as
+  Phase 6's `CaptionEditSession`, for the same reason. Deliberately does not enforce "clips on a track
+  never overlap" - real editors commonly allow overlapping layers (esp. caption/text/image-overlay
+  tracks), and the spec never actually states that constraint.
+- `PlayerStateMachine` (`NPVideoStudio.AI`, pure/testable): play/pause/stop/seek/frame-step/volume/mute/
+  current-time/total-time state and arithmetic (spec's player half) - restart-from-zero-after-end,
+  clamped seeking, frame-accurate stepping via a real frame-rate parameter.
+- `IProxyGeneratorService`/`ProxyGeneratorService` (Media): real ffmpeg-based auto-proxy generation
+  (spec: "720p or configurable ... keep link to original, never render the proxy as final") - temp file +
+  atomic rename, same "never leave a half-written file looking valid" rule as every other real
+  download/generation path in this codebase. Verified end-to-end in this sandbox: generated a real
+  640x480 synthetic test video and confirmed the actual proxy output measures 320x240 via ffprobe - found
+  and fixed a real bug along the way (the original temp-file naming used a `.part` suffix that broke
+  ffmpeg's output-format auto-detection; fixed by keeping the real extension at the end of the temp name).
+  Registered in DI for future use; no UI trigger button yet (see "not done").
+- Real UI integration into the existing "Radni prostor" (workspace) screen, replacing its old "Timeline
+  je u razvoju" placeholder: a player transport bar (play/pause/stop/step/seek slider/volume, clearly
+  labeled that real video decode/render isn't wired yet) and a timeline section (add/remove tracks of all
+  5 kinds, per-track lock/hide/mute/solo toggles, per-clip split-at-playhead/nudge/duplicate/delete/mute/
+  fade toggles, undo/redo). Button-based operations rather than drag-to-resize/move or a pixel-accurate
+  zoomed canvas - same reasoning as Phase 6's caption editor: real and fully testable without a display,
+  versus an unverifiable drag/canvas-rendering interaction. `WorkspaceViewModel.SaveProjectAsync`/
+  auto-save-on-import now write the timeline back into the project before saving.
+- New tests: `TimelineEditSessionTests.cs` (14), `PlayerStateMachineTests.cs` (14),
+  `ProxyGeneratorServiceTests.cs` (2, real ffmpeg - generates its own tiny synthetic source video via
+  ffmpeg's lavfi test source rather than a committed binary fixture), `WorkspaceViewModelTests.cs` (6,
+  drives the real DI-constructible `WorkspaceViewModel`/`TimelineViewModel`/`PlayerViewModel` through
+  add-track/add-clip/split/undo/play-pause-stop, `[AvaloniaFact]`-based since `PlayerViewModel` needs a
+  real Avalonia dispatcher for its `DispatcherTimer`), plus 2 new `ProjectRepositoryTests.cs` cases
+  (timeline round-trip, pre-Phase-8 file compatibility). Local (non-integration) test count: 209 → 246,
+  all passing.
+- Function matrix: no new `function-contracts.json` rows yet for the new player/timeline controls - same
+  deferred-to-next-refresh treatment as Phases 6/7.
+
+Deliberately not done this phase (real, explicitly-flagged gaps):
+- No real video decode/render - `PlayerStateMachine`/`PlayerViewModel` are a fully real, tested state
+  machine and transport UI, but nothing actually decodes or paints a video frame yet. This sandbox has no
+  display (confirmed since Phase 0: `XOpenDisplay failed`), so there is no way to verify a real decoder
+  integration (e.g. LibVLCSharp) actually renders correctly here - wiring one in without any way to check
+  it works would violate this codebase's "never claim what wasn't verified" rule more than leaving the
+  gap explicit. A future phase with access to a real display (or at minimum a way to capture/verify
+  rendered frames) should pick this up.
+- No pixel-accurate zoomed timeline canvas, no mouse drag-to-move/resize/scrub, no keyboard shortcuts -
+  the UI exposes the same operations via buttons instead (see above). `TimelineEditSession.SnapToNearest`
+  exists and is tested but isn't wired to any UI gesture yet (there's no drag to snap during).
+  `Timeline.ZoomPixelsPerSecond` exists in the persisted model but isn't read by the UI yet.
+- No caption-overlay/safe-zone-overlay/OCR-occupancy-overlay/preview-quality-choice on the player (spec
+  lists these) - these are meaningful once there's a real rendered frame to overlay onto; wiring overlay
+  toggles onto a placeholder preview would be UI with no real effect behind it, same reasoning as Phase
+  7's screens not being cross-wired yet.
+- No UI trigger for `ProxyGeneratorService` (built, tested, DI-registered) - deferred purely for time;
+  the real gap is genuinely just "no button calls it yet", not missing functionality underneath.
+- `WorkspaceViewModel`'s `PlayerViewModel` (and its `DispatcherTimer`) isn't disposed when navigating away
+  from the workspace - `MainWindowViewModel` doesn't dispose any ViewModel on navigation today (not a
+  Phase-8-specific gap, but this phase's is the first ViewModel where it could actually leak a running
+  timer). Left as-is rather than inventing new navigation-lifecycle infrastructure nothing else uses yet.
+
 ## Next action
 
-Start Phase 8 (timeline + player) only when told to proceed.
+Start Phase 9 (render pipeline) only when told to proceed.
