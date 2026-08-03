@@ -25,6 +25,7 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="subtle" />
           <Button Classes="ghost" Content="Sačuvaj projekat" Command="{Binding SaveProjectCommand}" />
+          <Button Classes="ghost" Content="Izvezi video" Command="{Binding ExportVideoCommand}" />
           <Button Classes="cta" Content="Dodaj medije" Command="{Binding ImportMediaCommand}" />
         </StackPanel>
       </Grid>

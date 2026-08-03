@@ -28,6 +28,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     public TimelineViewModel Timeline { get; }
     public PlayerViewModel Player { get; }
 
+    public event Action? ExportRequested;
+
     [ObservableProperty]
     private bool _isImporting;
 
@@ -143,6 +145,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             IsImporting = false;
         }
     }
+
+    [RelayCommand]
+    private void ExportVideo() => ExportRequested?.Invoke();
 
     [RelayCommand]
     private async Task SaveProjectAsync()

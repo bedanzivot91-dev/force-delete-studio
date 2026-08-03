@@ -78,6 +78,7 @@ public partial class App : Avalonia.Application
             new TesseractOcrService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<IProxyGeneratorService>(_ => new ProxyGeneratorService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
+        services.AddSingleton<IRenderService>(_ => new RenderService(settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();

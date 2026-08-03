@@ -310,10 +310,29 @@ No real video decode/render - this sandbox has no display to verify a decoder in
 transport UI without an actual rendered frame yet. No `function-contracts.json` rows yet for the new
 player controls individually - same deferred-to-next-refresh treatment as Phases 6/7.
 
+## Radni prostor — Izvoz videa (Phase 9)
+
+New "Izvezi video" button on the workspace toolbar opens a real export screen
+(`RenderQueueViewModel`/`RenderQueueView`): codec (libx264/nvenc/qsv/amf, with automatic fallback to
+libx264)/preset/CRF/audio-bitrate pickers, output-file picker (defaults to
+`{ProjectName}_captioned.mp4`), and a queue of any number of concurrently-running jobs, each with a real
+live progress bar (parsed from ffmpeg's own `-progress pipe:1` output) and a cancel button that actually
+kills the ffmpeg process tree. `FfmpegFilterGraphBuilder`/`RenderService` (`NPVideoStudio.Media`) build
+and run the real `-filter_complex` graph for the project's timeline - verified end-to-end against real
+ffmpeg + real Tesseract OCR (2 clips, a timing gap, two caption windows, all landing at their exact
+expected timestamps in the rendered output).
+
+No real video decode/render existed before this phase to render *from* in the UI sense - this phase adds
+the actual export path from the already-real, already-tested `Timeline` model to a finished MP4 file, so
+it does not depend on the still-missing player-preview decoder (Phase 8's known gap). No
+`function-contracts.json` rows yet for the new export screen's individual controls - same
+deferred-to-next-refresh treatment as Phases 6/7/8.
+
 ## Feature-level summary counts
 
 Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,
-mechanically counted — not hand-tallied):
+mechanically counted — not hand-tallied). Not yet refreshed for Phase 9's new export screen (see above -
+same deferred treatment as Phases 6/7/8):
 
 - `WORKING_VERIFIED`: 34 (Phase 8 closes the timeline-editor gap - `workspace.timeline` moved from
   `NOT_PRESENT` to `WORKING_VERIFIED`)

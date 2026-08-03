@@ -126,12 +126,25 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private WorkspaceViewModel OpenWorkspace(Project project)
     {
         CurrentProject = project;
-        return new WorkspaceViewModel(
+        var workspace = new WorkspaceViewModel(
             project,
             _services.GetRequiredService<IProjectRepository>(),
             _services.GetRequiredService<IMediaProbeService>(),
             _services.GetRequiredService<Services.IStorageService>(),
             _services.GetRequiredService<Serilog.ILogger>());
+        workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
+        return workspace;
+    }
+
+    private RenderQueueViewModel CreateRenderQueuePage(WorkspaceViewModel workspace)
+    {
+        var vm = new RenderQueueViewModel(
+            workspace.Project,
+            _services.GetRequiredService<IRenderService>(),
+            _services.GetRequiredService<Services.IStorageService>(),
+            _services.GetRequiredService<Serilog.ILogger>());
+        vm.BackRequested += () => CurrentPage = workspace;
+        return vm;
     }
 
     private SettingsViewModel CreateSettingsPage()

@@ -15,7 +15,7 @@ giant prompt again.
 | 6 | Caption/word data model + editor | DONE (partial - see below) | 6ab46b0 |
 | 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
-| 9 | Render pipeline | NOT_STARTED | — |
+| 9 | Render pipeline | DONE (partial - see below) | PENDING |
 | 10 | Finish or remove planned-feature tiles | NOT_STARTED | — |
 | 11 | Final QA + distribution | NOT_STARTED | — |
 
@@ -442,6 +442,79 @@ Deliberately not done this phase (real, explicitly-flagged gaps):
   Phase-8-specific gap, but this phase's is the first ViewModel where it could actually leak a running
   timer). Left as-is rather than inventing new navigation-lifecycle infrastructure nothing else uses yet.
 
+## What Phase 9 actually delivered
+
+Delivered:
+- `RenderJob`/`RenderSettings`/`VideoCodec`/`RenderJobStatus` (Domain, spec defaults: MP4/H.264 libx264/
+  CRF 18/preset medium/AAC 192kbps/`+faststart`).
+- `FfmpegFilterGraphBuilder` (`NPVideoStudio.Media`, pure/testable - no process execution, so every edge
+  case is unit-testable without ffmpeg installed): builds the real `-filter_complex` graph for a project's
+  timeline - trim/scale-and-pad-to-project-format/fade per clip, black+silent gap-filling between clips
+  with a timing gap, `concat` across all segments, then chained `drawtext` for every Caption/Text-track
+  clip at its exact timeline window. Every clip (and gap filler) is normalized to the project's own export
+  resolution (`Project.Format.Width/Height`) before concat - found and fixed a real bug while building
+  this: ffmpeg's `concat` filter rejects mismatched input resolutions outright, which a hardcoded
+  1920x1080 gap-filler size hit immediately against 320x240 test clips. Also empirically verified (not
+  assumed) `drawtext` escaping against a real ffmpeg 6.1.1 run: colon must be escaped even inside quotes
+  (an unescaped colon silently truncates everything before it) and comma requires the value to be quoted
+  at all (unquoted, it breaks the whole filtergraph).
+- `IRenderService`/`RenderService` (`NPVideoStudio.Media`): runs the real ffmpeg render - automatic
+  fallback to libx264 if a requested hardware encoder (nvenc/qsv/amf) fails, live progress via
+  `-progress pipe:1` (parses `out_time_ms`, which is actually microseconds despite the name), cancellation
+  that kills the real process tree, temp-file-then-atomic-rename output (never leaves a half-written file
+  looking valid), overwrite-without-confirmation guard, logs the exact ffmpeg command onto the job (no
+  secrets - every argument is a local path or a plain encoding setting).
+- `RenderQueueViewModel`/`RenderQueueView` + `RenderJobItemViewModel`: real export screen reachable from
+  the workspace ("Izvezi video" button) - codec/preset/CRF/audio-bitrate pickers, output file picker
+  (defaults to `{ProjectName}_captioned.mp4` next to the project file, per spec), and a queue that runs
+  any number of jobs concurrently, each with its own live progress bar and cancel button (spec: "multiple
+  queued export jobs"). Progress/status is polled from the plain `RenderJob` object on a real
+  `DispatcherTimer` tick, the same pattern `PlayerViewModel` already uses, rather than inventing a second
+  progress-reporting channel. The logged ffmpeg command is written to the real Serilog log on completion,
+  failure, or cancellation (`RenderService`/`Media` itself never takes a logger - consistent with every
+  other Media-layer service in this codebase; the ViewModel layer does the logging, as usual).
+- Manually verified end-to-end against real ffmpeg + real Tesseract OCR before writing any automated
+  test: a 2-clip timeline with a 1s gap and two caption windows rendered to exactly 6.0s at the project's
+  1920x1080 format (despite 320x240 source clips), with "ZDRAVO"/"SVET" burned-in text appearing via OCR
+  at precisely their specified windows and nowhere else.
+- New tests: `FfmpegFilterGraphBuilderTests.cs` (15, pure logic - no gaps, no missing track, gap-filler,
+  fade, mute, drawtext timing/escaping, only-first-non-empty-video-track), `RenderServiceTests.cs` (4,
+  real ffmpeg+Tesseract - the full 2-clip/gap/caption scenario above, overwrite-without-confirmation
+  guard, real hardware-codec-unavailable fallback to libx264 since this sandbox has no GPU, and real
+  mid-render cancellation with process-tree kill verified via no leftover temp file). Found and fixed a
+  real bug via this last test: `RenderService.RenderAsync` only set `job.Status = Cancelled` in the
+  post-await "did cancellation happen" check, but a cancelled `-progress pipe:1` read throws
+  `OperationCanceledException` straight out of the awaited call instead of returning normally, skipping
+  that check entirely and leaving `job.Status` stuck on `Running` forever - fixed by catching the
+  cancellation around the run call and setting `Cancelled` there. `RenderQueueViewModelTests.cs` (10,
+  `[AvaloniaFact]` - real `DispatcherTimer` construction - against a fake `IRenderService` covering
+  success/failure/cancel/multiple-concurrent-jobs/output-path-validation/overwrite-guard/picker-confirms-
+  overwrite/back-navigation). Local (non-integration) test count: 246 → 275, all passing.
+- Function matrix: no new `function-contracts.json` rows yet for the render/export screen - same
+  deferred-to-next-refresh treatment as Phases 6/7/8.
+
+Deliberately not done this phase (real, explicitly-flagged gaps):
+- No file-size estimate before rendering (spec lists this alongside quality choice) - a genuinely accurate
+  estimate needs either a real two-pass/probe measurement or a bitrate-based calculation that would be
+  misleading for CRF-mode encoding (CRF targets quality, not a fixed bitrate, so output size isn't
+  knowable in advance without actually encoding). Left out rather than showing a number that would
+  regularly be wrong.
+- No rendering of more than the first non-empty Video track (no multi-video-track layering/compositing
+  yet), no mixing in of separate standalone Audio-kind tracks (only the rendered video track's own audio
+  is kept), no ImageOverlay track compositing, no per-clip caption position/style (burned in at a single
+  fixed position/style for every caption, regardless of `CaptionStyleGalleryViewModel` choices) - these
+  all need real multi-layer video compositing in the filter graph, which is its own substantial piece of
+  work; today's `FfmpegFilterGraphBuilder` handles exactly what it documents and nothing silently wrong.
+- `RenderService`'s automatic hardware-encoder fallback re-runs the entire render from scratch with
+  libx264 rather than resuming - acceptable for now (matches spec's "automatic fallback" wording, which
+  doesn't require resuming), but means a fallback roughly doubles wall-clock time on a failing hardware
+  path.
+- No UI display of the logged ffmpeg command itself (it's written to the real Serilog log file, per spec,
+  but there's no "show command" button/tooltip on a queue row) - deferred purely for time.
+- `RenderQueueViewModel`'s `DispatcherTimer` isn't disposed when navigating away from the render screen -
+  same known gap as `WorkspaceViewModel`'s `PlayerViewModel` timer since Phase 8 (`MainWindowViewModel`
+  doesn't dispose any ViewModel on navigation today); not a new problem introduced by this phase.
+
 ## Next action
 
-Start Phase 9 (render pipeline) only when told to proceed.
+Start Phase 10 (finish or remove planned-feature tiles) only when told to proceed.

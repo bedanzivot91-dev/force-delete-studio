@@ -50,6 +50,9 @@
     <DataTemplate DataType="vm:VideoLayoutAnalyzerViewModel">
       <views:VideoLayoutAnalyzerView />
     </DataTemplate>
+    <DataTemplate DataType="vm:RenderQueueViewModel">
+      <views:RenderQueueView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>
