@@ -15,7 +15,7 @@ giant prompt again.
 | 6 | Caption/word data model + editor | DONE (partial - see below) | 6ab46b0 |
 | 7 | Caption styling + video layout/OCR | DONE (partial - see below) | 802004d |
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
-| 9 | Render pipeline | DONE (partial - see below) | PENDING |
+| 9 | Render pipeline | DONE (partial - see below) | b85d968 |
 | 10 | Finish or remove planned-feature tiles | NOT_STARTED | — |
 | 11 | Final QA + distribution | NOT_STARTED | — |
 
