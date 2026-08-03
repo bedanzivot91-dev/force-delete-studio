@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:dom="using:NPVideoStudio.Domain"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.VideoLayoutAnalyzerView"
+             x:DataType="vm:VideoLayoutAnalyzerViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="900">
+      <StackPanel Spacing="2">
+        <TextBlock Text="TITLOVI" Classes="eyebrow" />
+        <TextBlock Text="Analiza rasporeda videa" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Uzima nekoliko kadrova iz videa i pravim lokalnim OCR-om (Tesseract) prepoznaje postojeći tekst u kadru, da bi predložio gde titl neće da ga prekrije. Prepoznavanje lica/loga/CTA dugmadi još nije implementirano - vidi napomenu ispod." />
+
+      <Border Classes="panel" Padding="20">
+        <StackPanel Spacing="14">
+          <Button Classes="cta" Content="Izaberi video..." Command="{Binding PickFileCommand}" HorizontalAlignment="Left" />
+          <TextBlock Text="{Binding SelectedFileName, StringFormat='Izabrano: {0}'}" Classes="subtle"
+                     IsVisible="{Binding HasSelectedFile}" />
+          <Button Classes="cta" Content="Analiziraj" Command="{Binding AnalyzeCommand}"
+                  IsEnabled="{Binding CanAnalyze}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
+                 IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <StackPanel Spacing="16" IsVisible="{Binding HasResult}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Preporučena pozicija titla" FontWeight="SemiBold" />
+          <ComboBox ItemsSource="{Binding PlacementModes}" SelectedItem="{Binding SelectedPlacementMode}" MinWidth="160" HorizontalAlignment="Left" />
+          <TextBlock Text="{Binding RecommendedPosition, StringFormat='Predlog: {0}'}" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding PlacementWarning}" Classes="subtle" TextWrapping="Wrap"
+                     IsVisible="{Binding PlacementWarning, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="Zauzetost postojećim tekstom po zonama kadra" FontWeight="SemiBold" />
+          <ItemsControl ItemsSource="{Binding ZoneOccupancy}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="3" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ZoneOccupancyItem">
+                <Border Classes="panel" Padding="10" Margin="3">
+                  <StackPanel Spacing="2" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Label}" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" />
+                    <TextBlock Text="{Binding RatioLabel}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="Prepoznati tekst po kadrovima" FontWeight="SemiBold" />
+          <ItemsControl ItemsSource="{Binding DetectedRegions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="dom:DetectedTextRegion">
+                <Border Classes="panel" Padding="10" Margin="0,0,0,4">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Text="{Binding FrameTimestamp, StringFormat='{}{0:mm\:ss}'}" Classes="subtle" />
+                    <TextBlock Grid.Column="1" Text="{Binding Text}" Margin="10,0" />
+                    <TextBlock Grid.Column="2" Text="{Binding Confidence, StringFormat='{}{0:P0}'}" Classes="subtle" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

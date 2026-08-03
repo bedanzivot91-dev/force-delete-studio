@@ -268,6 +268,27 @@ picker in the UI (the underlying `CaptionEditSession` API already supports arbit
 operations - only the UI surface is simplified this pass), and direct in-place text edits don't push
 undo/redo snapshots (only the structural operations do - see PHASE_STATUS.md).
 
+## Stilovi titlova / Analiza rasporeda videa — new screens (Phase 7)
+
+24 caption style presets (`CaptionStylePresetCatalog` in App, backed by `CaptionStylePreset` in Domain) -
+3+ per each of the 8 themes, colors taken directly from each theme's own resource dictionary. "Stilovi
+titlova" browses them with a static color-swatch preview (no live animation yet - see PHASE_STATUS.md).
+
+`IVideoLayoutAnalysisService`/`TesseractOcrService` (Media) does real local OCR-based video layout
+analysis via the Tesseract CLI - substituting for the spec's named ONNX/RapidOCR path since this sandbox
+has no verified way to source that model; Tesseract was actually installed and run end-to-end while
+building this service. `VideoLayoutAggregator` (Media, pure) turns per-frame text regions into 3x3-grid
+occupancy-over-time; `CaptionPlacementAdvisor` (AI, pure) implements the full spec priority chain (face >
+text > logo > CTA > safe zone > minimize repositioning > readable > platform chrome) for "Automatic"
+mode, though only the "text" signal is populated today (no face/logo/CTA detection - no license-clear
+model available here). "Analiza rasporeda videa" screen runs this against a real picked video file.
+
+No `function-contracts.json` rows yet for either screen's individual controls - same deferred-to-next-
+refresh treatment as Phase 6. `VideoLayoutAggregatorTests.cs`/`CaptionPlacementAdvisorTests.cs`/
+`TesseractOcrServiceTests.cs`/`CaptionStylePresetCatalogTests.cs` (37 tests total) cover the real logic
+underneath directly; 2 `AppSmokeTests.cs` navigation tests cover both new screens end to end through the
+real DI-wired ViewModels.
+
 ## Feature-level summary counts
 
 Authoritative counts come from `docs/function-contracts.json` (74 rows, one per control/command,

@@ -53,7 +53,13 @@ public sealed class DependencyManagerService : IDependencyManagerService
                 "Potreban samo za prepoznavanje pesama u „Moje pesme“ (otisak pesme) - ostatak programa radi i bez njega.",
                 cancellationToken).ConfigureAwait(false),
             CheckWhisperModel(),
-            await CheckAiWorkerAsync(cancellationToken).ConfigureAwait(false)
+            await CheckAiWorkerAsync(cancellationToken).ConfigureAwait(false),
+            await CheckToolAsync(
+                "Tesseract OCR",
+                FfmpegLocator.ResolveTesseractPath(null),
+                "--version",
+                "Potreban samo za analizu rasporeda videa (prepoznavanje postojećeg teksta u kadru) - ostatak programa radi i bez njega.",
+                cancellationToken).ConfigureAwait(false)
         };
     }
 

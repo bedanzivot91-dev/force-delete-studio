@@ -37,6 +37,12 @@ jobs:
         run: choco install chromaprint -y --no-progress
         continue-on-error: true
 
+      - name: Install Tesseract OCR
+        # Optional dependency (video layout analysis in "Analiza rasporeda videa" only, Phase 7) - same
+        # treatment as Chromaprint above, no test asserts it's present.
+        run: choco install tesseract -y --no-progress
+        continue-on-error: true
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 

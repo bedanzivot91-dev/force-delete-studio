@@ -44,6 +44,12 @@
     <DataTemplate DataType="vm:CaptionEditorViewModel">
       <views:CaptionEditorView />
     </DataTemplate>
+    <DataTemplate DataType="vm:CaptionStyleGalleryViewModel">
+      <views:CaptionStyleGalleryView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:VideoLayoutAnalyzerViewModel">
+      <views:VideoLayoutAnalyzerView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <DockPanel>

@@ -46,6 +46,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.DependencyManagerRequested += () => CurrentPage = CreateDependencyManagerPage();
         vm.MySongsRequested += () => CurrentPage = CreateMySongsPage();
         vm.CaptionEditorRequested += () => CurrentPage = CreateCaptionEditorPage();
+        vm.CaptionStyleGalleryRequested += () => CurrentPage = _services.GetRequiredService<CaptionStyleGalleryViewModel>();
+        vm.VideoLayoutAnalyzerRequested += () => CurrentPage = _services.GetRequiredService<VideoLayoutAnalyzerViewModel>();
 
         CurrentPage = vm;
         await vm.InitializeAsync();

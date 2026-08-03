@@ -85,7 +85,7 @@ public class AppSmokeTests
 
         Assert.False(dependencyManager.IsLoading);
         Assert.Null(dependencyManager.StatusMessage);
-        Assert.Equal(6, dependencyManager.Dependencies.Count);
+        Assert.Equal(7, dependencyManager.Dependencies.Count);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFmpeg" && d.IsInstalled);
         Assert.Contains(dependencyManager.Dependencies, d => d.Name == "FFprobe" && d.IsInstalled);
     }
@@ -150,6 +150,57 @@ public class AppSmokeTests
 
         Assert.Single(editor.Words);
         Assert.True(editor.UndoCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToCaptionStyleGallery_LoadsAllTwentyFourPresetsWithRealBrushes()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenCaptionStyleGalleryCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var gallery = Assert.IsType<CaptionStyleGalleryViewModel>(viewModel.CurrentPage);
+
+        Assert.Equal(24, gallery.Presets.Count);
+        Assert.All(gallery.Presets, p => Assert.NotNull(p.TextBrush));
+
+        gallery.SelectedThemeFilter = NPVideoStudio.Domain.AppTheme.ObsidianNeon;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(gallery.Presets.Count >= 3);
+        Assert.All(gallery.Presets, p => Assert.Equal(NPVideoStudio.Domain.AppTheme.ObsidianNeon, p.Preset.Theme));
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToVideoLayoutAnalyzer_StartsWithNoFileSelectedWithoutThrowing()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenVideoLayoutAnalyzerCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var analyzer = Assert.IsType<VideoLayoutAnalyzerViewModel>(viewModel.CurrentPage);
+
+        Assert.False(analyzer.HasSelectedFile);
+        Assert.False(analyzer.CanAnalyze);
+        Assert.False(analyzer.HasResult);
     }
 
     [AvaloniaFact]

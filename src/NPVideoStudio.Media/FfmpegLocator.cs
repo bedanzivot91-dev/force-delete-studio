@@ -16,6 +16,8 @@ public static class FfmpegLocator
 
     public static string ResolveFpcalcPath(string? overridePath) => Resolve(overridePath, "fpcalc", "fpcalc");
 
+    public static string ResolveTesseractPath(string? overridePath) => Resolve(overridePath, "tesseract", "tesseract");
+
     private static string Resolve(string? overridePath, string toolName, string bundledSubfolder)
     {
         if (!string.IsNullOrWhiteSpace(overridePath) && File.Exists(overridePath))

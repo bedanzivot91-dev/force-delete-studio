@@ -74,6 +74,8 @@ public partial class App : Avalonia.Application
         services.AddSingleton<ISongRecognitionService>(sp =>
             new SongRecognitionService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
+        services.AddSingleton<IVideoLayoutAnalysisService>(sp =>
+            new TesseractOcrService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
 
         services.AddTransient<StartScreenViewModel>();
@@ -86,6 +88,8 @@ public partial class App : Avalonia.Application
         services.AddTransient<DependencyManagerViewModel>();
         services.AddTransient<MySongsViewModel>();
         services.AddTransient<CaptionEditorViewModel>();
+        services.AddTransient<CaptionStyleGalleryViewModel>();
+        services.AddTransient<VideoLayoutAnalyzerViewModel>();
         services.AddSingleton<MainWindowViewModel>();
 
         _services = services.BuildServiceProvider();
