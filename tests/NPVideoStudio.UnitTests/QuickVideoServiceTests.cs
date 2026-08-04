@@ -158,7 +158,11 @@ public class QuickVideoServiceTests : IDisposable
             "1\n00:00:01,000 --> 00:00:02,500\nZDRAVO SVETE\n\n2\n00:00:03,500 --> 00:00:04,500\nDRUGI TITL\n\n");
         var outputPath = Path.Combine(_tempDir, "captioned.mp4");
 
-        await _service.CreateAsync(image, song, songDurationSeconds: 5, outputPath, overwriteConfirmed: false, subtitleSrtPath: srtPath, width: 640, height: 360);
+        // 1280x720, not the smaller resolutions used elsewhere in this file: verified empirically that
+        // Tesseract misreads the burned-in "I" in "DRUGI" as "!" at 640x360 (glyph too small/aliased),
+        // reproduced identically outside CI too - a real OCR-legibility issue tied to render resolution,
+        // not a bug in the render itself or a Windows-only flake.
+        await _service.CreateAsync(image, song, songDurationSeconds: 5, outputPath, overwriteConfirmed: false, subtitleSrtPath: srtPath, width: 1280, height: 720);
 
         Assert.True(File.Exists(outputPath));
 
