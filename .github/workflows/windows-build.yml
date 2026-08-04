@@ -1,8 +1,9 @@
 name: Windows build (installer + portable + tests)
 
 # Builds NP Video Studio on a real Windows runner (Linux dev environments cannot compile a Windows
-# installer). Runs the full test suite, then produces the actual .exe installer and the portable ZIP,
-# and uploads both as downloadable workflow artifacts.
+# installer). Runs the full test suite, then produces the actual .exe installer and the portable ZIP, and
+# uploads both as downloadable workflow artifacts when the account's Actions artifact storage quota
+# allows it - a quota hit there is continue-on-error and must not fail an otherwise-green build/test run.
 
 on:
   push:
@@ -82,6 +83,12 @@ jobs:
         run: pwsh -File scripts/build-release.ps1
 
       - name: Upload Windows installer
+        # continue-on-error: the "Build release" step above already proves the installer genuinely builds
+        # for real on Windows - that's the actual verification. This step only makes the .exe downloadable
+        # from the Actions UI, and must not fail an otherwise-green run when the account's GitHub Actions
+        # artifact storage quota is hit (real, repeated CI failure - four separate runs across 24+ hours
+        # all hit the same "Artifact storage quota has been hit" error independent of any code change).
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: NPVideoStudio-Setup
@@ -93,6 +100,8 @@ jobs:
         # always zips whatever it's given for download, so zipping our own output first would make a
         # user's download a zip-of-a-zip. The real distributable NPVideoStudio-Portable-x64-<version>.zip
         # made by build-release.ps1 is for manual releases, not this CI artifact.
+        # continue-on-error: same artifact-storage-quota reasoning as "Upload Windows installer" above.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: NPVideoStudio-Portable
