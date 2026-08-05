@@ -6,10 +6,10 @@ funkcije.
 
 ## VAŽNO — trenutno stanje programa
 
-Ovo je **prva razvojna faza (Faza 1)** od planiranih deset. NP Video Studio je zamišljen kao program
-uporediv po obimu sa CapCut/DaVinci Resolve, a takav program se realno gradi u mnogo faza tokom dužeg
-perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde je tačan spisak šta je
-**stvarno završeno i testirano**, a šta je **planirano za kasnije**.
+Kroz Fazu 10 (od planiranih 11) NP Video Studio je zamišljen kao program uporediv po obimu sa
+CapCut/DaVinci Resolve, a takav program se realno gradi u mnogo faza tokom dužeg perioda, ne za jednu
+sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde je tačan spisak šta je **stvarno završeno i
+testirano**, a šta je **planirano za kasnije**.
 
 ### Šta radi u ovoj verziji
 
@@ -67,33 +67,49 @@ perioda, ne za jednu sesiju rada. Da ne bismo tvrdili nešto što ne radi, ovde 
   izračuna otisak pesme (Chromaprint/fpcalc, 5 delova numere) i proveri da li je pesma već u biblioteci
   pre nego što je doda - nikad automatski, uvek vam pokaže moguća poklapanja i traži potvrdu. Obrisati
   zapis iz biblioteke ne briše i sam audio fajl, osim ako to izričito ne zatražite.
+- **Uređivač titlova** (Alati → Uređivač titlova): uređivanje titlova na nivou svake reči (tajming,
+  tekst, undo/redo), uvoz/izvoz u SRT/VTT/ASS/TXT/JSON/LRC.
+- **Stilovi titlova** (Alati → Stilovi titlova): 24 gotova stila (3+ po svakoj od 8 tema), red-po-red/
+  reč-po-reč/karaoke prikaz.
+- **Analiza rasporeda videa** (Alati → Analiza rasporeda videa): OCR (Tesseract) pronalazi postojeći
+  tekst/logo u kadru, da titl ne bi preklopio nešto što je već na slici.
+- **Radni prostor - Timeline i plejer**: prave, testirane trake (video/audio/titl/tekst/slika-overlay)
+  sa split/trim/move/duplicate/mute/volume/fade/lock/hide/solo/undo/redo po klipu, i transportna traka
+  plejera (play/pause/stop/frame-step/seek/volume) - bez stvarnog dekodiranja/renderovanja kadra na
+  ekranu (sandbox u kom je program razvijan nema ekran da se to proveri), ali svaka druga operacija je
+  stvarna i testirana.
+- **Izvoz videa** (dugme „Izvezi video“ u radnom prostoru): pravi ffmpeg render projekta u MP4/H.264 (ili
+  NVENC/QSV/AMF sa automatskim padom nazad na H.264 ako hardverski enkoder ne uspe), sa pravim napretkom
+  uživo, otkazivanjem koje stvarno prekida proces, i redom za više istovremenih izvoza.
+- **Kreiraj video iz šablona** (početni ekran): novi projekat sa unapred dodatim trakama za uobičajene
+  scenarije (govor sa titlovima, muzički spot, slike i tekst).
+- **Brzi video od slike i pesme** / **Automatski video sa utisnutim titlovima** (početni ekran): od jedne
+  slike i jedne pesme napravi gotov MP4 za nekoliko minuta, opciono sa automatski prepoznatim i
+  utisnutim titlovima (lokalni Whisper).
 
-Sve navedeno je pokriveno sa 121 automatizovanim testom (`dotnet test`) koji stvarno pokreću FFprobe/FFmpeg,
-stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa razmacima), i
-pokreću headless UI test koji podiže celu aplikaciju i proverava da početni ekran, podešavanja i
-dijagnostika rade bez grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo
-gde ima interneta do huggingface.co (radi na CI-ju i na krajnjem korisničkom računaru; ne radi u
-ograničenom razvojnom sandboxu bez tog pristupa - videćete jasno zbog čega u samom testu).
+Sve navedeno je pokriveno sa 306 automatizovanih testova (`dotnet test`) koji stvarno pokreću FFprobe/
+FFmpeg/Tesseract, stvarno čuvaju i učitavaju projekte (uključujući srpsku latinicu, ćirilicu i putanje sa
+razmacima), i pokreću headless UI testove koji podižu celu aplikaciju i proveravaju svaki ekran bez
+grešaka. Četiri od njih preuzimaju i pokreću pravi Whisper model i rade samo tamo gde ima interneta do
+huggingface.co (radi na CI-ju i na krajnjem korisničkom računaru; ne radi u ograničenom razvojnom
+sandboxu bez tog pristupa - videćete jasno zbog čega u samom testu).
 
 ### Šta JOŠ NIJE implementirano (planirano za naredne faze)
 
 Ovo je **jasno označeno u samom programu** (dugmad su vidljivo onemogućena, sa natpisom „Uskoro — u
 razvoju"), ne prikazuje se kao gotovo:
 
-- Timeline montaža: sečenje, trake, prelazi, keyframe animacije.
-- Tekstualni sistem na video timeline-u i titlovi urezani u sliku (Whisper transkripcija sada postoji i
-  za pretragu teksta u pesmi i za izvoz samostalnog `.srt` fajla, ali još nije povezana sa timeline-om
-  za titlove urezane u samu sliku videa).
-- Video-efekti, maske, chroma key, prelazi.
-- Audio editor (EQ, noise reduction, ducking...), snimanje mikrofona.
-- Render/export videa (MP4/H.264 i ostali formati).
-- Šabloni, thumbnail editor, muzički vizualizator, profili kanala, plugin sistem.
+- Upravljanje šablonima/fontovima/efektima — namerno uklonjeno umesto lažno prikazano kao gotovo (nema
+  stvarne osnove za njih u kodu danas; videti `docs/PHASE_STATUS.md` Faza 10 za obrazloženje).
+- Stvarno dekodiranje/renderovanje video kadra u plejeru (samo transportna traka i stanje su stvarni).
+- Kompozicija više video traka istovremeno (slika-overlay traka postoji u modelu ali se još ne renderuje
+  u izvozu), profili kanala, plugin sistem, thumbnail editor, muzički vizualizator.
 
-Ovo su namerno svi ekrani koji rade danas — nijedno dugme u programu ne prikazuje lažnu funkcionalnost.
 Ako imate konkretnu funkciju koja vam odmah treba, javite je — lakše je ubaciti jednu jasno definisanu
-funkciju u sledeću iteraciju (kao "Isečci iz pesme" iznad) nego čekati da čitav NLE bude gotov.
+funkciju u sledeću iteraciju nego čekati da čitav NLE bude gotov.
 
-Ovaj README će se ažurirati posle svake faze da tačno odražava stvarno stanje programa.
+Ovaj README će se ažurirati posle svake faze da tačno odražava stvarno stanje programa. Za detaljan
+istorijat po fazama pogledajte `RELEASE_NOTES.md` i `docs/PHASE_STATUS.md`.
 
 ## Sistemski zahtevi
 
@@ -178,10 +194,12 @@ Na početnom ekranu, sekcija „Alati" → „Generiši titlove (SRT)". Izaberit
 kliknite „Generiši titlove", izaberite gde da se sačuva `.srt` fajl. Program ga lokalno transkribuje i
 sačuva sa tačnim vremenima - spreman za otpremanje na YouTube/TikTok/Reels ili uvoz u drugi editor.
 
-### Tekst, titlovi, animacije, efekti, export
+### Timeline, titlovi na slici, izvoz videa
 
-Ove funkcije su planirane za naredne faze i još nisu deo programa — videćete ih jasno označene kao „u
-razvoju" na početnom ekranu, umesto da se lažno prikazuju kao gotove.
+U otvorenom projektu, sekcija „Timeline“ dodaje trake i klipove; „Uređivač titlova“ i „Stilovi titlova“
+uređuju tekst/izgled titlova; dugme „Izvezi video“ pravi gotov MP4 fajl preko pravog ffmpeg render
+pipeline-a. Video-efekti, maske, prelazi i profili kanala su i dalje planirani za naredne faze —
+videćete ih jasno označene kao „u razvoju" na početnom ekranu, umesto da se lažno prikazuju kao gotove.
 
 ## Gde se šta nalazi
 
@@ -235,26 +253,29 @@ Verzija (`X.X.X`) se čita iz `Directory.Build.props` u korenu repozitorijuma �
 se menja pri podizanju verzije (installer-ov `MyAppVersion` u `installer\NPVideoStudio.iss` treba ručno
 održavati usklađenim s njim).
 
-**Pre prve zvanične verzije, ovo mora da se pokrene i testira na Windows računaru** — instalacija,
-pokretanje, otvaranje projekta, uvoz medija, deinstalacija — ovaj korak još nije urađen jer je razvoj
-rađen u Linux okruženju.
+Ovaj skript se stvarno pokreće na pravom Windows runner-u (`windows-latest`) u GitHub Actions pri svakoj
+izmeni koda - build, ceo test paket i pravljenje instalatera/portable verzije su realno provereni, ne
+samo napisani. Ostaje: ručna interaktivna provera instalacije/pokretanja/deinstalacije od strane pravog
+korisnika na sopstvenom računaru (nešto što automatizovani CI ne pokriva) i regresivni test na
+korisnikovom sopstvenom Shorts snimku (videti `test-data/README.md`).
 
 ## Arhitektura (za programere)
 
 ```
 src/
   NPVideoStudio.App/             Avalonia MVVM desktop aplikacija (UI, DI kompozicija)
-  NPVideoStudio.Domain/          Modeli: Project, MediaAsset, ProjectFormat, AppSettings
-  NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics...)
+  NPVideoStudio.Domain/          Modeli: Project, Timeline, MediaAsset, ProjectFormat, RenderJob, AppSettings...
+  NPVideoStudio.Core/            Interfejsi servisa (repository, settings, diagnostics, render...)
   NPVideoStudio.Infrastructure/  SQLite, JSON perzistencija, auto-save, logovanje (Serilog)
-  NPVideoStudio.Media/           FFprobe analiza, isečci iz pesme (FFmpeg astats), YouTube preuzimanje (yt-dlp)
-  NPVideoStudio.AI/              Lokalna Whisper transkripcija: pretraga teksta u pesmi, SRT titlovi
+  NPVideoStudio.Media/           FFprobe/FFmpeg render pipeline, isečci iz pesme, YouTube preuzimanje (yt-dlp), OCR (Tesseract)
+  NPVideoStudio.AI/              Lokalna Whisper transkripcija, timeline/caption edit sesije, player state machine
   NPVideoStudio.Diagnostics/     Sistemska dijagnostika i paket za podršku
 tests/
-  NPVideoStudio.UnitTests/       xUnit + Avalonia.Headless testovi
-docs/                            README i dokumentacija
+  NPVideoStudio.UnitTests/       xUnit + Avalonia.Headless testovi (306)
+docs/                            README i dokumentacija (MASTER_SPEC, PHASE_STATUS, FUNCTION_MATRIX...)
 scripts/                         check-dependencies.ps1, build-release.ps1
 installer/                       Inno Setup skripta (NPVideoStudio.iss)
+THIRD_PARTY_NOTICES.md, Licenses/  Licence svih korišćenih open-source komponenti
 ```
 
 **Zašto Avalonia umesto WPF:** specifikacija dozvoljava oba (WPF ili Avalonia). Avalonia je izabrana
@@ -262,5 +283,5 @@ jer se, za razliku od WPF-a, može build-ovati i testirati na Linux razvojnom ok
 korišćeno za ovu fazu — što znači da je svaki build i test u ovom repozitorijumu stvarno pokrenut i
 proveren, a ne samo napisan. Krajnji rezultat je i dalje prava Windows desktop aplikacija.
 
-Detaljan plan faza 2–10 (timeline, tekst, titlovi/Whisper, audio, efekti, export, šabloni, instalacija)
-nalazi se u istoriji razgovora/PR opisu koji je pratio ovu fazu.
+Detaljan plan svih faza nalazi se u `docs/MASTER_SPEC.md`, a tačno stanje svake završene faze u
+`docs/PHASE_STATUS.md`.

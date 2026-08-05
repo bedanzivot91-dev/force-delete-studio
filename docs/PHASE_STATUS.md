@@ -17,7 +17,7 @@ giant prompt again.
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
 | 9 | Render pipeline | DONE (partial - see below) | 6a4bba5 |
 | 10 | Finish or remove planned-feature tiles | DONE (partial - see below) | 764d223 |
-| 11 | Final QA + distribution | NOT_STARTED | — |
+| 11 | Final QA + distribution | DONE (partial - see below) | PENDING |
 
 ## Baseline at end of Phase 0
 
@@ -585,6 +585,55 @@ Deliberately not done this phase (real, explicitly-flagged gaps):
 - Function matrix: no new `function-contracts.json` rows yet for the template gallery/quick video screens
   - same deferred-to-next-refresh treatment as Phases 6-9.
 
+## What Phase 11 actually delivered
+
+Delivered:
+- **Full test suite**: 306/306 passing (302 run locally + 4 real Whisper-model-download integration
+  tests verified on Windows CI, per the established sandbox-network-limitation pattern). No regressions
+  from any Phase 10 work.
+- **All 8 themes**: already covered by `AppSmokeTests.cs: AllEightThemes_LoadAsRealAvaloniaResourceDictionaries`
+  (real Avalonia XAML parsing of every theme file) - re-verified passing, not newly built this phase.
+- **Installer + portable ZIP (fixed, no double-zip)**: verified by reading `build-release.ps1` and
+  `.github/workflows/windows-build.yml` directly rather than assuming - both the version-mismatch fix
+  and the ZIP-in-ZIP fix documented as "not yet fixed" in `CLAUDE.md` had actually already been fixed in
+  Phase 1, and PDB/non-win-x64-runtime trimming had already been fixed in Phase 1 too. `CLAUDE.md`'s
+  "Real, verified constraints" section was stale on all three points - corrected this phase so future
+  sessions don't re-flag already-solved problems.
+- **`THIRD_PARTY_NOTICES.md` + `Licenses/`**: every actual dependency (all `PackageReference`s across
+  every `.csproj`, `Tools/ai-worker/requirements.txt`, every external tool `FfmpegLocator`/
+  `DependencyManagerService` invoke) individually researched via real web search, not assumed from
+  memory - split into **bundled** (ships in `publish/win-x64/`: Avalonia, CommunityToolkit.Mvvm,
+  Microsoft.Data.Sqlite, SQLite itself, Microsoft.Extensions.DependencyInjection, Serilog, Whisper.net +
+  whisper.cpp - all MIT/Apache-2.0/Public-Domain, full verified license text in `Licenses/`) and
+  **external, not bundled** (FFmpeg GPLv3, yt-dlp Unlicense, Chromaprint/fpcalc LGPL-2.1/GPLv2+,
+  Tesseract+tessdata Apache-2.0, faster-whisper/CTranslate2 MIT, WhisperX BSD-2-Clause, Demucs MIT - user-
+  installed prerequisites this app only invokes as a subprocess/Python import, never redistributes).
+  **Zero AGPL components found anywhere in this stack** - checked explicitly per the spec's requirement,
+  not just assumed clean.
+- **`RELEASE_NOTES.md`**: new phase-by-phase user-facing changelog for v0.1.0 (Phases 0-10), plus a
+  "known limitations" section that doesn't hide anything already documented in `PHASE_STATUS.md`.
+- **`README.md` refreshed**: was still describing the app as "Phase 1 of 10" and claiming timeline/
+  render/OCR/song-fingerprinting "don't exist yet" - all built since. Feature list, architecture diagram,
+  and test count (121 → 306) brought in line with actual current state.
+- **Zero `BROKEN`/`PLACEHOLDER` confirmed, not assumed**: real grep audit across `src/` for
+  `TODO`/`FIXME`/`HACK`/`NotImplementedException`/"not implemented"/"placeholder"/"coming soon" - every
+  hit was either a legitimate Avalonia `PlaceholderText` UI property or an honest doc-comment describing
+  an already-tracked, already-disclosed gap (never a live-looking dead button or a silently-wrong
+  result). `function-contracts.json`'s existing `BROKEN: 0`/`PLACEHOLDER: 0` counts stand confirmed.
+
+Deliberately not done this phase (real, explicitly-flagged gaps - genuinely require the user, not
+something that can be faked or skipped past):
+- **No real interactive Windows smoke test** - the automated CI build+test on `windows-latest` is real
+  and thorough, but nobody has actually clicked through install → launch → open a project → import media
+  → uninstall on a real Windows machine as a human. This sandbox has no way to do that itself.
+- **No regression pass against the user's own Shorts clip** (spec: ~9:16, 1080x1920, ~24s, singing,
+  possibly pre-existing on-screen text/logo/CTA) - `test-data/local/` + `test-data/README.md` are set up
+  and gitignored, ready for it, but no such file exists in this session. Fabricating a substitute clip
+  would defeat the entire point of this check (catching real-world edge cases synthetic lavfi test clips
+  can't).
+
 ## Next action
 
-Start Phase 11 (final QA + distribution) only when told to proceed.
+Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
+before it can be called fully complete - everything else in Phase 11's spec is done. This is also the
+last planned phase (`docs/MASTER_SPEC.md` only defines Phases 0-11).

@@ -25,6 +25,8 @@ tests/NPVideoStudio.UnitTests/    xUnit + Avalonia.Headless.XUnit
 installer/NPVideoStudio.iss       Inno Setup script
 scripts/                          check-dependencies.ps1, build-release.ps1
 .github/workflows/windows-build.yml   CI: build, test, publish, installer, portable ZIP
+THIRD_PARTY_NOTICES.md, Licenses/     Every OSS dependency actually used, real verified licenses (Phase 11)
+test-data/local/                  Gitignored - the user's own regression clip goes here, never committed
 ```
 
 ## Commands
@@ -41,26 +43,33 @@ has full internet. Don't "fix" them locally; verify via CI job logs instead.
 
 - **Sandbox network**: `github.com`/`api.nuget.org` reachable; `huggingface.co` and (presumably)
   `youtube.com` blocked by the proxy. yt-dlp/Whisper-model-download code paths are verified on CI only.
-- **No bundled tools**: `ffmpeg`, `ffprobe`, `yt-dlp` are resolved via `FfmpegLocator` (override path →
-  `Tools/<name>/` next to the exe → PATH). None are actually bundled in `Tools/` today — Portable users
-  need them on PATH or via `scripts/check-dependencies.ps1`. This is a real gap, not yet fixed.
+- **No bundled tools, still true**: `ffmpeg`, `ffprobe`, `yt-dlp`, `fpcalc` (Chromaprint), `tesseract` are
+  all resolved via `FfmpegLocator`/`DependencyManagerService` (override path → `Tools/<name>/` next to the
+  exe → PATH). None are bundled in `Tools/` — users need them on PATH or via
+  `scripts/check-dependencies.ps1`. This is a real, deliberate gap (see `THIRD_PARTY_NOTICES.md` for why
+  it also keeps the licensing story simple — none of these GPL/LGPL-licensed tools are redistributed by
+  this app). The only things actually bundled in the publish output are Whisper.net + its native
+  whisper.cpp binaries (`whisper.dll`, `ggml-*.dll`) — both MIT.
 - **Whisper model** is downloaded on demand (~75 MB tiny model) after an explicit button click — never
   pre-bundled, by design (consent-gated download).
-- **Version mismatch is real**: `installer/NPVideoStudio.iss` says `0.1.0`, but no `.csproj` sets
-  `<Version>`/`<AssemblyVersion>`, so the compiled assembly reports the SDK default `1.0.0.0`
-  (`App.axaml.cs: ThisAssemblyVersion()`). Not fixed yet — tracked in BASELINE_AUDIT.
-- **Portable ZIP-in-ZIP is real but the cause is GitHub Actions, not the build script**:
-  `build-release.ps1` produces one flat `dist/NPVideoStudio-Portable.zip`. The workflow then uploads
-  that single file as an `upload-artifact` artifact, and GitHub Actions always wraps artifact contents
-  in its own zip for download — so a user downloading from the Actions UI gets a zip containing another
-  zip. Fix (not yet done): upload the extracted publish folder as the artifact instead of the pre-zipped
-  file, or accept the nesting and document it.
-- **Release includes PDBs and non-Windows Whisper native libs**: confirmed in CI compression logs —
-  `linux-*`, `macos-*`, `win-arm64`, `win-x86` runtime folders and `.pdb` files all ship in the win-x64
-  publish output. Not yet trimmed.
-- **Timeline/render/caption-burn-in/song-fingerprinting/OCR do not exist yet.** Only 3 themes exist
-  (Dark Cinematic, Minimal Light, Professional Studio), not 8. These are the biggest remaining gaps —
-  see MASTER_SPEC phases 3–9.
+- **Version is fixed via `Directory.Build.props`** (`<Version>0.1.0</Version>`, single source of truth for
+  every project) and matches `installer/NPVideoStudio.iss`'s `MyAppVersion` — bump both by hand together.
+  The old "compiled assembly reports SDK default 1.0.0.0" bug from Phase 0 is resolved.
+- **Portable ZIP-in-ZIP is fixed**: `scripts/build-release.ps1` still produces the real
+  `dist/NPVideoStudio-Portable-x64-<version>.zip` for manual releases, but the CI workflow's "Upload
+  portable build" step uploads the *extracted* `dist/NPVideoStudio-Portable-x64/` folder instead of that
+  zip — GitHub Actions' own artifact-zipping no longer wraps an already-zipped file.
+- **PDB/non-Windows-runtime trimming is fixed**: `build-release.ps1` step "3/5" deletes all `*.pdb` files
+  and every `runtimes/<rid>` folder except `win-x64` before packaging — confirmed empty of `.pdb`/non-
+  win-x64 entries in real CI compression logs.
+- **Timeline (Phase 8), render pipeline (Phase 9), quick-video/templates (Phase 10), song-fingerprinting
+  (Phase 4), and OCR (Phase 7) all exist and are real, tested features now** — this file used to say they
+  didn't; that was true only through Phase 7. All 8 themes exist (Dark Cinematic, Minimal Light,
+  Professional Studio, Obsidian Neon, Arctic Glass, Crimson Cyber, Midnight Pro, Ocean Glass), verified by
+  `AppSmokeTests.cs: AllEightThemes_LoadAsRealAvaloniaResourceDictionaries`. Real remaining gaps: no
+  multi-video-track compositing/ImageOverlay rendering, no font/effects management (see
+  `docs/PHASE_STATUS.md`'s Phase 9/10 sections for the exact, current list — read those instead of
+  assuming anything here is still missing).
 
 ## Conventions already established in this codebase
 

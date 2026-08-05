@@ -16,5 +16,8 @@ Thumbs.db
 # Test results
 TestResults/
 
+# Local-only regression test media (spec Phase 11: the user's own Shorts clip, never committed)
+test-data/local/
+
 # Logs generated at runtime
 *.log
