@@ -17,7 +17,7 @@ giant prompt again.
 | 8 | Timeline + player | DONE (partial - see below) | bb13397 |
 | 9 | Render pipeline | DONE (partial - see below) | 6a4bba5 |
 | 10 | Finish or remove planned-feature tiles | DONE (partial - see below) | 764d223 |
-| 11 | Final QA + distribution | DONE (partial - see below) | PENDING |
+| 11 | Final QA + distribution | DONE (partial - see below) | 4876d95 |
 
 ## Baseline at end of Phase 0
 
