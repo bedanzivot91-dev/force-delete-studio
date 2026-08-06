@@ -80,6 +80,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
         services.AddSingleton<IRenderService>(_ => new RenderService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IQuickVideoService>(_ => new QuickVideoService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IFramePreviewService>(_ => new FramePreviewService(settingsService.Current.FfmpegPath));
 
         services.AddTransient<StartScreenViewModel>();
         services.AddTransient<SettingsViewModel>();

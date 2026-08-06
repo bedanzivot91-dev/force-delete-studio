@@ -29,6 +29,10 @@ public sealed partial class TimelineViewModel : ViewModelBase
     [ObservableProperty]
     private MediaAssetViewModel? _selectedMediaAsset;
 
+    /// <summary>Live (post-undo/redo) track state, for the workspace's preview-frame resolution - unlike
+    /// <see cref="Project.Timeline"/>.Tracks, this reflects edits before <see cref="SaveToProject"/> runs.</summary>
+    public IReadOnlyList<TimelineTrack> CurrentTracks => _session.Tracks;
+
     public double TotalDurationSeconds =>
         _session.Tracks.SelectMany(t => t.Clips).Select(c => (double?)c.TimelineEndSeconds).DefaultIfEmpty(0).Max() ?? 0;
 

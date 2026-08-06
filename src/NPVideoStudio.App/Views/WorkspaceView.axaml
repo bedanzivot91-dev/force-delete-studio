@@ -68,7 +68,10 @@
         <StackPanel Spacing="8">
           <TextBlock Text="Plejer" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Stanje reprodukcije (play/pause/seek/frame-step) je stvarno i testirano - stvarno dekodiranje/renderovanje video kadra dolazi u kasnijoj fazi (ovaj sandbox nema ekran da se to proveri)." />
+                     Text="Prikazani kadar je pravi, dekodiran preko ffmpeg-a za tačnu poziciju - osvežava se pri pomeranju, koraku napred/nazad i tokom reprodukcije, ali nije neprekidan video na 30 kadrova u sekundi (svaki prikaz je pojedinačna slika, ne uživo strimovan video)." />
+          <Border Background="Black" MaxHeight="220" HorizontalAlignment="Stretch" ClipToBounds="True">
+            <Image Source="{Binding CurrentFrameBitmap}" Stretch="Uniform" MaxHeight="220" />
+          </Border>
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding StepBackwardCommand}" />
             <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayCommand}" IsVisible="{Binding !IsPlaying}" />

@@ -632,8 +632,52 @@ something that can be faked or skipped past):
   would defeat the entire point of this check (catching real-world edge cases synthetic lavfi test clips
   can't).
 
+## Post-Phase-11 follow-up: real player preview frame
+
+Not part of `docs/MASTER_SPEC.md`'s 11 phases - added after the user actually ran a local build (per the
+Phase 11 "next action" below) and found the in-workspace player showed no picture at all. That gap had
+been disclosed in the UI's own text since Phase 8, but real usage showed it as a blocking problem for
+actually editing (no way to see where a text overlay lands, whether a clip's trim point is right, etc.),
+so it was fixed directly rather than just re-explained.
+
+Delivered:
+- **`IFramePreviewService` / `FramePreviewService`** (`NPVideoStudio.Media`): real ffmpeg single-frame
+  extraction (`-ss <t> -i <file> -frames:v 1 -f image2pipe -vcodec png -`, read straight off stdout, no
+  temp file) - verified empirically before writing any code that piping a PNG through ffmpeg's stdout
+  this way produces valid, correctly-decodable bytes every time.
+- **`TimelinePreviewResolver`** (`NPVideoStudio.AI`, pure logic, fully unit tested): maps the current
+  timeline tracks + media library + playhead position to a real source file path and in-source timestamp
+  (first non-hidden Video track, clip under the playhead, `SourceTrimIn + offsetIntoClip`).
+- **Wired into `WorkspaceViewModel`**: refreshes `PlayerViewModel.CurrentFrameBitmap` on every seek, frame
+  step, play tick, and timeline edit, with cancellation-token-swap handling so fast scrubbing doesn't pile
+  up overlapping ffmpeg calls. `WorkspaceView.axaml`'s player panel now has a real `<Image>` bound to it.
+- **A real, previously-latent bug found and fixed along the way**: the seek `Slider` was two-way-bound
+  directly to `PlayerViewModel.CurrentTimeSeconds`, completely bypassing `PlayerStateMachine.Seek()` -
+  dragging it never actually updated the player's internal position. No test exercised a real slider drag
+  before now, so this had been silently broken since Phase 8.
+- **Tests**: `TimelinePreviewResolverTests.cs` (9 pure-logic cases), `FramePreviewServiceTests.cs` (4 real
+  ffmpeg-integration cases - valid PNG at the right size via a manual IHDR-chunk read, since Avalonia's
+  headless test platform stubs out real bitmap decoding and reports a fake 1x1 size for any image, so
+  `Bitmap` can't be used to verify decodability in this test environment). Full non-integration suite
+  (315 tests) passing with no regressions.
+
+Deliberately not done (real, explicit scope limit, not an oversight): this is **not** continuous video
+playback. Each position change fetches one still frame: correct for scrubbing/stepping/checking a
+position, but pressing play does not show a smoothly moving picture at 30fps, only the player's transport
+state (time/progress) advancing while frames refresh a few times a second at most. A true streaming
+decoder (e.g. LibVLCSharp) is a much larger scope with its own bundling/licensing questions and no way to
+verify smooth playback in this Linux sandbox (no real display) - left as a possible future improvement,
+not started here.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
 before it can be called fully complete - everything else in Phase 11's spec is done. This is also the
 last planned phase (`docs/MASTER_SPEC.md` only defines Phases 0-11).
+
+The post-Phase-11 frame-preview follow-up above still needs the user to `git pull` + re-run
+`scripts\build-release.ps1` and confirm on their real machine that a picture now actually appears in the
+player while scrubbing/stepping/playing - not yet confirmed as of this writing. Also still open: the user
+was asked to confirm that "Izvezi video" now succeeds and produces a real playable file now that a clip
+sits on the Video track (a real error, "Timeline nema video traku sa klipovima", was seen and fixed by
+adding the clip - not yet confirmed as fully resolved end-to-end with a real exported file).

@@ -34,6 +34,16 @@ public sealed class FakeMediaProbeService : IMediaProbeService
         throw new NotSupportedException();
 }
 
+/// <summary>Fake so workspace/timeline tests don't need real ffmpeg for preview-frame extraction -
+/// FramePreviewService's own real-process behavior is covered by FramePreviewServiceTests.cs.</summary>
+public sealed class FakeFramePreviewService : IFramePreviewService
+{
+    public Func<string, double, byte[]?>? Handler { get; set; }
+
+    public Task<byte[]?> ExtractFrameAsync(string sourceFilePath, double timestampSeconds, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Handler?.Invoke(sourceFilePath, timestampSeconds));
+}
+
 /// <summary>
 /// Uses [AvaloniaFact] (not a plain [Fact]) because PlayerViewModel constructs a real Avalonia
 /// DispatcherTimer, which needs a running Dispatcher - same reason AppSmokeTests.cs uses it.
@@ -48,6 +58,7 @@ public class WorkspaceViewModelTests
             new FakeProjectRepository(),
             new FakeMediaProbeService(),
             new FakeStorageService(),
+            new FakeFramePreviewService(),
             new LoggerConfiguration().CreateLogger());
     }
 

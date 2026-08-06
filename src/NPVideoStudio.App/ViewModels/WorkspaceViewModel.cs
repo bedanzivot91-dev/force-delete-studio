@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NPVideoStudio.AI;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
 using NPVideoStudio.App.Services;
@@ -11,13 +13,18 @@ namespace NPVideoStudio.App.ViewModels;
 
 /// <summary>
 /// Project workspace: media import/library, and (since Phase 8) the non-destructive timeline + player.
+/// Phase 11 follow-up: also resolves and fetches the player's real preview frame (<see cref="TimelinePreviewResolver"/>
+/// + <see cref="IFramePreviewService"/>) on every seek/step/play-tick/timeline-edit, so
+/// <see cref="PlayerViewModel.CurrentFrameBitmap"/> shows an actual picture instead of nothing.
 /// </summary>
 public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IMediaProbeService _mediaProbeService;
     private readonly IStorageService _storageService;
+    private readonly IFramePreviewService _framePreviewService;
     private readonly ILogger _logger;
+    private CancellationTokenSource? _framePreviewCts;
 
     public Project Project { get; }
 
@@ -40,12 +47,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, ILogger logger)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ILogger logger)
     {
         Project = project;
         _projectRepository = projectRepository;
         _mediaProbeService = mediaProbeService;
         _storageService = storageService;
+        _framePreviewService = framePreviewService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
 
         foreach (var asset in project.MediaLibrary)
@@ -57,7 +65,52 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         Player = new PlayerViewModel(totalDurationSeconds: ComputeInitialDuration(project));
         Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds);
-        Timeline.TimelineChanged += () => Player.Retarget(Timeline.TotalDurationSeconds);
+        Timeline.TimelineChanged += () =>
+        {
+            Player.Retarget(Timeline.TotalDurationSeconds);
+            RefreshPreviewFrame(Player.CurrentTimeSeconds);
+        };
+        Player.TimeChanged += RefreshPreviewFrame;
+    }
+
+    private void RefreshPreviewFrame(double playheadSeconds)
+    {
+        _framePreviewCts?.Cancel();
+        _framePreviewCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _framePreviewCts = cts;
+
+        var request = TimelinePreviewResolver.Resolve(Timeline.CurrentTracks, Project.MediaLibrary, playheadSeconds);
+        if (request is null)
+        {
+            Player.CurrentFrameBitmap = null;
+            return;
+        }
+
+        _ = ExtractAndApplyFrameAsync(request.Value, cts.Token);
+    }
+
+    private async Task ExtractAndApplyFrameAsync(TimelinePreviewResolver.PreviewFrameRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bytes = await _framePreviewService.ExtractFrameAsync(request.SourceFilePath, request.SourceTimestampSeconds, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Player.CurrentFrameBitmap = bytes is null ? null : new Bitmap(new MemoryStream(bytes));
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer seek/step/tick before this one finished decoding - expected during
+            // fast scrubbing, not an error.
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Osvežavanje prikaza kadra u plejeru nije uspelo za vreme {Time}s", request.SourceTimestampSeconds);
+        }
     }
 
     private static double ComputeInitialDuration(Project project)
@@ -74,7 +127,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         return fromMedia;
     }
 
-    public void Dispose() => Player.Dispose();
+    public void Dispose()
+    {
+        _framePreviewCts?.Cancel();
+        _framePreviewCts?.Dispose();
+        Player.Dispose();
+    }
 
     private MediaAssetViewModel CreateItemViewModel(Domain.MediaAsset asset)
     {
