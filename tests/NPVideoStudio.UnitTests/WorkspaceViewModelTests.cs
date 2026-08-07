@@ -154,4 +154,31 @@ public class WorkspaceViewModelTests
         workspace.Player.StopCommand.Execute(null);
         Assert.Equal(0, workspace.Player.CurrentTimeSeconds);
     }
+
+    /// <summary>Regression test for a real bug: ExportVideo() used to fire ExportRequested without
+    /// syncing the live timeline edit session back onto Project first, so the render queue (which reads
+    /// Project.Timeline.Tracks directly) could silently render a stale/empty timeline even though the
+    /// user could see clips on screen.</summary>
+    [AvaloniaFact]
+    public void ExportVideo_UnsavedTimelineEdit_SyncsToProjectBeforeRaisingExportRequested()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        // Not calling Timeline.SaveToProject() manually - ExportVideo() itself must do it.
+        Assert.Empty(project.Timeline.Tracks);
+
+        var exportRequestedFired = false;
+        workspace.ExportRequested += () => exportRequestedFired = true;
+        workspace.ExportVideoCommand.Execute(null);
+
+        Assert.True(exportRequestedFired);
+        Assert.Single(project.Timeline.Tracks);
+        Assert.Single(project.Timeline.Tracks[0].Clips);
+    }
 }

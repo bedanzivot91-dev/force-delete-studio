@@ -24,6 +24,7 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     private bool _isApplyingStateSync;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentTimeLabel))]
     private double _currentTimeSeconds;
 
     [ObservableProperty]
@@ -33,7 +34,13 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     /// the owner can refresh <see cref="CurrentFrameBitmap"/> for the new position.</summary>
     public event Action<double>? TimeChanged;
 
+    /// <summary>NotifyPropertyChangedFor is required here - TotalTimeLabel is a plain computed property,
+    /// not an [ObservableProperty] itself, so without this the UI's total-time text silently kept
+    /// showing the old duration after Retarget() (e.g. after adding a clip that extends the timeline)
+    /// even though TotalDurationSeconds itself had genuinely changed. A real bug, found by inspection,
+    /// not previously caught by any test because no test asserts on the formatted label text.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TotalTimeLabel))]
     private double _totalDurationSeconds;
 
     [ObservableProperty]
@@ -181,7 +188,6 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
         }
 
         IsPlaying = _state.State == PlayerPlaybackState.Playing;
-        OnPropertyChanged(nameof(CurrentTimeLabel));
     }
 
     private static string FormatTime(double seconds)

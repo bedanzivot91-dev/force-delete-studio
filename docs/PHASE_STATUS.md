@@ -669,15 +669,51 @@ decoder (e.g. LibVLCSharp) is a much larger scope with its own bundling/licensin
 verify smooth playback in this Linux sandbox (no real display) - left as a possible future improvement,
 not started here.
 
+## Second post-Phase-11 follow-up: export/timeline sync bug + navigation resource leaks
+
+Found by directly re-inspecting the workspace/export/navigation code end to end (not from a specific new
+user report) while looking into whether "Izvezi video" (part of the still-open item below) is actually
+reliable. Three real, confirmed (not hypothetical) bugs, all fixed:
+
+- **Export could silently render a stale timeline.** `WorkspaceViewModel.ExportVideo()` fired
+  `ExportRequested` (which opens the render queue against the live `Project` object) without ever calling
+  `Timeline.SaveToProject()` first. `TimelineEditSession` (the thing the UI actually edits) only writes
+  its tracks back onto `Project.Timeline.Tracks` when that's explicitly called - it wasn't guaranteed to
+  have happened recently before pressing Export (only on manual "Sačuvaj projekat" or the next media
+  import). Confirmed via a new regression test
+  (`WorkspaceViewModelTests.ExportVideo_UnsavedTimelineEdit_SyncsToProjectBeforeRaisingExportRequested`)
+  that a clip added to the timeline was invisible to the render queue until this fix. Fixed by having
+  `ExportVideo()` call `Timeline.SaveToProject()` before raising the event.
+- **`TotalTimeLabel`/`CurrentTimeLabel` didn't reliably update.** Both are plain computed properties, not
+  `[ObservableProperty]` fields themselves - `PlayerViewModel.Retarget()` (called whenever the timeline's
+  total duration changes, e.g. after adding a clip) updated `TotalDurationSeconds` but nothing told the UI
+  the *label* text depending on it had also changed, so the displayed total time could visibly lag behind
+  the real duration. Fixed with `[NotifyPropertyChangedFor]` on both underlying seconds properties, with
+  two new regression tests in `PlayerViewModelTests.cs` that assert on the actual label text (not just the
+  raw numeric property, which is why this had gone uncaught).
+- **Navigating away from the workspace or render queue never called `Dispose()`.** Both are `IDisposable`
+  (a `DispatcherTimer` and, for the workspace, also a frame-preview `CancellationTokenSource`), but
+  `MainWindowViewModel` never disposed the outgoing page on any navigation - reachable via the always-
+  visible top navbar ("Početni ekran"/"Podešavanja"/"Dijagnostika"), not just each page's own in-context
+  back button. Fixed with a single `OnCurrentPageChanging` hook that disposes the outgoing page, with one
+  deliberate exception: Workspace -> RenderQueue is not an abandonment (RenderQueue's own "Nazad" hands
+  the exact same live workspace instance back), so that specific transition is excluded.
+
+Also fixed in the same pass: the portable ZIP's `README-FIRST.txt` told the user to run
+`scripts\check-dependencies.ps1`, but that script was never actually copied into the portable folder
+(only ever existed in a full source checkout) - `build-release.ps1` now bundles it into
+`dist\NPVideoStudio-Portable-x64\scripts\`.
+
+Full non-integration suite: 318 tests passing (315 + 3 new regression tests), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
 before it can be called fully complete - everything else in Phase 11's spec is done. This is also the
 last planned phase (`docs/MASTER_SPEC.md` only defines Phases 0-11).
 
-The post-Phase-11 frame-preview follow-up above still needs the user to `git pull` + re-run
-`scripts\build-release.ps1` and confirm on their real machine that a picture now actually appears in the
-player while scrubbing/stepping/playing - not yet confirmed as of this writing. Also still open: the user
-was asked to confirm that "Izvezi video" now succeeds and produces a real playable file now that a clip
-sits on the Video track (a real error, "Timeline nema video traku sa klipovima", was seen and fixed by
-adding the clip - not yet confirmed as fully resolved end-to-end with a real exported file).
+Both post-Phase-11 follow-ups above still need the user to `git pull` + re-run `scripts\build-release.ps1`
+and confirm on their real machine that: (a) a picture now actually appears in the player while scrubbing/
+stepping/playing, and (b) "Izvezi video" now produces a real playable file that reflects what's actually
+on the timeline (the stale-timeline export bug above is now fixed in code and covered by a regression
+test, but not yet confirmed against the user's own real project/clip on real Windows).

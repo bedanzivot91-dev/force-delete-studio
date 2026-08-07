@@ -204,8 +204,19 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// The render queue reads straight off <see cref="Project"/>.Timeline.Tracks, which is only ever
+    /// updated by <see cref="TimelineViewModel.SaveToProject"/> - without calling it here first, an
+    /// export triggered right after editing (before the next auto-save-on-import or manual "Sačuvaj
+    /// projekat" click) would silently render whatever was last saved instead of what's actually on
+    /// screen. A real bug, not a hypothetical: found by reading how RenderQueueViewModel is constructed.
+    /// </summary>
     [RelayCommand]
-    private void ExportVideo() => ExportRequested?.Invoke();
+    private void ExportVideo()
+    {
+        Timeline.SaveToProject();
+        ExportRequested?.Invoke();
+    }
 
     [RelayCommand]
     private async Task SaveProjectAsync()

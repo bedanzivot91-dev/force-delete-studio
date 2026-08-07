@@ -31,6 +31,22 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         await ShowStartScreenAsync();
     }
 
+    /// <summary>
+    /// Nothing called Dispose() on navigation before this - an open WorkspaceViewModel's
+    /// DispatcherTimer/frame-preview CancellationTokenSource, or a RenderQueueViewModel's polling timer,
+    /// kept running in the background after the user left the page (via "Početni ekran", "Podešavanja",
+    /// or "Dijagnostika" in the persistent top navbar - all reachable from any page, not just via each
+    /// page's own in-context "Nazad" button). The one deliberate exception: Workspace -> RenderQueue is
+    /// not an abandonment, it's a "Nazad" hands the exact same live workspace back.
+    /// </summary>
+    partial void OnCurrentPageChanging(ViewModelBase? oldValue, ViewModelBase? newValue)
+    {
+        if (oldValue is IDisposable disposable && !(oldValue is WorkspaceViewModel && newValue is RenderQueueViewModel))
+        {
+            disposable.Dispose();
+        }
+    }
+
     public async Task ShowStartScreenAsync()
     {
         CurrentProject = null;
@@ -168,6 +184,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Services.IStorageService>(),
             _services.GetRequiredService<Serilog.ILogger>());
+        // OnCurrentPageChanging disposes vm here automatically (and specifically skips disposing
+        // workspace on this transition, since it's the exact same live instance being handed back).
         vm.BackRequested += () => CurrentPage = workspace;
         return vm;
     }

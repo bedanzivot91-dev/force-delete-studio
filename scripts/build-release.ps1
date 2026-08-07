@@ -43,6 +43,11 @@ Write-Host "Uklonjeni PDB fajlovi i runtime folderi osim win-x64." -ForegroundCo
 Write-Host "== 4/5: Pravljenje portable ZIP verzije ==" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
 Copy-Item -Path (Join-Path $publishDir '*') -Destination $portableDir -Recurse -Force
+# README-FIRST.txt below tells the user to run scripts\check-dependencies.ps1 - that script has to
+# actually be in the portable folder for that instruction to be followable (it previously only existed
+# in the full source checkout, which someone who only downloaded the portable ZIP never has).
+New-Item -ItemType Directory -Force -Path (Join-Path $portableDir 'scripts') | Out-Null
+Copy-Item -Path (Join-Path $repoRoot 'scripts\check-dependencies.ps1') -Destination (Join-Path $portableDir 'scripts\check-dependencies.ps1') -Force
 Set-Content -Path (Join-Path $portableDir 'VERSION.txt') -Value $version
 Set-Content -Path (Join-Path $portableDir 'README-FIRST.txt') -Value @"
 NP Video Studio - Portable verzija $version
@@ -50,8 +55,8 @@ NP Video Studio - Portable verzija $version
 Ovo je portable (bez instalacije) verzija programa - raspakujte ovaj folder bilo gde na disku i
 pokrenite NPVideoStudio.exe direktno.
 
-Ako neki alat (FFmpeg, FFprobe, yt-dlp) nije pronadjen, pokrenite scripts\check-dependencies.ps1 iz
-izvornog koda ili instalirajte alat rucno i podesite putanju u Podesavanja unutar programa.
+Ako neki alat (FFmpeg, FFprobe, yt-dlp) nije pronadjen, pokrenite scripts\check-dependencies.ps1 (nalazi
+se u ovom folderu) ili instalirajte alat rucno i podesite putanju u Podesavanja unutar programa.
 "@
 
 $zipPath = Join-Path $distDir "NPVideoStudio-Portable-x64-$version.zip"
