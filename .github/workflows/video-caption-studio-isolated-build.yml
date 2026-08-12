@@ -1,0 +1,53 @@
+name: Video Caption Studio isolated Windows build
+
+on:
+  push:
+    branches:
+      - 'vcs-build/video-caption-studio-0.2.0-finalbuild'
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-install:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout isolated build branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Reconstruct and verify Windows build script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = Get-ChildItem 'vcs-build/windows-full-build.ps1.b64.part*' | Sort-Object Name
+          if ($parts.Count -ne 3) { throw "Expected 3 build-script parts, found $($parts.Count)" }
+          $b64 = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ''
+          $script = Join-Path $env:RUNNER_TEMP 'windows-full-build.ps1'
+          [IO.File]::WriteAllBytes($script, [Convert]::FromBase64String($b64))
+          $actual = (Get-FileHash $script -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '349ed15ef63cee1fef911e96cdf5258c255fc2d03d9faabbb76ac743e06cfbfe'
+          if ($actual -ne $expected) { throw "Build script SHA256 mismatch: $actual" }
+          "VCS_BUILD_SCRIPT=$script" >> $env:GITHUB_ENV
+
+      - name: Build install run verify uninstall
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File $env:VCS_BUILD_SCRIPT
+
+      - name: Upload Windows installer and portable package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoCaptionStudio-0.2.0-VERIFIED-WINDOWS-x64
+          path: |
+            vcs-build/dist/VideoCaptionStudio-Setup-0.2.0.exe
+            vcs-build/dist/VideoCaptionStudio-0.2.0-Windows-x64-Portable.zip
+            vcs-build/dist/WINDOWS-VERIFICATION.txt
+          if-no-files-found: error
+          retention-days: 30
