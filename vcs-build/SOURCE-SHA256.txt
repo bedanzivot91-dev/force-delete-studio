@@ -1,0 +1,7 @@
+VideoCaptionStudio-ETAPA5A-source.zip
+sha256=7989622d8cdd38e36029cdda5012e5e0e3ef047855591786c6de15792a7a26a6
+VideoCaptionStudio-ETAPA5A-ci-source.tar.gz
+sha256=53125ade85e7eb8be2d3617740eb9282052a39f92b10c69e990299a96730f583
+local_gate=15/15 PASS before CI transport-only change; production code unchanged
+unit_contract=85/85 PASS after CI fixture/download change
+windows_e2e=NOT YET EXECUTED
