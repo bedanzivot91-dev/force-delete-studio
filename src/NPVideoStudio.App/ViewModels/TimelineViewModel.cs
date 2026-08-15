@@ -195,17 +195,21 @@ public sealed partial class TimelineViewModel : ViewModelBase
     /// reported point of confusion for a first-time import (a non-technical user has no reason to expect
     /// importing a file and previewing it on a video track are two separate steps).
     /// </summary>
-    public void AutoPlaceFirstImportOnEmptyTimeline(MediaAsset asset)
+    /// <returns>True if the clip was actually auto-placed (a fresh, empty timeline), false if this wasn't
+    /// the qualifying first-import case - callers use this to know whether it's also safe to adjust the
+    /// project's canvas format to match this video (see <see cref="WorkspaceViewModel.ImportFilesAsync"/>).</returns>
+    public bool AutoPlaceFirstImportOnEmptyTimeline(MediaAsset asset)
     {
         if (_session.Tracks.Any(t => t.Clips.Count > 0) || asset.ProbeError is not null || !asset.HasVideoStream)
         {
-            return;
+            return false;
         }
 
         var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
         _session.AddTrack(track);
         _session.AddClip(track.Id, BuildMediaClip(asset, timelineStartSeconds: 0));
         RefreshFromSession();
+        return true;
     }
 
     /// <summary>

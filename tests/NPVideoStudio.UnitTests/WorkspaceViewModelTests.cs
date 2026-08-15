@@ -213,6 +213,50 @@ public class WorkspaceViewModelTests
         Assert.NotNull(workspace.Player.CurrentFrameBitmap);
     }
 
+    /// <summary>Real user report: a portrait (1080x1920) video imported into a project created with the
+    /// default horizontal (1920x1080) canvas showed up tiny with black bars on the sides - correct given
+    /// the mismatch, but confusing since nothing told the user the two were even a related choice. The
+    /// very first video import on an empty timeline now resizes the project canvas to match it.</summary>
+    [AvaloniaFact]
+    public async Task ImportFilesAsync_FirstVideoOrientationMismatchesProject_AdjustsProjectFormatToMatch()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(6), HasVideoStream = true, Width = 1080, Height = 1920 };
+        var probe = new FakeMediaProbeService { Handler = _ => asset };
+        var project = new Project { Name = "Test projekat" }; // defaults to 1920x1080 horizontal
+        var workspace = new WorkspaceViewModel(
+            project, new FakeProjectRepository(), probe, new FakeStorageService(),
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+
+        await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1080, project.Format.Width);
+        Assert.Equal(1920, project.Format.Height);
+        Assert.Contains("prilagođen", workspace.StatusMessage);
+        // Project/ProjectFormat are plain non-observable domain classes - the header UI binds to this
+        // ViewModel-level label, not straight to Project.Format.Width, specifically so it actually
+        // refreshes when the format is adjusted (a real bug caught via a live run: the header kept
+        // showing the old 1920x1080 text after this exact adjustment before this label existed).
+        Assert.Contains("1080×1920", workspace.FormatSummaryLabel);
+    }
+
+    [AvaloniaFact]
+    public async Task ImportFilesAsync_FirstVideoOrientationAlreadyMatchesProject_DoesNotTouchFormat()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(6), HasVideoStream = true, Width = 1280, Height = 720 };
+        var probe = new FakeMediaProbeService { Handler = _ => asset };
+        var project = new Project { Name = "Test projekat" }; // 1920x1080 horizontal - same orientation as a 1280x720 video
+        var workspace = new WorkspaceViewModel(
+            project, new FakeProjectRepository(), probe, new FakeStorageService(),
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+
+        await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1920, project.Format.Width);
+        Assert.Equal(1080, project.Format.Height);
+    }
+
     /// <summary>A second import after the timeline already has a clip on it must NOT rearrange the user's
     /// edit in progress - it should only land in the media library, same as before this feature existed.</summary>
     [AvaloniaFact]

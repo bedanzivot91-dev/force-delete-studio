@@ -50,6 +50,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _captionsStatusMessage;
 
+    /// <summary>Bindable mirror of <c>Project.Format</c>'s summary text - <see cref="Project"/> and
+    /// <see cref="Domain.ProjectFormat"/> are plain (non-observable) domain classes, so mutating
+    /// <c>Project.Format.Width</c> etc. in place (see <see cref="TryAdjustProjectFormatToMatch"/>) doesn't
+    /// notify the UI on its own; this property is what the header actually binds to, refreshed explicitly
+    /// wherever Format changes, instead of relying on nested-property-path change propagation that this
+    /// domain model doesn't support.</summary>
+    [ObservableProperty]
+    private string _formatSummaryLabel = string.Empty;
+
     private static readonly (string Name, string[] Extensions) VideoFilter = ("Video", new[] { "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg" });
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
@@ -63,6 +72,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _framePreviewService = framePreviewService;
         _subtitleGeneratorService = subtitleGeneratorService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
+        RefreshFormatSummaryLabel();
 
         foreach (var asset in project.MediaLibrary)
         {
@@ -188,6 +198,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         IsImporting = true;
         var imported = 0;
         var failed = 0;
+        (int Width, int Height)? formatAdjustedTo = null;
 
         try
         {
@@ -196,7 +207,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 var asset = await _mediaProbeService.ProbeAsync(path);
                 Project.MediaLibrary.Add(asset);
                 MediaLibrary.Add(CreateItemViewModel(asset));
-                Timeline.AutoPlaceFirstImportOnEmptyTimeline(asset);
+
+                if (Timeline.AutoPlaceFirstImportOnEmptyTimeline(asset) && TryAdjustProjectFormatToMatch(asset))
+                {
+                    formatAdjustedTo = (asset.Width, asset.Height);
+                }
 
                 if (asset.ProbeError is null)
                 {
@@ -215,15 +230,58 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
             }
 
-            StatusMessage = failed == 0
+            var importSummary = failed == 0
                 ? $"Uvezeno {imported} fajl(ova)."
                 : $"Uvezeno {imported} fajl(ova), {failed} nije uspelo (pogledajte logove).";
+            StatusMessage = formatAdjustedTo is { } size
+                ? $"{importSummary} Format projekta je prilagođen ovom videu ({size.Width}x{size.Height}) da se ne prikazuje sa crnim trakama."
+                : importSummary;
         }
         finally
         {
             IsImporting = false;
         }
     }
+
+    /// <summary>
+    /// Real fix for a real, reported point of confusion: a portrait (e.g. 1080x1920) video imported into a
+    /// project created with a mismatched (e.g. 1920x1080 horizontal) canvas showed up tiny, pillarboxed
+    /// with black bars - correct given the mismatch, but a non-technical user has no reason to expect
+    /// "make a new project" and "the video's own orientation" are two independent choices they both have to
+    /// get right. Since this only ever runs right after <see cref="TimelineViewModel.AutoPlaceFirstImportOnEmptyTimeline"/>
+    /// succeeds (the very first video on a still-empty timeline), resizing the canvas here can never
+    /// surprise an edit already in progress - there's nothing on the timeline yet to reflow. Deliberately
+    /// scoped to a genuine orientation mismatch (portrait vs. landscape) only, not "any dimension
+    /// difference" - a video imported at a different resolution but the same orientation just scales, which
+    /// is normal and not what the user is confused by.
+    /// </summary>
+    private bool TryAdjustProjectFormatToMatch(MediaAsset asset)
+    {
+        if (asset.Width <= 0 || asset.Height <= 0)
+        {
+            return false;
+        }
+
+        var projectIsPortrait = Project.Format.Height > Project.Format.Width;
+        var projectIsSquare = Project.Format.Width == Project.Format.Height;
+        var assetIsPortrait = asset.Height > asset.Width;
+        var assetIsSquare = asset.Width == asset.Height;
+
+        if (projectIsSquare || assetIsSquare || projectIsPortrait == assetIsPortrait)
+        {
+            return false;
+        }
+
+        Project.Format.Width = asset.Width;
+        Project.Format.Height = asset.Height;
+        Project.Format.AspectRatio = AspectRatioPreset.Custom;
+        RefreshFormatSummaryLabel();
+        _logger.Information("Format projekta automatski prilagođen prvom uvezenom videu: {Width}x{Height}", asset.Width, asset.Height);
+        return true;
+    }
+
+    private void RefreshFormatSummaryLabel() =>
+        FormatSummaryLabel = $"{Project.Format.Width}×{Project.Format.Height}  ·  {Project.Format.Fps:0.##} fps  ·  {Project.Format.Orientation}";
 
     /// <summary>
     /// "Automatski dodaj titlove iz videa" - runs the same local Whisper transcription the standalone

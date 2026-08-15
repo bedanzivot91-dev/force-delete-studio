@@ -977,6 +977,38 @@ tooling (music library, auto-ducking, noise removal) and further caption animati
 already shipped (per-clip font/size/color/position, karaoke word-by-word) - both real, separately-scoped
 follow-ups for a future pass, not abandoned.
 
+## Ninth post-Phase-11 follow-up: mismatched project/video orientation auto-fixed on first import
+
+Real user report with screenshots: a portrait (1080x1920) video imported into a project created with the
+default horizontal (1920x1080) canvas showed up tiny, pillarboxed with black bars either side. Correct
+given the mismatch, but a non-technical user has no reason to expect "create a new project" and "the
+orientation of the video I'm about to import" are two choices that both have to agree - especially since
+the start screen's platform tiles (YouTube Shorts, TikTok, etc.) already default to the right orientation,
+so this only bites people who click the generic "Novi projekat" tile first.
+
+Fix: `WorkspaceViewModel.TryAdjustProjectFormatToMatch`, called right after
+`TimelineViewModel.AutoPlaceFirstImportOnEmptyTimeline` succeeds (i.e. only on a genuinely fresh project
+with nothing on the timeline yet - never reflows an edit in progress). Detects a real orientation mismatch
+(portrait vs. landscape; either side being exactly square is left alone rather than guessed at) and resizes
+`Project.Format` to the video's own real resolution, marking `AspectRatio = Custom`. `StatusMessage`
+reports the change plainly instead of silently resizing the canvas underneath the user.
+
+**Real bug caught and fixed before shipping**: the header's format summary (`"1920×1080 · 30 fps ·
+Horizontalni"`) is bound through `Project.Format.Width` etc., but `Project`/`ProjectFormat` are plain,
+non-observable domain classes - mutating them in place doesn't notify the UI, so the header kept showing
+the stale format after the fix ran (confirmed with a live Xvfb run, not assumed). Fixed by adding a real
+`WorkspaceViewModel.FormatSummaryLabel` bindable property, explicitly refreshed wherever `Format` changes,
+and pointing the header's XAML at it instead of the dead nested-path binding.
+
+Verified: 2 new `WorkspaceViewModelTests` (orientation mismatch adjusts Width/Height and updates the label;
+orientation-already-matching import leaves the format untouched) plus a real live run under Xvfb importing
+the user's own real portrait video into a horizontal project - header correctly updated to
+`"1080×1920 · 30 fps · Vertikalni"` after import, confirmed only after a clean rebuild (the first live
+check used a stale incremental Avalonia XAML build and still showed the old header - caught, diagnosed as
+a build-cache issue rather than a real code bug, and re-verified clean before considering this done).
+
+Full non-integration suite: 352 tests passing (350 + 2 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

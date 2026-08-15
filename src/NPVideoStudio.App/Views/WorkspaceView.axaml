@@ -11,16 +11,7 @@
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Spacing="2">
           <TextBlock Text="{Binding Project.Name}" FontSize="19" FontWeight="SemiBold" />
-          <TextBlock Classes="subtle">
-            <TextBlock.Text>
-              <MultiBinding StringFormat="{}{0}×{1}  ·  {2:0.##} fps  ·  {3}">
-                <Binding Path="Project.Format.Width" />
-                <Binding Path="Project.Format.Height" />
-                <Binding Path="Project.Format.Fps" />
-                <Binding Path="Project.Format.Orientation" />
-              </MultiBinding>
-            </TextBlock.Text>
-          </TextBlock>
+          <TextBlock Text="{Binding FormatSummaryLabel}" Classes="subtle" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="subtle" />
