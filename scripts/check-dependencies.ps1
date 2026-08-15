@@ -120,7 +120,29 @@ if ($ytDlpOk) {
     }
 }
 
-# 5. Slobodan prostor na disku (C:)
+# 5. Whisper tiny model (titlovi, karaoke, "pronadji tekst u pesmi")
+$whisperModelBundled = Join-Path $appDir 'Tools\whisper-models\ggml-tiny.bin'
+$whisperModelAppData = Join-Path $env:LOCALAPPDATA 'NP Video Studio\Models\ggml-tiny.bin'
+$whisperModelOk = (Test-Path $whisperModelBundled) -or (Test-Path $whisperModelAppData)
+
+if ($whisperModelOk) {
+    Write-Log "Model za prepoznavanje govora (Whisper) je dostupan." 'OK'
+} else {
+    Write-Log "Model za prepoznavanje govora NIJE pronadjen - titlovi/karaoke/pronalazenje teksta u pesmi nece raditi dok se ne preuzme." 'WARN'
+    $install = $Force -or (Read-Host "Da li zelite da ga sada preuzmem (~75 MB, jednokratno)? (d/n)") -eq 'd'
+    if ($install) {
+        try {
+            New-Item -ItemType Directory -Force -Path (Split-Path $whisperModelBundled) | Out-Null
+            Invoke-WebRequest -Uri 'https://huggingface.co/sandrohanea/whisper.net/resolve/v4/classic/ggml-tiny.bin' -OutFile $whisperModelBundled -UseBasicParsing
+            Write-Log "Whisper model preuzet u: $whisperModelBundled" 'OK'
+        } catch {
+            Write-Log "Automatsko preuzimanje nije uspelo: $($_.Exception.Message)" 'ERROR'
+            Write-Log "Mozete ga preuzeti i klikom na 'Preuzmi model' unutar programa (alat 'Generisi titlove (SRT)')." 'ERROR'
+        }
+    }
+}
+
+# 6. Slobodan prostor na disku (C:)
 $systemDrive = Get-PSDrive -Name ($env:SystemDrive.TrimEnd(':'))
 $freeGb = [math]::Round($systemDrive.Free / 1GB, 1)
 if ($freeGb -lt 2) {

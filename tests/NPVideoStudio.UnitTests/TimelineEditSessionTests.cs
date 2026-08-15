@@ -220,6 +220,34 @@ public class TimelineEditSessionTests
     }
 
     [Fact]
+    public void SetTextContent_UpdatesTextAndSupportsUndo()
+    {
+        var clip = new TimelineClip { TextContent = "Pogresno prepoznato", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var track = Track(TimelineTrackKind.Caption, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTextContent(clip.Id, "Ispravljen tekst");
+
+        Assert.Equal("Ispravljen tekst", session.Tracks[0].Clips[0].TextContent);
+
+        session.Undo();
+
+        Assert.Equal("Pogresno prepoznato", session.Tracks[0].Clips[0].TextContent);
+    }
+
+    [Fact]
+    public void SetTextContent_OnNonTextClip_DoesNothing()
+    {
+        var clip = Clip(0, 0, 3); // a plain video clip - TextContent is null
+        var track = Track(TimelineTrackKind.Video, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTextContent(clip.Id, "Ovo ne bi trebalo da se desi");
+
+        Assert.Null(session.Tracks[0].Clips[0].TextContent);
+    }
+
+    [Fact]
     public void SetTextStyle_ClampsFontSizeToReasonableRange()
     {
         var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };

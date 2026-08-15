@@ -225,6 +225,22 @@ public sealed class TimelineEditSession
         liveClip.FadeOutSeconds = Math.Max(0, fadeOutSeconds);
     }
 
+    /// <summary>Lets the user correct a Caption/Text clip's own words - most importantly, what
+    /// auto-generated speech-to-text captions actually got right or wrong, since Whisper is never
+    /// guaranteed accurate (especially on singing/music) and there was previously no way to fix a
+    /// misheard word short of deleting the whole clip and retyping it from scratch on a Text track.</summary>
+    public void SetTextContent(string clipId, string textContent)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.TextContent is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        FindClipWithTrack(clipId).Clip!.TextContent = textContent;
+    }
+
     public void SetTransition(string clipId, ClipTransitionType type, double durationSeconds)
     {
         var (_, clip) = FindClipWithTrack(clipId);

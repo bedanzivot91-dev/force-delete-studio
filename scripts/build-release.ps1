@@ -40,7 +40,7 @@ if (Test-Path $runtimesDir) {
 }
 Write-Host "Uklonjeni PDB fajlovi i runtime folderi osim win-x64." -ForegroundColor Green
 
-Write-Host "== 4/7: Preuzimanje FFmpeg/FFprobe/yt-dlp da program radi odmah bez rucne instalacije ==" -ForegroundColor Cyan
+Write-Host "== 4/7: Preuzimanje FFmpeg/FFprobe/yt-dlp/Whisper modela da program radi odmah bez rucne instalacije ==" -ForegroundColor Cyan
 # FfmpegLocator.cs resolves these from Tools\ffmpeg\{ffmpeg,ffprobe}.exe and Tools\yt-dlp\yt-dlp.exe next
 # to the exe before falling back to PATH - placing them here (in $publishDir, BEFORE it's copied into the
 # portable folder and BEFORE Inno Setup packages it) means both the portable ZIP and the installer ship
@@ -83,6 +83,25 @@ try {
     Write-Host "Program ce i dalje raditi ako korisnik sam instalira yt-dlp (scripts\check-dependencies.ps1)." -ForegroundColor Yellow
 }
 
+# WhisperModelLocator.cs resolves the model from Tools\whisper-models\ggml-tiny.bin next to the exe
+# before falling back to the per-user AppData download-on-demand path - bundling it here means titlovi/
+# karaoke/"pronadji tekst u pesmi" all work immediately after install, with no separate "Preuzmi model"
+# click needed (same reasoning and same best-effort-not-fatal handling as FFmpeg/yt-dlp above). Real
+# source URL, not guessed: this is exactly what Whisper.net's own WhisperGgmlDownloader requests
+# (huggingface.co/sandrohanea/whisper.net), confirmed by reading its source.
+$whisperModelOk = $true
+try {
+    Write-Host "Preuzimam Whisper tiny model za prepoznavanje govora (~75 MB)..." -ForegroundColor Cyan
+    $whisperModelsDir = Join-Path $toolsDir 'whisper-models'
+    New-Item -ItemType Directory -Force -Path $whisperModelsDir | Out-Null
+    Invoke-WebRequest -Uri 'https://huggingface.co/sandrohanea/whisper.net/resolve/v4/classic/ggml-tiny.bin' -OutFile (Join-Path $whisperModelsDir 'ggml-tiny.bin') -UseBasicParsing
+    Write-Host "Whisper model spakovan u Tools\whisper-models\." -ForegroundColor Green
+} catch {
+    $whisperModelOk = $false
+    Write-Host "UPOZORENJE: Preuzimanje Whisper modela nije uspelo ($_)." -ForegroundColor Yellow
+    Write-Host "Titlovi/karaoke i dalje rade ako korisnik klikne 'Preuzmi model' unutar programa (jednom, uz internet)." -ForegroundColor Yellow
+}
+
 Write-Host "== 5/7: Pravljenje ugradjenog instalatera (NPVideoStudioSetup.exe) ==" -ForegroundColor Cyan
 # A real, self-contained alternative to the Inno Setup installer below, for machines that don't have
 # Inno Setup and can't reach jrsoftware.org to get it - see src/NPVideoStudio.Installer's doc comment.
@@ -111,6 +130,11 @@ $toolsNote = if ($bundledToolsOk) {
 } else {
     "FFmpeg/yt-dlp NISU uspeli da se preuzmu tokom pravljenja ovog build-a (nije bilo interneta ili je preuzimanje palo). Pokrenite scripts\check-dependencies.ps1 (nalazi se u ovom folderu) ili instalirajte alat rucno i podesite putanju u Podesavanja unutar programa."
 }
+$whisperNote = if ($whisperModelOk) {
+    "Model za prepoznavanje govora (titlovi, karaoke, pronalazenje teksta u pesmi) je vec ukljucen - radi odmah, bez ikakvog preuzimanja."
+} else {
+    "Model za prepoznavanje govora NIJE uspeo da se preuzme tokom pravljenja ovog build-a. Otvorite alat 'Generisi titlove (SRT)' u programu i kliknite 'Preuzmi model' (~75 MB, jednom, uz internet)."
+}
 Set-Content -Path (Join-Path $portableDir 'README-FIRST.txt') -Value @"
 NP Video Studio - Portable verzija $version
 
@@ -121,6 +145,8 @@ Ili, bez instalacije: raspakujte ovaj ceo folder bilo gde na disku i pokrenite N
 direktno.
 
 $toolsNote
+
+$whisperNote
 
 Za OCR (prepoznavanje teksta u kadru) i prepoznavanje pesama (fingerprint) i dalje su potrebni Tesseract
 i fpcalc - ti alati nisu ukljuceni u ovaj build, instalirajte ih rucno ili preko scripts\check-dependencies.ps1.

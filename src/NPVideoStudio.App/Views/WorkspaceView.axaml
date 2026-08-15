@@ -161,6 +161,13 @@
                                   </StackPanel>
                                 </Grid>
 
+                                <!-- Da se proveri/ispravi šta je Whisper prepoznao (ili doda sopstveni tekst) - bez ovoga
+                                     jedina opcija je bila obrisati ceo klip i ukucati ga ispočetka na Tekst traci. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                  <TextBlock Text="Tekst:" Classes="subtle" VerticalAlignment="Center" />
+                                  <TextBox Text="{Binding TextContent}" Width="260" Watermark="Tekst titla..." />
+                                </StackPanel>
+
                                 <!-- Real, working per-clip text styling (font/veličina/boja/položaj) - changing these
                                      actually changes the burned-in text on export, unlike the "Stilovi titlova" gallery. -->
                                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">

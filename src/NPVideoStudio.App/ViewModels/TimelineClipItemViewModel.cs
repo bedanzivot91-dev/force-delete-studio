@@ -17,6 +17,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// above: goes through the owning session's SetTransition so undo captures the correct "before" state.</summary>
     private readonly Action<string, ClipTransitionType, double>? _onTransitionChanged;
 
+    /// <summary>(clipId, newText) - same reasoning as the callbacks above.</summary>
+    private readonly Action<string, string>? _onTextContentChanged;
+
     public TimelineClip Clip { get; }
     public string TrackId { get; }
 
@@ -35,6 +38,19 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>True for a Caption/Text clip - the font/size/color/position controls below only make
     /// sense (and are only shown in the UI) for these.</summary>
     public bool IsTextClip => Clip.TextContent is not null;
+
+    /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
+    /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
+    /// scratch as a brand new Text-track clip, with no way to just fix a misheard word in place.</summary>
+    public string TextContent
+    {
+        get => Clip.TextContent ?? string.Empty;
+        set
+        {
+            if (Clip.TextContent is null || Clip.TextContent == value) return;
+            _onTextContentChanged?.Invoke(Clip.Id, value);
+        }
+    }
 
     /// <summary>These four are real, working per-clip text style controls - unlike the 24 "Stilovi
     /// titlova" gallery presets (color-swatch preview only), changing these actually changes what
@@ -132,7 +148,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ICommand toggleFadeInCommand,
         ICommand toggleFadeOutCommand,
         Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? onTextStyleChanged = null,
-        Action<string, ClipTransitionType, double>? onTransitionChanged = null)
+        Action<string, ClipTransitionType, double>? onTransitionChanged = null,
+        Action<string, string>? onTextContentChanged = null)
     {
         Clip = clip;
         TrackId = trackId;
@@ -148,6 +165,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ToggleFadeOutCommand = toggleFadeOutCommand;
         _onTextStyleChanged = onTextStyleChanged;
         _onTransitionChanged = onTransitionChanged;
+        _onTextContentChanged = onTextContentChanged;
     }
 
     private static string FormatTime(double seconds)

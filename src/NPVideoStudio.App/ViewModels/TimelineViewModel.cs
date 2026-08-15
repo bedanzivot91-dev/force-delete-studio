@@ -142,9 +142,15 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTransition(clipId, type, duration);
             RefreshFromSession();
         }
+        void OnTextContentChanged(string clipId, string newText)
+        {
+            _session.SetTextContent(clipId, newText);
+            RefreshFromSession();
+        }
 
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
-            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, OnTextStyleChanged, OnTransitionChanged);
+            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut,
+            OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged);
     }
 
     private void AddClipToTrack(TimelineTrack track)

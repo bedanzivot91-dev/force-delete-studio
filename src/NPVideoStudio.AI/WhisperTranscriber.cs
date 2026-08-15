@@ -19,7 +19,7 @@ public sealed class WhisperTranscriber
     public WhisperTranscriber(string? ffmpegOverridePath = null, string? modelPathOverride = null)
     {
         _ffmpegPath = FfmpegLocator.ResolveFfmpegPath(ffmpegOverridePath);
-        _modelPath = modelPathOverride ?? Path.Combine(AppSettings.ModelsFolder(), "ggml-tiny.bin");
+        _modelPath = WhisperModelLocator.ResolveModelPath(modelPathOverride, Path.Combine(AppSettings.ModelsFolder(), "ggml-tiny.bin"));
     }
 
     public bool IsModelReady => File.Exists(_modelPath);

@@ -1009,6 +1009,63 @@ a build-cache issue rather than a real code bug, and re-verified clean before co
 
 Full non-integration suite: 352 tests passing (350 + 2 new), no regressions.
 
+## Tenth post-Phase-11 follow-up: bundled Whisper model + editable caption text
+
+Real user report: "why does Whisper Tiny still have to be downloaded separately - put it in the program
+itself" and "why can't I check/correct what was recognized as text." Two separate, concrete fixes:
+
+**Bundled Whisper model.** `WhisperModelLocator.ResolveModelPath(overridePath, defaultAppDataPath)`
+(new, in `NPVideoStudio.Media`) mirrors the existing `FfmpegLocator` resolution order: an explicit
+override path if it exists, then `Tools/whisper-models/ggml-tiny.bin` next to the exe, then the old
+`%LocalAppData%` download-on-demand default. `WhisperTranscriber`'s constructor now routes through it
+instead of going straight to the AppData path. `scripts/build-release.ps1` downloads the real model
+(`https://huggingface.co/sandrohanea/whisper.net/resolve/v4/classic/ggml-tiny.bin`, same URL
+`WhisperGgmlDownloader` itself uses - confirmed by reading Whisper.net's own source, not guessed) into
+`Tools/whisper-models/ggml-tiny.bin` at build time, same best-effort try/catch pattern as the yt-dlp/ffmpeg
+downloads (a failed download during build is a warning, not a fatal error - falls back to the in-app
+download button). `scripts/check-dependencies.ps1` gained a matching check-and-offer-to-download step.
+**Real, disclosed constraint**: `huggingface.co` is blocked in this sandbox (confirmed again this session),
+so the model is bundled only when `build-release.ps1`/`check-dependencies.ps1` run on the user's own
+Windows machine with real internet - never in a chat-delivered sandbox package.
+
+**Editable caption text.** Before this, an auto-generated (or karaoke) caption clip's text could only be
+deleted and retyped from scratch as a brand-new Text-track clip - there was no way to fix a single
+misheard word in place. Added `TimelineEditSession.SetTextContent(clipId, newText)` (no-ops on a clip
+whose `TextContent` is null, i.e. a real media clip - can't accidentally turn a video clip into a text
+clip), wired through `TimelineClipItemViewModel.TextContent` (get/set, same undo-safe callback pattern as
+the existing font/size/color/position controls) and a new "Tekst:" `TextBox` in `WorkspaceView.axaml`,
+visible whenever `IsTextClip` is true (i.e. for every Caption/Text-track clip, whether auto-generated,
+karaoke, or hand-typed).
+
+Verified: `TimelineEditSessionTests` (`SetTextContent_UpdatesTextAndSupportsUndo`,
+`SetTextContent_OnNonTextClip_DoesNothing`), `WhisperModelLocatorTests` (override/bundled/default
+fallback), and a new `TimelineViewModelTests` exercising the real UI-facing chain end to end - adding a
+Text track via `AddTextTrackCommand`, adding a clip via the track's `AddClipAtPlayheadCommand`, editing
+`TextContent` through the exact property `WorkspaceView.axaml`'s `TextBox` binds to, and confirming the
+edit survives `SaveToProject()`. That last test caught a real gap in the *test*, not the product: because
+`AddClipAtPlayheadCommand` triggers `RefreshFromSession()` (which rebuilds every track/clip VM instance,
+not just the one edited), the pre-call `TimelineTrackItemViewModel` reference goes stale the instant its
+own command fires - confirmed harmless (a standalone console harness instantiating the same
+`TimelineViewModel` directly showed the clip really was added, just not visible on the stale VM
+instance) and not something a real bound `ObservableCollection` in the UI would ever observe, since
+XAML always re-reads the live collection. Live Xvfb click-through of the "+ Tekst traka" button itself
+hit the same synthetic-input flakiness already diagnosed earlier in this document (first click in a
+region not reliably registering under this specific Xvfb/xdotool combination) - worked around the same
+way as before, by proving correctness directly against the real ViewModel objects instead of fighting
+unreliable synthetic clicks.
+
+Full non-integration suite: 359 tests passing (352 + 7 new: 2 SetTextContent, 3 WhisperModelLocator, 2
+TimelineViewModel), no regressions.
+
+**Not yet addressed** (raised by the user in the same message, no code changes yet): a more discoverable
+home-screen-level entry point for "add text to video" (the functionality exists once inside a project -
+"Automatski dodaj titlove iz videa" / "Karaoke titlovi" buttons plus the per-clip style/text controls -
+but nothing on the start screen points there); confirming in writing that there is no video-length cap
+anywhere in the transcription/caption pipeline (grepped - there isn't one; only "Isečci iz pesme" is
+Shorts-specific by design); and honestly scoping the "more functional player" request (real continuous
+audio+video playback vs. the current real-but-frame-snapshot-only preview) as a distinct, materially
+larger piece of future work rather than a small follow-up.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
