@@ -1413,6 +1413,58 @@ only intended for the real `windows-latest` CI build, which *can* reach gyan.dev
 zip: 86 MB, split into 4 parts (was 7-8 in earlier rounds) via the same `cmd /c copy /b` reassembly
 instructions, MD5-verified byte-identical after reassembly before sending.
 
+## Seventeenth post-Phase-11 follow-up: real destination/desktop-shortcut choice in the fallback installer
+
+Real user report, and a legitimate one: the fallback `NPVideoStudioSetup.exe` never asked where to
+install, never offered a desktop shortcut, and never asked whether to launch the app afterward - it
+silently always installed to the same fixed `%LocalAppData%\Programs\NP Video Studio` location. This was
+a deliberate original design choice (documented in the old class-level doc comment: "one product, one
+install location, no custom install path picker"), but never actually communicated to the user as a
+tradeoff - to them it just looked broken/opaque, and asking for a destination picker + desktop icon
+option is completely standard, reasonable installer behavior.
+
+Two more capable alternatives were considered and ruled out before landing on the actual fix:
+- **A real WinForms dialog directly in this project** (`InstallOptionsForm` with a text box, "Browse..."
+  button, checkboxes) - built once, then discovered this dev sandbox's .NET SDK has no WindowsDesktop
+  workload installed at all (`dotnet workload install windowsdesktop` reports "not recognized" - it isn't
+  distributable for a Linux SDK host in the first place, since it contains real Windows-only build tooling,
+  not just reference assemblies). `<EnableWindowsTargeting>true</EnableWindowsTargeting>` doesn't help
+  either - it only affects framework-reference resolution, not the `Microsoft.NET.Sdk.WindowsDesktop`
+  targets import itself, which is a hardcoded relative path in the local SDK installation, not something
+  NuGet can supply. Reverted this approach entirely (deleted the file, TFM back to plain `net8.0`).
+- **Compiling the existing, already-correct `installer/NPVideoStudio.iss` Inno Setup script** - it already
+  has a real destination-picker wizard page (no `DisableDirPage`) and a desktop-icon task checkbox, and was
+  confirmed clean of the CopyDirectory bug class in an earlier pass. Blocked here too: `jrsoftware.org` (the
+  only real source of the Inno Setup compiler) returns a 403 through this sandbox's network policy - the
+  exact same reachability gap `NPVideoStudio.Installer`'s own doc comment cites as the reason the custom
+  installer exists in the first place, now confirmed to also apply to this dev sandbox, not just
+  hypothetical end-user machines.
+
+**What actually shipped**: `Install()` now shells out to `powershell.exe` running
+`System.Windows.Forms.FolderBrowserDialog` (`Add-Type -AssemblyName System.Windows.Forms`) for a real
+folder-browse dialog, then two `MessageBoxW`-based yes/no prompts for "add a desktop shortcut?" and "launch
+after install?" - the same shell-out-to-powershell.exe pattern this file already used and trusted for
+`CreateShortcut`'s WScript.Shell COM call, so no new UI framework dependency was added to this project at
+all, and it still builds as plain `net8.0` (verified: `dotnet build` succeeds, 0 warnings/errors). Every
+real Windows machine has `powershell.exe` with `System.Windows.Forms` available even though this Linux
+sandbox can't compile a project that references it directly - this sidesteps the SDK gap rather than
+working around it partially. `CreateShortcut` was generalized to take an explicit shortcut path (Start Menu
+vs. Desktop); `Uninstall()` now reads the real install location back from the registry (`RegisterUninstallEntry`
+already wrote it there) instead of assuming the old fixed default, since the location is no longer fixed.
+A real typo caught before commit: a stray Cyrillic "а" (U+0430) had been typed into an otherwise-Latin
+Serbian string during a fast edit - caught by grepping the file's own bytes with `cat -A`, ironic given this
+exact class of Cyrillic/Latin mixing was this session's root-cause bug for a completely different feature
+(lyric search) - fixed before it could ship as a second instance of the same defect class.
+
+Verified: full non-integration suite still green (408/408, no regressions - `CopyDirectory`'s public surface
+and behavior are untouched, only `Install`/`Uninstall`'s surrounding orchestration changed, and those aren't
+unit-testable without a real Windows session to run `powershell.exe`/`MessageBoxW`/shell COM against, which
+this sandbox cannot do - honestly out of scope here, same standing constraint as the rest of this
+installer). New package rebuilt and delivered to the user with this fix; `PROCITAJ_PRVO.txt` in the
+delivered package also now includes real cleanup instructions for the mangled `%LocalAppData%\Programs\NP
+Video Studio*` leftovers a prior buggy install run may have left behind, since deleting those wasn't
+something code could safely automate from here.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
