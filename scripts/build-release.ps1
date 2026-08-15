@@ -19,20 +19,20 @@ $versionMatch = Select-String -Path (Join-Path $repoRoot 'Directory.Build.props'
 $version = if ($versionMatch) { $versionMatch.Matches[0].Groups[1].Value } else { '0.0.0' }
 Write-Host "Verzija: $version" -ForegroundColor Cyan
 
-Write-Host "== 1/6: Cišćenje prethodnog build-a ==" -ForegroundColor Cyan
+Write-Host "== 1/7: Cišćenje prethodnog build-a ==" -ForegroundColor Cyan
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 if (Test-Path $portableDir) { Remove-Item $portableDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
-Write-Host "== 2/6: dotnet publish (self-contained, win-x64) ==" -ForegroundColor Cyan
+Write-Host "== 2/7: dotnet publish (self-contained, win-x64) ==" -ForegroundColor Cyan
 dotnet publish (Join-Path $repoRoot 'src\NPVideoStudio.App\NPVideoStudio.App.csproj') `
     -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=false `
     -o $publishDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish nije uspeo (kod $LASTEXITCODE)." }
 
-Write-Host "== 3/6: Ciscenje release paketa (PDB fajlovi, native biblioteke za druge platforme) ==" -ForegroundColor Cyan
+Write-Host "== 3/7: Ciscenje release paketa (PDB fajlovi, native biblioteke za druge platforme) ==" -ForegroundColor Cyan
 Get-ChildItem -Path $publishDir -Filter '*.pdb' -Recurse | Remove-Item -Force
 $runtimesDir = Join-Path $publishDir 'runtimes'
 if (Test-Path $runtimesDir) {
@@ -40,7 +40,7 @@ if (Test-Path $runtimesDir) {
 }
 Write-Host "Uklonjeni PDB fajlovi i runtime folderi osim win-x64." -ForegroundColor Green
 
-Write-Host "== 4/6: Preuzimanje FFmpeg/FFprobe/yt-dlp da program radi odmah bez rucne instalacije ==" -ForegroundColor Cyan
+Write-Host "== 4/7: Preuzimanje FFmpeg/FFprobe/yt-dlp da program radi odmah bez rucne instalacije ==" -ForegroundColor Cyan
 # FfmpegLocator.cs resolves these from Tools\ffmpeg\{ffmpeg,ffprobe}.exe and Tools\yt-dlp\yt-dlp.exe next
 # to the exe before falling back to PATH - placing them here (in $publishDir, BEFORE it's copied into the
 # portable folder and BEFORE Inno Setup packages it) means both the portable ZIP and the installer ship
@@ -83,7 +83,21 @@ try {
     Write-Host "Program ce i dalje raditi ako korisnik sam instalira yt-dlp (scripts\check-dependencies.ps1)." -ForegroundColor Yellow
 }
 
-Write-Host "== 5/6: Pravljenje portable ZIP verzije ==" -ForegroundColor Cyan
+Write-Host "== 5/7: Pravljenje ugradjenog instalatera (NPVideoStudioSetup.exe) ==" -ForegroundColor Cyan
+# A real, self-contained alternative to the Inno Setup installer below, for machines that don't have
+# Inno Setup and can't reach jrsoftware.org to get it - see src/NPVideoStudio.Installer's doc comment.
+# Published straight into $publishDir so it ends up both in the portable ZIP and inside the Inno Setup
+# installer's payload (harmless there - "Setup.exe within Setup" is just an extra file, never run
+# automatically).
+dotnet publish (Join-Path $repoRoot 'src\NPVideoStudio.Installer\NPVideoStudio.Installer.csproj') `
+    -c Release -r win-x64 --self-contained true `
+    -p:PublishSingleFile=true -p:PublishTrimmed=true -p:TrimMode=full `
+    -o $publishDir
+if ($LASTEXITCODE -ne 0) { throw "Pravljenje NPVideoStudioSetup.exe nije uspelo (kod $LASTEXITCODE)." }
+Remove-Item (Join-Path $publishDir 'NPVideoStudioSetup.pdb') -Force -ErrorAction SilentlyContinue
+Write-Host "NPVideoStudioSetup.exe napravljen." -ForegroundColor Green
+
+Write-Host "== 6/7: Pravljenje portable ZIP verzije ==" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
 Copy-Item -Path (Join-Path $publishDir '*') -Destination $portableDir -Recurse -Force
 # README-FIRST.txt below tells the user to run scripts\check-dependencies.ps1 - that script has to
@@ -100,8 +114,11 @@ $toolsNote = if ($bundledToolsOk) {
 Set-Content -Path (Join-Path $portableDir 'README-FIRST.txt') -Value @"
 NP Video Studio - Portable verzija $version
 
-Ovo je portable (bez instalacije) verzija programa - raspakujte ovaj folder bilo gde na disku i
-pokrenite NPVideoStudio.exe direktno.
+Zelite li da se program INSTALIRA (precica u Start meniju, uklanjanje kroz Windows Podesavanja)?
+Pokrenite NPVideoStudioSetup.exe iz ovog foldera - ne treba mu ni internet ni admin prava.
+
+Ili, bez instalacije: raspakujte ovaj ceo folder bilo gde na disku i pokrenite NPVideoStudio.exe
+direktno.
 
 $toolsNote
 
@@ -115,7 +132,7 @@ Compress-Archive -Path (Join-Path $portableDir '*') -DestinationPath $zipPath
 Write-Host "Portable verzija: $zipPath" -ForegroundColor Green
 Write-Host "Portable folder (za CI artifact, izbegava ZIP-u-ZIP-u): $portableDir" -ForegroundColor Green
 
-Write-Host "== 6/6: Pravljenje Windows instalacije (Inno Setup) ==" -ForegroundColor Cyan
+Write-Host "== 7/7: Pravljenje Windows instalacije (Inno Setup) ==" -ForegroundColor Cyan
 $iscc = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue
 if ($null -eq $iscc) {
     Write-Host "ISCC.exe (Inno Setup) nije pronadjen na PATH-u." -ForegroundColor Yellow

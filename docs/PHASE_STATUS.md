@@ -751,6 +751,59 @@ which engine produced a given result if that turns out to matter in practice.
 
 Full non-integration suite: 326 tests passing (319 + 7 new), no regressions.
 
+## Fourth post-Phase-11 follow-up: custom self-contained installer (Inno Setup download is blocked here)
+
+The user demanded a real "double-click and install" experience, not just the portable ZIP - a genuine
+installer that adds a Start Menu shortcut and shows up in Windows' Add/Remove Programs.
+
+`installer/NPVideoStudio.iss` (Inno Setup) already existed and is still the primary path, but building it
+requires `ISCC.exe`, which requires downloading and installing Inno Setup from `jrsoftware.org` first -
+confirmed via `curl -sI` that this sandbox's network policy blocks `jrsoftware.org` with the same generic
+403 "policy denial" already seen for `ffmpeg.org`/`gyan.dev`. `build-release.ps1`'s step 7/7 already
+handles this gracefully (skips with a warning if `ISCC.exe` isn't on PATH), so a machine that *can* reach
+jrsoftware.org and has Inno Setup installed still gets the real Inno Setup installer - nothing about that
+path changed. But it means this sandbox can never verify or produce that installer itself, and there's no
+guarantee the user's own machine has Inno Setup installed either.
+
+Rather than keep asking the user to go install a third-party tool just to get an installer, built a second,
+independent installer with zero external dependencies: **`src/NPVideoStudio.Installer`**
+(`NPVideoStudioSetup.exe`), a small self-contained .NET console/WinExe app that:
+- Copies everything next to it (the whole portable payload) into `%LocalAppData%\Programs\NP Video Studio`
+  (no admin rights needed - same per-user convention VS Code uses).
+- Creates a real Start Menu `.lnk` shortcut by shelling out to `powershell.exe`'s `WScript.Shell` COM
+  object (the standard way to write a `.lnk` file; hand-writing the binary MS-SHLLINK format or using COM
+  interop directly isn't reliable when cross-compiling from this Linux sandbox).
+- Registers a proper `HKEY_CURRENT_USER\...\Uninstall\NPVideoStudio` entry so the app shows up in Windows
+  Settings > Apps, with an `UninstallString` pointing back at itself with `--uninstall`.
+- `--uninstall` mode removes the shortcut and registry entry, then hands off to a short-lived `cmd.exe`
+  (`timeout /t 2 & rmdir /s /q ...`) to delete its own install folder after the process exits, since a
+  running exe can't delete its own containing directory synchronously.
+
+Published as a self-contained, single-file, fully trimmed (`PublishTrimmed=true -p:TrimMode=full`) win-x64
+binary - trims cleanly to ~12MB with **zero trim-analyzer warnings** (it only touches trim-safe BCL APIs:
+Registry, Process, File I/O, one P/Invoke for a message box), confirmed via a real cross-compiled publish
+in this sandbox (`file` confirms a genuine `PE32+ executable (GUI) x86-64, for MS Windows`). `dotnet build`
+of the full solution (all 8 projects including this new one) succeeds with 0 warnings, 0 errors.
+
+Wired into `build-release.ps1` as a new step 5/7 (steps renumbered `/6` to `/7`): publishes
+`NPVideoStudioSetup.exe` straight into the same folder as the main app, so it's included both in the
+portable ZIP and inside the Inno Setup payload if that step also runs. `README-FIRST.txt`'s generated text
+now leads with "run NPVideoStudioSetup.exe to install" instead of only describing the portable/extract
+option.
+
+Deliberately not a general-purpose installer framework: one product, one fixed install location, no
+install-path picker, no component selection, no upgrade/repair handling. Inno Setup remains the "real"
+installer for anyone who has or can get it; this is the honest, dependency-free fallback for anyone who
+can't - explicitly documented as such in the class-level doc comment.
+
+**Not verified end-to-end**: this sandbox has no Windows environment, so only compilation/publishing was
+confirmed here. The actual install/shortcut/registry/uninstall behavior needs to be confirmed on a real
+Windows machine.
+
+Full non-integration suite: still 326 tests passing, no regressions (the installer project has no unit
+tests of its own - it's a thin, mostly I/O/OS-API shell with no pure logic to extract, unlike the
+ffmpeg/yt-dlp helpers).
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
