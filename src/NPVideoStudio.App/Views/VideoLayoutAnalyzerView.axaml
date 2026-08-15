@@ -14,7 +14,7 @@
       </StackPanel>
 
       <TextBlock Classes="subtle" TextWrapping="Wrap"
-                 Text="Uzima nekoliko kadrova iz videa i pravim lokalnim OCR-om (Tesseract) prepoznaje postojeći tekst u kadru, da bi predložio gde titl neće da ga prekrije. Prepoznavanje lica/loga/CTA dugmadi još nije implementirano - vidi napomenu ispod." />
+                 Text="Uzima nekoliko kadrova iz videa i pravim lokalnim OCR-om prepoznaje postojeći tekst u kadru, da bi predložio gde titl neće da ga prekrije - koristi EasyOCR (bolji za šarene/ukrašene natpise) ako je instaliran, inače Tesseract. Prepoznavanje lica/loga/CTA dugmadi još nije implementirano - vidi napomenu ispod." />
 
       <Border Classes="panel" Padding="20">
         <StackPanel Spacing="14">
