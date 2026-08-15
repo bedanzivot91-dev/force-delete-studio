@@ -96,18 +96,38 @@ public static class Program
         }
     }
 
-    private static void CopyDirectory(string sourceDir, string targetDir)
+    /// <summary>
+    /// Real bug found and fixed: this used to join paths via <c>dirPath.Replace(sourceDir, targetDir)</c>,
+    /// a naive string swap that silently breaks whenever <paramref name="sourceDir"/> and
+    /// <paramref name="targetDir"/> disagree on a trailing directory separator - which they always did
+    /// here, since <c>AppContext.BaseDirectory</c> (this installer's real <paramref name="sourceDir"/>) is
+    /// documented to always end with a trailing separator, while <see cref="InstallDir"/> (built via
+    /// <c>Path.Combine</c>) never has one. The swap ate the separator between the install folder and every
+    /// single copied item's name, producing sibling folders like "NP Video Studiolibvlc" instead of a
+    /// "libvlc" subfolder inside "NP Video Studio" - and, critically, the exact same collapse happened for
+    /// every top-level file too, so the installed exe itself ended up at "...NP Video
+    /// StudioNPVideoStudio.exe", a path the app never actually looks for, causing "the system cannot find
+    /// the file specified" right after a real, honestly-reported "install succeeded" message. Never caught
+    /// before because this Linux sandbox cannot execute this Windows-only installer to test it end to end
+    /// (the standing, disclosed CLAUDE.md constraint) and no automated test covered this method - fixed
+    /// with <see cref="Path.GetRelativePath"/> + <see cref="Path.Combine"/>, which are correct regardless
+    /// of either side's trailing separator, and now covered by a real test using real temporary
+    /// directories (see NPVideoStudio.UnitTests/InstallerCopyDirectoryTests.cs).
+    /// </summary>
+    public static void CopyDirectory(string sourceDir, string targetDir)
     {
         Directory.CreateDirectory(targetDir);
 
         foreach (var dirPath in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
         {
-            Directory.CreateDirectory(dirPath.Replace(sourceDir, targetDir, StringComparison.Ordinal));
+            var relative = Path.GetRelativePath(sourceDir, dirPath);
+            Directory.CreateDirectory(Path.Combine(targetDir, relative));
         }
 
         foreach (var filePath in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
         {
-            var destPath = filePath.Replace(sourceDir, targetDir, StringComparison.Ordinal);
+            var relative = Path.GetRelativePath(sourceDir, filePath);
+            var destPath = Path.Combine(targetDir, relative);
             File.Copy(filePath, destPath, overwrite: true);
         }
     }

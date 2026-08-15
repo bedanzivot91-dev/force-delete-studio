@@ -1244,6 +1244,50 @@ individual pieces look right in isolation.
 
 Full non-integration suite: 398 tests passing (390 + 8 new), no regressions.
 
+## Fourteenth post-Phase-11 follow-up: real, install-breaking bug in the custom installer
+
+Real user report, with screenshots: after a genuinely successful "Instalacija je uspešno završena" message,
+the installer immediately failed to auto-launch the app with "The system cannot find the file specified,"
+and the install folder contained mangled sibling folders like "NP Video Studiolibvlc" and
+"NP Video Studioruntimes" next to the real "NP Video Studio" folder, instead of `libvlc`/`runtimes` living
+inside it.
+
+**Root cause, found by reading the code, not guessed**: `NPVideoStudio.Installer/Program.cs`'s
+`CopyDirectory` joined paths with `dirPath.Replace(sourceDir, targetDir, StringComparison.Ordinal)` - a
+naive string swap. `AppContext.BaseDirectory` (the installer's real `sourceDir`, wherever
+`NPVideoStudioSetup.exe` itself is running from) is documented .NET behavior to always end with a trailing
+directory separator; `InstallDir` (`Path.Combine(LocalAppData, "Programs", "NP Video Studio")`) never has
+one. Replacing a prefix that includes a trailing separator with one that doesn't silently eats the
+separator between the install folder and every single copied item's name - not just nested subfolders
+(`libvlc` → `NP Video Studiolibvlc`) but every top-level file too, including the app's own exe
+(`NPVideoStudio.exe` → `...NP Video StudioNPVideoStudio.exe`, a path nothing else in the installer ever
+constructs or looks for). This is why the install itself reported success (every file really did get
+copied - just to the wrong, mangled path) while the immediate post-install launch failed outright.
+
+**Why this was never caught before now**: this Linux dev sandbox cannot execute a Windows PE binary, so
+`NPVideoStudioSetup.exe`'s actual copy logic could never run end-to-end here - exactly the standing,
+disclosed constraint in this file's own header ("packaged for Windows via GitHub Actions CI... because
+the installer and native runtime behavior can't be verified on Linux"). No automated test covered this
+method either (it was a private method in a console app's `Program.cs`, nothing referenced it). This is
+the first time that specific gap produced a real, concrete, install-breaking failure a real user actually
+hit - not a hypothetical risk.
+
+**Fixed** with `Path.GetRelativePath(sourceDir, path)` + `Path.Combine(targetDir, relative)`, which are
+correct regardless of either side's trailing separator - `CopyDirectory` made `public` (was `private`) and
+covered by a new, real regression test (`InstallerCopyDirectoryTests.cs`, in a new
+`NPVideoStudio.UnitTests` → `NPVideoStudio.Installer` project reference) using real temporary directories
+on disk, deliberately reproducing the exact trailing-separator mismatch rather than asserting against the
+old buggy string output. **Verified the test actually catches the bug** (not just theoretically) by
+temporarily reverting the fix, confirming the test fails with the exact same symptom the user hit
+("Expected .../NP Video Studio/NPVideoStudio.exe to exist"), then restoring the fix and confirming it
+passes - the same before/after methodology used elsewhere in this file for other real bug fixes.
+
+Also checked the alternate Inno Setup installer (`installer/NPVideoStudio.iss`) for the same class of bug:
+clean - its `[Files]` section uses Inno Setup's own native `Source`/`DestDir` copy mechanism with
+`recursesubdirs createallsubdirs`, never custom string path-joining, so it was never affected.
+
+Full non-integration suite: 399 tests passing (398 + 1 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
