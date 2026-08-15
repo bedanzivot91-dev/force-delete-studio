@@ -1396,6 +1396,23 @@ cause this session's own changes could have introduced) rather than a single con
 disclosed as such. If the next report is still silence, the crash log (or its absence) is the next real
 diagnostic signal to look at, not a guess.
 
+**Package actually delivered to the user for this follow-up** (built and sent in-session, not just
+committed): renamed to `NPVideoStudio-Instalacija-x64` as promised above. New finding while rebuilding:
+`gyan.dev` (the FFmpeg "essentials" build source `scripts/build-release.ps1` uses) is **not reachable from
+this sandbox's network policy** - a real, previously-undocumented gap (CLAUDE.md's network section only
+listed `huggingface.co`/`youtube.com` as known-blocked). Confirmed `github.com` release-asset download URLs
+*do* work here even though the `github.com` HTML page itself doesn't (403), so a GitHub-hosted FFmpeg
+mirror (`BtbN/FFmpeg-Builds`) downloads fine - but at ~278 MB for ffmpeg.exe+ffprobe.exe combined (a full
+GPL/master build with far more codecs than gyan's "essentials" subset), bundling it would have nearly
+tripled this chat-delivered package's size and part count (4 parts -> ~17), for a user who has already
+struggled with manual multi-part reassembly. Judgment call: left FFmpeg out of this specific hand-delivered
+package (as it always has been - this was never actually bundled in a chat-delivered package this session,
+only intended for the real `windows-latest` CI build, which *can* reach gyan.dev), bundled `yt-dlp.exe`
+(small, 18 MB, downloads fine from `github.com`), and disclosed the gap plainly in the package's own
+`PROCITAJ_PRVO.txt` rather than silently shipping an incomplete package with no explanation. Final delivered
+zip: 86 MB, split into 4 parts (was 7-8 in earlier rounds) via the same `cmd /c copy /b` reassembly
+instructions, MD5-verified byte-identical after reassembly before sending.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
