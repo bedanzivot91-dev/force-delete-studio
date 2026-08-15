@@ -5,16 +5,22 @@ using Microsoft.Win32;
 namespace NPVideoStudio.Installer;
 
 /// <summary>
-/// Minimal real "double-click and install" alternative to the Inno Setup installer
+/// Real "double-click and install" alternative to the Inno Setup installer
 /// (installer/NPVideoStudio.iss), for machines that don't have Inno Setup and can't reach
 /// jrsoftware.org to get it. Ships as NPVideoStudioSetup.exe inside the portable folder (see
-/// build-release.ps1) - copies everything next to it into a per-user install location, adds a Start
-/// Menu shortcut and an Add/Remove Programs entry, no admin rights required (installs under
-/// %LocalAppData%\Programs, same convention as VS Code/most modern per-user Windows installers).
+/// build-release.ps1) - asks where to install (with a real folder-browse dialog), whether to add a
+/// desktop shortcut, and whether to launch the app afterward, then copies everything next to it into
+/// the chosen location, adds a Start Menu shortcut and an Add/Remove Programs entry, no admin rights
+/// required (default location is %LocalAppData%\Programs, same convention as VS Code/most modern
+/// per-user Windows installers, but the user can point it anywhere writable).
 ///
-/// Deliberately not a general-purpose installer framework: one product, one install location, no
-/// custom install path picker, no component selection - Inno Setup remains the "real" installer for
-/// anyone who has/can install it; this is the honest fallback for anyone who can't.
+/// The folder-browse dialog is deliberately implemented by shelling out to powershell.exe running a
+/// `System.Windows.Forms.FolderBrowserDialog` (same shell-out pattern <see cref="CreateShortcut"/>
+/// already uses for its WScript.Shell COM call) instead of referencing System.Windows.Forms directly
+/// from this project - this project's dev sandbox (see CLAUDE.md) has no WindowsDesktop SDK installed,
+/// so it cannot build a project that targets net8.0-windows/UseWindowsForms at all. Every real Windows
+/// machine already has powershell.exe with System.Windows.Forms available, so this works everywhere the
+/// installer itself would run, without pulling in a UI framework this project can't even compile here.
 /// </summary>
 public static class Program
 {
@@ -68,24 +74,43 @@ public static class Program
         catch { /* best-effort */ }
     }
 
-    private static string InstallDir => Path.Combine(
+    private static string DefaultInstallDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", AppDisplayName);
 
-    private static string ShortcutPath => Path.Combine(
+    private static string StartMenuShortcutPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Microsoft", "Windows", "Start Menu", "Programs", $"{AppDisplayName}.lnk");
+
+    private static string DesktopShortcutPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), $"{AppDisplayName}.lnk");
 
     private static void Install()
     {
         var sourceDir = AppContext.BaseDirectory;
-        var installDir = InstallDir;
+
+        var installDir = PromptForInstallDir(DefaultInstallDir);
+        if (installDir is null)
+        {
+            // User closed/cancelled the folder-browse dialog - quit quietly, same as clicking "Cancel"
+            // in any real installer wizard, not an error worth a message box.
+            return;
+        }
+
+        var createDesktopShortcut = AskYesNo(
+            "Da li želite da se doda prečica na Desktopu?", "Prečica na Desktopu");
+        var launchAfterInstall = AskYesNo(
+            "Da li želite da se NP Video Studio pokrene odmah posle instalacije?", "Pokretanje posle instalacije");
 
         try
         {
             CopyDirectory(sourceDir, installDir);
 
             var mainExePath = Path.Combine(installDir, "NPVideoStudio.exe");
-            CreateShortcut(mainExePath, installDir);
+            CreateShortcut(mainExePath, installDir, StartMenuShortcutPath);
+            if (createDesktopShortcut)
+            {
+                CreateShortcut(mainExePath, installDir, DesktopShortcutPath);
+            }
             RegisterUninstallEntry(installDir);
 
             ShowMessage(
@@ -93,7 +118,10 @@ public static class Program
                 "Prečica je dodata u Start meni.",
                 "Instalacija završena");
 
-            Process.Start(new ProcessStartInfo(mainExePath) { UseShellExecute = true, WorkingDirectory = installDir });
+            if (launchAfterInstall)
+            {
+                Process.Start(new ProcessStartInfo(mainExePath) { UseShellExecute = true, WorkingDirectory = installDir });
+            }
         }
         catch (Exception ex)
         {
@@ -101,14 +129,77 @@ public static class Program
         }
     }
 
+    /// <summary>
+    /// Real folder-browse dialog via powershell.exe + System.Windows.Forms.FolderBrowserDialog (see the
+    /// class-level doc comment for why it's implemented this way instead of a direct UI reference).
+    /// Returns the chosen "&lt;parent&gt;\NP Video Studio" install path, or null if the user cancelled the
+    /// dialog or the dialog itself failed to run (treated the same as cancelling - never blocks install
+    /// entirely just because the picker couldn't show, since <see cref="DefaultInstallDir"/> is still a
+    /// perfectly valid fallback the user can accept by simply not changing anything in a working dialog).
+    /// </summary>
+    private static string? PromptForInstallDir(string defaultInstallDir)
+    {
+        var startingParent = Path.GetDirectoryName(defaultInstallDir) ?? defaultInstallDir;
+
+        var script =
+            "Add-Type -AssemblyName System.Windows.Forms; " +
+            "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
+            "$dialog.Description = 'Izaberite folder u koji zelite da instalirate NP Video Studio'; " +
+            $"$dialog.SelectedPath = '{startingParent}'; " +
+            "$dialog.ShowNewFolderButton = $true; " +
+            "if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.SelectedPath } else { Write-Output '__OTKAZANO__' }";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        psi.ArgumentList.Add("-NoProfile");
+        psi.ArgumentList.Add("-NonInteractive");
+        psi.ArgumentList.Add("-STA");
+        psi.ArgumentList.Add("-Command");
+        psi.ArgumentList.Add(script);
+
+        try
+        {
+            using var process = Process.Start(psi)!;
+            var stdout = process.StandardOutput.ReadToEnd().Trim();
+            process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode != 0 || string.IsNullOrEmpty(stdout) || stdout == "__OTKAZANO__")
+            {
+                return null;
+            }
+
+            return Path.Combine(stdout, AppDisplayName);
+        }
+        catch
+        {
+            // Dialog itself failed to launch (e.g. powershell.exe missing) - fall back to the default
+            // location rather than blocking installation entirely over a picker that couldn't show.
+            return defaultInstallDir;
+        }
+    }
+
     private static void Uninstall()
     {
         try
         {
-            if (File.Exists(ShortcutPath))
+            if (File.Exists(StartMenuShortcutPath))
             {
-                File.Delete(ShortcutPath);
+                File.Delete(StartMenuShortcutPath);
             }
+
+            if (File.Exists(DesktopShortcutPath))
+            {
+                File.Delete(DesktopShortcutPath);
+            }
+
+            var installDir = ReadInstallLocationFromRegistry() ?? DefaultInstallDir;
 
             Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryKey, throwOnMissingSubKey: false);
 
@@ -117,7 +208,7 @@ public static class Program
             // Can't delete our own running exe or its containing folder synchronously - hand off to a
             // short-lived cmd.exe that waits for this process to exit first, same pattern every
             // self-deleting Windows installer/uninstaller uses.
-            ScheduleInstallDirDeleteAfterExit(InstallDir);
+            ScheduleInstallDirDeleteAfterExit(installDir);
         }
         catch (Exception ex)
         {
@@ -126,21 +217,32 @@ public static class Program
     }
 
     /// <summary>
+    /// The install location is now user-chosen (see <see cref="PromptForInstallDir"/>), so uninstall can no
+    /// longer assume <see cref="DefaultInstallDir"/> - it has to read back the real path this specific
+    /// install used, which <see cref="RegisterUninstallEntry"/> already writes to the registry.
+    /// </summary>
+    private static string? ReadInstallLocationFromRegistry()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(UninstallRegistryKey);
+        return key?.GetValue("InstallLocation") as string;
+    }
+
+    /// <summary>
     /// Real bug found and fixed: this used to join paths via <c>dirPath.Replace(sourceDir, targetDir)</c>,
     /// a naive string swap that silently breaks whenever <paramref name="sourceDir"/> and
     /// <paramref name="targetDir"/> disagree on a trailing directory separator - which they always did
     /// here, since <c>AppContext.BaseDirectory</c> (this installer's real <paramref name="sourceDir"/>) is
-    /// documented to always end with a trailing separator, while <see cref="InstallDir"/> (built via
+    /// documented to always end with a trailing separator, while the install directory (built via
     /// <c>Path.Combine</c>) never has one. The swap ate the separator between the install folder and every
     /// single copied item's name, producing sibling folders like "NP Video Studiolibvlc" instead of a
     /// "libvlc" subfolder inside "NP Video Studio" - and, critically, the exact same collapse happened for
     /// every top-level file too, so the installed exe itself ended up at "...NP Video
     /// StudioNPVideoStudio.exe", a path the app never actually looks for, causing "the system cannot find
     /// the file specified" right after a real, honestly-reported "install succeeded" message. Never caught
-    /// before because this Linux sandbox cannot execute this Windows-only installer to test it end to end
-    /// (the standing, disclosed CLAUDE.md constraint) and no automated test covered this method - fixed
-    /// with <see cref="Path.GetRelativePath"/> + <see cref="Path.Combine"/>, which are correct regardless
-    /// of either side's trailing separator, and now covered by a real test using real temporary
+    /// before this fix because this Linux sandbox cannot execute this Windows-only installer to test it end
+    /// to end (the standing, disclosed CLAUDE.md constraint) and no automated test covered this method -
+    /// fixed with <see cref="Path.GetRelativePath"/> + <see cref="Path.Combine"/>, which are correct
+    /// regardless of either side's trailing separator, and now covered by a real test using real temporary
     /// directories (see NPVideoStudio.UnitTests/InstallerCopyDirectoryTests.cs).
     /// </summary>
     public static void CopyDirectory(string sourceDir, string targetDir)
@@ -166,12 +268,12 @@ public static class Program
     /// standard, well-tested way to create a Windows shortcut, instead of hand-writing the binary
     /// MS-SHLLINK format or depending on a COM interop assembly this Linux-hosted build can't generate.
     /// </summary>
-    private static void CreateShortcut(string targetExePath, string workingDirectory)
+    private static void CreateShortcut(string targetExePath, string workingDirectory, string shortcutPath)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(ShortcutPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(shortcutPath)!);
 
         var script =
-            $"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{ShortcutPath}'); " +
+            $"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{shortcutPath}'); " +
             $"$s.TargetPath = '{targetExePath}'; " +
             $"$s.WorkingDirectory = '{workingDirectory}'; " +
             "$s.Save()";
@@ -228,8 +330,15 @@ public static class Program
         Process.Start(psi);
     }
 
+    private const uint MB_YESNO = 0x00000004;
+    private const uint MB_ICONQUESTION = 0x00000020;
+    private const int IDYES = 6;
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(nint hWnd, string text, string caption, uint type);
 
     private static void ShowMessage(string text, string caption) => MessageBoxW(0, text, caption, 0);
+
+    private static bool AskYesNo(string text, string caption) =>
+        MessageBoxW(0, text, caption, MB_YESNO | MB_ICONQUESTION) == IDYES;
 }
