@@ -84,6 +84,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         if (request is null)
         {
             Player.CurrentFrameBitmap = null;
+            Player.PreviewStatusMessage = "Nema kadra za prikaz - dodajte klip na video traku i postavite plejhed na njega.";
             return;
         }
 
@@ -100,7 +101,18 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 return;
             }
 
-            Player.CurrentFrameBitmap = bytes is null ? null : new Bitmap(new MemoryStream(bytes));
+            if (bytes is null)
+            {
+                Player.CurrentFrameBitmap = null;
+                // A clip genuinely exists under the playhead here (TimelinePreviewResolver already found
+                // one) - unlike the "no clip yet" case above, this means extraction itself failed, most
+                // likely ffmpeg isn't installed/found. Say so explicitly instead of repeating the same
+                // "add a clip" message the user already did.
+                Player.PreviewStatusMessage = "Nije moguće prikazati kadar - proverite da li je FFmpeg instaliran i pronađen (Podešavanja → Alati, ili pokrenite Dijagnostiku), ili da li je izvorni fajl oštećen/premešten.";
+                return;
+            }
+
+            Player.CurrentFrameBitmap = new Bitmap(new MemoryStream(bytes));
         }
         catch (OperationCanceledException)
         {

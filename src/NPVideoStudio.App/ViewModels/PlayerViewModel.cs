@@ -30,6 +30,14 @@ public sealed partial class PlayerViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private Bitmap? _currentFrameBitmap;
 
+    /// <summary>Shown in place of the frame when <see cref="CurrentFrameBitmap"/> is null - distinguishes
+    /// the normal "no clip under the playhead yet" case from a real failure (ffmpeg not found, source
+    /// file missing/corrupt) so the user isn't stuck seeing the same generic message when something is
+    /// actually broken and needs the tool to actually tell them so, rather than looking like a clip
+    /// simply hasn't been placed yet.</summary>
+    [ObservableProperty]
+    private string _previewStatusMessage = "Nema kadra za prikaz - dodajte klip na video traku i postavite plejhed na njega.";
+
     /// <summary>Raised whenever <see cref="CurrentTimeSeconds"/> changes (seek/step/play-tick/stop), so
     /// the owner can refresh <see cref="CurrentFrameBitmap"/> for the new position.</summary>
     public event Action<double>? TimeChanged;

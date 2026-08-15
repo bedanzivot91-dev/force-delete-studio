@@ -155,6 +155,34 @@ public class WorkspaceViewModelTests
         Assert.Equal(0, workspace.Player.CurrentTimeSeconds);
     }
 
+    /// <summary>Regression test for a real bug found via a user's real-machine screenshot: when a clip
+    /// genuinely existed under the playhead but frame extraction still failed (e.g. ffmpeg not found on
+    /// their PC), the player showed the exact same "add a clip" message as when there was no clip at all -
+    /// completely indistinguishable from the user's side, even though these are very different problems.</summary>
+    [AvaloniaFact]
+    public void RefreshPreviewFrame_ClipExistsButExtractionFails_ShowsDifferentMessageThanNoClip()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var framePreview = new FakeFramePreviewService { Handler = (_, _) => null };
+        var workspace = new WorkspaceViewModel(
+            project, new FakeProjectRepository(), new FakeMediaProbeService(), new FakeStorageService(),
+            framePreview, new LoggerConfiguration().CreateLogger());
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+        var noClipMessage = workspace.Player.PreviewStatusMessage;
+        Assert.Null(workspace.Player.CurrentFrameBitmap);
+
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(workspace.Player.CurrentFrameBitmap);
+        Assert.NotEqual(noClipMessage, workspace.Player.PreviewStatusMessage);
+        Assert.Contains("FFmpeg", workspace.Player.PreviewStatusMessage);
+    }
+
     /// <summary>Regression test for a real bug: ExportVideo() used to fire ExportRequested without
     /// syncing the live timeline edit session back onto Project first, so the render queue (which reads
     /// Project.Timeline.Tracks directly) could silently render a stale/empty timeline even though the

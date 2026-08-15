@@ -72,7 +72,7 @@
           <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True">
             <Grid>
               <Image Source="{Binding CurrentFrameBitmap}" Stretch="Uniform" />
-              <TextBlock Text="Nema kadra za prikaz - dodajte klip na video traku i postavite plejhed na njega."
+              <TextBlock Text="{Binding PreviewStatusMessage}"
                          IsVisible="{Binding CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
                          Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
                          HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" />
