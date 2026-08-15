@@ -13,6 +13,7 @@ public sealed class FakeLyricSearchService : ILyricSearchService
 {
     public bool IsModelReady { get; set; }
     public string ModelSizeLabel => "~75 MB (test)";
+    public string ModelPath { get; set; } = "/fake/model/path/ggml-tiny.bin";
 
     public Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -168,6 +169,21 @@ public class DependencyManagerServiceTests : IDisposable
 
         Assert.Equal(DependencyStatus.Installed, whisper.Status);
         Assert.False(whisper.CanDownload);
+    }
+
+    /// <summary>Real bug found and fixed: this used to always reconstruct the AppData default model
+    /// path here regardless of where the model was actually resolved from (e.g. a bundled copy next to
+    /// the exe) - so "Otvori folder" could point at a path with nothing in it even when the model was
+    /// genuinely ready. Must report the service's own real, resolved path instead.</summary>
+    [Fact]
+    public async Task GetDependenciesAsync_WhisperModelReady_ReportsTheServicesActualResolvedModelPath()
+    {
+        _lyricSearchService.IsModelReady = true;
+        _lyricSearchService.ModelPath = "C:\\Program\\Tools\\whisper-models\\ggml-tiny.bin"; // e.g. a bundled copy, not the AppData default
+        var results = await _service.GetDependenciesAsync();
+        var whisper = results.Single(d => d.Name.Contains("Whisper"));
+
+        Assert.Equal(_lyricSearchService.ModelPath, whisper.Path);
     }
 
     [Fact]

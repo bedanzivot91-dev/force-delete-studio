@@ -10,6 +10,10 @@ public interface ILyricSearchService
     /// <summary>Approximate download size, for the consent prompt (spec §38: never download without asking).</summary>
     string ModelSizeLabel { get; }
 
+    /// <summary>The real, resolved path of the speech-recognition model this service will actually use
+    /// (bundled next to the exe, or the AppData default) - see <see cref="WhisperModelLocator"/>.</summary>
+    string ModelPath { get; }
+
     /// <summary>Downloads the local recognition model. Must only be called after explicit user consent.</summary>
     Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default);
 

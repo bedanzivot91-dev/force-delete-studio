@@ -24,6 +24,12 @@ public sealed class WhisperTranscriber
 
     public bool IsModelReady => File.Exists(_modelPath);
 
+    /// <summary>The real, resolved model path (per <see cref="WhisperModelLocator"/> - could be the
+    /// bundled Tools/whisper-models/ggml-tiny.bin next to the exe, not always the AppData default) -
+    /// exposed so callers like the dependency/diagnostics screen show the path this transcriber will
+    /// actually use, not a guessed/reconstructed one.</summary>
+    public string ModelPath => _modelPath;
+
     public string ModelSizeLabel => "~75 MB (Whisper tiny, radi lokalno bez interneta nakon preuzimanja)";
 
     public async Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
@@ -77,8 +83,12 @@ public sealed class WhisperTranscriber
     {
         if (!IsModelReady)
         {
+            // Real bug found and fixed: this used to point to "Podešavanja → AI modeli" - a screen
+            // that doesn't exist anywhere in this app. The real, working place to download the model
+            // is the button inside the "Pronađi tekst u pesmi"/"Generiši titlove (SRT)" tools
+            // themselves (see WhisperTranscriber.DownloadModelAsync and each tool's own view).
             throw new InvalidOperationException(
-                "Model za prepoznavanje govora nije preuzet. Idite u Podešavanja → AI modeli i preuzmite ga.");
+                "Model za prepoznavanje govora nije preuzet. Otvorite alat \"Generiši titlove (SRT)\" ili \"Pronađi tekst u pesmi\" i kliknite \"Preuzmi model\" (~75 MB, jednom, uz internet).");
         }
 
         if (!File.Exists(audioFilePath))
@@ -142,7 +152,12 @@ public sealed class WhisperTranscriber
     private async Task<List<SegmentData>> RunWhisperAsync(string wavPath, bool wordLevel, CancellationToken cancellationToken)
     {
         using var factory = WhisperFactory.FromPath(_modelPath);
-        var builder = factory.CreateBuilder().WithLanguage("auto");
+        // Real bug found and fixed: "auto" language detection is known (whisper.cpp's own documented
+        // behavior) to frequently misdetect the wrong language on singing/music, as opposed to plain
+        // speech - every user-facing string and every piece of content this app is built around is
+        // Serbian (see CLAUDE.md), so hardcoding "sr" here removes a real, avoidable source of garbled
+        // or wrong-language transcription instead of leaving it to chance on every single run.
+        var builder = factory.CreateBuilder().WithLanguage("sr");
         if (wordLevel)
         {
             builder = builder.WithTokenTimestamps().SplitOnWord().WithMaxSegmentLength(1);

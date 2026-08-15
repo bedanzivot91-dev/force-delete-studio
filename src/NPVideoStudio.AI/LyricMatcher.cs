@@ -61,11 +61,18 @@ public static class LyricMatcher
                 var start = window[0].Start;
                 var end = window[^1].End;
                 var paddedStart = start - pad < TimeSpan.Zero ? TimeSpan.Zero : start - pad;
+                var paddedEnd = end + pad;
 
                 candidates.Add(new LyricMatch
                 {
                     Start = paddedStart,
-                    Duration = (end - start) + pad + pad,
+                    // Real bug found and fixed: this used to always add "pad + pad" regardless of the
+                    // clamp above, so a match near the very start of the audio (where paddedStart gets
+                    // clamped to zero instead of going negative) ended up with a clip a full `pad`
+                    // seconds longer than intended, running well past the phrase's actual end. Computing
+                    // Duration from the real (possibly clamped) paddedStart to paddedEnd is correct in
+                    // both cases.
+                    Duration = paddedEnd - paddedStart,
                     RecognizedText = windowText,
                     Confidence = confidence
                 });
@@ -90,9 +97,29 @@ public static class LyricMatcher
         return deduped.OrderByDescending(m => m.Confidence).ThenBy(m => m.Start).Take(10).ToList();
     }
 
+    /// <summary>
+    /// Real bug found and fixed: Whisper transcribes Serbian speech/singing in Cyrillic script
+    /// ("волим те"), but the search UI's own watermark invites Latin input ("npr. volim te draga
+    /// moja") and <see cref="Domain.AppSettings.Language"/> defaults to "sr-Latn" - so a Latin-typed
+    /// phrase shared zero normalized tokens with a Cyrillic transcript and <em>every</em> search
+    /// silently returned "not found," which read to the user as "the program doesn't recognize the
+    /// song's lyrics at all." <see cref="SerbianScriptConverter"/> already existed for exactly this
+    /// transliteration but was never called from here. Also folds the five Serbian Latin diacritics
+    /// (š/đ/č/ć/ž) to their plain-Latin equivalents, so a search phrase typed without diacritics (very
+    /// common on a keyboard without them) still matches a transcript that has them, and vice versa.
+    /// </summary>
     public static string Normalize(string text)
     {
-        var noPunctuation = PunctuationRegex.Replace(text.ToLowerInvariant(), " ");
+        var latin = SerbianScriptConverter.ContainsCyrillic(text) ? SerbianScriptConverter.ToLatin(text) : text;
+        var foldedDiacritics = FoldSerbianLatinDiacritics(latin);
+        var noPunctuation = PunctuationRegex.Replace(foldedDiacritics.ToLowerInvariant(), " ");
         return WhitespaceRegex.Replace(noPunctuation, " ").Trim();
     }
+
+    private static string FoldSerbianLatinDiacritics(string text) => text
+        .Replace('š', 's').Replace('Š', 'S')
+        .Replace('đ', 'd').Replace('Đ', 'D')
+        .Replace('č', 'c').Replace('Č', 'C')
+        .Replace('ć', 'c').Replace('Ć', 'C')
+        .Replace('ž', 'z').Replace('Ž', 'Z');
 }

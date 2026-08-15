@@ -83,7 +83,11 @@ public sealed class DependencyManagerService : IDependencyManagerService
     private DependencyInfo CheckWhisperModel()
     {
         var ready = _lyricSearchService.IsModelReady;
-        var modelPath = Path.Combine(AppSettings.ModelsFolder(), "ggml-tiny.bin");
+        // Real bug found and fixed: this used to always reconstruct the AppData default path here,
+        // even when the model was actually resolved from the bundled Tools/whisper-models/ggml-tiny.bin
+        // next to the exe (see WhisperModelLocator) - "Otvori folder" opened a path that didn't exist,
+        // or (when not ready) showed no real path for the user to place the file manually.
+        var modelPath = _lyricSearchService.ModelPath;
 
         return new DependencyInfo
         {

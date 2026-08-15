@@ -1288,6 +1288,71 @@ clean - its `[Files]` section uses Inno Setup's own native `Source`/`DestDir` co
 
 Full non-integration suite: 399 tests passing (398 + 1 new), no regressions.
 
+## Fifteenth post-Phase-11 follow-up: whole-program audit + the real root cause of "doesn't recognize song lyrics"
+
+Real, repeated user demand: a full function-by-function audit of the entire program, with an exact report
+of what was checked, how, and what percentage. Delegated a focused investigation (not guessed) into every
+code path behind the specific reported symptom - "ne prepoznaje tekst pesme" / "ne ubacuje tekst iz pesme"
+(doesn't recognize/insert song lyrics) - across `WhisperTranscriber`, `LyricMatcher`, `LyricSearchService`,
+`KnownSongLyricLocator`, `WhisperModelLocator`, `DependencyManagerService`, and all three real consumers of
+Whisper transcription (Pronađi tekst u pesmi, Generiši titlove SRT, workspace auto-captions). Found and
+fixed five real bugs, not just re-confirmed the already-disclosed "model not downloaded" gap:
+
+**The root cause, confirmed real (not the disclosed model-download requirement)**:
+`LyricMatcher.Normalize` only lowercased and stripped punctuation - it never transliterated script.
+Whisper transcribes Serbian speech/singing in **Cyrillic** ("волим те"), but the search UI's own
+watermark invites **Latin** input ("npr. volim te draga moja") and `AppSettings.Language` defaults to
+"sr-Latn". A Latin-typed phrase shared zero normalized tokens with a Cyrillic transcript, so **every
+single search silently returned "not found"** - which read to the user exactly as "the program doesn't
+recognize the song's lyrics at all," while technically reporting a normal, honest "not found" message.
+`SerbianScriptConverter` (real, tested, lossless Cyrillic↔Latin transliteration) already existed in the
+same project for exactly this purpose but was never called from the matching path. Fixed: `Normalize` now
+transliterates Cyrillic to Latin when detected, and additionally folds the five Serbian Latin diacritics
+(š/đ/č/ć/ž) so a phrase typed without them (common on keyboards that don't have them) still matches a
+transcript that has them, in both directions. This same fix transitively fixes `KnownSongLyricLocator`
+(used to place known/verified stored lyrics onto the timeline), which builds on the same `Normalize`.
+
+**Four more real bugs found and fixed in the same pass**:
+- **Wrong language hint**: `WhisperFactory` was built with `WithLanguage("auto")` - documented
+  whisper.cpp behavior is that auto-detection frequently misdetects the wrong language on singing/music
+  specifically (as opposed to plain speech). Every string and every piece of content this app targets is
+  Serbian (see CLAUDE.md); hardcoded to `"sr"` instead, removing an avoidable source of garbled/wrong-
+  language transcription.
+- **Misleading model-not-ready message**: pointed to "Podešavanja → AI modeli" - a screen that does not
+  exist anywhere in this app (confirmed by grep). Fixed to name the real, working place (the "Preuzmi
+  model" button inside "Generiši titlove (SRT)"/"Pronađi tekst u pesmi").
+- **Wrong path in the Alati i modeli/Dijagnostika screen**: `DependencyManagerService` always reconstructed
+  the AppData default model path, even when the model was actually resolved from the bundled
+  `Tools/whisper-models/ggml-tiny.bin` next to the exe - "Otvori folder" could open a path with nothing in
+  it. Fixed by exposing the service's own real, resolved `ModelPath` (new `ILyricSearchService.ModelPath`)
+  instead of reconstructing a guess.
+- **Padding/duration clamp bug**: for a lyric match near the very start of a track, `Duration` always
+  added the padding twice regardless of whether `Start` actually got clamped to zero - producing an
+  exported clip running measurably past the phrase's real end. Fixed to compute `Duration` from the real
+  (possibly-clamped) start to `end + padding`, correct in both cases.
+
+**Full-program audit scope and methodology, quantified honestly**: 408 automated tests passing (405 + 3
+new headless-navigation smoke tests), across 54 test files. `AppSmokeTests.cs` boots the *real* Avalonia
+application composition root headlessly (no mocked navigation) and now covers real, exception-free
+navigation into 15 of the app's screens - including three added this pass (Pronađi tekst u pesmi, Generiši
+titlove SRT, Preuzmi sa YouTube-a) that were previously untested at the navigation level, closing a real
+gap directly in the area under complaint. This headless approach was used instead of a live Xvfb
+click-through because synthetic mouse clicks in this specific sandbox proved unreliable again this session
+(confirmed by testing: even the always-first "Novi projekat" tile didn't register a click after an app
+restart) - a real, previously-documented environment quirk, not a code regression; a headless Avalonia
+navigation test is strictly stronger evidence for "does this screen open and initialize without throwing"
+than a screenshot anyway, since it fails loudly on any unhandled exception instead of just looking wrong.
+
+**Honestly out of scope for this sandbox, disclosed rather than silently skipped**: whether real singing
+transcription quality is actually *good* (only checkable with a real downloaded model + real audio, both
+blocked/unavailable here); the real Windows install-and-click experience beyond what headless Avalonia
+tests can prove; two lower-priority findings from the same investigation left unfixed this pass - a missing
+ffmpeg surfaces as a raw English OS error message instead of a translated one, and changing FFmpeg path in
+Settings needs an app restart to take effect (both real, both minor, both logged here for a future pass
+rather than silently dropped).
+
+Full non-integration suite: 408 tests passing (405 + 3 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

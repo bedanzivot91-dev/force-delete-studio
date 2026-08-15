@@ -82,6 +82,24 @@ public class KnownSongLyricLocatorTests
         Assert.Empty(result);
     }
 
+    /// <summary>Real bug found and fixed (in the shared LyricMatcher.Normalize this locator's alignment
+    /// is built on): Whisper transcribes Serbian speech/singing in Cyrillic, but stored/typed lyrics are
+    /// Latin - before the fix, every ASR word here would have matched nothing (zero shared normalized
+    /// tokens), so "ubaci tekst iz pesme" (place known lyrics onto the timeline) would silently place
+    /// every single word at TimeSpan.Zero instead of its real, recognized position.</summary>
+    [Fact]
+    public void Align_CyrillicAsrAgainstLatinLyrics_StillAnchorsWithRealTiming()
+    {
+        var asr = new[] { Word("све", 0.0, 0.3), Word("је", 0.3, 0.5), Word("било", 0.5, 0.9), Word("лепо", 0.9, 1.3) };
+
+        var result = KnownSongLyricLocator.Align("sve je bilo lepo", asr);
+
+        Assert.Equal(4, result.Count);
+        Assert.All(result, w => Assert.True(w.IsAnchor));
+        Assert.Equal(TimeSpan.FromSeconds(0.9), result[3].Start);
+        Assert.Equal("lepo", result[3].OriginalText); // the Latin lyrics text is kept, never replaced by the Cyrillic ASR form
+    }
+
     [Fact]
     public void Align_CompletelyUnrelatedAsr_LeavesWordsUnresolvedRatherThanGuessing()
     {

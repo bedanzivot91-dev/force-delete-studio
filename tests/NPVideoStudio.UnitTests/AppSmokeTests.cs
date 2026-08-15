@@ -261,6 +261,80 @@ public class AppSmokeTests
         Assert.True(captionedQuickVideo.AutoCaptions);
     }
 
+    /// <summary>Real navigation smoke test for the exact tool a user reported as broken ("ne prepoznaje
+    /// tekst pesme") - a gap in this file's coverage until now. Confirms the page opens, initializes,
+    /// and correctly reflects the real (in this sandbox, not-downloaded) Whisper model state without
+    /// throwing - the actual matching logic itself is covered separately by LyricMatcherTests.cs.</summary>
+    [AvaloniaFact]
+    public void Navigating_ToLyricSearch_StartsWithNoFileSelectedAndReflectsRealModelState()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenLyricSearchCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var lyricSearch = Assert.IsType<LyricSearchViewModel>(viewModel.CurrentPage);
+
+        Assert.False(lyricSearch.HasSelectedFile);
+        Assert.False(lyricSearch.CanSearch);
+        // This sandbox never has the Whisper model downloaded (huggingface.co is blocked here) - a
+        // real, disclosed environment constraint, not a bug; confirming it's reported correctly rather
+        // than silently defaulting to true.
+        Assert.False(lyricSearch.IsModelReady);
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToSubtitleGenerator_StartsWithNoFileSelectedAndReflectsRealModelState()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenSubtitleGeneratorCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var subtitleGenerator = Assert.IsType<SubtitleGeneratorViewModel>(viewModel.CurrentPage);
+
+        Assert.False(subtitleGenerator.HasSelectedFile);
+        Assert.False(subtitleGenerator.CanGenerate);
+        Assert.False(subtitleGenerator.IsModelReady);
+    }
+
+    [AvaloniaFact]
+    public void Navigating_ToYouTubeDownload_StartsWithNoVideoInfoWithoutThrowing()
+    {
+        var app = (NPVideoStudio.App.App)Application.Current!;
+        var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
+
+        var viewModel = services.GetRequiredService<MainWindowViewModel>();
+        var window = new MainWindow { DataContext = viewModel };
+        window.Show();
+        Task.Run(() => viewModel.InitializeAsync()).GetAwaiter().GetResult();
+        Dispatcher.UIThread.RunJobs();
+
+        var startScreen = (StartScreenViewModel)viewModel.CurrentPage!;
+        startScreen.OpenYouTubeDownloadCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var youtubeDownload = Assert.IsType<YouTubeDownloadViewModel>(viewModel.CurrentPage);
+
+        Assert.Null(youtubeDownload.VideoTitle);
+    }
+
     [AvaloniaFact]
     public void AllEightThemes_LoadAsRealAvaloniaResourceDictionaries()
     {

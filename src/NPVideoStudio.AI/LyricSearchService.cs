@@ -26,6 +26,8 @@ public sealed class LyricSearchService : ILyricSearchService
 
     public string ModelSizeLabel => _transcriber.ModelSizeLabel;
 
+    public string ModelPath => _transcriber.ModelPath;
+
     public Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
         _transcriber.DownloadModelAsync(progress, cancellationToken);
 
