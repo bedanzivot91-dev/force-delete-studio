@@ -69,8 +69,14 @@
           <TextBlock Text="Plejer" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
                      Text="Prikazani kadar je pravi, dekodiran preko ffmpeg-a za tačnu poziciju - osvežava se pri pomeranju, koraku napred/nazad i tokom reprodukcije, ali nije neprekidan video na 30 kadrova u sekundi (svaki prikaz je pojedinačna slika, ne uživo strimovan video)." />
-          <Border Background="Black" MaxHeight="220" HorizontalAlignment="Stretch" ClipToBounds="True">
-            <Image Source="{Binding CurrentFrameBitmap}" Stretch="Uniform" MaxHeight="220" />
+          <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True">
+            <Grid>
+              <Image Source="{Binding CurrentFrameBitmap}" Stretch="Uniform" />
+              <TextBlock Text="Nema kadra za prikaz - dodajte klip na video traku i postavite plejhed na njega."
+                         IsVisible="{Binding CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
+                         Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" />
+            </Grid>
           </Border>
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding StepBackwardCommand}" />
