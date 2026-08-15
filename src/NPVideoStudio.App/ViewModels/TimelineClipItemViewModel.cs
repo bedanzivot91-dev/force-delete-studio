@@ -13,8 +13,16 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// the "before" state, silently breaking undo for style edits.</summary>
     private readonly Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? _onTextStyleChanged;
 
+    /// <summary>(clipId, transitionType, durationSeconds) - same reasoning as <see cref="_onTextStyleChanged"/>
+    /// above: goes through the owning session's SetTransition so undo captures the correct "before" state.</summary>
+    private readonly Action<string, ClipTransitionType, double>? _onTransitionChanged;
+
     public TimelineClip Clip { get; }
     public string TrackId { get; }
+
+    /// <summary>True only for a clip on a Video-kind track - transitions only make sense between two
+    /// video clips, never on caption/text/audio/image-overlay tracks.</summary>
+    public bool IsVideoClip { get; }
 
     public string Label { get; }
     public double StartSeconds => Clip.TimelineStartSeconds;
@@ -74,6 +82,33 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public IReadOnlyList<CaptionFontChoice> AvailableFontChoices { get; } = Enum.GetValues<CaptionFontChoice>();
     public IReadOnlyList<CaptionTextPosition> AvailablePositions { get; } = Enum.GetValues<CaptionTextPosition>();
 
+    /// <summary>Real transition into this clip from whichever Video-track clip is right before it - burnt
+    /// into the exported video via ffmpeg's own <c>xfade</c>/<c>acrossfade</c> filters, not a placeholder.
+    /// Has no visible effect on the very first clip on a track (nothing to transition from) or when there's
+    /// a real gap before this clip - both cases are handled gracefully by the render pipeline rather than
+    /// erroring, so leaving this set doesn't break anything if the clip before it is later moved/deleted.</summary>
+    public ClipTransitionType TransitionInType
+    {
+        get => Clip.TransitionInType;
+        set
+        {
+            if (Clip.TransitionInType == value) return;
+            _onTransitionChanged?.Invoke(Clip.Id, value, TransitionInDurationSeconds);
+        }
+    }
+
+    public double TransitionInDurationSeconds
+    {
+        get => Clip.TransitionInDurationSeconds;
+        set
+        {
+            if (Math.Abs(Clip.TransitionInDurationSeconds - value) < 1e-9) return;
+            _onTransitionChanged?.Invoke(Clip.Id, TransitionInType, value);
+        }
+    }
+
+    public IReadOnlyList<ClipTransitionType> AvailableTransitions { get; } = Enum.GetValues<ClipTransitionType>();
+
     public ICommand SplitAtPlayheadCommand { get; }
     public ICommand DeleteCommand { get; }
     public ICommand DuplicateCommand { get; }
@@ -87,6 +122,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         TimelineClip clip,
         string trackId,
         string label,
+        bool isVideoClip,
         ICommand splitAtPlayheadCommand,
         ICommand deleteCommand,
         ICommand duplicateCommand,
@@ -95,11 +131,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ICommand toggleMuteCommand,
         ICommand toggleFadeInCommand,
         ICommand toggleFadeOutCommand,
-        Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? onTextStyleChanged = null)
+        Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? onTextStyleChanged = null,
+        Action<string, ClipTransitionType, double>? onTransitionChanged = null)
     {
         Clip = clip;
         TrackId = trackId;
         Label = label;
+        IsVideoClip = isVideoClip;
         SplitAtPlayheadCommand = splitAtPlayheadCommand;
         DeleteCommand = deleteCommand;
         DuplicateCommand = duplicateCommand;
@@ -109,6 +147,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ToggleFadeInCommand = toggleFadeInCommand;
         ToggleFadeOutCommand = toggleFadeOutCommand;
         _onTextStyleChanged = onTextStyleChanged;
+        _onTransitionChanged = onTransitionChanged;
     }
 
     private static string FormatTime(double seconds)

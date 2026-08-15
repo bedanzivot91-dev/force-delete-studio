@@ -225,6 +225,20 @@ public sealed class TimelineEditSession
         liveClip.FadeOutSeconds = Math.Max(0, fadeOutSeconds);
     }
 
+    public void SetTransition(string clipId, ClipTransitionType type, double durationSeconds)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.TransitionInType = type;
+        liveClip.TransitionInDurationSeconds = Math.Max(0.05, durationSeconds);
+    }
+
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);

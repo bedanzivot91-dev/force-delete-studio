@@ -182,6 +182,15 @@
                                   <TextBlock Text="Položaj:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}" MinWidth="100" />
                                 </StackPanel>
+
+                                <!-- Real transition from the previous video clip into this one (ffmpeg xfade/acrossfade) -
+                                     "Bez prelaza" (None) keeps the old hard-cut behavior. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoClip}">
+                                  <TextBlock Text="Prelaz iz prethodnog klipa:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailableTransitions}" SelectedItem="{Binding TransitionInType}" MinWidth="130" />
+                                  <TextBlock Text="Trajanje (s):" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0" Width="110" />
+                                </StackPanel>
                               </StackPanel>
                             </Border>
                           </DataTemplate>

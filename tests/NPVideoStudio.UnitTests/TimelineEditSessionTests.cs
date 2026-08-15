@@ -200,6 +200,26 @@ public class TimelineEditSessionTests
     }
 
     [Fact]
+    public void SetTransition_UpdatesTypeAndDurationAndSupportsUndo()
+    {
+        var clip = Clip(3, 0, 3);
+        var track = Track(TimelineTrackKind.Video, Clip(0, 0, 3), clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTransition(clip.Id, ClipTransitionType.WipeLeft, 0.75);
+
+        var updated = session.Tracks[0].Clips[1];
+        Assert.Equal(ClipTransitionType.WipeLeft, updated.TransitionInType);
+        Assert.Equal(0.75, updated.TransitionInDurationSeconds);
+
+        session.Undo();
+
+        var reverted = session.Tracks[0].Clips[1];
+        Assert.Equal(ClipTransitionType.None, reverted.TransitionInType);
+        Assert.Equal(0.5, reverted.TransitionInDurationSeconds);
+    }
+
+    [Fact]
     public void SetTextStyle_ClampsFontSizeToReasonableRange()
     {
         var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };

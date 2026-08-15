@@ -35,6 +35,24 @@ public enum CaptionFontChoice
 }
 
 /// <summary>
+/// A real transition between a Video-track clip and the one right before it, rendered via ffmpeg's own
+/// <c>xfade</c>/<c>acrossfade</c> filters (each enum name here is exactly the matching <c>xfade</c>
+/// transition name ffmpeg expects, lowercased) - not a fade-to-black substitute. <see cref="None"/> keeps
+/// the old hard-cut behavior.
+/// </summary>
+public enum ClipTransitionType
+{
+    None,
+    Fade,
+    WipeLeft,
+    WipeRight,
+    SlideLeft,
+    SlideRight,
+    Dissolve,
+    ZoomIn
+}
+
+/// <summary>
 /// One clip placed on a timeline track. Non-destructive: <see cref="SourceTrimInSeconds"/>/
 /// <see cref="SourceTrimOutSeconds"/> only change which slice of the original source plays - the
 /// underlying <see cref="MediaAssetId"/> file is never modified (spec Phase 8: "non-destructive").
@@ -68,6 +86,13 @@ public sealed class TimelineClip
 
     public double FadeInSeconds { get; set; }
     public double FadeOutSeconds { get; set; }
+
+    /// <summary>Real transition FROM the previous Video-track clip INTO this one (only meaningful on a
+    /// Video-track clip that isn't the first, and only takes effect when this clip starts exactly where
+    /// the previous one ends - a real gap between them means there's nothing to transition from/to, so it
+    /// falls back to a hard cut same as <see cref="ClipTransitionType.None"/>).</summary>
+    public ClipTransitionType TransitionInType { get; set; } = ClipTransitionType.None;
+    public double TransitionInDurationSeconds { get; set; } = 0.5;
 
     public bool IsMuted { get; set; }
     public double Volume { get; set; } = 1.0;

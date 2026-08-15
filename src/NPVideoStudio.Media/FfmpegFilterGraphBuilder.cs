@@ -49,17 +49,28 @@ public static class FfmpegFilterGraphBuilder
 
         var clips = videoTrack.Clips.OrderBy(c => c.TimelineStartSeconds).ToList();
         var inputs = new List<string>();
-        var videoLabels = new List<string>();
-        var audioLabels = new List<string>();
         var filterLines = new List<string>();
 
-        var cursor = 0.0;
+        // (originalTimelineThreshold, cumulativeSecondsToSubtract) - a real transition overlaps and so
+        // shortens the rendered video relative to the authored timeline; any caption/text clip timed
+        // after a transition point needs its burned-in timestamp shifted earlier by the same amount, or
+        // it would show up late (or not at all) once the transition has compressed the timeline before it.
+        var timeShiftPoints = new List<(double OriginalThreshold, double CumulativeShift)>();
+
+        string? currentVideoLabel = null;
+        string? currentAudioLabel = null;
+        var cursor = 0.0; // original (authored) timeline position, for gap detection between clips
+        var renderedDuration = 0.0; // actual output duration so far, after any transition overlap is removed
         var segmentIndex = 0;
         var fillerIndex = 0;
+        var joinIndex = 0;
+        TimelineClip? previousClip = null;
 
         foreach (var clip in clips)
         {
             var gap = clip.TimelineStartSeconds - cursor;
+            var canTransitionFromPrevious = previousClip is not null && gap <= GapEpsilonSeconds;
+
             if (gap > GapEpsilonSeconds)
             {
                 var vFillLabel = $"[vfill{fillerIndex}]";
@@ -68,9 +79,11 @@ public static class FfmpegFilterGraphBuilder
                     $"color=c=black:s={targetWidth}x{targetHeight}:d={gap}:r={frameRate}[vfillraw{fillerIndex}]"));
                 filterLines.Add($"[vfillraw{fillerIndex}]format=yuv420p{vFillLabel}");
                 filterLines.Add(FormattableString.Invariant($"anullsrc=r=44100:cl=stereo:d={gap}{aFillLabel}"));
-                videoLabels.Add(vFillLabel);
-                audioLabels.Add(aFillLabel);
                 fillerIndex++;
+
+                (currentVideoLabel, currentAudioLabel, renderedDuration) = AppendSegment(
+                    filterLines, currentVideoLabel, currentAudioLabel, vFillLabel, aFillLabel, gap, renderedDuration, ref joinIndex);
+                previousClip = null; // a filler never participates in a transition
             }
 
             var asset = mediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId);
@@ -119,19 +132,57 @@ public static class FfmpegFilterGraphBuilder
             audioFilter.Append(aLabel);
             filterLines.Add(audioFilter.ToString());
 
-            videoLabels.Add(vLabel);
-            audioLabels.Add(aLabel);
+            var useTransition = canTransitionFromPrevious && clip.TransitionInType != ClipTransitionType.None;
+            var transitionDuration = useTransition
+                ? Math.Max(0.05, Math.Min(clip.TransitionInDurationSeconds, Math.Min(duration, previousClip!.TimelineDurationSeconds) - 0.05))
+                : 0;
+
+            if (useTransition && transitionDuration > 0)
+            {
+                var xfadeVLabel = $"[vxfade{joinIndex}]";
+                var xfadeName = TransitionName(clip.TransitionInType);
+                var offset = renderedDuration - transitionDuration;
+                filterLines.Add(FormattableString.Invariant(
+                    $"{currentVideoLabel}{vLabel}xfade=transition={xfadeName}:duration={transitionDuration}:offset={offset}{xfadeVLabel}"));
+
+                var xfadeALabel = $"[axfade{joinIndex}]";
+                filterLines.Add(FormattableString.Invariant(
+                    $"{currentAudioLabel}{aLabel}acrossfade=d={transitionDuration}{xfadeALabel}"));
+
+                joinIndex++;
+                currentVideoLabel = xfadeVLabel;
+                currentAudioLabel = xfadeALabel;
+                renderedDuration = renderedDuration + duration - transitionDuration;
+                timeShiftPoints.Add((clip.TimelineStartSeconds, timeShiftPoints.Count == 0
+                    ? transitionDuration
+                    : timeShiftPoints[^1].CumulativeShift + transitionDuration));
+            }
+            else
+            {
+                (currentVideoLabel, currentAudioLabel, renderedDuration) = AppendSegment(
+                    filterLines, currentVideoLabel, currentAudioLabel, vLabel, aLabel, duration, renderedDuration, ref joinIndex);
+            }
+
             segmentIndex++;
             cursor = clip.TimelineEndSeconds;
+            previousClip = clip;
         }
 
-        var segmentCount = videoLabels.Count;
-        filterLines.Add(FormattableString.Invariant(
-            $"{string.Concat(videoLabels)}concat=n={segmentCount}:v=1:a=0[vconcat]"));
-        filterLines.Add(FormattableString.Invariant(
-            $"{string.Concat(audioLabels)}concat=n={segmentCount}:v=0:a=1[aconcat]"));
+        double MapToRenderedTime(double originalSeconds)
+        {
+            var shift = 0.0;
+            foreach (var (threshold, cumulativeShift) in timeShiftPoints)
+            {
+                if (originalSeconds >= threshold)
+                {
+                    shift = cumulativeShift;
+                }
+            }
 
-        var currentVideoLabel = "[vconcat]";
+            return Math.Max(0, originalSeconds - shift);
+        }
+
+        var currentTextVideoLabel = currentVideoLabel!;
         var textClips = timeline.Tracks
             .Where(t => t.Kind is TimelineTrackKind.Caption or TimelineTrackKind.Text)
             .SelectMany(t => t.Clips)
@@ -152,20 +203,55 @@ public static class FfmpegFilterGraphBuilder
             };
             var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice);
             var fontFileArgument = fontFilePath is null ? string.Empty : $":fontfile='{EscapeDrawtext(fontFilePath)}'";
+            var renderedStart = MapToRenderedTime(clip.TimelineStartSeconds);
+            var renderedEnd = MapToRenderedTime(clip.TimelineEndSeconds);
             filterLines.Add(FormattableString.Invariant(
-                $"{currentVideoLabel}drawtext=text='{escapedText}':enable='between(t,{clip.TimelineStartSeconds},{clip.TimelineEndSeconds})':x=(w-text_w)/2:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}:box=1:boxcolor=black@0.5{nextLabel}"));
-            currentVideoLabel = nextLabel;
+                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x=(w-text_w)/2:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}:box=1:boxcolor=black@0.5{nextLabel}"));
+            currentTextVideoLabel = nextLabel;
         }
 
         return new FfmpegRenderPlan
         {
             InputFilePaths = inputs,
             FilterComplexArgument = string.Join(';', filterLines),
-            VideoMapLabel = currentVideoLabel,
-            AudioMapLabel = "[aconcat]",
-            TotalDurationSeconds = cursor
+            VideoMapLabel = currentTextVideoLabel,
+            AudioMapLabel = currentAudioLabel!,
+            TotalDurationSeconds = renderedDuration
         };
     }
+
+    /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
+    /// very first segment - nothing to join yet, so it just becomes the running output - gap fillers, and
+    /// any clip that doesn't have a transition into it). Returns the new running (video, audio) labels and
+    /// output duration so far.</summary>
+    private static (string VideoLabel, string AudioLabel, double Duration) AppendSegment(
+        List<string> filterLines, string? currentVideoLabel, string? currentAudioLabel,
+        string nextVideoLabel, string nextAudioLabel, double nextDuration, double runningDuration, ref int joinIndex)
+    {
+        if (currentVideoLabel is null || currentAudioLabel is null)
+        {
+            return (nextVideoLabel, nextAudioLabel, nextDuration);
+        }
+
+        var joinedVideoLabel = $"[vjoin{joinIndex}]";
+        var joinedAudioLabel = $"[ajoin{joinIndex}]";
+        filterLines.Add($"{currentVideoLabel}{nextVideoLabel}concat=n=2:v=1:a=0{joinedVideoLabel}");
+        filterLines.Add($"{currentAudioLabel}{nextAudioLabel}concat=n=2:v=0:a=1{joinedAudioLabel}");
+        joinIndex++;
+        return (joinedVideoLabel, joinedAudioLabel, runningDuration + nextDuration);
+    }
+
+    private static string TransitionName(ClipTransitionType type) => type switch
+    {
+        ClipTransitionType.Fade => "fade",
+        ClipTransitionType.WipeLeft => "wipeleft",
+        ClipTransitionType.WipeRight => "wiperight",
+        ClipTransitionType.SlideLeft => "slideleft",
+        ClipTransitionType.SlideRight => "slideright",
+        ClipTransitionType.Dissolve => "dissolve",
+        ClipTransitionType.ZoomIn => "zoomin",
+        _ => "fade"
+    };
 
     /// <summary>
     /// Escapes text for ffmpeg's drawtext `text=` option, empirically verified (not assumed) against a

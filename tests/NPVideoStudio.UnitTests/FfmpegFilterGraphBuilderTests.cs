@@ -63,9 +63,11 @@ public class FfmpegFilterGraphBuilderTests
         Assert.Equal(5, plan.TotalDurationSeconds);
         Assert.Contains("[0:v]trim=start=0:end=5", plan.FilterComplexArgument);
         Assert.Contains("scale=640:360", plan.FilterComplexArgument);
-        Assert.Contains("concat=n=1:v=1:a=0", plan.FilterComplexArgument);
-        Assert.Equal("[vconcat]", plan.VideoMapLabel);
-        Assert.Equal("[aconcat]", plan.AudioMapLabel);
+        // A single segment has nothing to join onto, so it's mapped straight out - no redundant
+        // concat=n=1 no-op filter (that changed when real cross-clip transitions were added, which need
+        // to join segments one pair at a time instead of one flat concat over everything).
+        Assert.Equal("[v0]", plan.VideoMapLabel);
+        Assert.Equal("[a0]", plan.AudioMapLabel);
     }
 
     [Fact]
@@ -83,7 +85,9 @@ public class FfmpegFilterGraphBuilderTests
 
         Assert.Contains("color=c=black:s=1920x1080:d=1", plan.FilterComplexArgument);
         Assert.Contains("anullsrc=r=44100:cl=stereo:d=1", plan.FilterComplexArgument);
-        Assert.Contains("concat=n=3:v=1:a=0", plan.FilterComplexArgument); // clipA + filler + clipB
+        // clipA + filler + clipB are joined two at a time (clipA+filler, then that+clipB) rather than one
+        // flat concat=n=3, since a real transition can only ever join exactly two segments at once.
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(plan.FilterComplexArgument, "concat=n=2:v=1:a=0").Count);
         Assert.Equal(6, plan.TotalDurationSeconds); // 3 + 1 (gap) + 2
     }
 
@@ -175,7 +179,7 @@ public class FfmpegFilterGraphBuilderTests
 
         var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset });
 
-        Assert.Contains("[vconcat]drawtext=text='Prvi'", plan.FilterComplexArgument);
+        Assert.Contains("[v0]drawtext=text='Prvi'", plan.FilterComplexArgument);
         Assert.Contains("[vtext0]drawtext=text='Drugi'", plan.FilterComplexArgument);
         Assert.Equal("[vtext1]", plan.VideoMapLabel);
     }
@@ -281,5 +285,101 @@ public class FfmpegFilterGraphBuilderTests
 
         Assert.Single(plan.InputFilePaths);
         Assert.Equal(assetA.FilePath, plan.InputFilePaths[0]);
+    }
+
+    [Fact]
+    public void Build_ClipWithTransition_UsesXfadeAndAcrossfadeWithCorrectOffset()
+    {
+        var assetA = Asset("a");
+        var assetB = Asset("b");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(assetA.Id, 0, 0, 4)); // 0..4
+        track.Clips.Add(new TimelineClip
+        {
+            MediaAssetId = assetB.Id, TimelineStartSeconds = 4, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 3, // 4..7
+            TransitionInType = ClipTransitionType.Fade, TransitionInDurationSeconds = 1
+        });
+        timeline.Tracks.Add(track);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { assetA, assetB });
+
+        // clipA is 4s; a 1s transition starting 1s before the end of the running output (offset = 4 - 1 = 3).
+        Assert.Contains("xfade=transition=fade:duration=1:offset=3", plan.FilterComplexArgument);
+        Assert.Contains("acrossfade=d=1", plan.FilterComplexArgument);
+        // Total is shorter than the naive 4+3=7s sum, because the 1s transition overlaps both clips.
+        Assert.Equal(6, plan.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void Build_TransitionType_None_FallsBackToHardCutConcat()
+    {
+        var assetA = Asset("a");
+        var assetB = Asset("b");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(assetA.Id, 0, 0, 4));
+        track.Clips.Add(new TimelineClip
+        {
+            MediaAssetId = assetB.Id, TimelineStartSeconds = 4, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 3,
+            TransitionInType = ClipTransitionType.None
+        });
+        timeline.Tracks.Add(track);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { assetA, assetB });
+
+        Assert.DoesNotContain("xfade=", plan.FilterComplexArgument);
+        Assert.Contains("concat=n=2:v=1:a=0", plan.FilterComplexArgument);
+        Assert.Equal(7, plan.TotalDurationSeconds); // no overlap - plain sum
+    }
+
+    [Fact]
+    public void Build_TransitionRequestedButThereIsARealGap_FallsBackToHardCutInsteadOfCrashing()
+    {
+        var assetA = Asset("a");
+        var assetB = Asset("b");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(assetA.Id, 0, 0, 3)); // 0..3
+        track.Clips.Add(new TimelineClip
+        {
+            MediaAssetId = assetB.Id, TimelineStartSeconds = 5, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2, // 2s gap before this clip
+            TransitionInType = ClipTransitionType.Fade, TransitionInDurationSeconds = 1
+        });
+        timeline.Tracks.Add(track);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { assetA, assetB });
+
+        // Nothing to transition from across a real gap (the filler is what's actually adjacent to clip B) -
+        // must not silently drop the gap or crash trying to cross-fade into black filler.
+        Assert.DoesNotContain("xfade=", plan.FilterComplexArgument);
+        Assert.Contains("color=c=black", plan.FilterComplexArgument);
+        Assert.Equal(7, plan.TotalDurationSeconds); // 3 + 2 (gap) + 2
+    }
+
+    [Fact]
+    public void Build_CaptionAfterATransition_TimestampIsShiftedEarlierByTheOverlapAmount()
+    {
+        var assetA = Asset("a");
+        var assetB = Asset("b");
+        var timeline = new Timeline();
+        var videoTrack = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        videoTrack.Clips.Add(VideoClip(assetA.Id, 0, 0, 4)); // 0..4
+        videoTrack.Clips.Add(new TimelineClip
+        {
+            MediaAssetId = assetB.Id, TimelineStartSeconds = 4, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 3, // 4..7
+            TransitionInType = ClipTransitionType.Fade, TransitionInDurationSeconds = 1
+        });
+        timeline.Tracks.Add(videoTrack);
+
+        // Authored at t=5..6 (inside clip B), but the 1s transition compresses everything at/after t=4
+        // by 1s, so it must actually be burned in at t=4..5 in the real (shorter) rendered video.
+        var captionTrack = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        captionTrack.Clips.Add(new TimelineClip { TextContent = "Posle prelaza", TimelineStartSeconds = 5, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 1 });
+        timeline.Tracks.Add(captionTrack);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { assetA, assetB });
+
+        Assert.Contains("drawtext=text='Posle prelaza':enable='between(t,4,5)'", plan.FilterComplexArgument);
     }
 }

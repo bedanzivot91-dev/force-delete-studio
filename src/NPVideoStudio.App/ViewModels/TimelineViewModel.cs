@@ -116,13 +116,13 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip);
         foreach (var clip in track.Clips.OrderBy(c => c.TimelineStartSeconds))
         {
-            trackItem.Clips.Add(CreateClipItem(clip, track.Id));
+            trackItem.Clips.Add(CreateClipItem(clip, track));
         }
 
         return trackItem;
     }
 
-    private TimelineClipItemViewModel CreateClipItem(TimelineClip clip, string trackId)
+    private TimelineClipItemViewModel CreateClipItem(TimelineClip clip, TimelineTrack track)
     {
         var split = new RelayCommand(() => { _session.SplitClip(clip.Id, _getPlayhead()); RefreshFromSession(); });
         var delete = new RelayCommand(() => { _session.DeleteClips(new[] { clip.Id }); RefreshFromSession(); });
@@ -137,9 +137,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTextStyle(clipId, font, size, color, position);
             RefreshFromSession();
         }
+        void OnTransitionChanged(string clipId, ClipTransitionType type, double duration)
+        {
+            _session.SetTransition(clipId, type, duration);
+            RefreshFromSession();
+        }
 
-        return new TimelineClipItemViewModel(clip, trackId, ResolveClipLabel(clip),
-            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, OnTextStyleChanged);
+        return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
+            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, OnTextStyleChanged, OnTransitionChanged);
     }
 
     private void AddClipToTrack(TimelineTrack track)

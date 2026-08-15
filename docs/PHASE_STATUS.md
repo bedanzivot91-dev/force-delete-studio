@@ -933,6 +933,50 @@ filters correctly show-and-hide each word in its own time window.
 
 Full non-integration suite: 345 tests passing (344 + 1 new), no regressions.
 
+## Eighth post-Phase-11 follow-up: real clip-to-clip transitions (xfade/acrossfade)
+
+User asked for feature parity with CapCut/VN/DaVinci-style editors, specifically "efekti i tranzicije
+između klipova" - transitions between clips did not exist at all: adjacent Video-track clips only ever
+hard-cut, and the existing `FadeInSeconds`/`FadeOutSeconds` fields fade a single clip to/from black, not
+into the *next* clip.
+
+Delivered:
+- **`ClipTransitionType`** (Domain): None/Fade/WipeLeft/WipeRight/SlideLeft/SlideRight/Dissolve/ZoomIn -
+  each name matches an ffmpeg `xfade` transition name exactly (lowercased), plus `TransitionInSeconds`/
+  `TransitionInDurationSeconds` on `TimelineClip` (the transition FROM the previous Video-track clip INTO
+  this one).
+- **`FfmpegFilterGraphBuilder` rewritten** from one flat `concat` over every segment to a left-to-right
+  join chain, so each adjacent pair can independently be either a plain hard-cut `concat` (unchanged
+  default behavior, verified byte-identical via existing regression tests) or a real `xfade`/`acrossfade`
+  pair when a transition is set - with the correct `offset` (running duration so far minus the transition
+  length) and clamped duration (never longer than either neighboring clip, so a 3s transition requested on
+  two 1s clips doesn't crash ffmpeg). A transition is skipped (falls back to hard cut) when there's a real
+  gap before the clip - nothing to blend into a black filler.
+  - **Real correctness catch, fixed before shipping**: a transition overlap shortens the rendered video
+    relative to the authored timeline, so any caption/text clip timed after a transition would show up
+    late (or past the end) unless shifted. Added a `MapToRenderedTime` pass that shifts every caption's
+    burned-in timestamp earlier by the cumulative transition overlap before it - covered by a dedicated
+    regression test (`Build_CaptionAfterATransition_TimestampIsShiftedEarlierByTheOverlapAmount`).
+- **`TimelineEditSession.SetTransition`** (undo-safe, same pattern as `SetTextStyle`) + real, working
+  ComboBox (transition type) + NumericUpDown (duration) on every Video-track clip in the workspace UI.
+
+Verified three ways: 5 new `FfmpegFilterGraphBuilderTests` (offset/duration math, `None` still hard-cuts,
+a real gap disables the transition instead of crashing, the caption time-shift) + 1 new
+`TimelineEditSessionTests` (undo), all 350 tests passing, no regressions (the no-transition path was
+re-verified identical, including against `RenderServiceTests.cs`'s real-ffmpeg-executing tests); the new
+UI controls confirmed rendering live in the compiled app under Xvfb, including opening the transition
+ComboBox and seeing all 8 real options; and - the one that actually proves the pixels are right - a real
+`ffmpeg` render of two solid-color clips (red, blue) with a 1s `fade` transition between them, with frames
+extracted before/during/after: red at t=1.5s, a genuine **red-blue blend (purple)** at t=2.5s (mid-
+transition), blue at t=4.5s - the crossfade is a real per-pixel blend, not a label that does nothing.
+
+Full non-integration suite: 350 tests passing (345 + 5 new), no regressions.
+
+Deliberately not done in this pass (explicitly told to the user, not silently dropped): audio-specific
+tooling (music library, auto-ducking, noise removal) and further caption animation styles beyond what
+already shipped (per-clip font/size/color/position, karaoke word-by-word) - both real, separately-scoped
+follow-ups for a future pass, not abandoned.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
