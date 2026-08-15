@@ -1201,6 +1201,49 @@ where disabled, "LEVO" (uppercase, left-pinned) and "desno" (right-pinned) exact
 
 Full non-integration suite: 390 tests passing (365 + 25 new), no regressions.
 
+## Thirteenth post-Phase-11 follow-up: researched player improvement - bounded-range preview rendering
+
+Direct follow-up to a real, repeated user demand: "search GitHub for a player solution, build the most
+functional player." Searched specifically for comparable open-source projects on the same tech stack as
+this app (C#/Avalonia) rather than general video-player advice, to find something concretely applicable:
+
+**Real research finding**: FramePFX (github.com/AngryCarrot789/FramePFX) is a real, open-source non-linear
+video editor written in C# using Avalonia - the closest possible comparison to this project's own
+architecture. Its own documentation describes live, full-timeline multi-clip compositing (decoding and
+compositing every clip's frames on every playback tick, without pre-rendering) as a genuinely hard,
+still-unsolved performance problem even for a project built specifically for that: "AVMediaVideoClip is
+extremely slow for large resolution videos (4K takes around 40ms to decode and render onscreen)," and the
+project is undergoing a full architectural rewrite partly because of it. This is real, useful evidence:
+the "render then play" approach this app's real LibVLC player (eleventh follow-up) already uses is the
+same pragmatic tradeoff a dedicated comparable project also lands on, not a shortcut - but it also pointed
+directly at the concrete, achievable improvement actually worth building: make the render step itself fast
+enough to not matter, instead of chasing true live compositing.
+
+**Built**: `FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStart, rangeEnd)` cuts a new,
+standalone `Timeline` containing only the clips overlapping a requested time window, each re-timed
+relative to the window's own start (trims split correctly at the boundary; a clip whose start gets cut
+off has its `TransitionInType` reset to `None`, since there's nothing left in the reduced timeline for it
+to transition from). `WorkspaceViewModel.RenderRealPreviewAroundPlayheadCommand` ("Renderuj deo oko
+plejhed-a") uses it to render only a ~15-second window around the current playhead instead of the whole
+project, wrapped in a temporary in-memory `Project` so the exact same `IRenderService`/real-ffmpeg
+pipeline the full-render command already uses runs unchanged - previewing a change deep into a 30-minute
+project now takes seconds instead of however long the whole project takes to encode. The original
+full-timeline "Renderuj celu traku i pusti sa zvukom" command stays available alongside it.
+
+Verified: 6 new `FfmpegFilterGraphBuilderTests` (clip fully inside range, clip entirely outside → track
+dropped, clip straddling the range start → trimmed + transition cleared, clip straddling the range end →
+trimmed, text style fields preserved through the cut, and a full `Build()` on a range-extracted timeline
+producing the correct shorter duration and `trim=` arguments); 2 new `WorkspaceViewModelTests` (no-clips
+guard, graceful-degrade-when-player-unavailable, mirroring the full-render command's existing tests); and
+a real, hands-on ffmpeg render (not just assertions) - a real 20-second test video with a caption
+authored at the original timeline's 11-13s, range-extracted to [10,15], rendered through real ffmpeg:
+confirmed via `ffprobe` the real output is exactly 5.000000 seconds (not 20), and a frame extracted at the
+output's 1.5s mark (corresponding to the original timeline's 11.5s, mid-caption) correctly shows the
+caption text - proving the whole cut-trim-retime-render chain is correct end to end, not just that the
+individual pieces look right in isolation.
+
+Full non-integration suite: 398 tests passing (390 + 8 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

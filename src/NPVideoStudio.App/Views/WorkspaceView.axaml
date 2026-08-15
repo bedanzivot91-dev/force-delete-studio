@@ -101,13 +101,16 @@
         <StackPanel Spacing="8">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="Pravi plejer (sa zvukom)" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button Classes="cta" Content="Renderuj i pusti sa zvukom" Command="{Binding RenderRealPreviewCommand}"
+            <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
+                    ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
+                    IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <Button Classes="cta" Content="Renderuj celu traku i pusti sa zvukom" Command="{Binding RenderRealPreviewCommand}"
                     IsEnabled="{Binding !IsRenderingRealPreview}" />
             <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
                        IsVisible="{Binding RealPreviewStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
           </StackPanel>
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Ovo renderuje trenutnu vremensku traku (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) i pušta pravi rezultat sa zvukom, neprekidno - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka." />
+                     Text="Renderuje pravi video sa zvukom, neprekidno (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka. „Deo oko plejhed-a“ renderuje samo kratak prozor umesto cele trake, pa je pregled brz i na dugačkim projektima." />
           <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True"
                   IsVisible="{Binding RealPreview.HasLoadedFile}">
             <vlc:VideoView MediaPlayer="{Binding RealPreview.MediaPlayer}" />

@@ -538,4 +538,111 @@ public class FfmpegFilterGraphBuilderTests
 
         Assert.Contains("drawtext=text='Posle prelaza':enable='between(t,4,5)'", plan.FilterComplexArgument);
     }
+
+    [Fact]
+    public void ExtractRangeTimeline_ClipFullyInsideRange_KeptWithTimeShiftedToRangeStart()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(asset.Id, 10, 0, 5)); // authored 10..15
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 8, rangeEndSeconds: 20);
+
+        var clip = Assert.Single(range.Tracks[0].Clips);
+        Assert.Equal(2, clip.TimelineStartSeconds); // 10 - 8
+        Assert.Equal(0, clip.SourceTrimInSeconds);
+        Assert.Equal(5, clip.SourceTrimOutSeconds);
+    }
+
+    [Fact]
+    public void ExtractRangeTimeline_ClipEntirelyOutsideRange_IsExcluded()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(asset.Id, 0, 0, 3)); // 0..3
+        track.Clips.Add(VideoClip(asset.Id, 20, 0, 3)); // 20..23
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 8, rangeEndSeconds: 12);
+
+        Assert.Empty(range.Tracks); // neither clip overlaps -> track has no clips -> track itself is dropped
+    }
+
+    [Fact]
+    public void ExtractRangeTimeline_ClipStraddlesRangeStart_TrimmedAndTransitionCleared()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(new TimelineClip
+        {
+            MediaAssetId = asset.Id, TimelineStartSeconds = 5, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 10, // 5..15
+            TransitionInType = ClipTransitionType.Fade, TransitionInDurationSeconds = 1
+        });
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 8, rangeEndSeconds: 20);
+
+        var clip = Assert.Single(range.Tracks[0].Clips);
+        Assert.Equal(0, clip.TimelineStartSeconds); // range itself starts at the clip's cut point
+        Assert.Equal(3, clip.SourceTrimInSeconds); // 3s of the clip's own start (5..8) was cut off
+        Assert.Equal(10, clip.SourceTrimOutSeconds); // end untouched (clip ends before the range does)
+        Assert.Equal(ClipTransitionType.None, clip.TransitionInType); // nothing left to transition from
+    }
+
+    [Fact]
+    public void ExtractRangeTimeline_ClipStraddlesRangeEnd_TrimmedAtEnd()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(asset.Id, 0, 0, 10)); // 0..10
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 0, rangeEndSeconds: 6);
+
+        var clip = Assert.Single(range.Tracks[0].Clips);
+        Assert.Equal(0, clip.TimelineStartSeconds);
+        Assert.Equal(0, clip.SourceTrimInSeconds);
+        Assert.Equal(6, clip.SourceTrimOutSeconds); // cut off at the range's own end
+    }
+
+    [Fact]
+    public void ExtractRangeTimeline_PreservesTextStyleFieldsOnCaptionClips()
+    {
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        track.Clips.Add(new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 5,
+            FontChoice = CaptionFontChoice.Impact, TextOutlineColor = "#FF0000", IsTextBold = true
+        });
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 0, rangeEndSeconds: 3);
+
+        var clip = Assert.Single(range.Tracks[0].Clips);
+        Assert.Equal(CaptionFontChoice.Impact, clip.FontChoice);
+        Assert.Equal("#FF0000", clip.TextOutlineColor);
+        Assert.True(clip.IsTextBold);
+    }
+
+    [Fact]
+    public void Build_OnARangeExtractedTimeline_ProducesAShorterRenderableTimeline()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        track.Clips.Add(VideoClip(asset.Id, 0, 0, 30)); // a long, 30s clip
+        timeline.Tracks.Add(track);
+
+        var range = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, rangeStartSeconds: 10, rangeEndSeconds: 15);
+        var plan = FfmpegFilterGraphBuilder.Build(range, new[] { asset });
+
+        Assert.Equal(5, plan.TotalDurationSeconds);
+        Assert.Contains("trim=start=10:end=15", plan.FilterComplexArgument);
+    }
 }

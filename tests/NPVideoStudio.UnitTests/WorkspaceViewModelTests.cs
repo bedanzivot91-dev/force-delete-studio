@@ -391,6 +391,48 @@ public class WorkspaceViewModelTests
         Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
     }
 
+    [AvaloniaFact]
+    public async Task RenderRealPreviewAroundPlayheadAsync_NoClipsOnTimeline_DoesNotCallRenderService()
+    {
+        var renderCalled = false;
+        var renderService = new FakeRenderService { Handler = (_, job, _) => { renderCalled = true; return Task.FromResult(job.Settings.OutputFilePath); } };
+        var workspace = CreateWorkspace(renderService: renderService);
+
+        await workspace.RenderRealPreviewAroundPlayheadCommand.ExecuteAsync(null);
+
+        Assert.False(renderCalled);
+        Assert.Contains("Dodajte bar jedan klip", workspace.RealPreviewStatusMessage);
+    }
+
+    /// <summary>Real, researched motivation (see PHASE_STATUS.md - FramePFX, a comparable open-source
+    /// editor on the same C#/Avalonia stack, documents live full-timeline compositing as still-unsolved):
+    /// this command renders only a short window around the playhead instead of the whole project, so a
+    /// preview on a long timeline stays fast. This sandbox never has libvlc available (same as the
+    /// full-render command's tests), so the command bails out before ever reaching the range-extraction/
+    /// render-service call - <see cref="FfmpegFilterGraphBuilderTests.ExtractRangeTimeline_ClipFullyInsideRange_KeptWithTimeShiftedToRangeStart"/>
+    /// and friends cover the actual range math directly; this test covers the same graceful-degrade
+    /// contract as the full-render command above.</summary>
+    [AvaloniaFact]
+    public async Task RenderRealPreviewAroundPlayheadAsync_ClipExistsButPlayerUnavailable_ReportsUnavailableWithoutCallingRenderService()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(30) };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var renderCalled = false;
+        var renderService = new FakeRenderService { Handler = (_, job, _) => { renderCalled = true; return Task.FromResult(job.Settings.OutputFilePath); } };
+        var workspace = CreateWorkspace(project, renderService: renderService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        Assert.False(workspace.RealPreview.IsAvailable);
+
+        await workspace.RenderRealPreviewAroundPlayheadCommand.ExecuteAsync(null);
+
+        Assert.False(renderCalled);
+        Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+    }
+
     /// <summary>Real feature request from a user: "automatically add text from the video" - this drives
     /// the same local Whisper transcription the standalone "Generiši titlove (SRT)" tool uses, but lands
     /// the result directly on the timeline as real caption clips instead of only a standalone .srt file.</summary>

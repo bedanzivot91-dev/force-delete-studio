@@ -250,6 +250,109 @@ public static class FfmpegFilterGraphBuilder
         };
     }
 
+    /// <summary>
+    /// Cuts a new, standalone <see cref="Timeline"/> containing only the clips that overlap
+    /// [<paramref name="rangeStartSeconds"/>, <paramref name="rangeEndSeconds"/>), each re-timed relative
+    /// to the range's own start - so <see cref="Build"/> can render just that window instead of the whole
+    /// project. Real, researched motivation (see PHASE_STATUS.md): even a dedicated open-source non-linear
+    /// editor on the same stack this app uses (FramePFX, github.com/AngryCarrot789/FramePFX, C#/Avalonia)
+    /// documents live full-timeline compositing as a genuinely hard, still-unsolved performance problem for
+    /// them (40ms to decode a single 4K frame, undergoing a full rewrite because of it) - so instead of
+    /// chasing true live compositing, this makes the existing real "render then play" pipeline
+    /// (<see cref="RenderService"/>, real ffmpeg, real audio) fast enough to feel interactive by rendering
+    /// a short window around the playhead instead of the entire timeline every time.
+    ///
+    /// A clip whose start gets cut off by the range boundary has its <see cref="TimelineClip.TransitionInType"/>
+    /// reset to <see cref="ClipTransitionType.None"/> - a transition into a clip that no longer has its
+    /// predecessor in this reduced timeline has nothing left to transition from, so keeping it set would
+    /// either crash or produce a nonsensical partial transition.
+    /// </summary>
+    public static Timeline ExtractRangeTimeline(Timeline timeline, double rangeStartSeconds, double rangeEndSeconds)
+    {
+        var result = new Timeline();
+        foreach (var track in timeline.Tracks)
+        {
+            var newTrack = new TimelineTrack
+            {
+                Kind = track.Kind,
+                Name = track.Name,
+                IsLocked = track.IsLocked,
+                IsHidden = track.IsHidden,
+                IsMuted = track.IsMuted,
+                IsSolo = track.IsSolo,
+                Volume = track.Volume
+            };
+
+            foreach (var clip in track.Clips)
+            {
+                var clipStart = clip.TimelineStartSeconds;
+                var clipEnd = clip.TimelineEndSeconds;
+                if (clipEnd <= rangeStartSeconds || clipStart >= rangeEndSeconds)
+                {
+                    continue; // no overlap with the requested window at all
+                }
+
+                var overlapStart = Math.Max(clipStart, rangeStartSeconds);
+                var overlapEnd = Math.Min(clipEnd, rangeEndSeconds);
+                var trimmedFromStart = overlapStart - clipStart;
+                var trimmedFromEnd = clipEnd - overlapEnd;
+
+                var newClip = CloneClipForRange(clip);
+                newClip.TimelineStartSeconds = overlapStart - rangeStartSeconds;
+                newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds + trimmedFromStart;
+                newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds - trimmedFromEnd;
+                if (trimmedFromStart > 0)
+                {
+                    newClip.TransitionInType = ClipTransitionType.None;
+                }
+
+                newTrack.Clips.Add(newClip);
+            }
+
+            if (newTrack.Clips.Count > 0)
+            {
+                result.Tracks.Add(newTrack);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Every <see cref="TimelineClip"/> field, listed explicitly on purpose - the same real bug
+    /// (an implicit field list silently falling behind the type over time, see
+    /// <c>TimelineEditSession.Clone</c>) is exactly what this guards against here too.</summary>
+    private static TimelineClip CloneClipForRange(TimelineClip clip) => new()
+    {
+        Id = clip.Id,
+        MediaAssetId = clip.MediaAssetId,
+        TextContent = clip.TextContent,
+        FontChoice = clip.FontChoice,
+        FontSizePx = clip.FontSizePx,
+        TextColor = clip.TextColor,
+        TextPosition = clip.TextPosition,
+        TextHorizontalAlign = clip.TextHorizontalAlign,
+        TextOutlineColor = clip.TextOutlineColor,
+        TextOutlineWidthPx = clip.TextOutlineWidthPx,
+        TextShadowColor = clip.TextShadowColor,
+        TextShadowOffsetPx = clip.TextShadowOffsetPx,
+        HasTextBackground = clip.HasTextBackground,
+        TextBackgroundColor = clip.TextBackgroundColor,
+        TextBackgroundOpacity = clip.TextBackgroundOpacity,
+        IsTextBold = clip.IsTextBold,
+        IsTextItalic = clip.IsTextItalic,
+        TextCase = clip.TextCase,
+        LineSpacingPx = clip.LineSpacingPx,
+        SourceTrimInSeconds = clip.SourceTrimInSeconds,
+        SourceTrimOutSeconds = clip.SourceTrimOutSeconds,
+        TimelineStartSeconds = clip.TimelineStartSeconds,
+        FadeInSeconds = clip.FadeInSeconds,
+        FadeOutSeconds = clip.FadeOutSeconds,
+        TransitionInType = clip.TransitionInType,
+        TransitionInDurationSeconds = clip.TransitionInDurationSeconds,
+        IsMuted = clip.IsMuted,
+        Volume = clip.Volume
+    };
+
     /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
     /// very first segment - nothing to join yet, so it just becomes the running output - gap fillers, and
     /// any clip that doesn't have a transition into it). Returns the new running (video, audio) labels and

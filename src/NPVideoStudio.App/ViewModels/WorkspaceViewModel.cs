@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.AI;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Media;
 using NPVideoStudio.App.Services;
 using Serilog;
 
@@ -71,6 +72,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// domain model doesn't support.</summary>
     [ObservableProperty]
     private string _formatSummaryLabel = string.Empty;
+
+    /// <summary>How far back from the playhead the "render just a window" quick preview starts, and how
+    /// wide that window is - see <see cref="RenderRealPreviewAroundPlayheadAsync"/>.</summary>
+    private const double RangePreviewLeadInSeconds = 2;
+    private const double RangePreviewWindowSeconds = 15;
 
     private static readonly (string Name, string[] Extensions) VideoFilter = ("Video", new[] { "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg" });
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
@@ -233,6 +239,79 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         {
             RealPreviewStatusMessage = $"Renderovanje pravog pregleda nije uspelo: {ex.Message}";
             _logger.Error(ex, "Renderovanje pravog pregleda nije uspelo");
+        }
+        finally
+        {
+            IsRenderingRealPreview = false;
+        }
+    }
+
+    /// <summary>
+    /// "Renderuj deo oko plejhed-a (brzo)" - real, researched answer to "rendering the whole timeline
+    /// before anything plays is too slow" for a long project: instead of chasing true live compositing
+    /// (researched via a real comparable open-source project - FramePFX, github.com/AngryCarrot789/FramePFX,
+    /// a non-linear editor on this exact C#/Avalonia stack - whose own docs describe live full-timeline
+    /// compositing as a still-unsolved performance problem even for a project built specifically for it),
+    /// this renders only a short window (<see cref="RangePreviewWindowSeconds"/>) around the current
+    /// playhead via <see cref="FfmpegFilterGraphBuilder.ExtractRangeTimeline"/>, so previewing a change deep
+    /// into a 30-minute project takes seconds instead of however long the whole project takes to encode.
+    /// Reuses the exact same real render pipeline as the full-timeline command above - a temporary
+    /// in-memory <see cref="Project"/> wrapping the range-extracted timeline, same media library/format.
+    /// </summary>
+    [RelayCommand]
+    private async Task RenderRealPreviewAroundPlayheadAsync()
+    {
+        if (!Timeline.CurrentTracks.Any(t => t.Clips.Count > 0))
+        {
+            RealPreviewStatusMessage = "Dodajte bar jedan klip na vremensku traku pre renderovanja pregleda.";
+            return;
+        }
+
+        if (!RealPreview.IsAvailable)
+        {
+            RealPreviewStatusMessage = RealPreview.UnavailableReason ?? "Pravi plejer nije dostupan na ovom računaru.";
+            return;
+        }
+
+        Timeline.SaveToProject();
+
+        var rangeStart = Math.Max(0, Player.CurrentTimeSeconds - RangePreviewLeadInSeconds);
+        var rangeEnd = Math.Min(Timeline.TotalDurationSeconds, rangeStart + RangePreviewWindowSeconds);
+        if (rangeEnd <= rangeStart)
+        {
+            RealPreviewStatusMessage = "Nema ničega na trenutnoj poziciji plejhed-a za renderovanje.";
+            return;
+        }
+
+        IsRenderingRealPreview = true;
+        RealPreviewStatusMessage = FormattableString.Invariant($"Renderovanje dela pregleda ({rangeStart:0.0}s-{rangeEnd:0.0}s) u toku...");
+
+        var rangeTimeline = FfmpegFilterGraphBuilder.ExtractRangeTimeline(Project.Timeline, rangeStart, rangeEnd);
+        var previewProject = new Project { Name = Project.Name, Format = Project.Format, MediaLibrary = Project.MediaLibrary, Timeline = rangeTimeline };
+        var previewPath = Path.Combine(AppSettings.PreviewCacheFolder(), $"{Project.Id}-range-preview.mp4");
+        var job = new RenderJob
+        {
+            ProjectName = Project.Name,
+            Settings = new RenderSettings
+            {
+                OutputFilePath = previewPath,
+                OverwriteConfirmed = true,
+                Preset = "ultrafast",
+                Crf = 28
+            }
+        };
+
+        try
+        {
+            var outputPath = await _renderService.RenderAsync(previewProject, job);
+            RealPreview.LoadAndPlay(outputPath);
+            RealPreviewStatusMessage = FormattableString.Invariant($"Deo pregleda ({rangeStart:0.0}s-{rangeEnd:0.0}s) je spreman i pušta se.");
+            _logger.Information("Deo pravog pregleda renderovan i pušten: {Path} ({Start}s-{End}s)", outputPath, rangeStart, rangeEnd);
+        }
+        catch (Exception ex)
+        {
+            RealPreviewStatusMessage = $"Renderovanje dela pregleda nije uspelo: {ex.Message}";
+            _logger.Error(ex, "Renderovanje dela pravog pregleda (oko plejhed-a) nije uspelo");
         }
         finally
         {
