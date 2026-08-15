@@ -28,10 +28,12 @@ public sealed class FakeProjectRepository : IProjectRepository
 
 public sealed class FakeMediaProbeService : IMediaProbeService
 {
+    public Func<string, MediaAsset>? Handler { get; set; }
+
     public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
 
     public Task<MediaAsset> ProbeAsync(string filePath, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+        Handler is null ? throw new NotSupportedException() : Task.FromResult(Handler(filePath));
 }
 
 /// <summary>Fake so workspace/timeline tests don't need real ffmpeg for preview-frame extraction -
@@ -181,6 +183,55 @@ public class WorkspaceViewModelTests
         Assert.Null(workspace.Player.CurrentFrameBitmap);
         Assert.NotEqual(noClipMessage, workspace.Player.PreviewStatusMessage);
         Assert.Contains("FFmpeg", workspace.Player.PreviewStatusMessage);
+    }
+
+    /// <summary>Regression test for a real reported point of confusion: a user imported their video via
+    /// "Dodaj medije" and expected the player to show it immediately, not understanding that a fresh
+    /// import only lands in the media library - it still needed a manually added video track, a clip
+    /// placed on it, and the playhead moved onto that clip before the player would show anything. Now the
+    /// very first video import on an empty timeline places itself on a new video track at time 0
+    /// automatically, so the player shows a frame right after import with no further clicks.</summary>
+    [AvaloniaFact]
+    public async Task ImportFilesAsync_FirstVideoOnEmptyTimeline_AutoPlacesClipSoPlayerShowsIt()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(6), HasVideoStream = true };
+        var probe = new FakeMediaProbeService { Handler = _ => asset };
+        var framePreview = new FakeFramePreviewService { Handler = (_, _) => new byte[] { 1, 2, 3 } };
+        var project = new Project { Name = "Test projekat" };
+        var workspace = new WorkspaceViewModel(
+            project, new FakeProjectRepository(), probe, new FakeStorageService(),
+            framePreview, new LoggerConfiguration().CreateLogger());
+
+        await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Single(workspace.Timeline.Tracks);
+        Assert.Equal(TimelineTrackKind.Video, workspace.Timeline.Tracks[0].Track.Kind);
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+        Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].Clip.TimelineStartSeconds);
+        Assert.NotNull(workspace.Player.CurrentFrameBitmap);
+    }
+
+    /// <summary>A second import after the timeline already has a clip on it must NOT rearrange the user's
+    /// edit in progress - it should only land in the media library, same as before this feature existed.</summary>
+    [AvaloniaFact]
+    public async Task ImportFilesAsync_SecondImportAfterTimelineAlreadyHasAClip_DoesNotAutoPlace()
+    {
+        var firstAsset = new MediaAsset { FilePath = "/tmp/first.mp4", Duration = TimeSpan.FromSeconds(6), HasVideoStream = true };
+        var secondAsset = new MediaAsset { FilePath = "/tmp/second.mp4", Duration = TimeSpan.FromSeconds(4), HasVideoStream = true };
+        var probe = new FakeMediaProbeService { Handler = path => path == "/tmp/first.mp4" ? firstAsset : secondAsset };
+        var project = new Project { Name = "Test projekat" };
+        var workspace = new WorkspaceViewModel(
+            project, new FakeProjectRepository(), probe, new FakeStorageService(),
+            new FakeFramePreviewService(), new LoggerConfiguration().CreateLogger());
+
+        await workspace.ImportFilesAsync(new[] { "/tmp/first.mp4" });
+        Dispatcher.UIThread.RunJobs();
+        await workspace.ImportFilesAsync(new[] { "/tmp/second.mp4" });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Single(workspace.Timeline.Tracks);
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
     }
 
     /// <summary>Regression test for a real bug: ExportVideo() used to fire ExportRequested without

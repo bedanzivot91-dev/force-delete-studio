@@ -804,6 +804,37 @@ Full non-integration suite: still 326 tests passing, no regressions (the install
 tests of its own - it's a thin, mostly I/O/OS-API shell with no pure logic to extract, unlike the
 ffmpeg/yt-dlp helpers).
 
+## Fifth post-Phase-11 follow-up: importing a video didn't show it in the player
+
+Real user report, with screenshots: after using "Dodaj medije" to import a video, the player still said
+"Nema kadra za prikaz". Not a bug in frame extraction (that was already fixed in the first follow-up above)
+- the actual cause was a workflow gap: importing only ever added the file to the media library. Showing
+anything in the player additionally required the user to know to click "+ Video traka", then select the
+asset in a dropdown and click "+ Klip", *then* have the playhead land on that clip - four extra, undiscoverable
+steps with no prompt telling them to do so. A first-time, non-technical user has no reason to expect
+"import" and "place on a video track so it previews" are two separate actions.
+
+Fix: `TimelineViewModel.AutoPlaceFirstImportOnEmptyTimeline(MediaAsset)` - when a freshly imported asset
+has a video stream and the timeline doesn't have a single clip on it yet (a brand new project), it
+auto-creates a video track and places the clip at time 0, exactly as if the user had clicked "+ Video
+traka" → selected it → "+ Klip" themselves. `WorkspaceViewModel.ImportFilesAsync` calls it right after each
+import. Deliberately scoped to *only* the very first import on a genuinely empty timeline - once any clip
+already exists, later imports go back to landing in the library only, so an import mid-edit never
+rearranges work already in progress. Audio-only imports are left alone (nothing to preview, and the render
+pipeline only reads a project's Video-track clips - confirmed by reading `FfmpegFilterGraphBuilder.Build`,
+which pulls both `:v` and `:a` streams for export from the Video track's clips only, so placing a
+video+audio asset there is also correct for a later Export, not just for the player).
+
+Verified two ways: two new `WorkspaceViewModelTests` (first video import on an empty timeline lands on a
+new video track at 0s and the player has a frame; a second import after a clip already exists does not
+re-arrange the timeline), and a real, live run - built the app for Linux, launched it under Xvfb, and
+drove it with `xdotool` through the actual reported flow (new YouTube-format project → Dodaj medije →
+picked the user's own previously-uploaded `user_video.mp4` from the file picker) and captured a real
+screenshot: the player shows the actual decoded frame from that file immediately after import, with the
+video track and its clip already present on the timeline, no further clicks needed.
+
+Full non-integration suite: 328 tests passing (326 + 2 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

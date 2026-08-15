@@ -157,18 +157,44 @@ public sealed partial class TimelineViewModel : ViewModelBase
                 return;
             }
 
-            var asset = SelectedMediaAsset.Asset;
-            var duration = asset.Duration.TotalSeconds > 0 ? asset.Duration.TotalSeconds : DefaultTextClipDurationSeconds;
-            clip = new TimelineClip
-            {
-                MediaAssetId = asset.Id,
-                TimelineStartSeconds = _getPlayhead(),
-                SourceTrimInSeconds = 0,
-                SourceTrimOutSeconds = duration
-            };
+            clip = BuildMediaClip(SelectedMediaAsset.Asset, _getPlayhead());
         }
 
         _session.AddClip(track.Id, clip);
+        RefreshFromSession();
+    }
+
+    private static TimelineClip BuildMediaClip(MediaAsset asset, double timelineStartSeconds)
+    {
+        var duration = asset.Duration.TotalSeconds > 0 ? asset.Duration.TotalSeconds : DefaultTextClipDurationSeconds;
+        return new TimelineClip
+        {
+            MediaAssetId = asset.Id,
+            TimelineStartSeconds = timelineStartSeconds,
+            SourceTrimInSeconds = 0,
+            SourceTrimOutSeconds = duration
+        };
+    }
+
+    /// <summary>
+    /// Places a just-imported clip on the timeline automatically, but only the very first time - once the
+    /// timeline already has any clip on it, further imports go back to the deliberate "select in the
+    /// dropdown, click + Klip" flow instead of silently rearranging an edit already in progress. Without
+    /// this, "Dodaj medije" only adds the file to the library and the player keeps showing "Nema kadra za
+    /// prikaz" until the user manually adds a track and a clip and moves the playhead onto it - a real,
+    /// reported point of confusion for a first-time import (a non-technical user has no reason to expect
+    /// importing a file and previewing it on a video track are two separate steps).
+    /// </summary>
+    public void AutoPlaceFirstImportOnEmptyTimeline(MediaAsset asset)
+    {
+        if (_session.Tracks.Any(t => t.Clips.Count > 0) || asset.ProbeError is not null || !asset.HasVideoStream)
+        {
+            return;
+        }
+
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        _session.AddTrack(track);
+        _session.AddClip(track.Id, BuildMediaClip(asset, timelineStartSeconds: 0));
         RefreshFromSession();
     }
 

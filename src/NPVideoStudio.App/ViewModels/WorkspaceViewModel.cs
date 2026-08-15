@@ -188,6 +188,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 var asset = await _mediaProbeService.ProbeAsync(path);
                 Project.MediaLibrary.Add(asset);
                 MediaLibrary.Add(CreateItemViewModel(asset));
+                Timeline.AutoPlaceFirstImportOnEmptyTimeline(asset);
 
                 if (asset.ProbeError is null)
                 {
