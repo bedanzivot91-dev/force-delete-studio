@@ -1,3 +1,5 @@
+using NPVideoStudio.Domain;
+
 namespace NPVideoStudio.Core.Services;
 
 /// <summary>
@@ -18,4 +20,9 @@ public interface ISubtitleGeneratorService
 
     /// <summary>Transcribes <paramref name="mediaFilePath"/> and writes the result as an .srt file, returning its path.</summary>
     Task<string> GenerateSrtAsync(string mediaFilePath, string outputSrtPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Transcribes <paramref name="mediaFilePath"/> and returns the raw timed segments, for a
+    /// caller that wants to place them directly onto a project's timeline as real caption clips instead
+    /// of (or in addition to) writing a standalone .srt file.</summary>
+    Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeAsync(string mediaFilePath, CancellationToken cancellationToken = default);
 }

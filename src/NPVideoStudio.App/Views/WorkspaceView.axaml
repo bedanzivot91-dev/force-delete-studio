@@ -31,6 +31,15 @@
       </Grid>
     </Border>
 
+    <Border DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Classes="cta" Content="Automatski dodaj titlove iz videa"
+                Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center"
+                   IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+    </Border>
+
     <Grid RowDefinitions="2*,Auto,2*">
       <Border Margin="20" Classes="panel" Padding="0">
         <DockPanel>
@@ -140,22 +149,37 @@
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
                             <Border Classes="panel" Padding="8" Margin="0,4,0,0">
-                              <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Spacing="2">
-                                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                  <TextBlock Text="{Binding TimingLabel}" Classes="subtle" FontSize="11" />
+                              <StackPanel Spacing="6">
+                                <Grid ColumnDefinitions="*,Auto">
+                                  <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding TimingLabel}" Classes="subtle" FontSize="11" />
+                                  </StackPanel>
+                                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                    <Button Content="◀" ToolTip.Tip="Pomeri ranije" Command="{Binding NudgeEarlierCommand}" />
+                                    <Button Content="▶" ToolTip.Tip="Pomeri kasnije" Command="{Binding NudgeLaterCommand}" />
+                                    <Button Content="Podeli" ToolTip.Tip="Podeli na poziciji plejhed-a" Command="{Binding SplitAtPlayheadCommand}" />
+                                    <Button Content="Dupliraj" Command="{Binding DuplicateCommand}" />
+                                    <ToggleButton Content="🔇" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+                                    <ToggleButton Content="Fade↗" IsChecked="{Binding HasFadeIn, Mode=OneWay}" Command="{Binding ToggleFadeInCommand}" />
+                                    <ToggleButton Content="Fade↘" IsChecked="{Binding HasFadeOut, Mode=OneWay}" Command="{Binding ToggleFadeOutCommand}" />
+                                    <Button Content="✕" ToolTip.Tip="Obriši klip" Command="{Binding DeleteCommand}" />
+                                  </StackPanel>
+                                </Grid>
+
+                                <!-- Real, working per-clip text styling (font/veličina/boja/položaj) - changing these
+                                     actually changes the burned-in text on export, unlike the "Stilovi titlova" gallery. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                  <TextBlock Text="Font:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailableFontChoices}" SelectedItem="{Binding FontChoice}" MinWidth="110" />
+                                  <TextBlock Text="Veličina:" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding FontSizePx}" Minimum="8" Maximum="200" Increment="2" Width="100" />
+                                  <TextBlock Text="Boja:" Classes="subtle" VerticalAlignment="Center" />
+                                  <TextBox Text="{Binding TextColor}" Width="90" Watermark="#FFFFFF" />
+                                  <TextBlock Text="Položaj:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}" MinWidth="100" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                  <Button Content="◀" ToolTip.Tip="Pomeri ranije" Command="{Binding NudgeEarlierCommand}" />
-                                  <Button Content="▶" ToolTip.Tip="Pomeri kasnije" Command="{Binding NudgeLaterCommand}" />
-                                  <Button Content="Podeli" ToolTip.Tip="Podeli na poziciji plejhed-a" Command="{Binding SplitAtPlayheadCommand}" />
-                                  <Button Content="Dupliraj" Command="{Binding DuplicateCommand}" />
-                                  <ToggleButton Content="🔇" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
-                                  <ToggleButton Content="Fade↗" IsChecked="{Binding HasFadeIn, Mode=OneWay}" Command="{Binding ToggleFadeInCommand}" />
-                                  <ToggleButton Content="Fade↘" IsChecked="{Binding HasFadeOut, Mode=OneWay}" Command="{Binding ToggleFadeOutCommand}" />
-                                  <Button Content="✕" ToolTip.Tip="Obriši klip" Command="{Binding DeleteCommand}" />
-                                </StackPanel>
-                              </Grid>
+                              </StackPanel>
                             </Border>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -23,6 +23,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IMediaProbeService _mediaProbeService;
     private readonly IStorageService _storageService;
     private readonly IFramePreviewService _framePreviewService;
+    private readonly ISubtitleGeneratorService _subtitleGeneratorService;
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
 
@@ -43,17 +44,24 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _statusMessage;
 
+    [ObservableProperty]
+    private bool _isGeneratingCaptions;
+
+    [ObservableProperty]
+    private string? _captionsStatusMessage;
+
     private static readonly (string Name, string[] Extensions) VideoFilter = ("Video", new[] { "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg" });
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ILogger logger)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, ILogger logger)
     {
         Project = project;
         _projectRepository = projectRepository;
         _mediaProbeService = mediaProbeService;
         _storageService = storageService;
         _framePreviewService = framePreviewService;
+        _subtitleGeneratorService = subtitleGeneratorService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
 
         foreach (var asset in project.MediaLibrary)
@@ -215,6 +223,70 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         {
             IsImporting = false;
         }
+    }
+
+    /// <summary>
+    /// "Automatski dodaj titlove iz videa" - runs the same local Whisper transcription the standalone
+    /// "Generiši titlove (SRT)" tool uses, but places the result directly onto the project's timeline as
+    /// real caption clips (see <see cref="TimelineViewModel.AddGeneratedCaptions"/>) instead of only
+    /// writing a standalone .srt file the user would otherwise have to import by hand. Deliberately does
+    /// NOT auto-download the Whisper model here - that stays a one-time, explicit consent click in the
+    /// "Generiši titlove (SRT)" tool (spec: never download without asking), so this command just tells
+    /// the user to do that first if the model isn't ready yet.
+    /// </summary>
+    [RelayCommand]
+    private async Task GenerateCaptionsForVideoAsync()
+    {
+        var videoFilePath = ResolvePrimaryVideoFilePath();
+        if (videoFilePath is null)
+        {
+            CaptionsStatusMessage = "Dodajte video na video traku pre generisanja titlova.";
+            return;
+        }
+
+        if (!_subtitleGeneratorService.IsModelReady)
+        {
+            CaptionsStatusMessage = "Model za prepoznavanje govora nije preuzet - otvorite alat \"Generiši titlove (SRT)\" i preuzmite ga (~75 MB, jednom).";
+            return;
+        }
+
+        IsGeneratingCaptions = true;
+        CaptionsStatusMessage = "Prepoznavanje govora u toku...";
+
+        try
+        {
+            var segments = await _subtitleGeneratorService.TranscribeAsync(videoFilePath);
+            Timeline.AddGeneratedCaptions(segments);
+            CaptionsStatusMessage = segments.Count == 0
+                ? "Nije prepoznat nijedan izgovoren tekst u ovom videu."
+                : $"Dodato {segments.Count} titl(ova) na vremensku traku.";
+            _logger.Information("Automatski generisani titlovi dodati na traku: {Count} segmenata iz {File}", segments.Count, videoFilePath);
+        }
+        catch (Exception ex)
+        {
+            CaptionsStatusMessage = $"Generisanje titlova nije uspelo: {ex.Message}";
+            _logger.Error(ex, "Automatsko generisanje titlova nije uspelo za {File}", videoFilePath);
+        }
+        finally
+        {
+            IsGeneratingCaptions = false;
+        }
+    }
+
+    private string? ResolvePrimaryVideoFilePath()
+    {
+        var clip = Timeline.CurrentTracks
+            .Where(t => t.Kind == TimelineTrackKind.Video)
+            .SelectMany(t => t.Clips)
+            .OrderBy(c => c.TimelineStartSeconds)
+            .FirstOrDefault(c => c.MediaAssetId is not null);
+
+        if (clip is null)
+        {
+            return null;
+        }
+
+        return Project.MediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId)?.FilePath;
     }
 
     /// <summary>

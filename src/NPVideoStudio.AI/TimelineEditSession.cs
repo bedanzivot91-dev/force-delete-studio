@@ -250,6 +250,22 @@ public sealed class TimelineEditSession
         FindClipWithTrack(clipId).Clip!.Volume = clamped;
     }
 
+    public void SetTextStyle(string clipId, CaptionFontChoice fontChoice, int fontSizePx, string textColor, CaptionTextPosition position)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.FontChoice = fontChoice;
+        liveClip.FontSizePx = Math.Clamp(fontSizePx, 8, 200);
+        liveClip.TextColor = textColor;
+        liveClip.TextPosition = position;
+    }
+
     public void SetTrackLocked(string trackId, bool locked) => SetTrackFlag(trackId, t => t.IsLocked, (t, v) => t.IsLocked = v, locked);
     public void SetTrackHidden(string trackId, bool hidden) => SetTrackFlag(trackId, t => t.IsHidden, (t, v) => t.IsHidden = v, hidden);
     public void SetTrackMuted(string trackId, bool muted) => SetTrackFlag(trackId, t => t.IsMuted, (t, v) => t.IsMuted = v, muted);

@@ -132,9 +132,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var toggleMute = new RelayCommand(() => { _session.SetClipMute(clip.Id, !clip.IsMuted); RefreshFromSession(); });
         var toggleFadeIn = new RelayCommand(() => { _session.SetFade(clip.Id, clip.FadeInSeconds > 0 ? 0 : 0.5, clip.FadeOutSeconds); RefreshFromSession(); });
         var toggleFadeOut = new RelayCommand(() => { _session.SetFade(clip.Id, clip.FadeInSeconds, clip.FadeOutSeconds > 0 ? 0 : 0.5); RefreshFromSession(); });
+        void OnTextStyleChanged(string clipId, CaptionFontChoice font, int size, string color, CaptionTextPosition position)
+        {
+            _session.SetTextStyle(clipId, font, size, color, position);
+            RefreshFromSession();
+        }
 
         return new TimelineClipItemViewModel(clip, trackId, ResolveClipLabel(clip),
-            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut);
+            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, OnTextStyleChanged);
     }
 
     private void AddClipToTrack(TimelineTrack track)
@@ -195,6 +200,39 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var track = new TimelineTrack { Kind = TimelineTrackKind.Video };
         _session.AddTrack(track);
         _session.AddClip(track.Id, BuildMediaClip(asset, timelineStartSeconds: 0));
+        RefreshFromSession();
+    }
+
+    /// <summary>
+    /// Turns real Whisper transcription output into real caption clips on a new caption track, so
+    /// "automatically add text from the video" is an actual pipeline (transcribe → clips on the
+    /// timeline → burned in on export via FfmpegFilterGraphBuilder) instead of only a standalone .srt
+    /// file the user has to import by hand. Always adds a fresh track rather than merging into an
+    /// existing one, so a re-run never overwrites captions the user already edited by hand.
+    /// </summary>
+    public void AddGeneratedCaptions(IReadOnlyList<TranscribedCaptionSegment> segments)
+    {
+        var track = new TimelineTrack { Kind = TimelineTrackKind.Caption, Name = "Automatski titlovi" };
+        _session.AddTrack(track);
+
+        foreach (var segment in segments)
+        {
+            var text = segment.Text.Trim();
+            if (text.Length == 0)
+            {
+                continue;
+            }
+
+            var clip = new TimelineClip
+            {
+                TextContent = text,
+                TimelineStartSeconds = segment.Start.TotalSeconds,
+                SourceTrimInSeconds = 0,
+                SourceTrimOutSeconds = (segment.End - segment.Start).TotalSeconds
+            };
+            _session.AddClip(track.Id, clip);
+        }
+
         RefreshFromSession();
     }
 

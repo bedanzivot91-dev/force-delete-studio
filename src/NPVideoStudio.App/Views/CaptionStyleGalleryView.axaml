@@ -13,7 +13,7 @@
       </StackPanel>
 
       <TextBlock Classes="subtle" TextWrapping="Wrap"
-                 Text="24 gotova stila (najmanje 3 po temi): red-po-red, reč-po-reč i karaoke, sa bojama uzetim direktno iz svake teme. Statički pregled boja - animacije se primenjuju tek na snimljenom videu (Faza 8/9)." />
+                 Text="24 gotova stila (najmanje 3 po temi): red-po-red, reč-po-reč i karaoke, sa bojama uzetim direktno iz svake teme. Ovo je samo statički pregled boja/ideja za inspiraciju - klik ovde NE menja izgled titla u projektu. Za font/veličinu/boju/položaj koji se stvarno vide u izvezenom videu, podesite ih direktno na titl/tekst klipu u radnom prostoru projekta (Timeline)." />
 
       <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedThemeFilter}" MinWidth="180"
                 PlaceholderText="Sve teme" HorizontalAlignment="Left">

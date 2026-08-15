@@ -1,4 +1,5 @@
 using NPVideoStudio.Core.Services;
+using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.AI;
 
@@ -31,5 +32,11 @@ public sealed class SubtitleGeneratorService : ISubtitleGeneratorService
 
         await File.WriteAllTextAsync(outputSrtPath, content, cancellationToken);
         return outputSrtPath;
+    }
+
+    public async Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeAsync(string mediaFilePath, CancellationToken cancellationToken = default)
+    {
+        var segments = await _transcriber.TranscribeAsync(mediaFilePath, cancellationToken);
+        return segments.Select(s => new TranscribedCaptionSegment(s.Start, s.End, s.Text)).ToList();
     }
 }

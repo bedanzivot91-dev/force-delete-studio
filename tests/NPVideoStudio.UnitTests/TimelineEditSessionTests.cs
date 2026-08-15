@@ -176,6 +176,42 @@ public class TimelineEditSessionTests
     }
 
     [Fact]
+    public void SetTextStyle_UpdatesAllFourFieldsAndSupportsUndo()
+    {
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var track = Track(TimelineTrackKind.Caption, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTextStyle(clip.Id, CaptionFontChoice.Impact, 48, "#FF0000", CaptionTextPosition.Top);
+
+        var updated = session.Tracks[0].Clips[0];
+        Assert.Equal(CaptionFontChoice.Impact, updated.FontChoice);
+        Assert.Equal(48, updated.FontSizePx);
+        Assert.Equal("#FF0000", updated.TextColor);
+        Assert.Equal(CaptionTextPosition.Top, updated.TextPosition);
+
+        session.Undo();
+
+        var reverted = session.Tracks[0].Clips[0];
+        Assert.Equal(CaptionFontChoice.Default, reverted.FontChoice);
+        Assert.Equal(36, reverted.FontSizePx);
+        Assert.Equal("#FFFFFF", reverted.TextColor);
+        Assert.Equal(CaptionTextPosition.Bottom, reverted.TextPosition);
+    }
+
+    [Fact]
+    public void SetTextStyle_ClampsFontSizeToReasonableRange()
+    {
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var track = Track(TimelineTrackKind.Caption, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTextStyle(clip.Id, CaptionFontChoice.Default, 5000, "#FFFFFF", CaptionTextPosition.Bottom);
+
+        Assert.Equal(200, session.Tracks[0].Clips[0].FontSizePx);
+    }
+
+    [Fact]
     public void TrackFlags_LockHideMuteSolo_ToggleIndependently()
     {
         var track = Track(TimelineTrackKind.Video);

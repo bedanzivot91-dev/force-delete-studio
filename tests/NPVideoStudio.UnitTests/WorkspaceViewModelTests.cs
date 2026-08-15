@@ -52,7 +52,7 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 /// </summary>
 public class WorkspaceViewModelTests
 {
-    private static WorkspaceViewModel CreateWorkspace(Project? project = null)
+    private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null)
     {
         project ??= new Project { Name = "Test projekat" };
         return new WorkspaceViewModel(
@@ -61,6 +61,7 @@ public class WorkspaceViewModelTests
             new FakeMediaProbeService(),
             new FakeStorageService(),
             new FakeFramePreviewService(),
+            subtitleGeneratorService ?? new FakeSubtitleGeneratorService(),
             new LoggerConfiguration().CreateLogger());
     }
 
@@ -169,7 +170,7 @@ public class WorkspaceViewModelTests
         var framePreview = new FakeFramePreviewService { Handler = (_, _) => null };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), new FakeMediaProbeService(), new FakeStorageService(),
-            framePreview, new LoggerConfiguration().CreateLogger());
+            framePreview, new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
         workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
 
         var noClipMessage = workspace.Player.PreviewStatusMessage;
@@ -200,7 +201,7 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            framePreview, new LoggerConfiguration().CreateLogger());
+            framePreview, new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
         Dispatcher.UIThread.RunJobs();
@@ -223,7 +224,7 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            new FakeFramePreviewService(), new LoggerConfiguration().CreateLogger());
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/first.mp4" });
         Dispatcher.UIThread.RunJobs();
@@ -259,5 +260,66 @@ public class WorkspaceViewModelTests
         Assert.True(exportRequestedFired);
         Assert.Single(project.Timeline.Tracks);
         Assert.Single(project.Timeline.Tracks[0].Clips);
+    }
+
+    /// <summary>Real feature request from a user: "automatically add text from the video" - this drives
+    /// the same local Whisper transcription the standalone "Generiši titlove (SRT)" tool uses, but lands
+    /// the result directly on the timeline as real caption clips instead of only a standalone .srt file.</summary>
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_VideoOnTimelineAndModelReady_AddsCaptionTrackWithClips()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService
+        {
+            IsModelReady = true,
+            SegmentsToReturn = new[]
+            {
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2), "Zdravo"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), "svima")
+            }
+        };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        var captionTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Caption);
+        Assert.Equal(2, captionTrack.Clips.Count);
+        Assert.Equal("Zdravo", captionTrack.Clips[0].Clip.TextContent);
+        Assert.Equal(2, captionTrack.Clips[1].Clip.TimelineStartSeconds);
+        Assert.Contains("2", workspace.CaptionsStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_NoVideoOnTimeline_DoesNotCallTranscribeAndExplainsWhy()
+    {
+        var workspace = CreateWorkspace(subtitleGeneratorService: new FakeSubtitleGeneratorService { IsModelReady = true });
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.Empty(workspace.Timeline.Tracks);
+        Assert.Contains("Dodajte video", workspace.CaptionsStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_ModelNotReady_DoesNotAddTrackAndPointsToSrtTool()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService { IsModelReady = false };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.Single(workspace.Timeline.Tracks); // still just the video track, no caption track added
+        Assert.Contains("Generiši titlove (SRT)", workspace.CaptionsStatusMessage);
     }
 }

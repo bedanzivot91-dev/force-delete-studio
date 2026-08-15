@@ -191,6 +191,81 @@ public class FfmpegFilterGraphBuilderTests
     }
 
     [Fact]
+    public void Build_TextClipWithCustomStyle_UsesPerClipFontSizeColorAndPosition()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var videoTrack = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        videoTrack.Clips.Add(VideoClip(asset.Id, 0, 0, 10));
+        timeline.Tracks.Add(videoTrack);
+
+        var captionTrack = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        captionTrack.Clips.Add(new TimelineClip
+        {
+            TextContent = "Zdravo",
+            TimelineStartSeconds = 0,
+            SourceTrimInSeconds = 0,
+            SourceTrimOutSeconds = 2,
+            FontSizePx = 60,
+            TextColor = "#00FF00",
+            TextPosition = CaptionTextPosition.Top
+        });
+        timeline.Tracks.Add(captionTrack);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset });
+
+        Assert.Contains("fontsize=60", plan.FilterComplexArgument);
+        Assert.Contains("fontcolor=#00FF00", plan.FilterComplexArgument);
+        Assert.Contains("y=h*0.08", plan.FilterComplexArgument);
+    }
+
+    [Theory]
+    [InlineData(CaptionTextPosition.Top, "h*0.08")]
+    [InlineData(CaptionTextPosition.Middle, "(h-text_h)/2")]
+    [InlineData(CaptionTextPosition.Bottom, "h*0.85")]
+    public void Build_TextClip_MapsPositionEnumToCorrectYExpression(CaptionTextPosition position, string expectedY)
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var videoTrack = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        videoTrack.Clips.Add(VideoClip(asset.Id, 0, 0, 10));
+        timeline.Tracks.Add(videoTrack);
+
+        var captionTrack = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        captionTrack.Clips.Add(new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextPosition = position
+        });
+        timeline.Tracks.Add(captionTrack);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset });
+
+        Assert.Contains($"y={expectedY}", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClip_DefaultStyleMatchesPreviousHardcodedLook()
+    {
+        var asset = Asset("a");
+        var timeline = new Timeline();
+        var videoTrack = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        videoTrack.Clips.Add(VideoClip(asset.Id, 0, 0, 10));
+        timeline.Tracks.Add(videoTrack);
+
+        var captionTrack = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        captionTrack.Clips.Add(new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 });
+        timeline.Tracks.Add(captionTrack);
+
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset });
+
+        Assert.Contains("fontsize=36", plan.FilterComplexArgument);
+        Assert.Contains("fontcolor=#FFFFFF", plan.FilterComplexArgument);
+        Assert.Contains("y=h*0.85", plan.FilterComplexArgument);
+        Assert.DoesNotContain("fontfile=", plan.FilterComplexArgument);
+    }
+
+    [Fact]
     public void Build_OnlyFirstVideoTrackWithClipsIsRendered()
     {
         var assetA = Asset("a");

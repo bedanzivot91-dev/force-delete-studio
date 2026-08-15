@@ -144,8 +144,16 @@ public static class FfmpegFilterGraphBuilder
             var clip = textClips[i];
             var nextLabel = $"[vtext{i}]";
             var escapedText = EscapeDrawtext(clip.TextContent!);
+            var y = clip.TextPosition switch
+            {
+                CaptionTextPosition.Top => "h*0.08",
+                CaptionTextPosition.Middle => "(h-text_h)/2",
+                _ => "h*0.85"
+            };
+            var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice);
+            var fontFileArgument = fontFilePath is null ? string.Empty : $":fontfile='{EscapeDrawtext(fontFilePath)}'";
             filterLines.Add(FormattableString.Invariant(
-                $"{currentVideoLabel}drawtext=text='{escapedText}':enable='between(t,{clip.TimelineStartSeconds},{clip.TimelineEndSeconds})':x=(w-text_w)/2:y=h*0.85:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5{nextLabel}"));
+                $"{currentVideoLabel}drawtext=text='{escapedText}':enable='between(t,{clip.TimelineStartSeconds},{clip.TimelineEndSeconds})':x=(w-text_w)/2:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}:box=1:boxcolor=black@0.5{nextLabel}"));
             currentVideoLabel = nextLabel;
         }
 

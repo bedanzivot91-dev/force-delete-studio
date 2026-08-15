@@ -9,6 +9,31 @@ public enum TimelineTrackKind
     ImageOverlay
 }
 
+/// <summary>Where a Caption/Text clip's <see cref="TimelineClip.TextContent"/> is drawn on the frame.</summary>
+public enum CaptionTextPosition
+{
+    Top,
+    Middle,
+    Bottom
+}
+
+/// <summary>
+/// A small set of common, always-present Windows system fonts (this app is Windows-only - see
+/// CLAUDE.md) rather than an open-ended font picker: resolving an arbitrary font name to a real
+/// installed file is unreliable, but these ship with every Windows install. <see cref="Default"/> uses
+/// whatever ffmpeg's own default font is (no fontfile passed), matching the burned-in text's look before
+/// this per-clip styling existed.
+/// </summary>
+public enum CaptionFontChoice
+{
+    Default,
+    Arial,
+    ArialBold,
+    Impact,
+    ComicSansBold,
+    Georgia
+}
+
 /// <summary>
 /// One clip placed on a timeline track. Non-destructive: <see cref="SourceTrimInSeconds"/>/
 /// <see cref="SourceTrimOutSeconds"/> only change which slice of the original source plays - the
@@ -23,6 +48,16 @@ public sealed class TimelineClip
 
     /// <summary>Plain text for a Text-overlay clip - null for every other track kind.</summary>
     public string? TextContent { get; set; }
+
+    /// <summary>Only meaningful when <see cref="TextContent"/> is set - real, per-clip text styling that
+    /// actually reaches the exported video via <c>FfmpegFilterGraphBuilder</c> (unlike the 24 "Stilovi
+    /// titlova" gallery presets, which are a preview-only color swatch today and do not affect export).</summary>
+    public CaptionFontChoice FontChoice { get; set; } = CaptionFontChoice.Default;
+    public int FontSizePx { get; set; } = 36;
+
+    /// <summary>Hex color, e.g. "#FFFFFF" - passed straight through to ffmpeg's drawtext fontcolor.</summary>
+    public string TextColor { get; set; } = "#FFFFFF";
+    public CaptionTextPosition TextPosition { get; set; } = CaptionTextPosition.Bottom;
 
     public double SourceTrimInSeconds { get; set; }
     public double SourceTrimOutSeconds { get; set; }

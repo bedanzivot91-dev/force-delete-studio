@@ -835,6 +835,65 @@ video track and its clip already present on the timeline, no further clicks need
 
 Full non-integration suite: 328 tests passing (326 + 2 new), no regressions.
 
+## Sixth post-Phase-11 follow-up: real auto-captions on the timeline + working per-clip text styling
+
+User asked for a real feature set, not a bug fix: automatically put speech-to-text captions onto the
+video, and be able to actually change the caption's font/size/color/position/placement. Investigated
+before writing code and found the honest gap: "Generiši titlove (SRT)" already really transcribes speech
+locally (Whisper.net), but only ever wrote a standalone `.srt` file - nothing connected that output to the
+timeline. Separately, "Stilovi titlova" (24 presets) turned out to be a **preview-only color swatch**:
+`FfmpegFilterGraphBuilder`'s caption/text burn-in used one hardcoded `drawtext` (fontsize=36, white,
+fixed position) for every clip regardless of which "style" was picked - changing a style in that gallery
+never touched the exported video. Karaoke word-by-word highlighting was confirmed to not exist at all (the
+Python word-timestamp path is an explicit `"...još nije implementirana"` stub) - out of scope for this
+pass, called out honestly to the user as separate, larger follow-up work.
+
+Delivered, real and working:
+- **`TimelineClip` gained real per-clip style fields**: `FontChoice` (`CaptionFontChoice`: Default/Arial/
+  ArialBold/Impact/ComicSansBold/Georgia), `FontSizePx`, `TextColor` (hex), `TextPosition`
+  (Top/Middle/Bottom) - `FfmpegFilterGraphBuilder` now builds each caption/text clip's `drawtext` from
+  these instead of one hardcoded style, confirmed with a real `ffmpeg` render + extracted frame (custom
+  70px green top-positioned text actually appeared in the output, not just the filter string).
+  `CaptionFontResolver` maps a font choice to a real Windows system font file path (`C:\Windows\Fonts\
+  *.ttf` - this app is Windows-only) for `drawtext`'s `fontfile=`, returning null (no fontfile arg, same
+  as before) for `Default` or on any machine where that file doesn't exist, so a missing font degrades
+  gracefully instead of breaking export.
+- **`TimelineEditSession.SetTextStyle`**: the fifth mutator alongside SetFade/SetClipMute/etc, with a real
+  undo/redo test (style changes correctly revert on Undo).
+- **Real, per-clip UI controls** on every Caption/Text timeline clip (font/size/color/position), wired via
+  `TimelineClipItemViewModel` → `TimelineViewModel.CreateClipItem`'s new `onTextStyleChanged` callback -
+  deliberately does NOT mutate the live session clip directly before calling into the session (would have
+  made the session's own undo snapshot capture the *new* value as if it were "before", silently breaking
+  undo - caught and fixed before shipping, covered by the SetTextStyle undo test above).
+- **"Automatski dodaj titlove iz videa"** button in the workspace: runs the same local Whisper
+  transcription as the SRT tool but calls the new `ISubtitleGeneratorService.TranscribeAsync` (returns
+  timed segments instead of writing a file) and `TimelineViewModel.AddGeneratedCaptions` places each
+  segment as a real clip on a new Caption track - a genuine transcribe → clips-on-timeline → burned-into-
+  export pipeline where none existed before. Deliberately does not auto-download the Whisper model
+  (consent-gated download stays a one-time explicit click in the SRT tool); tells the user to do that
+  first if it's not ready yet.
+- **`CaptionStyleGalleryView`'s disclosure text corrected** - it previously implied styles "apply... on the
+  exported video (Faza 8/9)", which was never true; now honestly says the gallery is inspiration only and
+  points at the real, working per-clip controls in the timeline.
+
+Verified three ways: 16 new unit tests (`SetTextStyle` incl. undo/clamping, `FfmpegFilterGraphBuilder`
+position-enum mapping + default-matches-old-look, `CaptionFontResolver` on/off Windows, three
+`GenerateCaptionsForVideoAsync` scenarios - video present, no video yet, model not downloaded); a live run
+of the actual compiled app under Xvfb confirming the new button/message render and read correctly; and,
+since repeated synthetic xdotool clicks inside the Timeline's `ItemsControl` proved flaky in this specific
+headless sandbox (first click in that region reliably worked, later ones intermittently didn't - isolated
+to be an Xvfb/xdotool synthetic-input quirk, not a code regression, since automated tests exercise the
+exact same commands directly and always pass), the export path itself was verified by driving the real
+`FfmpegFilterGraphBuilder` + a real `ffmpeg` process end-to-end and inspecting the actual rendered frame -
+which showed the exact custom font size/color/position requested, burned into a real playable MP4.
+
+Full non-integration suite: 344 tests passing (328 + 16 new), no regressions.
+
+Deliberately not done in this pass: karaoke word-by-word highlighting (needs real word-level ASR
+timestamps, which don't exist anywhere working in this codebase yet - a genuinely separate, larger piece
+of work), and a font *name* picker beyond the fixed six safe system fonts (arbitrary font names need
+fontconfig, not guaranteed present in the bundled ffmpeg build).
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
