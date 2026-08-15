@@ -33,4 +33,36 @@ public class CaptionFontResolverTests
             Assert.True(File.Exists(result));
         }
     }
+
+    [Theory]
+    [InlineData(CaptionFontChoice.Arial, false, false, "arial.ttf")]
+    [InlineData(CaptionFontChoice.Arial, true, false, "arialbd.ttf")]
+    [InlineData(CaptionFontChoice.Arial, false, true, "ariali.ttf")]
+    [InlineData(CaptionFontChoice.Arial, true, true, "arialbi.ttf")]
+    [InlineData(CaptionFontChoice.Georgia, true, true, "georgiaz.ttf")]
+    [InlineData(CaptionFontChoice.ComicSansBold, false, true, "comicz.ttf")] // already-bold preset + italic toggle -> bold italic variant
+    public void ResolveFontFilePath_BoldItalicToggles_MapToCorrectVariantOrDegradeToNull(
+        CaptionFontChoice choice, bool isBold, bool isItalic, string expectedFileName)
+    {
+        var result = CaptionFontResolver.ResolveFontFilePath(choice, isBold, isItalic);
+
+        if (result is not null)
+        {
+            Assert.EndsWith(expectedFileName, result, StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(result));
+        }
+    }
+
+    [Fact]
+    public void ResolveFontFilePath_ArialBoldChoice_StaysBoldEvenWithoutTheBoldToggle()
+    {
+        // ArialBold is already permanently bold as a font *choice* - the isBold *toggle* being false must
+        // not un-bold it (the toggle and the preset are two independent ways to arrive at bold).
+        var result = CaptionFontResolver.ResolveFontFilePath(CaptionFontChoice.ArialBold, isBold: false, isItalic: false);
+
+        if (result is not null)
+        {
+            Assert.EndsWith("arialbd.ttf", result, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }

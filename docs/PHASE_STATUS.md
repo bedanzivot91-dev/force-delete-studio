@@ -1128,6 +1128,79 @@ gap as the still-open Phase 11 checklist below.
 
 Full non-integration suite: 365 tests passing (359 + 6 new), no regressions.
 
+## Twelfth post-Phase-11 follow-up: 11 real text-on-video features, researched against real GitHub prior art
+
+Real user demand: "find similar programs on GitHub, focus on text-in-video, add at least 10 more real
+functions." Research: searched for open-source caption/text-overlay tooling and looked closely at
+OpenReel Video (github.com/Augani/openreel-video, an open-source CapCut-style editor) - confirmed its
+real feature vocabulary is outline/shadow/background/alignment/case-transform/karaoke-highlight, which is
+exactly the category of controls FFmpeg's own `drawtext` filter documents natively (confirmed by reading
+FFmpeg's real filter source docs, `doc/filters.texi`, not guessed) - so this pass grounds every new control
+in both real prior art and real, existing FFmpeg capability, not invented syntax.
+
+**11 real, working per-clip text features added** (all in `TimelineClip`/`TextAdvancedStyle`, wired through
+`TimelineEditSession.SetTextAdvancedStyle`/`ApplyTextStyleToAllClipsOnTrack`, `TimelineClipItemViewModel`,
+and burned into the actual export via `FfmpegFilterGraphBuilder` - not preview-only):
+
+1. **Outline/kontura** - `TextOutlineColor`/`TextOutlineWidthPx` → drawtext `borderw`/`bordercolor`.
+2. **Shadow/senka** - `TextShadowColor`/`TextShadowOffsetPx` → drawtext `shadowcolor`/`shadowx`/`shadowy`.
+3. **Background box on/off** - `HasTextBackground` (default true, preserves the old always-on look) +
+   `TextBackgroundColor`/`TextBackgroundOpacity` → drawtext `box`/`boxcolor`/`boxborderw`. Before this, the
+   box was permanently hardcoded on with no way to turn it off - a real, previously-missing control.
+4. **Horizontal alignment** - new `TextHorizontalAlign` enum (Left/Center/Right), independent of the
+   existing vertical `CaptionTextPosition` (Top/Middle/Bottom) - combined, a real 9-zone position grid
+   instead of always horizontally centered.
+5. **Bold toggle** - `IsTextBold`, independent of the `ArialBold`/`ComicSansBold` font-choice presets (an
+   already-bold preset stays bold with the toggle off; the toggle can also bold a plain Arial/Georgia
+   clip). `CaptionFontResolver.ResolveFontFilePath` now resolves the real bold/italic font file variant
+   per family (arialbd.ttf, georgiab.ttf, comicbd.ttf, etc.) instead of only supporting pre-baked presets.
+6. **Italic toggle** - `IsTextItalic`, same mechanism (ariali.ttf/georgiai.ttf/comici.ttf, or the combined
+   bold-italic variant when both toggles are on).
+7. **Case transform** - `TextCase` (Normal/UPPERCASE/lowercase/Title Case), applied to the burned-in text
+   only - never mutates the actual `TextContent`/transcription behind it.
+8. **Line spacing** - `LineSpacingPx` → drawtext `line_spacing` (matters for multi-line captions).
+9. **Text fade-in/fade-out** - reuses the existing `FadeInSeconds`/`FadeOutSeconds` fields (already present
+   on every clip type, but never previously applied to Caption/Text clips at all) via drawtext's `alpha`
+   option, confirmed from FFmpeg's own docs to accept a per-frame expression (not just a fixed value) -
+   ramps 0→1 over the fade-in window and 1→0 over the fade-out window.
+10. **9-zone position** - the real combination of #4 (horizontal) and the pre-existing vertical position.
+11. **"Primeni na sve titlove na traci" (apply style to all clips on this track)** - a real bulk-editing
+    command (`TimelineEditSession.ApplyTextStyleToAllClipsOnTrack`), so styling a batch of auto-generated
+    captions doesn't mean re-clicking the same font/outline/shadow/etc. on every single clip by hand. Never
+    touches `TextContent` on the target clips.
+
+**Real bug found and fixed while writing this pass's tests** (not hypothetical - caught by a real failing
+test, not code review): `TimelineEditSession`'s internal `Clone(TimelineClip)` - used by every single undo
+snapshot - had an explicit field list that had silently fallen behind `TimelineClip` itself over several
+past sessions. `FontChoice`, `FontSizePx`, `TextColor`, `TextPosition`, `TransitionInType`,
+`TransitionInDurationSeconds` were all missing from it, meaning **every edit's undo snapshot silently
+discarded a clip's text style and transition settings**, resetting them to hardcoded type defaults on
+undo instead of the actual previous value. A style-A → style-B → Undo sequence landed on defaults, not
+style A. Existing tests never caught this because they always undid from an already-default starting
+state, where the bug is invisible. Fixed by listing every `TimelineClip` field explicitly (deliberately no
+reflection/serialization shortcut, so a future field addition is a visible one-line diff, not another
+silent gap) and covered with a new regression test
+(`SetTextStyle_TwoSuccessiveEdits_UndoRevertsToFirstEditNotHardcodedDefaults`) that fails without the fix
+and passes with it.
+
+**Player**: no further player work this pass - the eleventh follow-up already added a real LibVLC-based
+continuous audio+video player, using the same GitHub-sourced approach (LibVLCSharp/libvlc) many real
+open-source video editors use for embedded playback; this user message explicitly redirected focus to
+text-in-video instead.
+
+Verified: 25 new/updated tests (`FfmpegFilterGraphBuilderTests` - outline, no-outline, shadow, background
+off, custom background color/opacity, all 3 horizontal alignments, all 4 case transforms, line spacing,
+no-alpha-without-fade, alpha-with-fade-in-and-out; `TimelineEditSessionTests` - SetTextAdvancedStyle
++ undo, the two-edits-then-undo regression test, ApplyTextStyleToAllClipsOnTrack correctness +
+track-scoping + undo; `CaptionFontResolverTests` - bold/italic variant resolution, already-bold-preset
+stays bold without the toggle) plus a real, hands-on ffmpeg render (not just assertions): a 6-second test
+video with 5 back-to-back caption clips (default/outline/shadow/left-align-uppercase/right-align),
+rendered through the real `FfmpegFilterGraphBuilder` output with real ffmpeg, frames extracted at each
+clip's midpoint and visually inspected - confirmed a red outline, a blue drop shadow, no background box
+where disabled, "LEVO" (uppercase, left-pinned) and "desno" (right-pinned) exactly where expected.
+
+Full non-integration suite: 390 tests passing (365 + 25 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

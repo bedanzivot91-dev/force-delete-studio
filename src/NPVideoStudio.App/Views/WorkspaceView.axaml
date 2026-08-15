@@ -208,6 +208,32 @@
                                   <TextBox Text="{Binding TextColor}" Width="90" Watermark="#FFFFFF" />
                                   <TextBlock Text="Položaj:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}" MinWidth="100" />
+                                  <TextBlock Text="Poravnanje:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}" MinWidth="100" />
+                                </StackPanel>
+
+                                <!-- Real outline/senka/pozadina/podebljano/kurziv/VELIKA-mala slova/razmak redova -
+                                     svaka od ovih stvarno menja ono što se snima u video, ne samo pregled. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                  <CheckBox Content="Kontura" IsChecked="{Binding HasOutline}" />
+                                  <TextBox Text="{Binding OutlineColor}" Width="80" Watermark="#000000" IsVisible="{Binding HasOutline}" />
+                                  <NumericUpDown Value="{Binding OutlineWidthPx}" Minimum="1" Maximum="20" Width="90" IsVisible="{Binding HasOutline}" />
+                                  <CheckBox Content="Senka" IsChecked="{Binding HasShadow}" />
+                                  <TextBox Text="{Binding ShadowColor}" Width="80" Watermark="#000000" IsVisible="{Binding HasShadow}" />
+                                  <NumericUpDown Value="{Binding ShadowOffsetPx}" Minimum="1" Maximum="20" Width="90" IsVisible="{Binding HasShadow}" />
+                                  <CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" />
+                                  <TextBox Text="{Binding BackgroundColor}" Width="80" Watermark="#000000" IsVisible="{Binding HasBackground}" />
+                                  <NumericUpDown Value="{Binding BackgroundOpacityPercent}" Minimum="0" Maximum="100" Width="90" IsVisible="{Binding HasBackground}" ToolTip.Tip="Providnost pozadine (%)" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                  <CheckBox Content="B" FontWeight="Bold" ToolTip.Tip="Podebljano" IsChecked="{Binding IsBold}" />
+                                  <CheckBox Content="I" FontStyle="Italic" ToolTip.Tip="Kurziv" IsChecked="{Binding IsItalic}" />
+                                  <TextBlock Text="Slova:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailableTextCases}" SelectedItem="{Binding TextCase}" MinWidth="120" />
+                                  <TextBlock Text="Razmak redova:" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding LineSpacingPx}" Minimum="0" Maximum="40" Width="100" />
+                                  <Button Content="Primeni na sve titlove na traci" Command="{Binding ApplyStyleToAllOnTrackCommand}"
+                                          ToolTip.Tip="Kopira font/veličinu/boju/položaj/konturu/senku/pozadinu/stil na svaki drugi titl na ovoj traci" />
                                 </StackPanel>
 
                                 <!-- Real transition from the previous video clip into this one (ffmpeg xfade/acrossfade) -

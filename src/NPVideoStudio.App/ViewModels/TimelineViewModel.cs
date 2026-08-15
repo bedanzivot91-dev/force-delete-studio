@@ -132,6 +132,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var toggleMute = new RelayCommand(() => { _session.SetClipMute(clip.Id, !clip.IsMuted); RefreshFromSession(); });
         var toggleFadeIn = new RelayCommand(() => { _session.SetFade(clip.Id, clip.FadeInSeconds > 0 ? 0 : 0.5, clip.FadeOutSeconds); RefreshFromSession(); });
         var toggleFadeOut = new RelayCommand(() => { _session.SetFade(clip.Id, clip.FadeInSeconds, clip.FadeOutSeconds > 0 ? 0 : 0.5); RefreshFromSession(); });
+        var applyStyleToAllOnTrack = new RelayCommand(() => { _session.ApplyTextStyleToAllClipsOnTrack(track.Id, clip.Id); RefreshFromSession(); });
         void OnTextStyleChanged(string clipId, CaptionFontChoice font, int size, string color, CaptionTextPosition position)
         {
             _session.SetTextStyle(clipId, font, size, color, position);
@@ -147,10 +148,15 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTextContent(clipId, newText);
             RefreshFromSession();
         }
+        void OnAdvancedStyleChanged(string clipId, TextAdvancedStyle style)
+        {
+            _session.SetTextAdvancedStyle(clipId, style);
+            RefreshFromSession();
+        }
 
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
-            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut,
-            OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged);
+            split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
+            OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged);
     }
 
     private void AddClipToTrack(TimelineTrack track)

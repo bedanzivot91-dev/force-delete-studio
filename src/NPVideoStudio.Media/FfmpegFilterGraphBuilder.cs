@@ -194,19 +194,49 @@ public static class FfmpegFilterGraphBuilder
         {
             var clip = textClips[i];
             var nextLabel = $"[vtext{i}]";
-            var escapedText = EscapeDrawtext(clip.TextContent!);
+            var displayText = ApplyTextCase(clip.TextContent!, clip.TextCase);
+            var escapedText = EscapeDrawtext(displayText);
             var y = clip.TextPosition switch
             {
                 CaptionTextPosition.Top => "h*0.08",
                 CaptionTextPosition.Middle => "(h-text_h)/2",
                 _ => "h*0.85"
             };
-            var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice);
+            var x = clip.TextHorizontalAlign switch
+            {
+                TextHorizontalAlign.Left => "w*0.05",
+                TextHorizontalAlign.Right => "w-text_w-w*0.05",
+                _ => "(w-text_w)/2"
+            };
+            var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice, clip.IsTextBold, clip.IsTextItalic);
             var fontFileArgument = fontFilePath is null ? string.Empty : $":fontfile='{EscapeDrawtext(fontFilePath)}'";
             var renderedStart = MapToRenderedTime(clip.TimelineStartSeconds);
             var renderedEnd = MapToRenderedTime(clip.TimelineEndSeconds);
+
+            var extraArguments = new StringBuilder();
+            extraArguments.Append(clip.HasTextBackground
+                ? FormattableString.Invariant($":box=1:boxcolor={clip.TextBackgroundColor}@{clip.TextBackgroundOpacity.ToString(CultureInfo.InvariantCulture)}:boxborderw=10")
+                : string.Empty);
+            if (clip.TextOutlineColor is not null)
+            {
+                extraArguments.Append(FormattableString.Invariant($":borderw={clip.TextOutlineWidthPx}:bordercolor={clip.TextOutlineColor}"));
+            }
+            if (clip.TextShadowColor is not null)
+            {
+                extraArguments.Append(FormattableString.Invariant(
+                    $":shadowcolor={clip.TextShadowColor}:shadowx={clip.TextShadowOffsetPx}:shadowy={clip.TextShadowOffsetPx}"));
+            }
+            if (clip.LineSpacingPx != 0)
+            {
+                extraArguments.Append(FormattableString.Invariant($":line_spacing={clip.LineSpacingPx}"));
+            }
+            if (clip.FadeInSeconds > 0 || clip.FadeOutSeconds > 0)
+            {
+                extraArguments.Append($":alpha='{BuildTextAlphaExpression(clip, renderedStart, renderedEnd)}'");
+            }
+
             filterLines.Add(FormattableString.Invariant(
-                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x=(w-text_w)/2:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}:box=1:boxcolor=black@0.5{nextLabel}"));
+                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x={x}:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}{extraArguments}{nextLabel}"));
             currentTextVideoLabel = nextLabel;
         }
 
@@ -252,6 +282,39 @@ public static class FfmpegFilterGraphBuilder
         ClipTransitionType.ZoomIn => "zoomin",
         _ => "fade"
     };
+
+    private static string ApplyTextCase(string text, TextCaseTransform textCase) => textCase switch
+    {
+        TextCaseTransform.UpperCase => text.ToUpperInvariant(),
+        TextCaseTransform.LowerCase => text.ToLowerInvariant(),
+        TextCaseTransform.TitleCase => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(text.ToLowerInvariant()),
+        _ => text
+    };
+
+    /// <summary>
+    /// Real fade-in/fade-out for a Caption/Text clip's own text, via drawtext's `alpha` option - which
+    /// (per FFmpeg's own filter docs) accepts a per-frame expression, not just a fixed 0.0-1.0 value, the
+    /// same way `x`/`y` already do above. Ramps from 0 to 1 over the clip's FadeInSeconds at the start of
+    /// its enable window, and from 1 to 0 over its FadeOutSeconds at the end - clamped so overlapping
+    /// fade-in/fade-out windows on a very short clip never produce a value outside 0..1.
+    /// </summary>
+    private static string BuildTextAlphaExpression(TimelineClip clip, double renderedStart, double renderedEnd)
+    {
+        var fadeIn = Math.Max(0, clip.FadeInSeconds);
+        var fadeOut = Math.Max(0, clip.FadeOutSeconds);
+        var fadeInEnd = renderedStart + fadeIn;
+        var fadeOutStart = renderedEnd - fadeOut;
+
+        var fadeInExpr = fadeIn > 0
+            ? FormattableString.Invariant($"min(1,max(0,(t-{renderedStart})/{fadeIn}))")
+            : "1";
+        var fadeOutExpr = fadeOut > 0
+            ? FormattableString.Invariant($"min(1,max(0,({renderedEnd}-t)/{fadeOut}))")
+            : "1";
+
+        return FormattableString.Invariant(
+            $"if(lt(t,{fadeInEnd}),{fadeInExpr},if(gt(t,{fadeOutStart}),{fadeOutExpr},1))");
+    }
 
     /// <summary>
     /// Escapes text for ffmpeg's drawtext `text=` option, empirically verified (not assumed) against a

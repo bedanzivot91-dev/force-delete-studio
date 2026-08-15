@@ -20,6 +20,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>(clipId, newText) - same reasoning as the callbacks above.</summary>
     private readonly Action<string, string>? _onTextContentChanged;
 
+    /// <summary>(clipId, style) - same reasoning as the callbacks above.</summary>
+    private readonly Action<string, TextAdvancedStyle>? _onAdvancedStyleChanged;
+
     public TimelineClip Clip { get; }
     public string TrackId { get; }
 
@@ -97,6 +100,115 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     public IReadOnlyList<CaptionFontChoice> AvailableFontChoices { get; } = Enum.GetValues<CaptionFontChoice>();
     public IReadOnlyList<CaptionTextPosition> AvailablePositions { get; } = Enum.GetValues<CaptionTextPosition>();
+    public IReadOnlyList<TextHorizontalAlign> AvailableHorizontalAligns { get; } = Enum.GetValues<TextHorizontalAlign>();
+    public IReadOnlyList<TextCaseTransform> AvailableTextCases { get; } = Enum.GetValues<TextCaseTransform>();
+
+    /// <summary>Builds the full style record from the current getters with one field overridden, and
+    /// pushes it through the same undo-safe session callback every other style setter below uses.</summary>
+    private void PushAdvancedStyle(Func<TextAdvancedStyle, TextAdvancedStyle> mutate)
+    {
+        var current = new TextAdvancedStyle(
+            HasOutline ? OutlineColor : null, OutlineWidthPx,
+            HasShadow ? ShadowColor : null, ShadowOffsetPx,
+            HasBackground, BackgroundColor, BackgroundOpacity,
+            HorizontalAlign, IsBold, IsItalic, TextCase, LineSpacingPx);
+        _onAdvancedStyleChanged?.Invoke(Clip.Id, mutate(current));
+    }
+
+    public bool HasOutline
+    {
+        get => Clip.TextOutlineColor is not null;
+        set { if (HasOutline == value) return; PushAdvancedStyle(s => s with { OutlineColor = value ? OutlineColor : null }); }
+    }
+
+    public string OutlineColor
+    {
+        get => Clip.TextOutlineColor ?? "#000000";
+        set { if (Clip.TextOutlineColor == value || string.IsNullOrWhiteSpace(value)) return; PushAdvancedStyle(s => s with { OutlineColor = value }); }
+    }
+
+    public int OutlineWidthPx
+    {
+        get => Clip.TextOutlineWidthPx;
+        set { if (Clip.TextOutlineWidthPx == value) return; PushAdvancedStyle(s => s with { OutlineWidthPx = value }); }
+    }
+
+    public bool HasShadow
+    {
+        get => Clip.TextShadowColor is not null;
+        set { if (HasShadow == value) return; PushAdvancedStyle(s => s with { ShadowColor = value ? ShadowColor : null }); }
+    }
+
+    public string ShadowColor
+    {
+        get => Clip.TextShadowColor ?? "#000000";
+        set { if (Clip.TextShadowColor == value || string.IsNullOrWhiteSpace(value)) return; PushAdvancedStyle(s => s with { ShadowColor = value }); }
+    }
+
+    public int ShadowOffsetPx
+    {
+        get => Clip.TextShadowOffsetPx;
+        set { if (Clip.TextShadowOffsetPx == value) return; PushAdvancedStyle(s => s with { ShadowOffsetPx = value }); }
+    }
+
+    /// <summary>Defaults to on (matches the always-drawn box every Caption/Text clip had before this
+    /// became a real toggle) - turning it off is what makes a plain outline-only or shadow-only style
+    /// possible for the first time.</summary>
+    public bool HasBackground
+    {
+        get => Clip.HasTextBackground;
+        set { if (Clip.HasTextBackground == value) return; PushAdvancedStyle(s => s with { HasBackground = value }); }
+    }
+
+    public string BackgroundColor
+    {
+        get => Clip.TextBackgroundColor;
+        set { if (Clip.TextBackgroundColor == value || string.IsNullOrWhiteSpace(value)) return; PushAdvancedStyle(s => s with { BackgroundColor = value }); }
+    }
+
+    /// <summary>0-100 for the UI slider - converted to/from the underlying 0.0-1.0 domain value.</summary>
+    public int BackgroundOpacityPercent
+    {
+        get => (int)Math.Round(BackgroundOpacity * 100);
+        set { var opacity = Math.Clamp(value, 0, 100) / 100.0; if (Math.Abs(BackgroundOpacity - opacity) < 1e-6) return; PushAdvancedStyle(s => s with { BackgroundOpacity = opacity }); }
+    }
+
+    private double BackgroundOpacity => Clip.TextBackgroundOpacity;
+
+    public TextHorizontalAlign HorizontalAlign
+    {
+        get => Clip.TextHorizontalAlign;
+        set { if (Clip.TextHorizontalAlign == value) return; PushAdvancedStyle(s => s with { HorizontalAlign = value }); }
+    }
+
+    public bool IsBold
+    {
+        get => Clip.IsTextBold;
+        set { if (Clip.IsTextBold == value) return; PushAdvancedStyle(s => s with { IsBold = value }); }
+    }
+
+    public bool IsItalic
+    {
+        get => Clip.IsTextItalic;
+        set { if (Clip.IsTextItalic == value) return; PushAdvancedStyle(s => s with { IsItalic = value }); }
+    }
+
+    public TextCaseTransform TextCase
+    {
+        get => Clip.TextCase;
+        set { if (Clip.TextCase == value) return; PushAdvancedStyle(s => s with { TextCase = value }); }
+    }
+
+    public int LineSpacingPx
+    {
+        get => Clip.LineSpacingPx;
+        set { if (Clip.LineSpacingPx == value) return; PushAdvancedStyle(s => s with { LineSpacingPx = value }); }
+    }
+
+    /// <summary>"Primeni na sve titlove na ovoj traci" - copies this clip's complete text style (font/
+    /// size/color/position + everything above) onto every other Caption/Text clip on the same track, so
+    /// styling a batch of auto-generated captions doesn't mean re-clicking the same settings on each one.</summary>
+    public ICommand ApplyStyleToAllOnTrackCommand { get; }
 
     /// <summary>Real transition into this clip from whichever Video-track clip is right before it - burnt
     /// into the exported video via ffmpeg's own <c>xfade</c>/<c>acrossfade</c> filters, not a placeholder.
@@ -147,9 +259,11 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ICommand toggleMuteCommand,
         ICommand toggleFadeInCommand,
         ICommand toggleFadeOutCommand,
+        ICommand applyStyleToAllOnTrackCommand,
         Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? onTextStyleChanged = null,
         Action<string, ClipTransitionType, double>? onTransitionChanged = null,
-        Action<string, string>? onTextContentChanged = null)
+        Action<string, string>? onTextContentChanged = null,
+        Action<string, TextAdvancedStyle>? onAdvancedStyleChanged = null)
     {
         Clip = clip;
         TrackId = trackId;
@@ -163,9 +277,11 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ToggleMuteCommand = toggleMuteCommand;
         ToggleFadeInCommand = toggleFadeInCommand;
         ToggleFadeOutCommand = toggleFadeOutCommand;
+        ApplyStyleToAllOnTrackCommand = applyStyleToAllOnTrackCommand;
         _onTextStyleChanged = onTextStyleChanged;
         _onTransitionChanged = onTransitionChanged;
         _onTextContentChanged = onTextContentChanged;
+        _onAdvancedStyleChanged = onAdvancedStyleChanged;
     }
 
     private static string FormatTime(double seconds)

@@ -34,6 +34,47 @@ public enum CaptionFontChoice
     Georgia
 }
 
+/// <summary>Horizontal placement of a Caption/Text clip's text within the frame - independent of
+/// <see cref="CaptionTextPosition"/> (vertical), so combined they give a real 9-zone grid instead of just
+/// 3 vertical bands always centered horizontally.</summary>
+public enum TextHorizontalAlign
+{
+    Left,
+    Center,
+    Right
+}
+
+/// <summary>Case transform applied to a Caption/Text clip's displayed text - the underlying
+/// <see cref="TimelineClip.TextContent"/> (and any transcription behind it) is never modified, this only
+/// changes what gets burned into the exported video.</summary>
+public enum TextCaseTransform
+{
+    Normal,
+    UpperCase,
+    LowerCase,
+    TitleCase
+}
+
+/// <summary>
+/// The extra per-clip text styling fields beyond font/size/color/position (outline, shadow, background,
+/// horizontal alignment, bold/italic, case transform, line spacing) - bundled into one record so
+/// <c>TimelineEditSession.SetTextAdvancedStyle</c>/<c>TimelineClipItemViewModel</c> don't need an
+/// ever-growing positional parameter list every time one more style knob is added.
+/// </summary>
+public readonly record struct TextAdvancedStyle(
+    string? OutlineColor,
+    int OutlineWidthPx,
+    string? ShadowColor,
+    int ShadowOffsetPx,
+    bool HasBackground,
+    string BackgroundColor,
+    double BackgroundOpacity,
+    TextHorizontalAlign HorizontalAlign,
+    bool IsBold,
+    bool IsItalic,
+    TextCaseTransform TextCase,
+    int LineSpacingPx);
+
 /// <summary>
 /// A real transition between a Video-track clip and the one right before it, rendered via ffmpeg's own
 /// <c>xfade</c>/<c>acrossfade</c> filters (each enum name here is exactly the matching <c>xfade</c>
@@ -76,6 +117,30 @@ public sealed class TimelineClip
     /// <summary>Hex color, e.g. "#FFFFFF" - passed straight through to ffmpeg's drawtext fontcolor.</summary>
     public string TextColor { get; set; } = "#FFFFFF";
     public CaptionTextPosition TextPosition { get; set; } = CaptionTextPosition.Bottom;
+    public TextHorizontalAlign TextHorizontalAlign { get; set; } = TextHorizontalAlign.Center;
+
+    /// <summary>Null = no outline drawn (ffmpeg drawtext's own default). Real per-clip readability control
+    /// for text over busy/light backgrounds, independent of the background box below.</summary>
+    public string? TextOutlineColor { get; set; }
+    public int TextOutlineWidthPx { get; set; } = 2;
+
+    /// <summary>Null = no drop shadow.</summary>
+    public string? TextShadowColor { get; set; }
+    public int TextShadowOffsetPx { get; set; } = 2;
+
+    /// <summary>Defaults to true/black/0.5 opacity - preserves the exact hardcoded look every Caption/Text
+    /// clip had before this became a real per-clip toggle (a solid semi-transparent box was always drawn
+    /// with no way to turn it off).</summary>
+    public bool HasTextBackground { get; set; } = true;
+    public string TextBackgroundColor { get; set; } = "#000000";
+    public double TextBackgroundOpacity { get; set; } = 0.5;
+
+    public bool IsTextBold { get; set; }
+    public bool IsTextItalic { get; set; }
+    public TextCaseTransform TextCase { get; set; } = TextCaseTransform.Normal;
+
+    /// <summary>0 = ffmpeg drawtext's own default line spacing (only matters for multi-line text).</summary>
+    public int LineSpacingPx { get; set; }
 
     public double SourceTrimInSeconds { get; set; }
     public double SourceTrimOutSeconds { get; set; }

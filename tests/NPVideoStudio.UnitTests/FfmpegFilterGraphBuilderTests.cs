@@ -269,6 +269,162 @@ public class FfmpegFilterGraphBuilderTests
         Assert.DoesNotContain("fontfile=", plan.FilterComplexArgument);
     }
 
+    private static Timeline TimelineWithOneTextClip(MediaAsset asset, TimelineClip textClip)
+    {
+        var timeline = new Timeline();
+        var videoTrack = new TimelineTrack { Kind = TimelineTrackKind.Video };
+        videoTrack.Clips.Add(VideoClip(asset.Id, 0, 0, 10));
+        timeline.Tracks.Add(videoTrack);
+
+        var captionTrack = new TimelineTrack { Kind = TimelineTrackKind.Caption };
+        captionTrack.Clips.Add(textClip);
+        timeline.Tracks.Add(captionTrack);
+        return timeline;
+    }
+
+    [Fact]
+    public void Build_TextClipWithOutline_AddsBorderwAndBordercolor()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextOutlineColor = "#FF0000", TextOutlineWidthPx = 5
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains("borderw=5:bordercolor=#FF0000", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithoutOutline_OmitsBorderwEntirely()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        // ":borderw=" (leading colon) distinguishes the outline option from "boxborderw=", which the
+        // default-on background box always emits.
+        Assert.DoesNotContain(":borderw=", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithShadow_AddsShadowcolorAndOffsets()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextShadowColor = "#333333", TextShadowOffsetPx = 4
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains("shadowcolor=#333333:shadowx=4:shadowy=4", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithBackgroundDisabled_OmitsBoxEntirely()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            HasTextBackground = false
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.DoesNotContain("box=1", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithCustomBackground_UsesConfiguredColorAndOpacity()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextBackgroundColor = "#00FF00", TextBackgroundOpacity = 0.25
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains("box=1:boxcolor=#00FF00@0.25:boxborderw=10", plan.FilterComplexArgument);
+    }
+
+    [Theory]
+    [InlineData(TextHorizontalAlign.Left, "w*0.05")]
+    [InlineData(TextHorizontalAlign.Center, "(w-text_w)/2")]
+    [InlineData(TextHorizontalAlign.Right, "w-text_w-w*0.05")]
+    public void Build_TextClip_MapsHorizontalAlignToCorrectXExpression(TextHorizontalAlign align, string expectedX)
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextHorizontalAlign = align
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains($"x={expectedX}", plan.FilterComplexArgument);
+    }
+
+    [Theory]
+    [InlineData(TextCaseTransform.UpperCase, "ZDRAVO SVIMA")]
+    [InlineData(TextCaseTransform.LowerCase, "zdravo svima")]
+    [InlineData(TextCaseTransform.TitleCase, "Zdravo Svima")]
+    [InlineData(TextCaseTransform.Normal, "Zdravo svima")]
+    public void Build_TextClip_AppliesCaseTransformToBurnedInText(TextCaseTransform textCase, string expectedText)
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo svima", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            TextCase = textCase
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains($"text='{expectedText}'", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithLineSpacing_AddsLineSpacingArgument()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            LineSpacingPx = 12
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains("line_spacing=12", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithoutFade_OmitsAlphaExpression()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.DoesNotContain(":alpha=", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void Build_TextClipWithFadeInAndOut_AddsAlphaExpressionRampingAtStartAndEnd()
+    {
+        var asset = Asset("a");
+        var clip = new TimelineClip
+        {
+            TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            FadeInSeconds = 0.5, FadeOutSeconds = 0.5
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(TimelineWithOneTextClip(asset, clip), new[] { asset });
+
+        Assert.Contains(":alpha='if(lt(t,0.5)", plan.FilterComplexArgument);
+        Assert.Contains("min(1,max(0,(t-0)/0.5))", plan.FilterComplexArgument);
+        Assert.Contains("min(1,max(0,(2-t)/0.5))", plan.FilterComplexArgument);
+    }
+
     [Fact]
     public void Build_OnlyFirstVideoTrackWithClipsIsRendered()
     {

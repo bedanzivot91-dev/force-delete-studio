@@ -296,6 +296,76 @@ public sealed class TimelineEditSession
         liveClip.TextPosition = position;
     }
 
+    /// <summary>The extra text style knobs beyond font/size/color/position - outline, shadow, background
+    /// on/off/color/opacity, horizontal alignment, bold/italic, case transform, line spacing.</summary>
+    public void SetTextAdvancedStyle(string clipId, TextAdvancedStyle style)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.TextOutlineColor = style.OutlineColor;
+        liveClip.TextOutlineWidthPx = Math.Max(0, style.OutlineWidthPx);
+        liveClip.TextShadowColor = style.ShadowColor;
+        liveClip.TextShadowOffsetPx = Math.Max(0, style.ShadowOffsetPx);
+        liveClip.HasTextBackground = style.HasBackground;
+        liveClip.TextBackgroundColor = style.BackgroundColor;
+        liveClip.TextBackgroundOpacity = Math.Clamp(style.BackgroundOpacity, 0, 1);
+        liveClip.TextHorizontalAlign = style.HorizontalAlign;
+        liveClip.IsTextBold = style.IsBold;
+        liveClip.IsTextItalic = style.IsItalic;
+        liveClip.TextCase = style.TextCase;
+        liveClip.LineSpacingPx = Math.Max(0, style.LineSpacingPx);
+    }
+
+    /// <summary>
+    /// "Primeni na sve titlove na ovoj traci" - copies every text style field (font/size/color/position
+    /// plus everything <see cref="SetTextAdvancedStyle"/> covers) from one clip onto every other Caption/
+    /// Text clip on the same track, so styling a batch of auto-generated captions doesn't mean re-clicking
+    /// the same font/size/color/outline/etc. on every single clip by hand. Never touches
+    /// <see cref="TimelineClip.TextContent"/> itself - only the styling around it.
+    /// </summary>
+    public void ApplyTextStyleToAllClipsOnTrack(string trackId, string sourceClipId)
+    {
+        var track = FindTrack(trackId);
+        var source = track?.Clips.FirstOrDefault(c => c.Id == sourceClipId);
+        if (track is null || source is null || source.TextContent is null)
+        {
+            return;
+        }
+
+        var targets = track.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null).ToList();
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        foreach (var target in track.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null))
+        {
+            target.FontChoice = source.FontChoice;
+            target.FontSizePx = source.FontSizePx;
+            target.TextColor = source.TextColor;
+            target.TextPosition = source.TextPosition;
+            target.TextHorizontalAlign = source.TextHorizontalAlign;
+            target.TextOutlineColor = source.TextOutlineColor;
+            target.TextOutlineWidthPx = source.TextOutlineWidthPx;
+            target.TextShadowColor = source.TextShadowColor;
+            target.TextShadowOffsetPx = source.TextShadowOffsetPx;
+            target.HasTextBackground = source.HasTextBackground;
+            target.TextBackgroundColor = source.TextBackgroundColor;
+            target.TextBackgroundOpacity = source.TextBackgroundOpacity;
+            target.IsTextBold = source.IsTextBold;
+            target.IsTextItalic = source.IsTextItalic;
+            target.TextCase = source.TextCase;
+            target.LineSpacingPx = source.LineSpacingPx;
+        }
+    }
+
     public void SetTrackLocked(string trackId, bool locked) => SetTrackFlag(trackId, t => t.IsLocked, (t, v) => t.IsLocked = v, locked);
     public void SetTrackHidden(string trackId, bool hidden) => SetTrackFlag(trackId, t => t.IsHidden, (t, v) => t.IsHidden = v, hidden);
     public void SetTrackMuted(string trackId, bool muted) => SetTrackFlag(trackId, t => t.IsMuted, (t, v) => t.IsMuted = v, muted);
@@ -381,16 +451,47 @@ public sealed class TimelineEditSession
         Volume = track.Volume
     };
 
+    /// <summary>
+    /// Real bug found and fixed while adding <see cref="ApplyTextStyleToAllClipsOnTrack"/>'s test: this
+    /// explicit field list had silently fallen behind <see cref="TimelineClip"/> itself over several past
+    /// sessions - FontChoice/FontSizePx/TextColor/TextPosition/TransitionInType/TransitionInDurationSeconds
+    /// were all missing, meaning every undo snapshot (every <see cref="SaveSnapshot"/> call, i.e. every
+    /// single edit) silently reset a clip's text style and transition back to their type defaults. Existing
+    /// tests never caught this because they all happened to undo from a non-default style back to the
+    /// still-default starting state, where the bug is invisible - a real style-A -> style-B -> undo
+    /// sequence would have incorrectly landed on hardcoded defaults instead of style A. Every field on
+    /// <see cref="TimelineClip"/> is now listed explicitly here on purpose (no reflection/serialization
+    /// shortcut) so a future field addition has to be a deliberate, visible one-line change instead of a
+    /// silent gap like this one.
+    /// </summary>
     private static TimelineClip Clone(TimelineClip clip) => new()
     {
         Id = clip.Id,
         MediaAssetId = clip.MediaAssetId,
         TextContent = clip.TextContent,
+        FontChoice = clip.FontChoice,
+        FontSizePx = clip.FontSizePx,
+        TextColor = clip.TextColor,
+        TextPosition = clip.TextPosition,
+        TextHorizontalAlign = clip.TextHorizontalAlign,
+        TextOutlineColor = clip.TextOutlineColor,
+        TextOutlineWidthPx = clip.TextOutlineWidthPx,
+        TextShadowColor = clip.TextShadowColor,
+        TextShadowOffsetPx = clip.TextShadowOffsetPx,
+        HasTextBackground = clip.HasTextBackground,
+        TextBackgroundColor = clip.TextBackgroundColor,
+        TextBackgroundOpacity = clip.TextBackgroundOpacity,
+        IsTextBold = clip.IsTextBold,
+        IsTextItalic = clip.IsTextItalic,
+        TextCase = clip.TextCase,
+        LineSpacingPx = clip.LineSpacingPx,
         SourceTrimInSeconds = clip.SourceTrimInSeconds,
         SourceTrimOutSeconds = clip.SourceTrimOutSeconds,
         TimelineStartSeconds = clip.TimelineStartSeconds,
         FadeInSeconds = clip.FadeInSeconds,
         FadeOutSeconds = clip.FadeOutSeconds,
+        TransitionInType = clip.TransitionInType,
+        TransitionInDurationSeconds = clip.TransitionInDurationSeconds,
         IsMuted = clip.IsMuted,
         Volume = clip.Volume
     };

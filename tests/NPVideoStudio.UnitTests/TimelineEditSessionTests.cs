@@ -248,6 +248,108 @@ public class TimelineEditSessionTests
     }
 
     [Fact]
+    public void SetTextAdvancedStyle_UpdatesAllFieldsAndSupportsUndo()
+    {
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var track = Track(TimelineTrackKind.Caption, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        var style = new TextAdvancedStyle(
+            OutlineColor: "#FF0000", OutlineWidthPx: 4,
+            ShadowColor: "#111111", ShadowOffsetPx: 3,
+            HasBackground: false, BackgroundColor: "#00FF00", BackgroundOpacity: 0.25,
+            HorizontalAlign: TextHorizontalAlign.Left,
+            IsBold: true, IsItalic: true,
+            TextCase: TextCaseTransform.UpperCase,
+            LineSpacingPx: 8);
+        session.SetTextAdvancedStyle(clip.Id, style);
+
+        var updated = session.Tracks[0].Clips[0];
+        Assert.Equal("#FF0000", updated.TextOutlineColor);
+        Assert.Equal(4, updated.TextOutlineWidthPx);
+        Assert.Equal("#111111", updated.TextShadowColor);
+        Assert.Equal(3, updated.TextShadowOffsetPx);
+        Assert.False(updated.HasTextBackground);
+        Assert.Equal("#00FF00", updated.TextBackgroundColor);
+        Assert.Equal(0.25, updated.TextBackgroundOpacity);
+        Assert.Equal(TextHorizontalAlign.Left, updated.TextHorizontalAlign);
+        Assert.True(updated.IsTextBold);
+        Assert.True(updated.IsTextItalic);
+        Assert.Equal(TextCaseTransform.UpperCase, updated.TextCase);
+        Assert.Equal(8, updated.LineSpacingPx);
+
+        session.Undo();
+
+        var reverted = session.Tracks[0].Clips[0];
+        Assert.Null(reverted.TextOutlineColor);
+        Assert.True(reverted.HasTextBackground);
+        Assert.Equal(TextCaseTransform.Normal, reverted.TextCase);
+    }
+
+    /// <summary>
+    /// Real bug found while writing the test above: <c>TimelineEditSession</c>'s internal clip-cloning
+    /// (used by every undo snapshot) had an explicit field list that silently fell behind
+    /// <see cref="TimelineClip"/> over past sessions - style A -> style B -> Undo landed on hardcoded
+    /// defaults instead of style A, because the snapshot taken before applying style B never actually
+    /// captured style A's FontChoice/FontSizePx/etc. in the first place. Existing single-edit undo tests
+    /// never caught this because they all started from the already-default state, where the bug produces
+    /// the same (correct-looking) result by coincidence.
+    /// </summary>
+    [Fact]
+    public void SetTextStyle_TwoSuccessiveEdits_UndoRevertsToFirstEditNotHardcodedDefaults()
+    {
+        var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var track = Track(TimelineTrackKind.Caption, clip);
+        var session = new TimelineEditSession(new[] { track });
+
+        session.SetTextStyle(clip.Id, CaptionFontChoice.Georgia, 60, "#00FF00", CaptionTextPosition.Top);
+        session.SetTextStyle(clip.Id, CaptionFontChoice.Impact, 24, "#FF0000", CaptionTextPosition.Bottom);
+
+        session.Undo();
+
+        var afterUndo = session.Tracks[0].Clips[0];
+        Assert.Equal(CaptionFontChoice.Georgia, afterUndo.FontChoice);
+        Assert.Equal(60, afterUndo.FontSizePx);
+        Assert.Equal("#00FF00", afterUndo.TextColor);
+        Assert.Equal(CaptionTextPosition.Top, afterUndo.TextPosition);
+    }
+
+    [Fact]
+    public void ApplyTextStyleToAllClipsOnTrack_CopiesStyleToOtherTextClipsOnSameTrackOnly()
+    {
+        var source = new TimelineClip
+        {
+            TextContent = "Prvi", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2,
+            FontChoice = CaptionFontChoice.Impact, FontSizePx = 60, TextColor = "#00FF00",
+            TextOutlineColor = "#FF00FF", IsTextBold = true
+        };
+        var otherClipOnSameTrack = new TimelineClip { TextContent = "Drugi", TimelineStartSeconds = 2, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 4 };
+        var track = Track(TimelineTrackKind.Caption, source, otherClipOnSameTrack);
+
+        var clipOnAnotherTrack = new TimelineClip { TextContent = "Treći", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
+        var otherTrack = Track(TimelineTrackKind.Text, clipOnAnotherTrack);
+
+        var session = new TimelineEditSession(new[] { track, otherTrack });
+
+        session.ApplyTextStyleToAllClipsOnTrack(track.Id, source.Id);
+
+        var updatedOther = session.Tracks[0].Clips[1];
+        Assert.Equal(CaptionFontChoice.Impact, updatedOther.FontChoice);
+        Assert.Equal(60, updatedOther.FontSizePx);
+        Assert.Equal("#00FF00", updatedOther.TextColor);
+        Assert.Equal("#FF00FF", updatedOther.TextOutlineColor);
+        Assert.True(updatedOther.IsTextBold);
+        Assert.Equal("Drugi", updatedOther.TextContent); // text content itself must never be touched
+
+        // A clip on a different track is untouched, even though it's also a text clip.
+        var untouchedOnOtherTrack = session.Tracks[1].Clips[0];
+        Assert.Equal(CaptionFontChoice.Default, untouchedOnOtherTrack.FontChoice);
+
+        session.Undo();
+        Assert.Equal(CaptionFontChoice.Default, session.Tracks[0].Clips[1].FontChoice);
+    }
+
+    [Fact]
     public void SetTextStyle_ClampsFontSizeToReasonableRange()
     {
         var clip = new TimelineClip { TextContent = "Zdravo", TimelineStartSeconds = 0, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 2 };
