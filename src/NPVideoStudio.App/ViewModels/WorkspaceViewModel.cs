@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +25,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IStorageService _storageService;
     private readonly IFramePreviewService _framePreviewService;
     private readonly ISubtitleGeneratorService _subtitleGeneratorService;
+    private readonly IRenderService _renderService;
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
 
@@ -35,6 +37,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public TimelineViewModel Timeline { get; }
     public PlayerViewModel Player { get; }
+
+    /// <summary>Real, continuous audio+video playback of a rendered preview - see
+    /// <see cref="RealPreviewViewModel"/> and <see cref="RenderRealPreviewAsync"/> for what actually
+    /// drives it. Kept separate from <see cref="Player"/> (the always-available frame-snapshot preview).</summary>
+    public RealPreviewViewModel RealPreview { get; } = new();
+
+    [ObservableProperty]
+    private bool _isRenderingRealPreview;
+
+    [ObservableProperty]
+    private string? _realPreviewStatusMessage;
 
     public event Action? ExportRequested;
 
@@ -63,7 +76,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, ILogger logger)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger)
     {
         Project = project;
         _projectRepository = projectRepository;
@@ -71,6 +84,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _storageService = storageService;
         _framePreviewService = framePreviewService;
         _subtitleGeneratorService = subtitleGeneratorService;
+        _renderService = renderService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
         RefreshFormatSummaryLabel();
 
@@ -162,6 +176,68 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _framePreviewCts?.Cancel();
         _framePreviewCts?.Dispose();
         Player.Dispose();
+        RealPreview.Dispose();
+    }
+
+    /// <summary>
+    /// "Pravi pregled sa zvukom" - real, continuous audio+video playback, answering the real user request
+    /// that the frame-snapshot <see cref="Player"/> alone can't (no audio, one still frame at a time, no
+    /// continuous motion). Deliberately reuses the exact same <see cref="IRenderService"/>/
+    /// <see cref="FfmpegFilterGraphBuilder"/> pipeline "Izvezi video" uses - not a separate, simplified
+    /// preview path that could drift from what actually exports - just with a fast/low-quality preset
+    /// (ultrafast, CRF 28) so the wait before playback starts is reasonable instead of a full-quality
+    /// export's minutes. The real, disclosed cost: a render has to finish before anything plays (unlike
+    /// scrubbing the snapshot preview, which is instant), and <see cref="RealPreviewViewModel.IsAvailable"/>
+    /// can be false if libvlc's native library isn't present on this machine.
+    /// </summary>
+    [RelayCommand]
+    private async Task RenderRealPreviewAsync()
+    {
+        if (!Timeline.CurrentTracks.Any(t => t.Clips.Count > 0))
+        {
+            RealPreviewStatusMessage = "Dodajte bar jedan klip na vremensku traku pre renderovanja pravog pregleda.";
+            return;
+        }
+
+        if (!RealPreview.IsAvailable)
+        {
+            RealPreviewStatusMessage = RealPreview.UnavailableReason ?? "Pravi plejer nije dostupan na ovom računaru.";
+            return;
+        }
+
+        Timeline.SaveToProject();
+        IsRenderingRealPreview = true;
+        RealPreviewStatusMessage = "Renderovanje pravog pregleda u toku...";
+
+        var previewPath = Path.Combine(AppSettings.PreviewCacheFolder(), $"{Project.Id}-preview.mp4");
+        var job = new RenderJob
+        {
+            ProjectName = Project.Name,
+            Settings = new RenderSettings
+            {
+                OutputFilePath = previewPath,
+                OverwriteConfirmed = true,
+                Preset = "ultrafast",
+                Crf = 28
+            }
+        };
+
+        try
+        {
+            var outputPath = await _renderService.RenderAsync(Project, job);
+            RealPreview.LoadAndPlay(outputPath);
+            RealPreviewStatusMessage = "Pravi pregled je spreman i pušta se, sa zvukom.";
+            _logger.Information("Pravi pregled renderovan i pušten: {Path}", outputPath);
+        }
+        catch (Exception ex)
+        {
+            RealPreviewStatusMessage = $"Renderovanje pravog pregleda nije uspelo: {ex.Message}";
+            _logger.Error(ex, "Renderovanje pravog pregleda nije uspelo");
+        }
+        finally
+        {
+            IsRenderingRealPreview = false;
+        }
     }
 
     private MediaAssetViewModel CreateItemViewModel(Domain.MediaAsset asset)
@@ -186,6 +262,38 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         var filters = new[] { VideoFilter, AudioFilter, ImageFilter };
         var files = await _storageService.PickFilesAsync("Dodaj medije u projekat", filters, allowMultiple: true);
         await ImportFilesAsync(files);
+    }
+
+    /// <summary>
+    /// Entry point for the home screen's "Dodaj tekst u video" shortcut - opens straight into a fresh
+    /// project's workspace and immediately does the two steps a user would otherwise have to discover on
+    /// their own (import a video, then find and click "+ Tekst traka" + "+ Klip" in the timeline): prompts
+    /// for the video file, imports and auto-places it (reusing the exact same tested
+    /// <see cref="ImportFilesAsync"/> path everything else already goes through, including the orientation
+    /// auto-fix), then adds a Text track with one starter clip so the "Tekst:"/font/size/color/position
+    /// controls in <c>WorkspaceView.axaml</c> are immediately visible and ready to use. A no-op (stays on
+    /// an empty workspace) if the user cancels the file picker.
+    /// </summary>
+    public async Task StartAddTextToVideoFlowAsync()
+    {
+        var files = await _storageService.PickFilesAsync("Izaberi video za dodavanje teksta", new[] { VideoFilter }, allowMultiple: false);
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        await ImportFilesAsync(files);
+
+        if (!Timeline.CurrentTracks.Any(t => t.Kind == TimelineTrackKind.Video && t.Clips.Count > 0))
+        {
+            return;
+        }
+
+        Timeline.AddTextTrackCommand.Execute(null);
+        var textTrack = Timeline.Tracks.LastOrDefault(t => t.Track.Kind == TimelineTrackKind.Text);
+        textTrack?.AddClipAtPlayheadCommand.Execute(null);
+
+        StatusMessage = "Video je dodat i tekst traka je spremna - kliknite na novi tekst klip u vremenskoj traci da unesete i stilizujete tekst.";
     }
 
     public async Task ImportFilesAsync(IReadOnlyList<string> filePaths)

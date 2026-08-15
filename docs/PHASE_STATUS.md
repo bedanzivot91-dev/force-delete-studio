@@ -1066,6 +1066,68 @@ Shorts-specific by design); and honestly scoping the "more functional player" re
 audio+video playback vs. the current real-but-frame-snapshot-only preview) as a distinct, materially
 larger piece of future work rather than a small follow-up.
 
+## Eleventh post-Phase-11 follow-up: home-screen "add text" shortcut + real audio/video player
+
+Real, repeated user demand after the tenth follow-up: "why isn't there a home-screen button for adding
+text" and "why is the player still just silent snapshots - build a real one, don't just explain why it's
+hard." Two concrete, real (not partial) fixes:
+
+**Home-screen "Dodaj tekst u video" shortcut.** New tile, first in the "Alati" section (most direct
+answer to "why isn't this on the home screen"): `StartScreenViewModel.AddTextToVideoCommand` ->
+`MainWindowViewModel.OpenWorkspaceForAddingText()` opens a fresh project's workspace and immediately
+calls new `WorkspaceViewModel.StartAddTextToVideoFlowAsync()`, which prompts for a video file, imports
+and auto-places it (reusing the exact same tested `ImportFilesAsync` path - including the orientation
+auto-fix from the ninth follow-up), then adds a Text track with one starter clip so the "Tekst:"/font/
+size/color/position controls are visible and ready with zero further navigation. A no-op if the file
+picker is cancelled. The underlying text-adding functionality already existed (sixth follow-up) - this
+follow-up is purely about discoverability, which was the actual, real gap reported.
+
+**Real, continuous audio+video player ("Pravi plejer sa zvukom").** The existing `Player` (frame-by-frame
+ffmpeg snapshot preview, Phase 11) stays as-is - cheap, always available, no native dependency - but a
+second, real player was added alongside it via LibVLC (`LibVLCSharp`, `LibVLCSharp.Avalonia`,
+`VideoLAN.LibVLC.Windows` - all LGPL-2.1-or-later, added to `THIRD_PARTY_NOTICES.md`/`Licenses/`).
+New `RealPreviewViewModel` wraps a real `LibVLC`/`MediaPlayer`, constructed defensively: `IsAvailable`
+is false (with a real message in `UnavailableReason`, no crash) whenever libvlc's native library can't be
+loaded - the honest, expected outcome on this project's own Linux dev sandbox (no `libvlc.so` here),
+verified true on every test run in this repo, not assumed. `WorkspaceViewModel.RenderRealPreviewCommand`
+("Renderuj i pusti sa zvukom") deliberately reuses the *exact same* `IRenderService`/
+`FfmpegFilterGraphBuilder` pipeline "Izvezi video" already uses - not a separate, simplified preview path
+that could drift from what actually exports - just with a fast/low-quality preset (`ultrafast`, CRF 28)
+so the wait before playback starts is reasonable instead of a full-quality export's minutes. Real,
+disclosed trade-offs of this approach, stated plainly rather than left implicit:
+- A render has to finish before anything plays - unlike scrubbing the snapshot preview, which is instant.
+  This is the actual cost of "real audio+video" versus "an accurate single frame."
+- `VideoLAN.LibVLC.Windows` bundles ~100MB of native `libvlc`/`libvlccore` + the full codec/demux/mux
+  plugin set for win-x64 only (`VlcWindowsX86Enabled=false` set in `NPVideoStudio.App.csproj` to avoid
+  bundling an unused win-x86 copy too, which would have doubled it again) - confirmed via a real win-x64
+  publish in this sandbox (`libvlc/win-x64/libvlc.dll` etc. present, ~102MB). This roughly doubles
+  installed/portable-ZIP size versus the ninth follow-up's package. A real, disclosed cost of building
+  this feature for real instead of faking it.
+
+Verified: dedicated `RealPreviewViewModelTests` confirming `RealPreviewViewModel.IsAvailable` is false
+with a real `UnavailableReason` on this sandbox (not throwing) and that `LoadAndPlay` no-ops rather than
+crashing when unavailable; `WorkspaceViewModelTests`
+(`RenderRealPreviewAsync_NoClipsOnTimeline_DoesNotCallRenderService`,
+`RenderRealPreviewAsync_ClipExistsButRealPlayerUnavailableOnThisMachine_DoesNotCallRenderService`,
+`StartAddTextToVideoFlowAsync_VideoPicked_ImportsItAndAddsTextTrackWithStarterClip`,
+`StartAddTextToVideoFlowAsync_PickerCancelled_AddsNoTracks`); a real win-x64 cross-compiled publish
+confirming `libvlc.dll`/`libvlccore.dll`/the plugins tree are genuinely bundled; and Avalonia's compiled
+bindings (`AvaloniaUseCompiledBindingsByDefault=true`) validating every new `RealPreview.*`/
+`RenderRealPreviewCommand` binding in `WorkspaceView.axaml` against real property/command types at
+build time - a build-time guarantee stronger than a screenshot for binding correctness, though a live
+Xvfb click-through of the new tile/buttons themselves hit the same synthetic-input flakiness already
+documented earlier in this file (first click in a region not reliably registering under this specific
+Xvfb/xdotool combination across multiple app restarts) and could not be independently confirmed visually
+this session - the app launched clean with no exceptions logged (including LibVLC's own native-library
+lookup), which is the strongest evidence available in this environment that construction doesn't crash.
+
+**Not yet independently confirmed real playback quality/latency on a real Windows machine** - this
+sandbox cannot produce audio or a native libvlc.so to test against, so "does it actually play smoothly
+with correct audio sync" needs the user's own machine and their own regression clip, same category of
+gap as the still-open Phase 11 checklist below.
+
+Full non-integration suite: 365 tests passing (359 + 6 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

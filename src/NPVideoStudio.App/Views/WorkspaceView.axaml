@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
              xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              x:Class="NPVideoStudio.App.Views.WorkspaceView"
              x:DataType="vm:WorkspaceViewModel"
              DragDrop.AllowDrop="True">
@@ -34,7 +35,7 @@
       </StackPanel>
     </Border>
 
-    <Grid RowDefinitions="2*,Auto,2*">
+    <Grid RowDefinitions="2*,Auto,Auto,2*">
       <Border Margin="20" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
@@ -96,7 +97,35 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" DataContext="{Binding Timeline}">
+      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,12" Padding="16">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Pravi plejer (sa zvukom)" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Classes="cta" Content="Renderuj i pusti sa zvukom" Command="{Binding RenderRealPreviewCommand}"
+                    IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
+                       IsVisible="{Binding RealPreviewStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Ovo renderuje trenutnu vremensku traku (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) i pušta pravi rezultat sa zvukom, neprekidno - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka." />
+          <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True"
+                  IsVisible="{Binding RealPreview.HasLoadedFile}">
+            <vlc:VideoView MediaPlayer="{Binding RealPreview.MediaPlayer}" />
+          </Border>
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding RealPreview.HasLoadedFile}">
+            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding !RealPreview.IsPlaying}" />
+            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding RealPreview.IsPlaying}" />
+            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding RealPreview.StopCommand}" />
+            <TextBlock Text="{Binding RealPreview.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="{Binding RealPreview.TotalDurationSeconds}" Value="{Binding RealPreview.CurrentTimeSeconds}" Width="240" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding RealPreview.TotalTimeLabel}" VerticalAlignment="Center" />
+            <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding RealPreview.IsMuted}" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Row="3" Classes="panel" Margin="20,0,20,20" Padding="16" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />

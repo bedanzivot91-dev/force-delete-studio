@@ -67,9 +67,22 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.TemplateGalleryRequested += () => CurrentPage = CreateTemplateGalleryPage();
         vm.QuickVideoRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: false);
         vm.QuickVideoWithCaptionsRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: true);
+        vm.AddTextToVideoRequested += () => CurrentPage = OpenWorkspaceForAddingText();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
+    }
+
+    /// <summary>Home-screen "Dodaj tekst u video" shortcut - opens a fresh project's workspace and
+    /// immediately kicks off <see cref="WorkspaceViewModel.StartAddTextToVideoFlowAsync"/> (video picker
+    /// -> import -> Text track + starter clip), instead of leaving the user to first create a project
+    /// and then separately discover the text controls inside it.</summary>
+    private WorkspaceViewModel OpenWorkspaceForAddingText()
+    {
+        var project = new Project { Name = "Video sa tekstom" };
+        var workspace = OpenWorkspace(project);
+        _ = workspace.StartAddTextToVideoFlowAsync();
+        return workspace;
     }
 
     private DependencyManagerViewModel CreateDependencyManagerPage()
@@ -173,6 +186,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<Services.IStorageService>(),
             _services.GetRequiredService<IFramePreviewService>(),
             _services.GetRequiredService<ISubtitleGeneratorService>(),
+            _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Serilog.ILogger>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         return workspace;

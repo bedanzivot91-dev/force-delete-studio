@@ -29,6 +29,8 @@ groups with very different obligations:
 | whisper.cpp (native library wrapped by Whisper.net.Runtime - `whisper.dll`, `ggml-*.dll`) | MIT | The actual Whisper inference engine |
 | FFmpeg, FFprobe (gyan.dev "essentials" Windows build, `ffmpeg.exe`/`ffprobe.exe`) | GPLv3 | Video/audio processing - downloaded and copied into `Tools/ffmpeg/` by `scripts/build-release.ps1` at build time (not committed to this repo), so both the portable ZIP and the installer work without a separate install |
 | yt-dlp (`yt-dlp.exe`) | The Unlicense (public domain) | Downloading the user's own YouTube audio - downloaded and copied into `Tools/yt-dlp/` by `scripts/build-release.ps1` the same way |
+| LibVLCSharp, LibVLCSharp.Avalonia | LGPL-2.1-or-later | .NET/Avalonia bindings for real, continuous audio+video playback ("Pravi plejer sa zvukom" in the workspace) |
+| VideoLAN.LibVLC.Windows (native `libvlc.dll`/`libvlccore.dll` + codec/demux plugins, win-x64 only - see `VlcWindowsX86Enabled=false` in `NPVideoStudio.App.csproj`) | LGPL-2.1-or-later | The actual VLC playback engine LibVLCSharp calls into - dynamically loaded at runtime (LGPL's linking requirement is satisfied: this app calls it through LibVLCSharp's P/Invoke layer, never statically links or modifies it), ~100MB bundled since it ships its own decoder/demuxer plugin set |
 
 Test-only packages (`xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`,
 `Avalonia.Headless.XUnit`) are not listed above - they never ship in the built application, only in the

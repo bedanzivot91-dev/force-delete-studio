@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using NPVideoStudio.App.Services;
 using NPVideoStudio.App.ViewModels;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
@@ -52,16 +53,18 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 /// </summary>
 public class WorkspaceViewModelTests
 {
-    private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null)
+    private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null,
+        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null)
     {
         project ??= new Project { Name = "Test projekat" };
         return new WorkspaceViewModel(
             project,
             new FakeProjectRepository(),
-            new FakeMediaProbeService(),
-            new FakeStorageService(),
+            mediaProbeService ?? new FakeMediaProbeService(),
+            storageService ?? new FakeStorageService(),
             new FakeFramePreviewService(),
             subtitleGeneratorService ?? new FakeSubtitleGeneratorService(),
+            renderService ?? new FakeRenderService(),
             new LoggerConfiguration().CreateLogger());
     }
 
@@ -170,7 +173,7 @@ public class WorkspaceViewModelTests
         var framePreview = new FakeFramePreviewService { Handler = (_, _) => null };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), new FakeMediaProbeService(), new FakeStorageService(),
-            framePreview, new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+            framePreview, new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger());
         workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
 
         var noClipMessage = workspace.Player.PreviewStatusMessage;
@@ -201,7 +204,7 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            framePreview, new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+            framePreview, new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
         Dispatcher.UIThread.RunJobs();
@@ -225,7 +228,7 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" }; // defaults to 1920x1080 horizontal
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
         Dispatcher.UIThread.RunJobs();
@@ -248,13 +251,49 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" }; // 1920x1080 horizontal - same orientation as a 1280x720 video
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/fake.mp4" });
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(1920, project.Format.Width);
         Assert.Equal(1080, project.Format.Height);
+    }
+
+    /// <summary>Home-screen "Dodaj tekst u video" shortcut - real end-to-end proof that picking a video
+    /// through this entry point results in a ready-to-edit workspace: the video on a video track AND a
+    /// Text track with a starter clip, not just the video import half of the flow.</summary>
+    [AvaloniaFact]
+    public async Task StartAddTextToVideoFlowAsync_VideoPicked_ImportsItAndAddsTextTrackWithStarterClip()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(6), HasVideoStream = true };
+        var probe = new FakeMediaProbeService { Handler = _ => asset };
+        var storage = new FakeStorageService { FilesToReturn = new[] { "/tmp/fake.mp4" } };
+        var workspace = CreateWorkspace(mediaProbeService: probe, storageService: storage);
+
+        await workspace.StartAddTextToVideoFlowAsync();
+        Dispatcher.UIThread.RunJobs();
+
+        var videoTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Video);
+        Assert.Single(videoTrack.Clips);
+
+        var textTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Text);
+        Assert.Single(textTrack.Clips);
+        Assert.True(textTrack.Clips[0].IsTextClip);
+    }
+
+    /// <summary>Cancelling the video picker (empty file list) must leave the workspace untouched -
+    /// no phantom empty Text track left behind from a shortcut the user backed out of.</summary>
+    [AvaloniaFact]
+    public async Task StartAddTextToVideoFlowAsync_PickerCancelled_AddsNoTracks()
+    {
+        var storage = new FakeStorageService { FilesToReturn = Array.Empty<string>() };
+        var workspace = CreateWorkspace(storageService: storage);
+
+        await workspace.StartAddTextToVideoFlowAsync();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(workspace.Timeline.Tracks);
     }
 
     /// <summary>A second import after the timeline already has a clip on it must NOT rearrange the user's
@@ -268,7 +307,7 @@ public class WorkspaceViewModelTests
         var project = new Project { Name = "Test projekat" };
         var workspace = new WorkspaceViewModel(
             project, new FakeProjectRepository(), probe, new FakeStorageService(),
-            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new LoggerConfiguration().CreateLogger());
+            new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger());
 
         await workspace.ImportFilesAsync(new[] { "/tmp/first.mp4" });
         Dispatcher.UIThread.RunJobs();
@@ -304,6 +343,52 @@ public class WorkspaceViewModelTests
         Assert.True(exportRequestedFired);
         Assert.Single(project.Timeline.Tracks);
         Assert.Single(project.Timeline.Tracks[0].Clips);
+    }
+
+    /// <summary>The clip-existence check must run independently of whether the real (LibVLC) player is
+    /// available on this machine - a user with nothing on the timeline yet should see "add a clip first"
+    /// regardless of platform, not a native-library error that has nothing to do with their actual
+    /// mistake.</summary>
+    [AvaloniaFact]
+    public async Task RenderRealPreviewAsync_NoClipsOnTimeline_DoesNotCallRenderService()
+    {
+        var renderCalled = false;
+        var renderService = new FakeRenderService { Handler = (_, job, _) => { renderCalled = true; return Task.FromResult(job.Settings.OutputFilePath); } };
+        var workspace = CreateWorkspace(renderService: renderService);
+
+        await workspace.RenderRealPreviewCommand.ExecuteAsync(null);
+
+        Assert.False(renderCalled);
+        Assert.Contains("Dodajte bar jedan klip", workspace.RealPreviewStatusMessage);
+    }
+
+    /// <summary>On any machine without libvlc's native library available - this project's own Linux dev
+    /// sandbox included, since only the win-x64 build bundles libvlc.dll - RealPreview.IsAvailable is
+    /// false by construction (see RealPreviewViewModel's constructor try/catch around
+    /// LibVLCSharp.Shared.Core.Initialize()). The command must degrade gracefully with a clear message
+    /// instead of throwing, and must never call the render service for a render nothing could play back
+    /// anyway.</summary>
+    [AvaloniaFact]
+    public async Task RenderRealPreviewAsync_ClipExistsButRealPlayerUnavailableOnThisMachine_DoesNotCallRenderService()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var renderCalled = false;
+        var renderService = new FakeRenderService { Handler = (_, job, _) => { renderCalled = true; return Task.FromResult(job.Settings.OutputFilePath); } };
+        var workspace = CreateWorkspace(project, renderService: renderService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        // This sandbox never has libvlc's native library available - a real, disclosed environment
+        // constraint (same category as huggingface.co being blocked for the Whisper model), not assumed.
+        Assert.False(workspace.RealPreview.IsAvailable);
+
+        await workspace.RenderRealPreviewCommand.ExecuteAsync(null);
+
+        Assert.False(renderCalled);
+        Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
     }
 
     /// <summary>Real feature request from a user: "automatically add text from the video" - this drives

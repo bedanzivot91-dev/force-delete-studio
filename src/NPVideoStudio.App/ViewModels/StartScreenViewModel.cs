@@ -64,6 +64,18 @@ public sealed partial class StartScreenViewModel : ViewModelBase
     public event Action? QuickVideoRequested;
     public event Action? QuickVideoWithCaptionsRequested;
 
+    /// <summary>Real, reported gap: text-adding (auto captions, karaoke, per-clip font/size/color/
+    /// position/text controls) only existed once already inside a project's workspace - nothing on the
+    /// start screen pointed there, so a user had no reason to know it existed. This is the direct
+    /// one-click shortcut: pick a video, land straight in a ready-to-edit workspace with the video
+    /// already on the timeline and a text clip already waiting to be styled - see
+    /// <see cref="WorkspaceViewModel.StartAddTextToVideoFlowAsync"/> for what actually runs after this
+    /// fires.</summary>
+    public event Action? AddTextToVideoRequested;
+
+    [RelayCommand]
+    private void AddTextToVideo() => AddTextToVideoRequested?.Invoke();
+
     public StartScreenViewModel(IRecentProjectsService recentProjectsService, IProjectRepository projectRepository,
         IAutoSaveService autoSaveService, IStorageService storageService, ILogger logger)
     {
