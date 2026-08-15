@@ -383,6 +383,57 @@ jobs:
           Compress-Archive -Path $rel -DestinationPath "$rel.zip" -CompressionLevel Optimal
           Get-Item "$rel.zip" | Select-Object Name, Length
 
+      - name: Verify final release folder and ZIP against MANIFEST_SHA256.txt
+        run: |
+          function Assert-ProgramManifest($packageRoot) {
+            $manifest = Join-Path $packageRoot "MANIFEST_SHA256.txt"
+            if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
+              throw "MANIFEST_SHA256.txt is missing from $packageRoot"
+            }
+            $seen = 0
+            $failures = New-Object System.Collections.Generic.List[string]
+            foreach ($line in Get-Content -LiteralPath $manifest) {
+              $trimmed = $line.Trim()
+              if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) { continue }
+              $parts = $trimmed -split "  ", 2
+              if ($parts.Count -ne 2) {
+                [void]$failures.Add("Invalid manifest line: $trimmed")
+                continue
+              }
+              $expected = $parts[0].Trim().ToLowerInvariant()
+              $relative = $parts[1].Trim().Replace("/", [System.IO.Path]::DirectorySeparatorChar)
+              $file = Join-Path $packageRoot $relative
+              if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+                [void]$failures.Add("Missing file: $relative")
+                continue
+              }
+              $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne $expected) {
+                [void]$failures.Add("Hash mismatch: $relative expected=$expected actual=$actual")
+              }
+              $seen++
+            }
+            $programDir = Join-Path $packageRoot "Program"
+            $programCount = @(Get-ChildItem -LiteralPath $programDir -Recurse -File).Count
+            if ($seen -lt 3 -or $seen -ne $programCount) {
+              [void]$failures.Add("Manifest file count $seen does not match Program file count $programCount")
+            }
+            if ($failures.Count -gt 0) {
+              $failures | ForEach-Object { Write-Host $_ }
+              throw "Final package manifest verification failed for $packageRoot"
+            }
+            Write-Host "Verified $seen Program files at $packageRoot"
+          }
+
+          $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
+          Assert-ProgramManifest ((Resolve-Path $rel).Path)
+
+          $zipProbe = Join-Path $env:RUNNER_TEMP ("suno-zip-probe-" + $env:GITHUB_RUN_ID)
+          if (Test-Path -LiteralPath $zipProbe) { Remove-Item -LiteralPath $zipProbe -Recurse -Force }
+          Expand-Archive -LiteralPath "$rel.zip" -DestinationPath $zipProbe -Force
+          Assert-ProgramManifest (Join-Path $zipProbe $rel)
+          Write-Host "The ZIP itself was expanded and verified successfully."
+
       - name: Upload full offline package
         uses: actions/upload-artifact@v4
         with:

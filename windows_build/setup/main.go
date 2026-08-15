@@ -361,10 +361,18 @@ func main() {
 	if err = copyTree(programSrc, stage); err != nil {
 		failLog(log, fmt.Errorf("kopiranje kompletnog Program foldera: %w", err))
 	}
+	if err = verifyProgramManifest(stage, manifest); err != nil {
+		_ = os.RemoveAll(stage)
+		failLog(log, fmt.Errorf("provera kopiranog Program foldera nije prošla: %w", err))
+	}
 	log("Programski folder je pripremljen. Proveravam postojeće komponente i preuzimam samo ono što nedostaje.")
 	if err = prepareComponents(stage, []string{programSrc, installRoot, filepath.Join(local, "Programs", appName)}, log); err != nil {
 		_ = os.RemoveAll(stage)
 		failLog(log, fmt.Errorf("priprema ugrađenih komponenti nije uspela: %w", err))
+	}
+	if err = verifyProgramManifest(stage, manifest); err != nil {
+		_ = os.RemoveAll(stage)
+		failLog(log, fmt.Errorf("provera Program foldera posle pripreme komponenti nije prošla: %w", err))
 	}
 
 	stagedExe := filepath.Join(stage, appName+".exe")
@@ -374,6 +382,10 @@ func main() {
 	if err = cmd.Run(); err != nil {
 		_ = os.RemoveAll(stage)
 		failLog(log, fmt.Errorf("samoprovera nove verzije nije prošla; postojeća instalacija nije promenjena: %w", err))
+	}
+	if err = verifyProgramManifest(stage, manifest); err != nil {
+		_ = os.RemoveAll(stage)
+		failLog(log, fmt.Errorf("provera Program foldera posle samoprovere nije prošla: %w", err))
 	}
 
 	// Tek nakon što su sve komponente preuzete i proverene kopiramo kompletan
@@ -385,12 +397,21 @@ func main() {
 		_ = os.RemoveAll(versionStage)
 		failLog(log, fmt.Errorf("kopiranje proverene verzije na izabrani disk: %w", err))
 	}
+	if err = verifyProgramManifest(versionStage, manifest); err != nil {
+		_ = os.RemoveAll(stage)
+		_ = os.RemoveAll(versionStage)
+		failLog(log, fmt.Errorf("provera kopirane verzije na izabranom disku nije prošla: %w", err))
+	}
 	_ = os.RemoveAll(stage)
 	finalTest := exec.Command(filepath.Join(versionStage, appName+".exe"), "--self-test")
 	finalTest.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	if err = finalTest.Run(); err != nil {
 		_ = os.RemoveAll(versionStage)
 		failLog(log, fmt.Errorf("završna samoprovera na izabranom disku nije prošla: %w", err))
+	}
+	if err = verifyProgramManifest(versionStage, manifest); err != nil {
+		_ = os.RemoveAll(versionStage)
+		failLog(log, fmt.Errorf("završna provera fajlova na izabranom disku nije prošla: %w", err))
 	}
 	if err = os.Rename(versionStage, versionDir); err != nil {
 		_ = os.RemoveAll(versionStage)
@@ -611,16 +632,17 @@ func fileHash(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func verifyPackage(root, program, manifest string) error {
+func verifyProgramManifest(program, manifest string) error {
 	info, err := os.Stat(program)
 	if err != nil || !info.IsDir() {
-		return fmt.Errorf("nedostaje kompletan Program folder pored instalera")
+		return fmt.Errorf("nedostaje kompletan Program folder")
 	}
 	f, err := os.Open(manifest)
 	if err != nil {
 		return fmt.Errorf("nedostaje MANIFEST_SHA256.txt: %w", err)
 	}
 	defer f.Close()
+
 	count := 0
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -632,14 +654,24 @@ func verifyPackage(root, program, manifest string) error {
 		if len(parts) != 2 {
 			return fmt.Errorf("neispravan manifest: %s", line)
 		}
-		expected := strings.TrimSpace(parts[0])
-		rel := filepath.FromSlash(strings.TrimSpace(parts[1]))
-		got, e := fileHash(filepath.Join(root, rel))
+		expected := strings.ToLower(strings.TrimSpace(parts[0]))
+		displayRel := strings.TrimSpace(parts[1])
+		relSlash := strings.ReplaceAll(displayRel, "\\", "/")
+		relSlash = strings.TrimPrefix(relSlash, "./")
+		if strings.HasPrefix(strings.ToLower(relSlash), "program/") {
+			relSlash = relSlash[len("Program/"):]
+		}
+		rel := filepath.Clean(filepath.FromSlash(relSlash))
+		if rel == "." || rel == ".." || filepath.IsAbs(rel) ||
+			strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("nebezbedna putanja u manifestu: %s", displayRel)
+		}
+		got, e := fileHash(filepath.Join(program, rel))
 		if e != nil {
-			return fmt.Errorf("nedostaje ili je oštećen fajl %s: %w", rel, e)
+			return fmt.Errorf("nedostaje ili je oštećen fajl %s: %w", displayRel, e)
 		}
 		if !strings.EqualFold(got, expected) {
-			return fmt.Errorf("kontrolni zbir nije ispravan za %s", rel)
+			return fmt.Errorf("kontrolni zbir nije ispravan za %s (očekivano %s, dobijeno %s)", displayRel, expected, got)
 		}
 		count++
 	}
@@ -649,13 +681,28 @@ func verifyPackage(root, program, manifest string) error {
 	if count < 3 {
 		return fmt.Errorf("manifest je nepotpun")
 	}
-	if _, err = os.Stat(filepath.Join(program, appName+".exe")); err != nil {
-		return fmt.Errorf("nedostaje glavni Windows program")
+	return nil
+}
+
+func verifyPackage(root, program, manifest string) error {
+	_ = root
+	if err := verifyProgramManifest(program, manifest); err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(program, appName+".exe")); err != nil {
+		return fmt.Errorf("nedostaje glavni Windows program: %w", err)
 	}
 	return nil
 }
 
 func copyFile(src, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if srcInfo.IsDir() {
+		return fmt.Errorf("izvor nije fajl: %s", src)
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
@@ -668,16 +715,29 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	_, e1 := io.Copy(out, in)
+	n, e1 := io.Copy(out, in)
 	e2 := out.Sync()
 	e3 := out.Close()
 	if e1 != nil {
 		return e1
 	}
+	if n != srcInfo.Size() {
+		return fmt.Errorf("nepotpuno kopiranje %s: kopirano %d od %d bajtova", src, n, srcInfo.Size())
+	}
 	if e2 != nil {
 		return e2
 	}
-	return e3
+	if e3 != nil {
+		return e3
+	}
+	dstInfo, err := os.Stat(dst)
+	if err != nil {
+		return err
+	}
+	if dstInfo.Size() != srcInfo.Size() {
+		return fmt.Errorf("odredišni fajl je nepotpun %s: ima %d umesto %d bajtova", dst, dstInfo.Size(), srcInfo.Size())
+	}
+	return nil
 }
 
 func copyTree(src, dst string) error {
@@ -1298,9 +1358,12 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	if !fileReady(denoExe, 1000000) {
 		log("Deno nije pronađen; preuzimam zvanični Windows ZIP")
 		denoZip := filepath.Join(cache, "deno.zip")
-		if err := downloadAny([]string{
+		if err := downloadVerified([]string{
 			"https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip",
 			"https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip",
+		}, []string{
+			"5fb5bac71f609fb91ec8960fb290885aadc27eeb22f07a8eca0c3db6be38b11a",
+			"",
 		}, denoZip, log); err != nil {
 			return fmt.Errorf("Deno: %w", err)
 		}
