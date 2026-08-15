@@ -58,7 +58,22 @@ public sealed class WhisperTranscriber
         }
     }
 
-    public async Task<IReadOnlyList<TranscribedSegment>> TranscribeAsync(string audioFilePath, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<TranscribedSegment>> TranscribeAsync(string audioFilePath, CancellationToken cancellationToken = default) =>
+        TranscribeAsync(audioFilePath, wordLevel: false, cancellationToken);
+
+    /// <summary>
+    /// Word-level transcription for karaoke-style captions (one short-lived clip per spoken word instead
+    /// of per sentence/line) - real per-word timestamps, not evenly-guessed. Uses whisper.cpp's own
+    /// documented technique for this (the same one its own CLI's `--max-len 1 --split-on-word` flags use):
+    /// <c>WithTokenTimestamps()</c> + <c>SplitOnWord()</c> + a max segment length of 1 word makes
+    /// whisper.cpp emit one *segment* per word directly, with real (if noisier than line-level) timing -
+    /// deliberately not hand-parsing the raw per-token array ourselves, which whisper.cpp's own docs note
+    /// is less reliable than letting it do the word-splitting internally.
+    /// </summary>
+    public Task<IReadOnlyList<TranscribedSegment>> TranscribeWordsAsync(string audioFilePath, CancellationToken cancellationToken = default) =>
+        TranscribeAsync(audioFilePath, wordLevel: true, cancellationToken);
+
+    private async Task<IReadOnlyList<TranscribedSegment>> TranscribeAsync(string audioFilePath, bool wordLevel, CancellationToken cancellationToken)
     {
         if (!IsModelReady)
         {
@@ -75,7 +90,7 @@ public sealed class WhisperTranscriber
         try
         {
             await ConvertToWhisperWavAsync(audioFilePath, wavPath, cancellationToken);
-            var segments = await RunWhisperAsync(wavPath, cancellationToken);
+            var segments = await RunWhisperAsync(wavPath, wordLevel, cancellationToken);
             return segments.Select(s => new TranscribedSegment(s.Start, s.End, s.Text)).ToList();
         }
         finally
@@ -124,12 +139,16 @@ public sealed class WhisperTranscriber
         }
     }
 
-    private async Task<List<SegmentData>> RunWhisperAsync(string wavPath, CancellationToken cancellationToken)
+    private async Task<List<SegmentData>> RunWhisperAsync(string wavPath, bool wordLevel, CancellationToken cancellationToken)
     {
         using var factory = WhisperFactory.FromPath(_modelPath);
-        using var processor = factory.CreateBuilder()
-            .WithLanguage("auto")
-            .Build();
+        var builder = factory.CreateBuilder().WithLanguage("auto");
+        if (wordLevel)
+        {
+            builder = builder.WithTokenTimestamps().SplitOnWord().WithMaxSegmentLength(1);
+        }
+
+        using var processor = builder.Build();
 
         var segments = new List<SegmentData>();
         await using var stream = File.OpenRead(wavPath);

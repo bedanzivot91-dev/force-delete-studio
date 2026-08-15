@@ -39,4 +39,10 @@ public sealed class SubtitleGeneratorService : ISubtitleGeneratorService
         var segments = await _transcriber.TranscribeAsync(mediaFilePath, cancellationToken);
         return segments.Select(s => new TranscribedCaptionSegment(s.Start, s.End, s.Text)).ToList();
     }
+
+    public async Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeWordsAsync(string mediaFilePath, CancellationToken cancellationToken = default)
+    {
+        var segments = await _transcriber.TranscribeWordsAsync(mediaFilePath, cancellationToken);
+        return segments.Select(s => new TranscribedCaptionSegment(s.Start, s.End, s.Text)).ToList();
+    }
 }

@@ -25,4 +25,9 @@ public interface ISubtitleGeneratorService
     /// caller that wants to place them directly onto a project's timeline as real caption clips instead
     /// of (or in addition to) writing a standalone .srt file.</summary>
     Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeAsync(string mediaFilePath, CancellationToken cancellationToken = default);
+
+    /// <summary>Same as <see cref="TranscribeAsync"/> but one segment per spoken word (real per-word
+    /// timing, not evenly guessed) - for karaoke-style captions where each word appears on screen
+    /// individually, timed to when it's actually spoken.</summary>
+    Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeWordsAsync(string mediaFilePath, CancellationToken cancellationToken = default);
 }

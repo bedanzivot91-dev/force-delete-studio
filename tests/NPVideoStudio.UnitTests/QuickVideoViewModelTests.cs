@@ -34,6 +34,7 @@ public sealed class FakeSubtitleGeneratorService : ISubtitleGeneratorService
     public string? SrtToReturn { get; set; } = "1\n00:00:00,000 --> 00:00:01,000\ntest\n\n";
     public bool ThrowOnGenerate { get; set; }
     public IReadOnlyList<TranscribedCaptionSegment> SegmentsToReturn { get; set; } = Array.Empty<TranscribedCaptionSegment>();
+    public IReadOnlyList<TranscribedCaptionSegment>? WordSegmentsToReturn { get; set; }
 
     public Task DownloadModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -60,6 +61,16 @@ public sealed class FakeSubtitleGeneratorService : ISubtitleGeneratorService
         }
 
         return Task.FromResult(SegmentsToReturn);
+    }
+
+    public Task<IReadOnlyList<TranscribedCaptionSegment>> TranscribeWordsAsync(string mediaFilePath, CancellationToken cancellationToken = default)
+    {
+        if (ThrowOnGenerate)
+        {
+            throw new InvalidOperationException("prepoznavanje govora nije uspelo");
+        }
+
+        return Task.FromResult(WordSegmentsToReturn ?? SegmentsToReturn);
     }
 }
 

@@ -294,6 +294,41 @@ public class WorkspaceViewModelTests
         Assert.Contains("2", workspace.CaptionsStatusMessage);
     }
 
+    /// <summary>Real feature request: karaoke-style captions where each spoken word appears on screen
+    /// individually, timed to when it's actually said - drives word-level Whisper transcription
+    /// (TranscribeWordsAsync) instead of line-level, but reuses the exact same timeline-placement path.</summary>
+    [AvaloniaFact]
+    public async Task GenerateKaraokeCaptionsForVideoAsync_VideoOnTimelineAndModelReady_AddsOneClipPerWord()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService
+        {
+            IsModelReady = true,
+            WordSegmentsToReturn = new[]
+            {
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(0.4), "Zdravo"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0.4), TimeSpan.FromSeconds(0.7), "svima"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0.7), TimeSpan.FromSeconds(1.0), "danas")
+            }
+        };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateKaraokeCaptionsForVideoCommand.ExecuteAsync(null);
+
+        var captionTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Caption);
+        Assert.Equal(3, captionTrack.Clips.Count);
+        Assert.Equal("Zdravo", captionTrack.Clips[0].Clip.TextContent);
+        Assert.Equal("svima", captionTrack.Clips[1].Clip.TextContent);
+        Assert.Equal("danas", captionTrack.Clips[2].Clip.TextContent);
+        Assert.Equal(0.4, captionTrack.Clips[1].Clip.TimelineStartSeconds, precision: 5);
+        Assert.Contains("karaoke", workspace.CaptionsStatusMessage);
+    }
+
     [AvaloniaFact]
     public async Task GenerateCaptionsForVideoAsync_NoVideoOnTimeline_DoesNotCallTranscribeAndExplainsWhy()
     {

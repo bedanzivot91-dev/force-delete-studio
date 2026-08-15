@@ -894,6 +894,45 @@ timestamps, which don't exist anywhere working in this codebase yet - a genuinel
 of work), and a font *name* picker beyond the fixed six safe system fonts (arbitrary font names need
 fontconfig, not guaranteed present in the bundled ffmpeg build).
 
+## Seventh post-Phase-11 follow-up: real karaoke word-by-word captions
+
+The previous follow-up above said karaoke needed "real word-level ASR timestamps, which don't exist
+anywhere working in this codebase yet." Re-investigated on a direct user demand to build it anyway, and
+found that claim was too pessimistic: it's true for the Python `ai-worker.py` path (still an unimplemented
+stub), but Whisper.net - the C# library already used for every other transcription in this app - has its
+own real word-timing support that was never being used: `WithTokenTimestamps()` + `SplitOnWord()` +
+`WithMaxSegmentLength(1)` on its processor builder, confirmed by pulling Whisper.net's own source
+(`WhisperProcessor.cs`/`WhisperProcessorBuilder.cs` from its public repo) - this is the exact technique
+whisper.cpp's own CLI uses for its `--max-len 1 --split-on-word` word-level SRT export, so it's a real,
+documented, native capability, not a workaround.
+
+Delivered:
+- **`WhisperTranscriber.TranscribeWordsAsync`**: same transcription pipeline as the existing line-level
+  `TranscribeAsync`, but built with those three options so whisper.cpp itself emits one *segment* per
+  word (with real per-word timing) instead of hand-parsing the noisier raw per-token array.
+  `ISubtitleGeneratorService`/`SubtitleGeneratorService` got a matching `TranscribeWordsAsync`.
+- **"Karaoke titlovi (reč po reč)"** button next to "Automatski dodaj titlove iz videa" in the workspace -
+  reuses the exact same `TimelineViewModel.AddGeneratedCaptions` placement path (already generic over any
+  list of timed segments), so each transcribed word becomes its own short-lived clip on a new caption
+  track. On playback/export this makes each word appear on screen individually, exactly when it's spoken -
+  the word-by-word "karaoke" style short-form editors (CapCut etc.) use. Deliberately not attempted:
+  highlighting one word *inside* an otherwise-static full sentence, which would need per-character glyph-
+  width measurement that ffmpeg's `drawtext` doesn't expose - word-by-word popup is the real, robust
+  interpretation actually built here, not a stand-in oversold as the other one.
+
+Verified: a new `GenerateKaraokeCaptionsForVideoAsync` unit test (three fake word segments → three correctly
+timed/ordered clips on a caption track); the new button renders correctly in a real run of the compiled app
+under Xvfb; and, since this sandbox's network policy blocks `huggingface.co` (so the real Whisper model
+genuinely cannot be downloaded here - confirmed again via `curl`, matching the standing, documented
+constraint), the actual per-word ASR quality can only be verified on CI or the user's own machine, same as
+this project's other Whisper-integration tests. What *was* verified directly here is the render path that
+doesn't depend on real speech: drove `FfmpegFilterGraphBuilder` + a real `ffmpeg` process with three
+synthetic word-clips at 0-1s/1-2s/2-3s and extracted real frames at t=0.5s and t=1.5s - each frame shows
+exactly one word ("ZDRAVO" then "SVIMA", the other absent), confirming the chained per-clip `drawtext`
+filters correctly show-and-hide each word in its own time window.
+
+Full non-integration suite: 345 tests passing (344 + 1 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

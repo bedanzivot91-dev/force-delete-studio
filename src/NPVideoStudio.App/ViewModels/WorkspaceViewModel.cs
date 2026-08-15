@@ -235,7 +235,21 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// the user to do that first if the model isn't ready yet.
     /// </summary>
     [RelayCommand]
-    private async Task GenerateCaptionsForVideoAsync()
+    private Task GenerateCaptionsForVideoAsync() => GenerateCaptionsCoreAsync(wordLevel: false);
+
+    /// <summary>
+    /// "Automatski dodaj karaoke titlove (reč po reč)" - same pipeline as the line-level command above,
+    /// but each transcribed WORD becomes its own short-lived clip on the caption track (via
+    /// <see cref="ISubtitleGeneratorService.TranscribeWordsAsync"/>, which uses whisper.cpp's own word-
+    /// splitting so the timing is real, not guessed) - so on export/preview, words appear on screen one at
+    /// a time exactly when spoken, the "karaoke" style short-form editors (CapCut etc.) use, as opposed to
+    /// highlighting one word inside an otherwise-static full sentence (which would need per-character
+    /// glyph-width measurement ffmpeg's drawtext doesn't expose - not attempted here).
+    /// </summary>
+    [RelayCommand]
+    private Task GenerateKaraokeCaptionsForVideoAsync() => GenerateCaptionsCoreAsync(wordLevel: true);
+
+    private async Task GenerateCaptionsCoreAsync(bool wordLevel)
     {
         var videoFilePath = ResolvePrimaryVideoFilePath();
         if (videoFilePath is null)
@@ -255,12 +269,16 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var segments = await _subtitleGeneratorService.TranscribeAsync(videoFilePath);
+            var segments = wordLevel
+                ? await _subtitleGeneratorService.TranscribeWordsAsync(videoFilePath)
+                : await _subtitleGeneratorService.TranscribeAsync(videoFilePath);
             Timeline.AddGeneratedCaptions(segments);
             CaptionsStatusMessage = segments.Count == 0
                 ? "Nije prepoznat nijedan izgovoren tekst u ovom videu."
-                : $"Dodato {segments.Count} titl(ova) na vremensku traku.";
-            _logger.Information("Automatski generisani titlovi dodati na traku: {Count} segmenata iz {File}", segments.Count, videoFilePath);
+                : wordLevel
+                    ? $"Dodato {segments.Count} reč(i) na vremensku traku (karaoke)."
+                    : $"Dodato {segments.Count} titl(ova) na vremensku traku.";
+            _logger.Information("Automatski generisani titlovi dodati na traku: {Count} segmenata iz {File} (karaoke={WordLevel})", segments.Count, videoFilePath, wordLevel);
         }
         catch (Exception ex)
         {
