@@ -1353,6 +1353,49 @@ rather than silently dropped).
 
 Full non-integration suite: 408 tests passing (405 + 3 new), no regressions.
 
+## Sixteenth post-Phase-11 follow-up: installer robustness against a silent (no dialog, no error) failure
+
+Real user report: after the fourteenth follow-up's path-joining fix, `NPVideoStudioSetup.exe` now does
+**nothing at all** on double-click - no error dialog, no window, no visible sign of running. This is a
+different failure mode than the fourteenth follow-up's bug (which at least reported "success" then failed
+to launch) - genuine silence means either something is failing before `Install()`'s own try/catch can run,
+or the OS/AV layer is intervening before the process's own code gets a chance to show anything, neither of
+which this Linux sandbox can reproduce or directly observe (cannot execute a Windows PE binary at all).
+Made the installer maximally robust against every plausible cause this session's own changes could have
+introduced, rather than guessing at one and hoping:
+
+- **Long-path awareness**: this session's eleventh follow-up bundled a deep libvlc plugin tree
+  (`libvlc/win-x64/plugins/<category>/<name>_plugin.dll`) that `CopyDirectory` now walks recursively - a
+  real install path can plausibly approach or exceed the classic 260-character Windows `MAX_PATH` limit
+  depending on the user's own folder/username depth, which throws `PathTooLongException` mid-copy on an
+  otherwise completely normal machine. Added `<longPathAware>true</longPathAware>` to a new
+  `NPVideoStudio.Installer/app.manifest` (the installer previously had no manifest at all) and to the main
+  app's existing manifest (it loads libvlc plugins from the same deep tree at runtime).
+- **Removed a real silent-failure gap**: `Main()` previously only wrapped `Install()`'s own body in a
+  try/catch - any exception thrown before that point (or one `Install()` itself didn't anticipate) would
+  propagate out of a console-less `WinExe` with zero visible sign to the user, indistinguishable from
+  "double-clicking did nothing." Wrapped the entirety of `Main()` in a top-level try/catch that both shows
+  a message box and writes a real log file (`NPVideoStudioSetup-greska.log`) next to the exe - the same
+  folder the user already has open - so any future failure leaves real, findable evidence instead of
+  silence, whether or not the current fix turns out to be the actual cause.
+
+**Also addressed directly**: the user asked why the delivered folder/zip is still named with "Portable" in
+it, reading that as a sign something didn't really install. That naming is unrelated to any code path -
+it's purely this chat-delivered package's own folder name, distinct from the actual installed app name
+("NP Video Studio" everywhere it matters: Start Menu, Add/Remove Programs, window title) - renamed the
+sandbox-delivered package folder to remove the ambiguity going forward. `scripts/build-release.ps1`'s own
+official CI portable-ZIP artifact name is untouched (a real, intentionally-named separate distribution
+format for the GitHub Actions release pipeline, not the same thing as this chat-delivered install package).
+
+Verified: full non-integration suite still green (408/408, no regressions - these are infrastructure/
+manifest changes with no testable business logic of their own). **Cannot verify** whether either specific
+fix (long-path limit, or a trim/single-file/AV-related failure the crash log will now surface) is the
+actual root cause of the reported silent failure - this Linux sandbox cannot execute the resulting
+`NPVideoStudioSetup.exe` at all, so this is deliberately a defense-in-depth pass (fix every plausible real
+cause this session's own changes could have introduced) rather than a single confirmed fix, and honestly
+disclosed as such. If the next report is still silence, the crash log (or its absence) is the next real
+diagnostic signal to look at, not a guess.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)

@@ -23,20 +23,49 @@ public static class Program
 
     public static int Main(string[] args)
     {
-        if (!OperatingSystem.IsWindows())
+        // Real, defensive fix: every previous version of this method let an exception thrown before
+        // Install()'s own try/catch (or one from a source Install()/Uninstall() didn't anticipate)
+        // propagate out of Main() with zero visible sign to the user - a WinExe with no console
+        // attached shows nothing at all when that happens, which is indistinguishable from "double-
+        // clicking did nothing." Wrapping the entire body here, plus a real log file next to the exe,
+        // means any future failure - single-file bootstrap issue, a path this build didn't hit before,
+        // anything - leaves real evidence instead of silence.
+        try
         {
-            Console.Error.WriteLine("Ovaj instalater radi samo na Windows-u.");
-            return 1;
-        }
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.Error.WriteLine("Ovaj instalater radi samo na Windows-u.");
+                return 1;
+            }
 
-        if (args.Contains("--uninstall"))
-        {
-            Uninstall();
+            if (args.Contains("--uninstall"))
+            {
+                Uninstall();
+                return 0;
+            }
+
+            Install();
             return 0;
         }
+        catch (Exception ex)
+        {
+            TryLogFatal(ex);
+            ShowMessage($"Neočekivana greška pri pokretanju instalatera:\n\n{ex}", "Greška pri instalaciji");
+            return 1;
+        }
+    }
 
-        Install();
-        return 0;
+    /// <summary>Best-effort - written next to the exe (the same folder the user already has open),
+    /// not AppData, so it's actually findable without knowing where to look. Never lets a logging
+    /// failure itself replace the real error being reported.</summary>
+    private static void TryLogFatal(Exception ex)
+    {
+        try
+        {
+            var logPath = Path.Combine(AppContext.BaseDirectory, "NPVideoStudioSetup-greska.log");
+            File.WriteAllText(logPath, $"{DateTimeOffset.Now:O}{Environment.NewLine}{ex}{Environment.NewLine}");
+        }
+        catch { /* best-effort */ }
     }
 
     private static string InstallDir => Path.Combine(
