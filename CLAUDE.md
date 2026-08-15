@@ -43,13 +43,20 @@ has full internet. Don't "fix" them locally; verify via CI job logs instead.
 
 - **Sandbox network**: `github.com`/`api.nuget.org` reachable; `huggingface.co` and (presumably)
   `youtube.com` blocked by the proxy. yt-dlp/Whisper-model-download code paths are verified on CI only.
-- **No bundled tools, still true**: `ffmpeg`, `ffprobe`, `yt-dlp`, `fpcalc` (Chromaprint), `tesseract` are
-  all resolved via `FfmpegLocator`/`DependencyManagerService` (override path → `Tools/<name>/` next to the
-  exe → PATH). None are bundled in `Tools/` — users need them on PATH or via
-  `scripts/check-dependencies.ps1`. This is a real, deliberate gap (see `THIRD_PARTY_NOTICES.md` for why
-  it also keeps the licensing story simple — none of these GPL/LGPL-licensed tools are redistributed by
-  this app). The only things actually bundled in the publish output are Whisper.net + its native
-  whisper.cpp binaries (`whisper.dll`, `ggml-*.dll`) — both MIT.
+- **FFmpeg/FFprobe/yt-dlp are now bundled** (changed after real user feedback that "not bundled" made the
+  player/export/OCR/song-recognition/YouTube-download features all silently fail on a clean Windows
+  machine with nothing on PATH): `scripts/build-release.ps1` downloads the gyan.dev "essentials" GPLv3
+  FFmpeg/FFprobe build and the official yt-dlp.exe at build time and copies them into `Tools/ffmpeg/` and
+  `Tools/yt-dlp/` in `publish/win-x64/`, so both the portable ZIP and the Inno Setup installer ship with
+  them out of the box — `FfmpegLocator` already resolved from that exact path, nothing was bundled there
+  before. Best-effort: a failed download during the build is a warning, not a fatal error (see the
+  try/catch in the script) — a machine building with no internet still produces a runnable app that falls
+  back to PATH/manual install, same as before. `fpcalc` (Chromaprint) and `tesseract` are **not** bundled
+  yet — real, disclosed gap, not an oversight (Tesseract in particular ships as a Windows installer, not a
+  simple portable ZIP, so automating its extraction is more involved and wasn't done in this pass). See
+  `THIRD_PARTY_NOTICES.md` for the full GPL compliance story (source pointer, license text location).
+  Also bundled in the publish output: Whisper.net + its native whisper.cpp binaries (`whisper.dll`,
+  `ggml-*.dll`) — both MIT.
 - **Whisper model** is downloaded on demand (~75 MB tiny model) after an explicit button click — never
   pre-bundled, by design (consent-gated download).
 - **Version is fixed via `Directory.Build.props`** (`<Version>0.1.0</Version>`, single source of truth for

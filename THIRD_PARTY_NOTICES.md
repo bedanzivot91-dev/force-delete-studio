@@ -27,17 +27,24 @@ groups with very different obligations:
 | Serilog, Serilog.Sinks.File | Apache License 2.0 | Application logging |
 | Whisper.net, Whisper.net.Runtime | MIT | .NET bindings for local speech recognition |
 | whisper.cpp (native library wrapped by Whisper.net.Runtime - `whisper.dll`, `ggml-*.dll`) | MIT | The actual Whisper inference engine |
+| FFmpeg, FFprobe (gyan.dev "essentials" Windows build, `ffmpeg.exe`/`ffprobe.exe`) | GPLv3 | Video/audio processing - downloaded and copied into `Tools/ffmpeg/` by `scripts/build-release.ps1` at build time (not committed to this repo), so both the portable ZIP and the installer work without a separate install |
+| yt-dlp (`yt-dlp.exe`) | The Unlicense (public domain) | Downloading the user's own YouTube audio - downloaded and copied into `Tools/yt-dlp/` by `scripts/build-release.ps1` the same way |
 
 Test-only packages (`xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`,
 `Avalonia.Headless.XUnit`) are not listed above - they never ship in the built application, only in the
 test project.
 
+**Corresponding source for the bundled GPLv3 FFmpeg/FFprobe binaries**: the exact source used for
+gyan.dev's builds is the official FFmpeg git repository, https://github.com/FFmpeg/FFmpeg - the full
+GPLv3 text is in `Licenses/GPLv3-FFmpeg.txt` (fetched from that same repository). `scripts/build-release.ps1`
+always pulls the current `ffmpeg-release-essentials.zip` from https://www.gyan.dev/ffmpeg/builds/, which
+is itself the build gyan.dev publishes as corresponding to a specific tagged FFmpeg source release -
+see that page for the exact version/commit pairing at build time.
+
 ## External prerequisites (not bundled, not redistributed by this app)
 
 | Tool/library | License | How it's used | Verified via |
 |---|---|---|---|
-| FFmpeg (gyan.dev "essentials" Windows build) | GPLv3 | Video/audio processing, subprocess (`ffmpeg.exe`/`ffprobe.exe`) | gyan.dev build page |
-| yt-dlp | The Unlicense (public domain) | Downloading the user's own YouTube audio, subprocess | github.com/yt-dlp/yt-dlp/blob/master/LICENSE |
 | Chromaprint (`fpcalc`) | Library: LGPL-2.1 / MIT; the `fpcalc` command-line binary: GPLv2+ | Audio fingerprinting for song recognition, subprocess | github.com/acoustid/chromaprint |
 | Tesseract OCR + tessdata | Apache License 2.0 | On-screen text detection ("Analiza rasporeda videa"), subprocess | github.com/tesseract-ocr/tesseract, github.com/tesseract-ocr/tessdata |
 | faster-whisper | MIT | Optional local AI worker engine (Balanced/MostAccurate profiles), Python import | github.com/SYSTRAN/faster-whisper |
@@ -45,15 +52,20 @@ test project.
 | WhisperX | BSD 2-Clause | Optional local AI worker engine (word-level alignment) | github.com/m-bain/whisperX/blob/main/LICENSE |
 | Demucs | MIT | Optional local AI worker engine (vocal/instrumental separation) | github.com/facebookresearch/demucs/blob/main/LICENSE |
 
+FFmpeg and yt-dlp moved from this table to "Bundled" above - `fpcalc` and Tesseract remain external,
+user-installed prerequisites for now (see `CLAUDE.md` and `docs/PHASE_STATUS.md` for why - bundling them
+is a real, disclosed gap, not an oversight: Tesseract in particular ships as a Windows installer rather
+than a simple portable ZIP, which `scripts/build-release.ps1` doesn't yet automate extracting from).
 None of the tools in this table are copied into `publish/win-x64/`, the installer, or the portable ZIP -
 `Tools/ai-worker/requirements.txt` only lists package *names* for the user's own `pip install`, and
 `FfmpegLocator`/`DependencyManagerService` only ever resolve a path to an executable the user already has
-on their machine (see `CLAUDE.md`: "No bundled tools" is a real, current constraint, not an oversight).
+on their machine.
 
 ## Notes on GPL/LGPL components above
 
-FFmpeg (GPLv3) and `fpcalc` (GPLv2+) are the only copyleft-licensed tools this app depends on, and both
-are external, user-installed prerequisites this app never bundles, links against, or redistributes - only
-invoked as separate subprocesses via their own already-installed executable. This is the standard "mere
-aggregation via subprocess" pattern that does not extend GPL's terms onto this application's own code or
-create a distribution obligation on this project for those binaries.
+FFmpeg (GPLv3) is now bundled (see above) - shipped as unmodified upstream binaries with the complete
+GPLv3 license text (`Licenses/GPLv3-FFmpeg.txt`) and a pointer to the exact corresponding source, which
+satisfies GPLv3's source-availability requirement for binary redistribution. `fpcalc` (GPLv2+) remains an
+external, user-installed prerequisite this app never bundles, links against, or redistributes - only
+invoked as a separate subprocess via its own already-installed executable, the standard "mere aggregation
+via subprocess" pattern that doesn't extend GPL's terms onto this application's own code.
