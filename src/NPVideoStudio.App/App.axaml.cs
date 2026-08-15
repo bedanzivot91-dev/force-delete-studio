@@ -75,7 +75,12 @@ public partial class App : Avalonia.Application
             new SongRecognitionService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
         services.AddSingleton<IVideoLayoutAnalysisService>(sp =>
-            new TesseractOcrService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        {
+            var mediaProbe = sp.GetRequiredService<IMediaProbeService>();
+            var tesseract = new TesseractOcrService(mediaProbe, settingsService.Current.FfmpegPath);
+            var easyOcr = new EasyOcrVideoLayoutAnalysisService(mediaProbe, settingsService.Current.FfmpegPath);
+            return new CompositeVideoLayoutAnalysisService(easyOcr, tesseract);
+        });
         services.AddSingleton<IProxyGeneratorService>(_ => new ProxyGeneratorService(settingsService.Current.FfmpegPath));
         services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
         services.AddSingleton<IRenderService>(_ => new RenderService(settingsService.Current.FfmpegPath));

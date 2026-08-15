@@ -1,0 +1,8 @@
+# Optional dependency for EasyOcrVideoLayoutAnalysisService (better than Tesseract on stylized/
+# decorative on-screen text - see ocr_frame.py's doc comment). Not required for the app to work -
+# CompositeVideoLayoutAnalysisService falls back to Tesseract when this isn't installed.
+#
+# Verified working in this exact form: installed via `pip install easyocr`, ran against a real
+# decorative-caption video frame with the rs_latin language model, correctly read text Tesseract
+# could not (81%/95% confidence vs. garbage output).
+easyocr

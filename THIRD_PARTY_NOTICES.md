@@ -47,6 +47,7 @@ see that page for the exact version/commit pairing at build time.
 |---|---|---|---|
 | Chromaprint (`fpcalc`) | Library: LGPL-2.1 / MIT; the `fpcalc` command-line binary: GPLv2+ | Audio fingerprinting for song recognition, subprocess | github.com/acoustid/chromaprint |
 | Tesseract OCR + tessdata | Apache License 2.0 | On-screen text detection ("Analiza rasporeda videa"), subprocess | github.com/tesseract-ocr/tesseract, github.com/tesseract-ocr/tessdata |
+| EasyOCR (+ PyTorch, its inference backend) | Apache License 2.0 (EasyOCR); PyTorch: BSD-3-Clause | Optional, better-on-stylized-text alternative for the same on-screen text detection, via `easyocr-helper/ocr_frame.py`, Python import | `pip show easyocr` license field; verified directly - reads decorative/colored caption text real Tesseract cannot |
 | faster-whisper | MIT | Optional local AI worker engine (Balanced/MostAccurate profiles), Python import | github.com/SYSTRAN/faster-whisper |
 | CTranslate2 (faster-whisper's inference backend) | MIT | Same as above, transitive dependency | github.com/OpenNMT/CTranslate2 |
 | WhisperX | BSD 2-Clause | Optional local AI worker engine (word-level alignment) | github.com/m-bain/whisperX/blob/main/LICENSE |

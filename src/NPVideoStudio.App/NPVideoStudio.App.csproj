@@ -27,6 +27,12 @@
          (and, for Balanced/MostAccurate, `pip install -r ai-worker/requirements.txt`) - see that file. -->
     <None Include="..\..\ai-worker\ai_worker.py" Link="Tools\ai-worker\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\ai-worker\requirements.txt" Link="Tools\ai-worker\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- EasyOcrVideoLayoutAnalysisService's helper script - copied next to the exe so its default
+         "Tools/easyocr-helper/ocr_frame.py" resolution finds it. Optional: requires a user-installed
+         Python and `pip install -r easyocr-helper/requirements.txt`; CompositeVideoLayoutAnalysisService
+         falls back to the always-available Tesseract path when it's not installed. -->
+    <None Include="..\..\easyocr-helper\ocr_frame.py" Link="Tools\easyocr-helper\ocr_frame.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\easyocr-helper\requirements.txt" Link="Tools\easyocr-helper\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

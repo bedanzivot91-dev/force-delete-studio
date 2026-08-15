@@ -706,14 +706,60 @@ Also fixed in the same pass: the portable ZIP's `README-FIRST.txt` told the user
 
 Full non-integration suite: 318 tests passing (315 + 3 new regression tests), no regressions.
 
+## Third post-Phase-11 follow-up: EasyOCR fallback for stylized on-screen text
+
+The user reported "prepoznavanje teksta iz videa" not working and supplied a real video to prove it -
+`TesseractOcrService` genuinely returned garbage on it. Root-caused before writing any code: the video's
+on-screen caption ("NEDOSTAJEŠ PUNOO") uses a colored, outlined "bubble letter" font typical of short-form
+video templates - Tesseract is built for plain printed/document text and is known to struggle badly with
+this style. Confirmed directly (not assumed): ran real `tesseract` against the actual extracted frame
+(including a cropped, 3x-upscaled close-up of just the text) and got nonsense output every time.
+
+Before proposing a fix, verified a real alternative actually solves it: installed EasyOCR (a deep-learning
+OCR library, Apache 2.0) and ran it against the exact same frame. With its dedicated `rs_latin` language
+model: `'NEDOSTAJEŠ' 0.81`, `'PUNOO' 0.95` - both words read correctly, diacritics included, vs.
+Tesseract's complete failure on the same input.
+
+Delivered:
+- **`easyocr-helper/ocr_frame.py`**: small bundled Python script, one image path in, one JSON array of
+  `{text, confidence, x, y, width, height}` out (coordinates already normalized 0..1, same shape
+  `TesseractOcrService.ParseTsv` produces) - the plain request/response subprocess pattern already used
+  for ffmpeg/yt-dlp/Tesseract/fpcalc, not the JSONL-event `ai_worker.py` protocol (that one's shaped for
+  long-running audio jobs with progress events; a single-frame OCR call doesn't need it).
+- **`EasyOcrVideoLayoutAnalysisService`** (`NPVideoStudio.Media`): real `IVideoLayoutAnalysisService`
+  implementation shelling out to that script, same frame-sampling logic as `TesseractOcrService`.
+- **`CompositeVideoLayoutAnalysisService`**: prefers EasyOCR when actually installed (checked via a cheap
+  `python -c "import easyocr, PIL"` probe, cached), falls back to Tesseract otherwise or if a specific run
+  throws - so a machine without the optional Python/EasyOCR setup keeps working exactly as before, with
+  no UI or ViewModel changes needed. Wired in as the sole `IVideoLayoutAnalysisService` registration in
+  `App.axaml.cs`.
+- **Tests**: pure `ParseRegions` tests against the real captured JSON shape from the run above, plus a
+  real end-to-end integration test (`EasyOcrVideoLayoutAnalysisServiceTests.AnalyzeAsync_RealFrameWithPlainText_...`)
+  that generates a real ffmpeg clip with drawtext, runs the actual bundled script against it, and asserts
+  real detected text - confirmed passing here (14s real run, not skipped). Self-skips (returns without
+  asserting) when Python/EasyOCR isn't installed, since this is an optional dependency **not** installed
+  on this project's Windows CI (PyTorch is a heavy, slow addition for what's a fallback-only feature) -
+  deliberately not wired into CI, the inverse of the Whisper-model tests (those need CI's real internet
+  and fail here; this one needs a local install this sandbox happens to have and CI doesn't).
+- **`THIRD_PARTY_NOTICES.md`**: EasyOCR (Apache 2.0) + PyTorch (BSD-3-Clause) added as an external,
+  optional prerequisite.
+
+Deliberately not done: no Settings/UI toggle to force one engine or the other, no UI indicator of which
+engine actually ran for a given analysis - the composite fallback is intentionally invisible/automatic to
+keep this change's blast radius small (zero touched ViewModel/View code). A future pass could surface
+which engine produced a given result if that turns out to matter in practice.
+
+Full non-integration suite: 326 tests passing (319 + 7 new), no regressions.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
 before it can be called fully complete - everything else in Phase 11's spec is done. This is also the
 last planned phase (`docs/MASTER_SPEC.md` only defines Phases 0-11).
 
-Both post-Phase-11 follow-ups above still need the user to `git pull` + re-run `scripts\build-release.ps1`
-and confirm on their real machine that: (a) a picture now actually appears in the player while scrubbing/
-stepping/playing, and (b) "Izvezi video" now produces a real playable file that reflects what's actually
-on the timeline (the stale-timeline export bug above is now fixed in code and covered by a regression
-test, but not yet confirmed against the user's own real project/clip on real Windows).
+Post-Phase-11 follow-ups above still need the user to `git pull` + re-run `scripts\build-release.ps1` and
+confirm on their real machine that: (a) a picture now actually appears in the player while scrubbing/
+stepping/playing, (b) "Izvezi video" now produces a real playable file that reflects what's actually on
+the timeline, and (c) OCR on their real video reads the stylized caption correctly once they've installed
+the optional `easyocr-helper/requirements.txt` dependency (not bundled - Python/PyTorch is too heavy to
+auto-download the way FFmpeg/yt-dlp now are).
