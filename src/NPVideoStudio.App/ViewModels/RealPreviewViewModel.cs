@@ -26,6 +26,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
     private readonly LibVLC? _libVlc;
     private readonly DispatcherTimer _timer;
     private bool _isSyncingFromPlayer;
+    private bool _isDisposed;
 
     public MediaPlayer? MediaPlayer { get; }
 
@@ -87,7 +88,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
     /// <summary>Loads a real rendered file (see <see cref="WorkspaceViewModel.RenderRealPreviewCommand"/>) and starts playing it immediately, with real audio.</summary>
     public void LoadAndPlay(string filePath)
     {
-        if (!IsAvailable || _libVlc is null || MediaPlayer is null)
+        if (!IsAvailable || _isDisposed || _libVlc is null || MediaPlayer is null)
         {
             return;
         }
@@ -131,7 +132,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 
     partial void OnVolumeChanged(int value)
     {
-        if (MediaPlayer is not null)
+        if (MediaPlayer is not null && !_isDisposed)
         {
             MediaPlayer.Volume = value;
         }
@@ -139,7 +140,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 
     partial void OnIsMutedChanged(bool value)
     {
-        if (MediaPlayer is not null)
+        if (MediaPlayer is not null && !_isDisposed)
         {
             MediaPlayer.Mute = value;
         }
@@ -148,7 +149,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
     /// <summary>Mirrors the same real-vs-external-seek guard pattern as <see cref="PlayerViewModel.OnCurrentTimeSecondsChanged"/> - the seek slider two-way binds straight to this property, so an externally-driven value (a user drag) needs to reach the real player, while a value we ourselves just set from <see cref="SyncFromPlayer"/> must not re-seek and fight the player's own natural playback advance.</summary>
     partial void OnCurrentTimeSecondsChanged(double value)
     {
-        if (!_isSyncingFromPlayer && MediaPlayer is not null && HasLoadedFile)
+        if (!_isSyncingFromPlayer && !_isDisposed && MediaPlayer is not null && HasLoadedFile)
         {
             MediaPlayer.Time = (long)(value * 1000);
         }
@@ -156,7 +157,10 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 
     private void SyncFromPlayer()
     {
-        if (MediaPlayer is null)
+        // _isDisposed matters as much as the null check: a DispatcherTimer Tick can already be queued
+        // when Dispose() runs, and reading MediaPlayer.Time on a freed native player is an access
+        // violation that takes the whole process down with no managed exception to log.
+        if (MediaPlayer is null || _isDisposed)
         {
             return;
         }
@@ -185,10 +189,28 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         return $"{(int)t.TotalMinutes:D2}:{t.Seconds:D2}";
     }
 
+    /// <summary>
+    /// Real crash fix. The previous version disposed <see cref="MediaPlayer"/> while it could still be
+    /// playing (and while the Avalonia <c>VideoView</c> was still bound to it), which is a documented
+    /// native access-violation in LibVLCSharp - and a native crash kills the process outright, so it
+    /// never reaches <c>AppDomain.UnhandledException</c> and leaves no log at all. That matches the real
+    /// user report exactly: "program se sam gasi", no error, no crash.log entry. Now: stop the timer
+    /// first, mark disposed so a Tick already queued on the dispatcher can't touch a freed player, stop
+    /// playback before freeing it, and free in the required order (player before its LibVLC instance),
+    /// each guarded so one failure can't skip the rest.
+    /// </summary>
     public void Dispose()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
         _timer.Stop();
-        MediaPlayer?.Dispose();
-        _libVlc?.Dispose();
+
+        try { MediaPlayer?.Stop(); } catch { /* already gone - nothing to salvage */ }
+        try { MediaPlayer?.Dispose(); } catch { /* ditto */ }
+        try { _libVlc?.Dispose(); } catch { /* ditto */ }
     }
 }

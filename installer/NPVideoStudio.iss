@@ -17,13 +17,22 @@
 #define MyProjectFileExt ".npvsproject"
 
 [Setup]
-AppId={{B9E3B6E1-6D0B-4C6C-9C8B-NPVIDEOSTUDIO1}}
+; Must be a real GUID - the old value ended in "NPVIDEOSTUDIO1", which is not hexadecimal, so it was
+; never a valid GUID and Windows could not reliably match an existing install for upgrade/uninstall.
+AppId={{7F3A9C41-2E5D-4B18-9A6C-D0E4F1B85C27}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+; Real user complaint: "NISI MI DAO MOGUĆNOST DA BIRAM U KOM FOLDERU ŽELIM DA SE INSTALIRA". Inno's
+; default for this is "auto", which silently hides the destination page whenever it detects an existing
+; install of the same AppId - so anyone reinstalling never got to choose. Forced on, always.
+DisableDirPage=no
+; Same reasoning for the very first page: with PrivilegesRequiredOverridesAllowed=dialog the wizard opens
+; on an all-users/just-me question, which is fine, but the welcome page explains what is about to happen.
+DisableWelcomePage=no
 OutputDir=..\dist
 OutputBaseFilename=NPVideoStudio-Setup-{#MyAppVersion}
 Compression=lzma2

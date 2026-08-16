@@ -101,6 +101,8 @@
         <StackPanel Spacing="8">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="Pravi plejer (sa zvukom)" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
+                    ToolTip.Tip="Pušta uvezeni fajl odmah, bez renderovanja - video i zvuk." />
             <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
                     ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
                     IsEnabled="{Binding !IsRenderingRealPreview}" />

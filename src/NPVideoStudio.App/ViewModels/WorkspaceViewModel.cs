@@ -197,7 +197,46 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// can be false if libvlc's native library isn't present on this machine.
     /// </summary>
     [RelayCommand]
-    private async Task RenderRealPreviewAsync()
+    private async Task RenderRealPreviewAsync() => await RenderRealPreviewCoreAsync();
+
+    /// <summary>
+    /// Plays an imported source file directly through the real (libvlc) player - video and sound, right
+    /// away, with no render step at all.
+    ///
+    /// Real user report that motivated this: "NE PUŠTA SE VIDEO, NE ČUJE SE ZVUK". Until now the only way
+    /// to hear anything was <see cref="RenderRealPreviewAsync"/>, which renders the whole timeline through
+    /// ffmpeg first - correct for previewing edits, but a bad answer to "I just imported a video, play
+    /// it". libvlc plays mp4/mp3/etc. natively, so for looking at the source material there is nothing to
+    /// render; this is the source-monitor half that every editor has and this one was missing.
+    /// </summary>
+    [RelayCommand]
+    private void PlaySelectedSource()
+    {
+        var asset = Timeline.SelectedMediaAsset ?? MediaLibrary.FirstOrDefault();
+        if (asset is null)
+        {
+            RealPreviewStatusMessage = "Prvo dodajte video ili audio fajl (dugme \"Dodaj medije\").";
+            return;
+        }
+
+        if (!RealPreview.IsAvailable)
+        {
+            RealPreviewStatusMessage = RealPreview.UnavailableReason ?? "Pravi plejer nije dostupan na ovom računaru.";
+            return;
+        }
+
+        if (!File.Exists(asset.Asset.FilePath))
+        {
+            RealPreviewStatusMessage = $"Fajl više ne postoji na disku: {asset.Asset.FilePath}";
+            return;
+        }
+
+        RealPreview.LoadAndPlay(asset.Asset.FilePath);
+        RealPreviewStatusMessage = $"Pušta se originalni fajl sa zvukom: {asset.FileName}";
+        _logger.Information("Originalni fajl pušten direktno u plejeru: {Path}", asset.Asset.FilePath);
+    }
+
+    private async Task RenderRealPreviewCoreAsync()
     {
         if (!Timeline.CurrentTracks.Any(t => t.Clips.Count > 0))
         {
