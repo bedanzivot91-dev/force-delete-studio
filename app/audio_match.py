@@ -35,7 +35,13 @@ YTDLP_LATEST_URL = f"https://github.com/yt-dlp/yt-dlp/releases/latest/download/{
 YTDLP_SUMS_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS"
 DATA_DIR = Path(os.environ.get("SUNO_STUDIO_DATA_DIR") or (ROOT / "data")).expanduser().resolve()
 CACHE_DIR = DATA_DIR / "youtube_audio_cache"
-ALGORITHM_VERSION = "sps-spectral-v3"
+# v4: fingerprints made before this point may have been built by an FFmpeg
+# without the Chromaprint muxer, so they carry an empty chromaprint array and
+# can only ever be compared with the weak loudness-envelope fallback. Bumping
+# the version invalidates those automatically -- get_audio_fingerprint() looks
+# up by algorithm, so old rows are simply not found and the affected songs are
+# re-indexed with real Chromaprint data instead of silently staying unmatchable.
+ALGORITHM_VERSION = "sps-spectral-v4"
 FRAME_SECONDS = 0.5
 SAMPLE_RATE = 2000
 
