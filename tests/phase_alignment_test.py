@@ -91,6 +91,28 @@ def main():
     ) == song_finder.STATUS_POSSIBLE
     checks.append("even a perfect score on a 5s clip stays 'possible', never 'confirmed'")
 
+    # -- padding must never be able to DISABLE fingerprinting --
+    # The first version built its silence with `-f lavfi -i anullsrc` and
+    # concat. That needs the lavfi input device, and on an FFmpeg build
+    # without it the whole chromaprint extraction returned nothing, which
+    # silently demotes recognition to the weak envelope fallback. Reproduced
+    # exactly: a pristine 15s clip still passed while the same clip sped up
+    # 1.03x failed -- which is precisely how it showed up in Windows CI.
+    import inspect
+    # Comments in that function describe the old approach on purpose, so look
+    # at the code itself rather than at the prose around it.
+    code = "\n".join(
+        line for line in inspect.getsource(audio_match._extract_chromaprint).splitlines()
+        if not line.strip().startswith("#")
+    )
+    assert "adelay" in code, "silence must be prepended with a plain audio filter"
+    assert "lavfi" not in code and "anullsrc" not in code, "padding must not depend on an input device"
+    checks.append("silence is prepended with adelay, needing no extra input device that a build might lack")
+
+    extract_body = inspect.getsource(audio_match.extract_signature)
+    assert "if pad and not chromaprint" in extract_body
+    checks.append("if padded extraction yields nothing, the unpadded fingerprint is used instead of none at all")
+
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
 

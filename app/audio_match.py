@@ -622,24 +622,21 @@ def _extract_chromaprint(
     51, and its match score from 51.8 to 86.3.
     """
     try:
-        args = [ffmpeg, "-hide_banner", "-loglevel", "error"]
-        tempo_filter = f",atempo={tempo:.4f}" if tempo != 1.0 else ""
+        filters: list[str] = []
+        if tempo != 1.0:
+            filters.append(f"atempo={tempo:.4f}")
         if pad_seconds > 0:
-            # Both concat inputs must already agree on rate/layout/format --
-            # the concat filter will not convert them for us.
-            shape = "aresample=44100,aformat=sample_fmts=s16:channel_layouts=mono"
-            args += ["-f", "lavfi", "-t", f"{pad_seconds:.3f}", "-i", "anullsrc=r=44100:cl=mono"]
-            args += ["-i", source, "-vn"]
-            args += [
-                "-filter_complex",
-                f"[0:a]{shape}[silence];[1:a]{shape}[audio];"
-                f"[silence][audio]concat=n=2:v=0:a=1{tempo_filter}[padded]",
-                "-map", "[padded]",
-            ]
-        else:
-            args += ["-i", source, "-vn"]
-            if tempo_filter:
-                args += ["-af", tempo_filter.lstrip(",")]
+            # adelay simply shifts the audio later, filling the gap with
+            # silence, using ONE input and no extra device. An earlier version
+            # built the silence with `-f lavfi -i anullsrc` and concat: that
+            # needs the lavfi input device, and when a shipped FFmpeg build
+            # does not have it the whole chromaprint extraction returns
+            # nothing and recognition silently drops to the weak envelope
+            # fallback. A plain audio filter cannot fail that way.
+            filters.append(f"adelay={int(round(pad_seconds * 1000))}:all=1")
+        args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", source, "-vn"]
+        if filters:
+            args += ["-af", ",".join(filters)]
         args += ["-f", "chromaprint", "-fp_format", "raw", "pipe:1"]
         result = subprocess.run(
             args,
@@ -797,6 +794,13 @@ def extract_signature(
     if phase and pad > 0:
         pad += phase * CHROMAPRINT_FRAME_SECONDS
     chromaprint = _extract_chromaprint(ffmpeg, source_str, tempo=tempo, pad_seconds=pad)
+    if pad and not chromaprint:
+        # Padding is an improvement, never a requirement. If this FFmpeg build
+        # cannot apply the filter, fall back to the unpadded fingerprint rather
+        # than returning none at all -- an empty chromaprint array silently
+        # demotes recognition to the weak envelope fallback, which is exactly
+        # the failure mode this whole change exists to remove.
+        chromaprint = _extract_chromaprint(ffmpeg, source_str, tempo=tempo)
     # Silence or a held tone produces the SAME Chromaprint value over and
     # over. Such a fingerprint matches anything with a similarly flat passage,
     # at a perfect score -- measured: 8 s of pure digital silence scored
