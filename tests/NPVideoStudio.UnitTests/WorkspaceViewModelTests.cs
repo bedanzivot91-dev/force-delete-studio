@@ -54,7 +54,8 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 public class WorkspaceViewModelTests
 {
     private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null,
-        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null)
+        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null,
+        IVideoPlayerWindowService? playerWindowService = null)
     {
         project ??= new Project { Name = "Test projekat" };
         return new WorkspaceViewModel(
@@ -65,7 +66,8 @@ public class WorkspaceViewModelTests
             new FakeFramePreviewService(),
             subtitleGeneratorService ?? new FakeSubtitleGeneratorService(),
             renderService ?? new FakeRenderService(),
-            new LoggerConfiguration().CreateLogger());
+            new LoggerConfiguration().CreateLogger(),
+            playerWindowService);
     }
 
     [AvaloniaFact]
@@ -534,5 +536,95 @@ public class WorkspaceViewModelTests
 
         Assert.Single(workspace.Timeline.Tracks); // still just the video track, no caption track added
         Assert.Contains("Generiši titlove (SRT)", workspace.CaptionsStatusMessage);
+    }
+
+    /// <summary>Records what the workspace asked the player window service to open, so the play command's
+    /// real behaviour is testable without a desktop session.</summary>
+    private sealed class FakePlayerWindowService : NPVideoStudio.App.Services.IVideoPlayerWindowService
+    {
+        public string? OpenedPath { get; private set; }
+        public bool Result { get; set; } = true;
+
+        public bool OpenPlayer(string filePath)
+        {
+            OpenedPath = filePath;
+            return Result;
+        }
+    }
+
+    [AvaloniaFact]
+    public void PlaySelectedSource_WithAnImportedFile_OpensThatFileInThePlayerWindow()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-play-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, new byte[] { 0, 1, 2 });
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var player = new FakePlayerWindowService();
+            var workspace = CreateWorkspace(project, playerWindowService: player);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            workspace.PlaySelectedSourceCommand.Execute(null);
+
+            Assert.Equal(path, player.OpenedPath);
+            Assert.Contains("Plejer otvoren", workspace.RealPreviewStatusMessage);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PlaySelectedSource_NoMediaImported_SaysSoAndOpensNothing()
+    {
+        var player = new FakePlayerWindowService();
+        var workspace = CreateWorkspace(playerWindowService: player);
+
+        workspace.PlaySelectedSourceCommand.Execute(null);
+
+        Assert.Null(player.OpenedPath);
+        Assert.Contains("Prvo dodajte", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public void PlaySelectedSource_FileDeletedFromDisk_ReportsThatInsteadOfOpeningAPlayerOnNothing()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/ne-postoji-nikad.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var player = new FakePlayerWindowService();
+        var workspace = CreateWorkspace(project, playerWindowService: player);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+        workspace.PlaySelectedSourceCommand.Execute(null);
+
+        Assert.Null(player.OpenedPath);
+        Assert.Contains("više ne postoji", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public void PlaySelectedSource_PlayerWindowCannotOpen_ReportsItRatherThanClaimingItPlayed()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-play-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, new byte[] { 0 });
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var player = new FakePlayerWindowService { Result = false };
+            var workspace = CreateWorkspace(project, playerWindowService: player);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            workspace.PlaySelectedSourceCommand.Execute(null);
+
+            Assert.Contains("nije mogao da se otvori", workspace.RealPreviewStatusMessage);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

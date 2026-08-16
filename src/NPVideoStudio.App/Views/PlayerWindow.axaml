@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+        x:Class="NPVideoStudio.App.Views.PlayerWindow"
+        Title="NP Video Studio - Plejer"
+        Width="1280" Height="760"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="Black">
+
+  <!--
+    The VideoView is the DIRECT content of this Window on purpose, not nested inside a UserControl.
+
+    That is the actual fix for "video se ne pušta": LibVLCSharp's Avalonia VideoView is a
+    NativeControlHost, and Avalonia does not surface the native window handle when a NativeControlHost
+    sits inside a UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525 "VideoView misbehaves
+    when it's inside a child control"). The old player was a 220px-tall box buried deep inside
+    WorkspaceView, which is a UserControl - libvlc was running, but had nowhere to draw.
+
+    A separate window also answers the other two complaints directly: it opens large, and the user can
+    resize or maximise it, so the picture is no longer locked to a small fixed box.
+  -->
+  <Grid RowDefinitions="*,Auto">
+
+    <vlc:VideoView Name="Video" Grid.Row="0" />
+
+    <Border Grid.Row="1" Background="#141414" Padding="14,10">
+      <StackPanel Spacing="8">
+
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Name="PlayPauseButton" Content="▶ Pusti" Width="110" />
+          <Button Name="StopButton" Content="⏹ Zaustavi" Width="110" />
+
+          <TextBlock Name="CurrentTimeText" Text="00:00" Foreground="White" VerticalAlignment="Center" Width="52" />
+          <Slider Name="SeekSlider" Minimum="0" Maximum="100" Width="520" VerticalAlignment="Center" />
+          <TextBlock Name="TotalTimeText" Text="00:00" Foreground="White" VerticalAlignment="Center" Width="52" />
+
+          <Button Name="MuteButton" Content="🔊" Width="52" ToolTip.Tip="Uključi/isključi zvuk" />
+          <Slider Name="VolumeSlider" Minimum="0" Maximum="100" Value="100" Width="140" VerticalAlignment="Center"
+                  ToolTip.Tip="Jačina zvuka" />
+          <Button Name="FullScreenButton" Content="⛶ Ceo ekran" Width="130"
+                  ToolTip.Tip="Ceo ekran (Esc za izlaz, ili dupli klik na sliku)" />
+        </StackPanel>
+
+        <TextBlock Name="StatusText" Foreground="#B0B0B0" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

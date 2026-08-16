@@ -113,9 +113,16 @@
           </StackPanel>
           <TextBlock Classes="subtle" TextWrapping="Wrap"
                      Text="Renderuje pravi video sa zvukom, neprekidno (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka. „Deo oko plejhed-a“ renderuje samo kratak prozor umesto cele trake, pa je pregled brz i na dugačkim projektima." />
-          <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True"
+          <!-- The embedded VideoView that used to sit here was removed, not restyled: LibVLCSharp's
+               VideoView is a NativeControlHost, and Avalonia does not surface a native window handle for
+               one nested inside a UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525). This
+               screen IS a UserControl, so the player ran with nowhere to draw - it could never have shown
+               a picture here. Playback now opens in PlayerWindow, where the VideoView is the window's
+               direct content, and where the user can resize or maximise it. -->
+          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="14,12"
                   IsVisible="{Binding RealPreview.HasLoadedFile}">
-            <vlc:VideoView MediaPlayer="{Binding RealPreview.MediaPlayer}" />
+            <TextBlock Classes="subtle" TextWrapping="Wrap"
+                       Text="Pregled je renderovan. Kliknite „▶ Pusti moj video (sa zvukom)“ da ga otvorite u plejeru." />
           </Border>
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding RealPreview.HasLoadedFile}">
             <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding !RealPreview.IsPlaying}" />

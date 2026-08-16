@@ -64,6 +64,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IMediaProbeService>(_ => new FfprobeService(settingsService.Current.FfprobePath));
         services.AddSingleton<IDiagnosticsService, DiagnosticsService>();
         services.AddSingleton<IStorageService>(sp => new StorageService(() => (Current as App)?.MainWindowRef));
+        services.AddSingleton<IVideoPlayerWindowService>(_ => new VideoPlayerWindowService(() => (Current as App)?.MainWindowRef));
         services.AddSingleton<ISongHighlightService>(sp =>
             new SongHighlightService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<ILyricSearchService>(_ => new LyricSearchService(settingsService.Current.FfmpegPath));

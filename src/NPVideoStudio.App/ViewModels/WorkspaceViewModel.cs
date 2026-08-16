@@ -27,6 +27,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IFramePreviewService _framePreviewService;
     private readonly ISubtitleGeneratorService _subtitleGeneratorService;
     private readonly IRenderService _renderService;
+
+    /// <summary>Optional: null under the headless test host, where no real window can be opened.</summary>
+    private readonly IVideoPlayerWindowService? _playerWindowService;
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
 
@@ -82,8 +85,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IVideoPlayerWindowService? playerWindowService = null)
     {
+        _playerWindowService = playerWindowService;
         Project = project;
         _projectRepository = projectRepository;
         _mediaProbeService = mediaProbeService;
@@ -219,21 +223,25 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (!RealPreview.IsAvailable)
-        {
-            RealPreviewStatusMessage = RealPreview.UnavailableReason ?? "Pravi plejer nije dostupan na ovom računaru.";
-            return;
-        }
-
         if (!File.Exists(asset.Asset.FilePath))
         {
             RealPreviewStatusMessage = $"Fajl više ne postoji na disku: {asset.Asset.FilePath}";
             return;
         }
 
-        RealPreview.LoadAndPlay(asset.Asset.FilePath);
-        RealPreviewStatusMessage = $"Pušta se originalni fajl sa zvukom: {asset.FileName}";
-        _logger.Information("Originalni fajl pušten direktno u plejeru: {Path}", asset.Asset.FilePath);
+        // Opens the standalone PlayerWindow rather than the embedded preview: LibVLCSharp's VideoView is a
+        // NativeControlHost, and Avalonia does not surface the native window handle for one nested inside a
+        // UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525) - which is exactly where the old
+        // embedded player lived, so it ran with nowhere to draw. A real window also lets the user resize or
+        // maximise the picture instead of being stuck with a fixed 220px box.
+        if (_playerWindowService?.OpenPlayer(asset.Asset.FilePath) == true)
+        {
+            RealPreviewStatusMessage = $"Plejer otvoren u zasebnom prozoru: {asset.FileName}";
+            _logger.Information("Plejer otvoren za {Path}", asset.Asset.FilePath);
+            return;
+        }
+
+        RealPreviewStatusMessage = "Plejer nije mogao da se otvori na ovom računaru.";
     }
 
     private async Task RenderRealPreviewCoreAsync()

@@ -187,7 +187,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<IFramePreviewService>(),
             _services.GetRequiredService<ISubtitleGeneratorService>(),
             _services.GetRequiredService<IRenderService>(),
-            _services.GetRequiredService<Serilog.ILogger>());
+            _services.GetRequiredService<Serilog.ILogger>(),
+            _services.GetRequiredService<Services.IVideoPlayerWindowService>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         return workspace;
     }
