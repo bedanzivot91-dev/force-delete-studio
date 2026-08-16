@@ -202,6 +202,20 @@
                                   <TextBox Text="{Binding TextContent}" Width="260" Watermark="Tekst titla..." />
                                 </StackPanel>
 
+                                <!-- Placement of a layer laid OVER the video underneath (slika u slici /
+                                     nalepnica / logo). Only shown for ImageOverlay clips - on the base video
+                                     track these are meaningless, the background always fills the frame. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsOverlayClip}">
+                                  <TextBlock Text="Veličina (% širine):" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding ScalePercent}" Minimum="1" Maximum="200" Increment="5" Width="100" />
+                                  <TextBlock Text="Levo-desno:" Classes="subtle" VerticalAlignment="Center" />
+                                  <Slider Minimum="0" Maximum="100" Value="{Binding PositionXPercent}" Width="120" VerticalAlignment="Center" />
+                                  <TextBlock Text="Gore-dole:" Classes="subtle" VerticalAlignment="Center" />
+                                  <Slider Minimum="0" Maximum="100" Value="{Binding PositionYPercent}" Width="120" VerticalAlignment="Center" />
+                                  <TextBlock Text="Providnost (%):" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding LayerOpacityPercent}" Minimum="0" Maximum="100" Increment="5" Width="90" />
+                                </StackPanel>
+
                                 <!-- Real, working per-clip text styling (font/veličina/boja/položaj) - changing these
                                      actually changes the burned-in text on export, unlike the "Stilovi titlova" gallery. -->
                                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">

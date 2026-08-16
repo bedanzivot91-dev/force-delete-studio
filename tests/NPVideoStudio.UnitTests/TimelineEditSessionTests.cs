@@ -411,4 +411,40 @@ public class TimelineEditSessionTests
 
         Assert.False(session.CanRedo);
     }
+
+    [Fact]
+    public void SetLayerPlacement_StoresSizePositionAndOpacity_AndIsUndoableInOneStep()
+    {
+        var clip = Clip(0, 0, 4);
+        var session = new TimelineEditSession(new[] { Track(TimelineTrackKind.ImageOverlay, clip) });
+
+        session.SetLayerPlacement(clip.Id, scalePercent: 30, positionXPercent: 80, positionYPercent: 20, opacity: 0.5);
+
+        var placed = session.Tracks.SelectMany(t => t.Clips).Single(c => c.Id == clip.Id);
+        Assert.Equal(30, placed.ScalePercent);
+        Assert.Equal(80, placed.PositionXPercent);
+        Assert.Equal(20, placed.PositionYPercent);
+        Assert.Equal(0.5, placed.Opacity);
+
+        // One undo must take the whole placement change back, not just the last value of it.
+        session.Undo();
+        var afterUndo = session.Tracks.SelectMany(t => t.Clips).Single(c => c.Id == clip.Id);
+        Assert.Equal(100, afterUndo.ScalePercent);
+        Assert.Equal(1.0, afterUndo.Opacity);
+    }
+
+    [Fact]
+    public void SetLayerPlacement_OutOfRangeValues_AreClampedInsteadOfProducingAGraphFfmpegRejects()
+    {
+        var clip = Clip(0, 0, 4);
+        var session = new TimelineEditSession(new[] { Track(TimelineTrackKind.ImageOverlay, clip) });
+
+        session.SetLayerPlacement(clip.Id, scalePercent: 0, positionXPercent: 500, positionYPercent: -40, opacity: 9);
+
+        var placed = session.Tracks.SelectMany(t => t.Clips).Single(c => c.Id == clip.Id);
+        Assert.Equal(1, placed.ScalePercent);
+        Assert.Equal(100, placed.PositionXPercent);
+        Assert.Equal(0, placed.PositionYPercent);
+        Assert.Equal(1.0, placed.Opacity);
+    }
 }

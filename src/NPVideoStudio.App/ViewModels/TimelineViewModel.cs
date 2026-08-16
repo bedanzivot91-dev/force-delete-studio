@@ -153,10 +153,16 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTextAdvancedStyle(clipId, style);
             RefreshFromSession();
         }
+        void OnLayerPlacementChanged(string clipId, double scale, double x, double y, double opacity)
+        {
+            _session.SetLayerPlacement(clipId, scale, x, y, opacity);
+            RefreshFromSession();
+        }
 
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
-            OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged);
+            OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
+            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay);
     }
 
     private void AddClipToTrack(TimelineTrack track)

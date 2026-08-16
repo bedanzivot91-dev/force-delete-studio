@@ -255,6 +255,32 @@ public sealed class TimelineEditSession
         liveClip.TransitionInDurationSeconds = Math.Max(0.05, durationSeconds);
     }
 
+    /// <summary>
+    /// Sets where an overlay clip sits over the video underneath it - its size, its centre position and
+    /// how see-through it is (the CapCut-style picture-in-picture / sticker / logo placement rendered by
+    /// <c>FfmpegFilterGraphBuilder.AppendOverlayLayers</c>). Goes through the session, like every other
+    /// edit here, so one undo takes the whole placement change back.
+    ///
+    /// Values are clamped to what the renderer can actually honour rather than trusted: a scale of 0 or a
+    /// negative opacity would produce a filter graph ffmpeg rejects outright, failing the whole export for
+    /// what is really just a slider dragged to its end.
+    /// </summary>
+    public void SetLayerPlacement(string clipId, double scalePercent, double positionXPercent, double positionYPercent, double opacity)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.ScalePercent = Math.Clamp(scalePercent, 1, 1000);
+        liveClip.PositionXPercent = Math.Clamp(positionXPercent, 0, 100);
+        liveClip.PositionYPercent = Math.Clamp(positionYPercent, 0, 100);
+        liveClip.Opacity = Math.Clamp(opacity, 0, 1);
+    }
+
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);

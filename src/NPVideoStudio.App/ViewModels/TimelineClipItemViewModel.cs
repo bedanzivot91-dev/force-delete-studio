@@ -23,6 +23,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>(clipId, style) - same reasoning as the callbacks above.</summary>
     private readonly Action<string, TextAdvancedStyle>? _onAdvancedStyleChanged;
 
+    /// <summary>(clipId, scalePercent, xPercent, yPercent, opacity) - same reasoning as the callbacks
+    /// above: routed through the owning session so one undo takes the whole placement change back.</summary>
+    private readonly Action<string, double, double, double, double>? _onLayerPlacementChanged;
+
     public TimelineClip Clip { get; }
     public string TrackId { get; }
 
@@ -41,6 +45,47 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>True for a Caption/Text clip - the font/size/color/position controls below only make
     /// sense (and are only shown in the UI) for these.</summary>
     public bool IsTextClip => Clip.TextContent is not null;
+
+    /// <summary>True for a clip that is laid OVER the video underneath (an ImageOverlay track). Only these
+    /// get the size/position/transparency controls - on the background video track those values are
+    /// meaningless, since the base layer always fills the frame.</summary>
+    public bool IsOverlayClip { get; }
+
+    /// <summary>Overlay width as a percentage of the finished frame's width.</summary>
+    public double ScalePercent
+    {
+        get => Clip.ScalePercent;
+        set { if (Math.Abs(Clip.ScalePercent - value) < 1e-6) return; _onLayerPlacementChanged?.Invoke(Clip.Id, value, PositionXPercent, PositionYPercent, LayerOpacity); }
+    }
+
+    /// <summary>Horizontal position of the overlay's centre: 0 = left edge, 50 = middle, 100 = right edge.</summary>
+    public double PositionXPercent
+    {
+        get => Clip.PositionXPercent;
+        set { if (Math.Abs(Clip.PositionXPercent - value) < 1e-6) return; _onLayerPlacementChanged?.Invoke(Clip.Id, ScalePercent, value, PositionYPercent, LayerOpacity); }
+    }
+
+    /// <summary>Vertical position of the overlay's centre: 0 = top edge, 50 = middle, 100 = bottom edge.</summary>
+    public double PositionYPercent
+    {
+        get => Clip.PositionYPercent;
+        set { if (Math.Abs(Clip.PositionYPercent - value) < 1e-6) return; _onLayerPlacementChanged?.Invoke(Clip.Id, ScalePercent, PositionXPercent, value, LayerOpacity); }
+    }
+
+    /// <summary>Shown as a 0-100 percentage in the UI; stored as 0-1 on the clip, which is what ffmpeg's
+    /// alpha channel expects.</summary>
+    public int LayerOpacityPercent
+    {
+        get => (int)Math.Round(Clip.Opacity * 100);
+        set
+        {
+            var opacity = Math.Clamp(value, 0, 100) / 100.0;
+            if (Math.Abs(Clip.Opacity - opacity) < 1e-6) return;
+            _onLayerPlacementChanged?.Invoke(Clip.Id, ScalePercent, PositionXPercent, PositionYPercent, opacity);
+        }
+    }
+
+    private double LayerOpacity => Clip.Opacity;
 
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
     /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
@@ -263,8 +308,12 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? onTextStyleChanged = null,
         Action<string, ClipTransitionType, double>? onTransitionChanged = null,
         Action<string, string>? onTextContentChanged = null,
-        Action<string, TextAdvancedStyle>? onAdvancedStyleChanged = null)
+        Action<string, TextAdvancedStyle>? onAdvancedStyleChanged = null,
+        Action<string, double, double, double, double>? onLayerPlacementChanged = null,
+        bool isOverlayClip = false)
     {
+        _onLayerPlacementChanged = onLayerPlacementChanged;
+        IsOverlayClip = isOverlayClip;
         Clip = clip;
         TrackId = trackId;
         Label = label;
