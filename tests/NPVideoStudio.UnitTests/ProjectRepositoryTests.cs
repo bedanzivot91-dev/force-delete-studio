@@ -83,6 +83,91 @@ public class ProjectRepositoryTests : IDisposable
         Assert.Equal(3.25, loaded.Timeline.PlayheadSeconds);
     }
 
+    /// <summary>
+    /// Every per-clip setting added after the timeline first shipped - picture effects, speed, and layer
+    /// placement - must survive save/reload. If any of these silently failed to persist, the user would
+    /// style a clip, close the project, reopen it and find their work gone, with no error anywhere.
+    /// </summary>
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsEffectsSpeedAndLayerPlacement()
+    {
+        var project = new Project { Name = "Efekti i slojevi" };
+        var clip = new TimelineClip
+        {
+            MediaAssetId = "abc123",
+            SourceTrimOutSeconds = 5,
+            Effect = ClipVideoEffect.Sepia,
+            Brightness = 0.25,
+            Contrast = 1.4,
+            Saturation = 0.6,
+            SpeedMultiplier = 0.5,
+            ScalePercent = 30,
+            PositionXPercent = 80,
+            PositionYPercent = 15,
+            Opacity = 0.65
+        };
+        project.Timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.ImageOverlay, Clips = { clip } });
+        var path = Path.Combine(_tempDir, "efekti.npvsproject");
+
+        await _repository.SaveAsync(project, path);
+        var loaded = await _repository.LoadAsync(path);
+
+        var loadedClip = Assert.Single(Assert.Single(loaded.Timeline.Tracks).Clips);
+        Assert.Equal(ClipVideoEffect.Sepia, loadedClip.Effect);
+        Assert.Equal(0.25, loadedClip.Brightness);
+        Assert.Equal(1.4, loadedClip.Contrast);
+        Assert.Equal(0.6, loadedClip.Saturation);
+        Assert.Equal(0.5, loadedClip.SpeedMultiplier);
+        Assert.Equal(30, loadedClip.ScalePercent);
+        Assert.Equal(80, loadedClip.PositionXPercent);
+        Assert.Equal(15, loadedClip.PositionYPercent);
+        Assert.Equal(0.65, loadedClip.Opacity);
+    }
+
+    /// <summary>An older project file has none of these properties - it must load with sane defaults
+    /// (no effect, normal speed, fully opaque) rather than zeros that would make every clip invisible
+    /// and frozen. Built the same way the pre-timeline test builds its old file: by serializing only the
+    /// properties that existed back then, rather than hand-writing JSON whose casing could drift from
+    /// whatever the repository actually configures.</summary>
+    [Fact]
+    public async Task Load_ProjectFileFromBeforeEffectsExisted_GetsSaneDefaultsNotZeros()
+    {
+        var path = Path.Combine(_tempDir, "stari-bez-efekata.npvsproject");
+        var project = new Project { Name = "Stari projekat" };
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            project.ProjectFormatVersion,
+            project.Id,
+            project.Name,
+            project.Format,
+            project.TargetPlatform,
+            project.CreatedAt,
+            project.LastModifiedAt,
+            project.MediaLibrary,
+            Timeline = new
+            {
+                Tracks = new[]
+                {
+                    new
+                    {
+                        Kind = TimelineTrackKind.Video,
+                        Clips = new[] { new { MediaAssetId = "x", SourceTrimOutSeconds = 4.0 } }
+                    }
+                }
+            }
+        });
+        await File.WriteAllTextAsync(path, json);
+
+        var loaded = await _repository.LoadAsync(path);
+
+        var clip = Assert.Single(Assert.Single(loaded.Timeline.Tracks).Clips);
+        Assert.Equal(ClipVideoEffect.None, clip.Effect);
+        Assert.Equal(1.0, clip.SpeedMultiplier);
+        Assert.Equal(1.0, clip.Opacity);
+        Assert.Equal(100, clip.ScalePercent);
+        Assert.Equal(1.0, clip.Contrast);
+    }
+
     [Fact]
     public async Task Load_ProjectFileFromBeforeTimelineExisted_LoadsWithEmptyTimeline()
     {
