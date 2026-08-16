@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
+using NPVideoStudio.App.Services;
 
 namespace NPVideoStudio.App.Views;
 
@@ -26,6 +27,7 @@ public partial class PlayerWindow : Window
     private readonly MediaPlayer? _mediaPlayer;
     private readonly DispatcherTimer _timer;
     private readonly string _filePath;
+    private readonly PlayerTextActions? _textActions;
 
     private bool _isSyncingFromPlayer;
     private bool _isDisposed;
@@ -34,10 +36,12 @@ public partial class PlayerWindow : Window
     {
     }
 
-    public PlayerWindow(string filePath)
+    public PlayerWindow(string filePath, PlayerTextActions? textActions = null)
     {
         InitializeComponent();
         _filePath = filePath;
+        _textActions = textActions;
+        WireTextTools();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _timer.Tick += (_, _) => SyncFromPlayer();
@@ -76,6 +80,59 @@ public partial class PlayerWindow : Window
     }
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+    /// <summary>
+    /// Shows only the text tools the caller actually provided, and runs each one without blocking
+    /// playback - transcription takes real seconds to minutes, and freezing the video the user is
+    /// watching while it runs would be worse than not offering it here at all.
+    /// </summary>
+    private void WireTextTools()
+    {
+        AddCaptionsButton.IsVisible = _textActions?.AddCaptionsFromVideo is not null;
+        AddKaraokeButton.IsVisible = _textActions?.AddKaraokeCaptions is not null;
+        FindLyricsButton.IsVisible = _textActions?.FindLyricsInSong is not null;
+
+        TextToolsPanel.IsVisible =
+            AddCaptionsButton.IsVisible || AddKaraokeButton.IsVisible || FindLyricsButton.IsVisible;
+
+        AddCaptionsButton.Click += (_, _) => RunTextTool(_textActions?.AddCaptionsFromVideo, "Prepoznajem tekst iz videa...");
+        AddKaraokeButton.Click += (_, _) => RunTextTool(_textActions?.AddKaraokeCaptions, "Pravim karaoke titlove, reč po reč...");
+        FindLyricsButton.Click += (_, _) => RunTextTool(_textActions?.FindLyricsInSong, "Tražim tekst pesme...");
+    }
+
+    private async void RunTextTool(Func<Task>? action, string runningMessage)
+    {
+        if (action is null)
+        {
+            return;
+        }
+
+        SetTextToolsEnabled(false);
+        TextToolsStatus.Text = runningMessage;
+
+        try
+        {
+            await action();
+            TextToolsStatus.Text = "Gotovo - rezultat je u radnom prostoru iza ovog prozora.";
+        }
+        catch (Exception ex)
+        {
+            // Reported here rather than swallowed: this runs on a button click in a window with no
+            // logger of its own, so the message box is the only place the user would ever see it.
+            TextToolsStatus.Text = $"Nije uspelo: {ex.Message}";
+        }
+        finally
+        {
+            SetTextToolsEnabled(true);
+        }
+    }
+
+    private void SetTextToolsEnabled(bool enabled)
+    {
+        AddCaptionsButton.IsEnabled = enabled;
+        AddKaraokeButton.IsEnabled = enabled;
+        FindLyricsButton.IsEnabled = enabled;
+    }
 
     private void StartPlayback()
     {

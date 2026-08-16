@@ -55,6 +55,10 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public event Action? ExportRequested;
 
+    /// <summary>Raised with a media file path when the user asks, from inside the player window, to find
+    /// the song's lyrics for that file - handled by MainWindowViewModel, which owns page navigation.</summary>
+    public event Action<string>? LyricSearchRequested;
+
     [ObservableProperty]
     private bool _isImporting;
 
@@ -234,7 +238,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525) - which is exactly where the old
         // embedded player lived, so it ran with nowhere to draw. A real window also lets the user resize or
         // maximise the picture instead of being stuck with a fixed 220px box.
-        if (_playerWindowService?.OpenPlayer(asset.Asset.FilePath) == true)
+        // The player gets the workspace's own caption/lyric pipelines rather than its own copy, so
+        // "dodaj tekst iz videa" from inside the player lands on the same timeline as the button on this
+        // screen does - one implementation, two places to reach it.
+        var textActions = new PlayerTextActions(
+            AddCaptionsFromVideo: () => GenerateCaptionsCoreAsync(wordLevel: false),
+            AddKaraokeCaptions: () => GenerateCaptionsCoreAsync(wordLevel: true),
+            FindLyricsInSong: () => { LyricSearchRequested?.Invoke(asset.Asset.FilePath); return Task.CompletedTask; });
+
+        if (_playerWindowService?.OpenPlayer(asset.Asset.FilePath, textActions) == true)
         {
             RealPreviewStatusMessage = $"Plejer otvoren u zasebnom prozoru: {asset.FileName}";
             _logger.Information("Plejer otvoren za {Path}", asset.Asset.FilePath);

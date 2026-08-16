@@ -543,11 +543,13 @@ public class WorkspaceViewModelTests
     private sealed class FakePlayerWindowService : NPVideoStudio.App.Services.IVideoPlayerWindowService
     {
         public string? OpenedPath { get; private set; }
+        public NPVideoStudio.App.Services.PlayerTextActions? TextActions { get; private set; }
         public bool Result { get; set; } = true;
 
-        public bool OpenPlayer(string filePath)
+        public bool OpenPlayer(string filePath, NPVideoStudio.App.Services.PlayerTextActions? textActions = null)
         {
             OpenedPath = filePath;
+            TextActions = textActions;
             return Result;
         }
     }
@@ -621,6 +623,62 @@ public class WorkspaceViewModelTests
             workspace.PlaySelectedSourceCommand.Execute(null);
 
             Assert.Contains("nije mogao da se otvori", workspace.RealPreviewStatusMessage);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PlaySelectedSource_GivesThePlayerTheTextToolsSoTheyCanBeUsedWhileWatching()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-tools-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, new byte[] { 0 });
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var player = new FakePlayerWindowService();
+            var workspace = CreateWorkspace(project, playerWindowService: player);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            workspace.PlaySelectedSourceCommand.Execute(null);
+
+            Assert.NotNull(player.TextActions);
+            Assert.NotNull(player.TextActions!.AddCaptionsFromVideo);
+            Assert.NotNull(player.TextActions.AddKaraokeCaptions);
+            Assert.NotNull(player.TextActions.FindLyricsInSong);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PlayerLyricSearchAction_AsksToOpenTheLyricToolForTheFileBeingWatched()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-lyrics-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, new byte[] { 0 });
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var player = new FakePlayerWindowService();
+            var workspace = CreateWorkspace(project, playerWindowService: player);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            string? requestedPath = null;
+            workspace.LyricSearchRequested += p => requestedPath = p;
+
+            workspace.PlaySelectedSourceCommand.Execute(null);
+            player.TextActions!.FindLyricsInSong!().GetAwaiter().GetResult();
+
+            // Must carry the file the user is actually watching, so the tool opens with it preselected.
+            Assert.Equal(path, requestedPath);
         }
         finally
         {

@@ -42,6 +42,20 @@
                   ToolTip.Tip="Ceo ekran (Esc za izlaz, ili dupli klik na sliku)" />
         </StackPanel>
 
+        <!-- Text tools for the file being watched, so the user can turn what they are hearing into
+             captions without leaving the player. The buttons stay hidden unless the workspace actually
+             supplied the matching action - never a dead button. -->
+        <StackPanel Name="TextToolsPanel" Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Tekst:" Foreground="#B0B0B0" VerticalAlignment="Center" />
+          <Button Name="AddCaptionsButton" Content="Dodaj tekst iz videa"
+                  ToolTip.Tip="Prepoznaje govor/pevanje iz ovog fajla i dodaje ga kao titlove na traku." />
+          <Button Name="AddKaraokeButton" Content="Karaoke (reč po reč)"
+                  ToolTip.Tip="Isto, ali svaka reč se pojavljuje pojedinačno, tačno kad se izgovori." />
+          <Button Name="FindLyricsButton" Content="Prepoznaj tekst pesme"
+                  ToolTip.Tip="Traži tekst pesme u ovom fajlu." />
+          <TextBlock Name="TextToolsStatus" Foreground="#B0B0B0" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+
         <TextBlock Name="StatusText" Foreground="#B0B0B0" TextWrapping="Wrap" />
       </StackPanel>
     </Border>

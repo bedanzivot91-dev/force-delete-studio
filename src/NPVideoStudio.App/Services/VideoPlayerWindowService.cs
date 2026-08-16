@@ -12,7 +12,7 @@ public sealed class VideoPlayerWindowService : IVideoPlayerWindowService
         _getMainWindow = getMainWindow;
     }
 
-    public bool OpenPlayer(string filePath)
+    public bool OpenPlayer(string filePath, PlayerTextActions? textActions = null)
     {
         var owner = _getMainWindow();
         if (owner is null)
@@ -22,7 +22,7 @@ public sealed class VideoPlayerWindowService : IVideoPlayerWindowService
 
         // Show (not ShowDialog): the user should be able to keep editing the timeline while watching,
         // which is the whole point of having the player in its own window.
-        new PlayerWindow(filePath).Show(owner);
+        new PlayerWindow(filePath, textActions).Show(owner);
         return true;
     }
 }
