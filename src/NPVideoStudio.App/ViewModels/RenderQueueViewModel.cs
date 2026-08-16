@@ -45,6 +45,12 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private CodecOption _selectedCodecOption;
 
+    /// <summary>Platform presets, so "TikTok"/"YouTube" set real export values instead of being decoration.</summary>
+    public IReadOnlyList<PlatformExportPreset> AvailablePlatformPresets { get; } = PlatformExportPreset.All;
+
+    [ObservableProperty]
+    private PlatformExportPreset? _selectedPlatformPreset;
+
     [ObservableProperty]
     private string _preset = "medium";
 
@@ -145,6 +151,31 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
         StatusMessage = null;
 
         _ = RunJobAsync(job, itemVm);
+    }
+
+    /// <summary>
+    /// Fills the export settings from a platform's own published recommendation, so choosing "TikTok"
+    /// actually changes the output instead of being a label. Before this, TargetPlatform existed and was
+    /// offered when creating a project, but export ignored it entirely.
+    ///
+    /// Only touches quality/bitrate settings - never the output path, which is the user's choice.
+    /// </summary>
+    partial void OnSelectedPlatformPresetChanged(PlatformExportPreset? value)
+    {
+        if (value is null || value.Platform == TargetPlatform.Custom)
+        {
+            return;
+        }
+
+        var settings = new RenderSettings { OutputFilePath = OutputFilePath };
+        value.ApplyTo(settings);
+
+        Crf = settings.Crf;
+        Preset = settings.Preset;
+        AudioBitrateKbps = settings.AudioBitrateKbps;
+
+        StatusMessage = $"Podešeno za {value.DisplayName}: {value.SummaryLabel}. " +
+                        "Veličinu slike određuje format projekta (Novi projekat → Format).";
     }
 
     private async Task RunJobAsync(RenderJob job, RenderJobItemViewModel itemVm)

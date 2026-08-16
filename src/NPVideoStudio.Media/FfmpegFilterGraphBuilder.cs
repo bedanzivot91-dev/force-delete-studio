@@ -253,14 +253,118 @@ public static class FfmpegFilterGraphBuilder
             currentTextVideoLabel = nextLabel;
         }
 
+        // Separate music/voice-over tracks get mixed over the video track's own audio here, last, so the
+        // mix includes everything above.
+        var finalAudioLabel = AppendAudioTracks(
+            timeline, mediaLibrary, inputs, filterLines, currentAudioLabel!, MapToRenderedTime);
+
         return new FfmpegRenderPlan
         {
             InputFilePaths = inputs,
             FilterComplexArgument = string.Join(';', filterLines),
             VideoMapLabel = currentTextVideoLabel,
-            AudioMapLabel = currentAudioLabel!,
+            AudioMapLabel = finalAudioLabel,
             TotalDurationSeconds = renderedDuration
         };
+    }
+
+    /// <summary>
+    /// Mixes every standalone Audio-kind track over the video track's own sound, and returns the label of
+    /// the mixed result. Returns <paramref name="videoTrackAudioLabel"/> unchanged when there is nothing to
+    /// mix, so a project without a music track produces exactly the graph it did before.
+    ///
+    /// This closes what was the single most damaging gap in the whole app for its actual purpose: the
+    /// built-in "Muzički spot" template creates an Audio track, the UI has a "+ Audio traka" button, the
+    /// user could drop their song on it - and the exported video simply had no music, with no error. For an
+    /// app whose whole job is making videos from songs, silently dropping the song is as bad as crashing.
+    ///
+    /// Each clip is delayed to its own timeline position with <c>adelay</c> (so a chorus placed at 0:45
+    /// lands at 0:45, not at the start), gets its own volume/fades, is scaled by its track's volume, and
+    /// respects mute/hide/solo. <c>amix</c> uses <c>duration=first</c> deliberately: the first input is the
+    /// video's own audio, so the finished file's length follows the picture and a song longer than the
+    /// video is cut off at the end rather than extending the export past its last frame.
+    /// </summary>
+    private static string AppendAudioTracks(
+        Timeline timeline,
+        IReadOnlyList<MediaAsset> mediaLibrary,
+        List<string> inputs,
+        List<string> filterLines,
+        string videoTrackAudioLabel,
+        Func<double, double> mapToRenderedTime)
+    {
+        var audioTracks = timeline.Tracks
+            .Where(t => t.Kind == TimelineTrackKind.Audio && !t.IsHidden && !t.IsMuted)
+            .ToList();
+
+        // Solo on any audio track means "only the soloed ones", the standard behaviour in every mixer.
+        if (audioTracks.Any(t => t.IsSolo))
+        {
+            audioTracks = audioTracks.Where(t => t.IsSolo).ToList();
+        }
+
+        var mixLabels = new List<string> { videoTrackAudioLabel };
+        var clipIndex = 0;
+
+        foreach (var track in audioTracks)
+        {
+            foreach (var clip in track.Clips.Where(c => !string.IsNullOrEmpty(c.MediaAssetId)).OrderBy(c => c.TimelineStartSeconds))
+            {
+                var asset = mediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId);
+                if (asset is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+                }
+
+                var inputIndex = inputs.Count;
+                inputs.Add(asset.FilePath);
+
+                var label = $"[amus{clipIndex}]";
+                var duration = clip.TimelineDurationSeconds;
+                var volume = clip.IsMuted ? 0 : clip.Volume * track.Volume;
+                var delayMs = (int)Math.Round(Math.Max(0, mapToRenderedTime(clip.TimelineStartSeconds)) * 1000);
+
+                var chain = new StringBuilder();
+                chain.Append(FormattableString.Invariant(
+                    $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
+                chain.Append(FormattableString.Invariant($",volume={volume}"));
+
+                if (clip.FadeInSeconds > 0)
+                {
+                    chain.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                }
+
+                if (clip.FadeOutSeconds > 0)
+                {
+                    var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
+                    chain.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                }
+
+                if (delayMs > 0)
+                {
+                    // all=1 applies the delay to every channel - without it, adelay silently delays only
+                    // the first channel and the music arrives lopsided across the stereo field.
+                    chain.Append(FormattableString.Invariant($",adelay={delayMs}:all=1"));
+                }
+
+                chain.Append(label);
+                filterLines.Add(chain.ToString());
+
+                mixLabels.Add(label);
+                clipIndex++;
+            }
+        }
+
+        if (mixLabels.Count == 1)
+        {
+            return videoTrackAudioLabel;
+        }
+
+        const string mixedLabel = "[amixed]";
+        filterLines.Add(FormattableString.Invariant(
+            $"{string.Concat(mixLabels)}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0:normalize=0{mixedLabel}"));
+
+        return mixedLabel;
     }
 
     /// <summary>
