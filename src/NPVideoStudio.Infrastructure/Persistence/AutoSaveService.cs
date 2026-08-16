@@ -31,9 +31,31 @@ public sealed class AutoSaveService : IAutoSaveService, IDisposable
         _getCurrentProject = getCurrentProject;
 
         // A missing marker means the previous session never called MarkCleanShutdownAsync, i.e. it crashed.
-        if (File.Exists(CleanShutdownMarkerPath))
+        //
+        // Deleting it must never be able to take the whole startup down with it, which is exactly what the
+        // unguarded File.Delete here used to do: the marker lives at one fixed per-user path, so two app
+        // instances starting at the same moment race for it and the loser gets
+        // "the process cannot access the file ... because it is being used by another process" thrown
+        // straight out of the MainWindowViewModel constructor - the app fails to open at all. Found for
+        // real on CI, where several tests construct the view model concurrently, but the same race is
+        // reachable on a user's machine simply by launching the app twice quickly.
+        //
+        // Losing this delete is harmless either way: the marker is only a hint about whether the last
+        // session ended cleanly, and the worst case is one unnecessary "recover your work?" prompt.
+        try
         {
-            File.Delete(CleanShutdownMarkerPath);
+            if (File.Exists(CleanShutdownMarkerPath))
+            {
+                File.Delete(CleanShutdownMarkerPath);
+            }
+        }
+        catch (IOException)
+        {
+            // Another instance holds it right now - it will clean up after itself.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Read-only/locked down profile - not worth failing startup over.
         }
 
         var settings = _settingsService.Current;

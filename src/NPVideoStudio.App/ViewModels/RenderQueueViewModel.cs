@@ -167,7 +167,9 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var settings = new RenderSettings { OutputFilePath = OutputFilePath };
+        // OutputFilePath is nullable until the user picks one; the preset never reads it, so an empty
+        // placeholder is correct here and keeps the compiler honest instead of silencing the warning.
+        var settings = new RenderSettings { OutputFilePath = OutputFilePath ?? string.Empty };
         value.ApplyTo(settings);
 
         Crf = settings.Crf;

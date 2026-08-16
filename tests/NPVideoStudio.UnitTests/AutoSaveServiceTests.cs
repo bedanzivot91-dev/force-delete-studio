@@ -79,4 +79,26 @@ public class AutoSaveServiceTests : IDisposable
         await _autoSaveService.MarkCleanShutdownAsync();
         Assert.True(File.Exists(Path.Combine(AppSettings.AppDataRoot(), "clean_shutdown.marker")));
     }
+
+    /// <summary>
+    /// Regression test for a real CI failure that is also reachable by a user launching the app twice:
+    /// the clean-shutdown marker lives at one fixed per-user path, and Start() used to delete it with an
+    /// unguarded File.Delete - so if anything else held the file at that instant, the IOException came
+    /// straight out of the MainWindowViewModel constructor and the app simply did not open.
+    /// </summary>
+    [Fact]
+    public void Start_WhileTheShutdownMarkerIsHeldOpenByAnotherProcess_DoesNotThrow()
+    {
+        var markerPath = Path.Combine(AppSettings.AppDataRoot(), "clean_shutdown.marker");
+        Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);
+        File.WriteAllText(markerPath, "x");
+
+        // Holding it open with no sharing is exactly what the losing instance runs into.
+        using var holdOpen = new FileStream(markerPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        var exception = Record.Exception(() => _autoSaveService.Start(() => null));
+
+        Assert.Null(exception);
+        _autoSaveService.Stop();
+    }
 }
