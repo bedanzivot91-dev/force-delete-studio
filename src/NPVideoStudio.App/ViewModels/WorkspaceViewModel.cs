@@ -636,8 +636,22 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         return true;
     }
 
-    private void RefreshFormatSummaryLabel() =>
+    private void RefreshFormatSummaryLabel()
+    {
         FormatSummaryLabel = $"{Project.Format.Width}×{Project.Format.Height}  ·  {Project.Format.Fps:0.##} fps  ·  {Project.Format.Orientation}";
+        OnPropertyChanged(nameof(ProjectAspectRatio));
+    }
+
+    /// <summary>
+    /// The project's width:height, which the player panel takes as its own shape. A Shorts project makes
+    /// the player tall and narrow instead of showing a sliver of picture between two huge black bars in a
+    /// landscape box - the "ako je video u vertikalnom položaju hoću i da plejer bude u vertikalnom
+    /// položaju" request. Guarded against a zero-sized format so the layout can never divide by zero.
+    /// </summary>
+    public double ProjectAspectRatio =>
+        Project.Format.Height > 0 && Project.Format.Width > 0
+            ? (double)Project.Format.Width / Project.Format.Height
+            : 16.0 / 9.0;
 
     /// <summary>
     /// "Automatski dodaj titlove iz videa" - runs the same local Whisper transcription the standalone

@@ -35,8 +35,91 @@
       </StackPanel>
     </Border>
 
-    <Grid RowDefinitions="*,3*,Auto,2*">
-      <Border Margin="20" Classes="panel" Padding="0">
+    <Grid RowDefinitions="3*,Auto,2*">
+
+      <!-- Player and library side by side. Stacking four full-width panels is what made this screen
+           unreadable: every panel got a slice of the height and none of them had enough. -->
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,320" Margin="0,0,0,4">
+      <Border Grid.Column="0" Classes="panel" Margin="20,0,0,0" Padding="16">
+        <DockPanel>
+          <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <WrapPanel.Styles>
+              <Style Selector="WrapPanel > :is(Control)">
+                <Setter Property="Margin" Value="0,0,8,6" />
+              </Style>
+            </WrapPanel.Styles>
+            <TextBlock Text="Plejer" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
+                    ToolTip.Tip="Pušta izabrani video ovde, sa zvukom." />
+            <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
+                    ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
+                    IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <Button Classes="ghost" Content="Renderuj celu traku" Command="{Binding RenderRealPreviewCommand}"
+                    IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <Button Classes="ghost" Content="Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
+                    ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
+            <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
+                       IsVisible="{Binding RealPreviewStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+          </WrapPanel>
+
+          <!-- Transport. One row, whichever source is showing. -->
+          <WrapPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+            <WrapPanel.Styles>
+              <Style Selector="WrapPanel > :is(Control)">
+                <Setter Property="Margin" Value="0,0,6,6" />
+              </Style>
+            </WrapPanel.Styles>
+            <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding Player.StepBackwardCommand}" />
+            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayerPlayCommand}" IsVisible="{Binding !IsPlayerPlaying}" />
+            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding PlayerPauseCommand}" IsVisible="{Binding IsPlayerPlaying}" />
+            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding PlayerStopCommand}" />
+            <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding Player.StepForwardCommand}" />
+
+            <TextBlock Text="{Binding Player.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="{Binding Player.TotalDurationSeconds}" Value="{Binding Player.CurrentTimeSeconds}"
+                    Width="240" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Player.TotalTimeLabel}" VerticalAlignment="Center" />
+
+            <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding RealPreview.IsMuted}" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center"
+                    ToolTip.Tip="Jačina zvuka" />
+
+            <!-- Size controls. The three complaints this answers directly: the picture could not be
+                 enlarged, could not be moved, and the panel itself could not be made bigger. -->
+            <Border Width="1" Background="{DynamicResource ThemeBorderBrush}" Margin="10,2" />
+            <Button Name="ZoomOutButton" Classes="ghost" Content="➖" ToolTip.Tip="Umanji sliku" />
+            <TextBlock Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Width="52" TextAlignment="Center" />
+            <Button Name="ZoomInButton" Classes="ghost" Content="➕" ToolTip.Tip="Uvećaj sliku" />
+            <Button Name="ZoomFitButton" Classes="ghost" Content="Uklopi" ToolTip.Tip="Vrati na celu sliku" />
+            <Button Name="FullScreenButton" Classes="cta" Content="⛶ Ceo ekran"
+                    ToolTip.Tip="Preko celog ekrana. Esc ili dupli klik za izlaz." />
+          </WrapPanel>
+
+          <!-- The picture takes the PROJECT's shape, not the panel's. A 1080x1920 Shorts project used
+               to be a sliver of video between two huge black bars in a wide landscape box, and zooming
+               only made the picture bigger inside that same wide box. Sized to the project ratio, a
+               vertical project gives a vertical player. -->
+          <views:AspectRatioPanel Ratio="{Binding ProjectAspectRatio}">
+            <Border Background="Black" ClipToBounds="True"
+                    BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
+              <Grid>
+                <views:VideoSurface Name="PlayerSurface" StaticImage="{Binding Player.CurrentFrameBitmap}" />
+                <TextBlock Text="{Binding Player.PreviewStatusMessage}"
+                           IsVisible="{Binding Player.CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
+                           Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" IsHitTestVisible="False" />
+                <TextBlock Text="Točkić miša = zumiranje, prevlačenje mišem = pomeranje"
+                           Classes="subtle" Foreground="White" Opacity="0.45" Margin="10,6"
+                           HorizontalAlignment="Left" VerticalAlignment="Bottom" IsHitTestVisible="False" />
+              </Grid>
+            </Border>
+          </views:AspectRatioPanel>
+        </DockPanel>
+      </Border>
+
+        <GridSplitter Grid.Column="1" Width="8" Background="Transparent"
+                      ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu plejera" />
+      <Border Grid.Column="2" Margin="0,0,20,0" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
             <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
@@ -80,72 +163,13 @@
         video can finally be interacted with: scroll to zoom, drag to move, and the panel itself is
         resizable by the splitter below it.
       -->
-      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,4" Padding="16">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-            <TextBlock Text="Plejer" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
-                    ToolTip.Tip="Pušta izabrani video ovde, sa zvukom." />
-            <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
-                    ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
-                    IsEnabled="{Binding !IsRenderingRealPreview}" />
-            <Button Classes="ghost" Content="Renderuj celu traku" Command="{Binding RenderRealPreviewCommand}"
-                    IsEnabled="{Binding !IsRenderingRealPreview}" />
-            <Button Classes="ghost" Content="Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
-                    ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
-            <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
-                       IsVisible="{Binding RealPreviewStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
-          </StackPanel>
+      </Grid>
 
-          <!-- Transport. One row, whichever source is showing. -->
-          <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0" VerticalAlignment="Center">
-            <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding Player.StepBackwardCommand}" />
-            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayerPlayCommand}" IsVisible="{Binding !IsPlayerPlaying}" />
-            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding PlayerPauseCommand}" IsVisible="{Binding IsPlayerPlaying}" />
-            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding PlayerStopCommand}" />
-            <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding Player.StepForwardCommand}" />
+      <!-- Drag to give the timeline more room, or the player more room. -->
+      <GridSplitter Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
+                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili traku" />
 
-            <TextBlock Text="{Binding Player.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="{Binding Player.TotalDurationSeconds}" Value="{Binding Player.CurrentTimeSeconds}"
-                    Width="240" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding Player.TotalTimeLabel}" VerticalAlignment="Center" />
-
-            <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding RealPreview.IsMuted}" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center"
-                    ToolTip.Tip="Jačina zvuka" />
-
-            <!-- Size controls. The three complaints this answers directly: the picture could not be
-                 enlarged, could not be moved, and the panel itself could not be made bigger. -->
-            <Border Width="1" Background="{DynamicResource ThemeBorderBrush}" Margin="10,2" />
-            <Button Name="ZoomOutButton" Classes="ghost" Content="➖" ToolTip.Tip="Umanji sliku" />
-            <TextBlock Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Width="52" TextAlignment="Center" />
-            <Button Name="ZoomInButton" Classes="ghost" Content="➕" ToolTip.Tip="Uvećaj sliku" />
-            <Button Name="ZoomFitButton" Classes="ghost" Content="Uklopi" ToolTip.Tip="Vrati na celu sliku" />
-            <Button Name="FullScreenButton" Classes="cta" Content="⛶ Ceo ekran"
-                    ToolTip.Tip="Preko celog ekrana. Esc ili dupli klik za izlaz." />
-          </StackPanel>
-
-          <Border Background="Black" ClipToBounds="True" MinHeight="240">
-            <Grid>
-              <views:VideoSurface Name="PlayerSurface" StaticImage="{Binding Player.CurrentFrameBitmap}" />
-              <TextBlock Text="{Binding Player.PreviewStatusMessage}"
-                         IsVisible="{Binding Player.CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
-                         Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
-                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" IsHitTestVisible="False" />
-              <TextBlock Text="Točkić miša = zumiranje, prevlačenje mišem = pomeranje slike"
-                         Classes="subtle" Foreground="White" Opacity="0.45" Margin="12,8"
-                         HorizontalAlignment="Left" VerticalAlignment="Bottom" IsHitTestVisible="False" />
-            </Grid>
-          </Border>
-        </DockPanel>
-      </Border>
-
-      <!-- Drag this to make the player bigger or smaller. "Ne može da se uveća plejer" was literally
-           true before: the panel had a hardcoded 220px picture and no way to resize it. -->
-      <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" Background="Transparent"
-                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate ili smanjite plejer" />
-
-      <Border Grid.Row="3" Classes="panel" Margin="20,0,20,20" Padding="16" DataContext="{Binding Timeline}">
+      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="220" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />
@@ -255,14 +279,14 @@
 
                                 <!-- Da se proveri/ispravi šta je Whisper prepoznao (ili doda sopstveni tekst) - bez ovoga
                                      jedina opcija je bila obrisati ceo klip i ukucati ga ispočetka na Tekst traci. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsTextClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <TextBlock Text="Tekst:" Classes="subtle" VerticalAlignment="Center" />
                                   <TextBox Text="{Binding TextContent}" Width="260" Watermark="Tekst titla..." />
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Real picture effects - each maps to a documented ffmpeg filter and is
                                      genuinely applied on export, not a decorative dropdown. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsTextClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding !IsTextClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <TextBlock Text="Efekat:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}" MinWidth="120" />
                                   <TextBlock Text="Osvetljenje:" Classes="subtle" VerticalAlignment="Center" />
@@ -274,12 +298,12 @@
                                   <TextBlock Text="Brzina:" Classes="subtle" VerticalAlignment="Center" />
                                   <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25" Width="90"
                                                  ToolTip.Tip="0.5 = usporeno, 2 = ubrzano" />
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Placement of a layer laid OVER the video underneath (slika u slici /
                                      nalepnica / logo). Only shown for ImageOverlay clips - on the base video
                                      track these are meaningless, the background always fills the frame. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsOverlayClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsOverlayClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <TextBlock Text="Veličina (% širine):" Classes="subtle" VerticalAlignment="Center" />
                                   <NumericUpDown Value="{Binding ScalePercent}" Minimum="1" Maximum="200" Increment="5" Width="100" />
                                   <TextBlock Text="Levo-desno:" Classes="subtle" VerticalAlignment="Center" />
@@ -288,11 +312,11 @@
                                   <Slider Minimum="0" Maximum="100" Value="{Binding PositionYPercent}" Width="120" VerticalAlignment="Center" />
                                   <TextBlock Text="Providnost (%):" Classes="subtle" VerticalAlignment="Center" />
                                   <NumericUpDown Value="{Binding LayerOpacityPercent}" Minimum="0" Maximum="100" Increment="5" Width="90" />
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Real, working per-clip text styling (font/veličina/boja/položaj) - changing these
                                      actually changes the burned-in text on export, unlike the "Stilovi titlova" gallery. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsTextClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <TextBlock Text="Font:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailableFontChoices}" SelectedItem="{Binding FontChoice}" MinWidth="110" />
                                   <TextBlock Text="Veličina:" Classes="subtle" VerticalAlignment="Center" />
@@ -303,11 +327,11 @@
                                   <ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}" MinWidth="100" />
                                   <TextBlock Text="Poravnanje:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}" MinWidth="100" />
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Real outline/senka/pozadina/podebljano/kurziv/VELIKA-mala slova/razmak redova -
                                      svaka od ovih stvarno menja ono što se snima u video, ne samo pregled. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsTextClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <CheckBox Content="Kontura" IsChecked="{Binding HasOutline}" />
                                   <TextBox Text="{Binding OutlineColor}" Width="80" Watermark="#000000" IsVisible="{Binding HasOutline}" />
                                   <NumericUpDown Value="{Binding OutlineWidthPx}" Minimum="1" Maximum="20" Width="90" IsVisible="{Binding HasOutline}" />
@@ -317,8 +341,8 @@
                                   <CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" />
                                   <TextBox Text="{Binding BackgroundColor}" Width="80" Watermark="#000000" IsVisible="{Binding HasBackground}" />
                                   <NumericUpDown Value="{Binding BackgroundOpacityPercent}" Minimum="0" Maximum="100" Width="90" IsVisible="{Binding HasBackground}" ToolTip.Tip="Providnost pozadine (%)" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsTextClip}">
+                                </WrapPanel>
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsTextClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <CheckBox Content="B" FontWeight="Bold" ToolTip.Tip="Podebljano" IsChecked="{Binding IsBold}" />
                                   <CheckBox Content="I" FontStyle="Italic" ToolTip.Tip="Kurziv" IsChecked="{Binding IsItalic}" />
                                   <TextBlock Text="Slova:" Classes="subtle" VerticalAlignment="Center" />
@@ -327,16 +351,16 @@
                                   <NumericUpDown Value="{Binding LineSpacingPx}" Minimum="0" Maximum="40" Width="100" />
                                   <Button Content="Primeni na sve titlove na traci" Command="{Binding ApplyStyleToAllOnTrackCommand}"
                                           ToolTip.Tip="Kopira font/veličinu/boju/položaj/konturu/senku/pozadinu/stil na svaki drugi titl na ovoj traci" />
-                                </StackPanel>
+                                </WrapPanel>
 
                                 <!-- Real transition from the previous video clip into this one (ffmpeg xfade/acrossfade) -
                                      "Bez prelaza" (None) keeps the old hard-cut behavior. -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoClip}">
+                                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsVideoClip}"><WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,4" /><Setter Property="VerticalAlignment" Value="Center" /></Style></WrapPanel.Styles>
                                   <TextBlock Text="Prelaz iz prethodnog klipa:" Classes="subtle" VerticalAlignment="Center" />
                                   <ComboBox ItemsSource="{Binding AvailableTransitions}" SelectedItem="{Binding TransitionInType}" MinWidth="130" />
                                   <TextBlock Text="Trajanje (s):" Classes="subtle" VerticalAlignment="Center" />
                                   <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0" Width="110" />
-                                </StackPanel>
+                                </WrapPanel>
                               </StackPanel>
                             </Border>
                           </DataTemplate>
