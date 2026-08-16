@@ -619,7 +619,7 @@ public class WorkspaceViewModelTests
         {
             var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
             var project = new Project { Name = "Test", MediaLibrary = { asset } };
-            var workspace = CreateWorkspace(project);
+            using var workspace = CreateWorkspace(project);
             workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
 
             await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
@@ -629,7 +629,20 @@ public class WorkspaceViewModelTests
         }
         finally
         {
-            File.Delete(path);
+            // VLC releases a currently-opening media file on its decoder thread after Dispose. Windows
+            // correctly refuses an immediate delete while that native handle is still closing.
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                try
+                {
+                    File.Delete(path);
+                    break;
+                }
+                catch (IOException) when (attempt < 19)
+                {
+                    await Task.Delay(50);
+                }
+            }
         }
     }
 
