@@ -128,61 +128,16 @@ public class VideoPlaybackSessionTests
             return;
         }
 
-        const int width = 320;
-        const int height = 240;
-        const int pitch = width * 4;   // RV32
-        var frameBuffer = Marshal.AllocHGlobal(pitch * height);
+        // Both probes hold their libvlc delegates in fields. An earlier version of this test wrote the
+        // callbacks as inline lambdas and allocated the frame buffer by hand; nothing referenced the
+        // delegates once SetVideoCallbacks returned, so the GC was free to collect the thunks while
+        // libvlc still held the pointers, and the test host died with SIGSEGV - no managed exception,
+        // nothing logged. That is the same failure mode as the app disappearing, reproduced here.
+        var frames = session.UseMemoryVideoOutput(320, 240);
+        Assert.NotNull(frames);
 
-        var framesDisplayed = 0;
-        long sumR = 0, sumG = 0, sumB = 0;
-        var pixelSamples = 0;
-
-        long audioFrames = 0;
-        var audioPeak = 0.0;
-        var audioSumSquares = 0.0;
-        long audioSamplesMeasured = 0;
-
-        var player = session.Player!;
-
-        player.SetVideoFormat("RV32", width, height, pitch);
-        player.SetVideoCallbacks(
-            lockCb: (IntPtr _, IntPtr planes) =>
-            {
-                Marshal.WriteIntPtr(planes, frameBuffer);
-                return IntPtr.Zero;
-            },
-            unlockCb: null,
-            displayCb: (IntPtr _, IntPtr _) =>
-            {
-                framesDisplayed++;
-
-                // Sample the centre pixel periodically. RV32 is BGRA in memory on little-endian.
-                if (framesDisplayed % 5 == 0)
-                {
-                    var offset = (height / 2) * pitch + (width / 2) * 4;
-                    sumB += Marshal.ReadByte(frameBuffer, offset + 0);
-                    sumG += Marshal.ReadByte(frameBuffer, offset + 1);
-                    sumR += Marshal.ReadByte(frameBuffer, offset + 2);
-                    pixelSamples++;
-                }
-            });
-
-        player.SetAudioFormat("S16N", 48000, 2);
-        player.SetAudioCallbacks(
-            playCb: (IntPtr _, IntPtr samples, uint count, long _) =>
-            {
-                audioFrames += count;
-
-                var shorts = (int)count * 2;   // stereo S16
-                for (var i = 0; i < shorts; i++)
-                {
-                    var v = Marshal.ReadInt16(samples, i * 2) / 32768.0;
-                    audioPeak = Math.Max(audioPeak, Math.Abs(v));
-                    audioSumSquares += v * v;
-                    audioSamplesMeasured++;
-                }
-            },
-            pauseCb: null, resumeCb: null, flushCb: null, drainCb: null);
+        var audio = new VlcAudioProbe();
+        audio.AttachTo(session.Player!);
 
         try
         {
@@ -194,7 +149,7 @@ public class VideoPlaybackSessionTests
             while (DateTime.UtcNow < deadline)
             {
                 maxTimeMs = Math.Max(maxTimeMs, session.TimeMs);
-                if (player.State is LibVLCSharp.Shared.VLCState.Ended or LibVLCSharp.Shared.VLCState.Error)
+                if (session.Player!.State is LibVLCSharp.Shared.VLCState.Ended or LibVLCSharp.Shared.VLCState.Error)
                 {
                     break;
                 }
@@ -202,41 +157,36 @@ public class VideoPlaybackSessionTests
                 Thread.Sleep(100);
             }
 
-            var rms = audioSamplesMeasured > 0 ? Math.Sqrt(audioSumSquares / audioSamplesMeasured) : 0;
+            var (r, g, b) = frames!.ReadPixel(frames.Width / 2, frames.Height / 2);
 
-            _output.WriteLine($"state              : {player.State}");
+            _output.WriteLine($"state              : {session.Player!.State}");
             _output.WriteLine($"length             : {session.LengthMs} ms, reached {maxTimeMs} ms");
-            _output.WriteLine($"frames decoded     : {framesDisplayed}");
-            if (pixelSamples > 0)
-            {
-                _output.WriteLine($"centre pixel R,G,B : {sumR / pixelSamples}, {sumG / pixelSamples}, {sumB / pixelSamples}");
-            }
+            _output.WriteLine($"frames decoded     : {frames.FramesDisplayed}");
+            _output.WriteLine($"centre pixel R,G,B : {r}, {g}, {b}");
+            _output.WriteLine($"audio frames       : {audio.Frames} ({audio.Frames / 48000.0:F2} s @48kHz)");
+            _output.WriteLine($"audio peak         : {audio.Peak:F4}, RMS {audio.Rms:F4} ({audio.RmsDb:F1} dB)");
 
-            _output.WriteLine($"audio frames       : {audioFrames} ({audioFrames / 48000.0:F2} s @48kHz)");
-            _output.WriteLine($"audio peak         : {audioPeak:F4}, RMS {rms:F4} ({20 * Math.Log10(Math.Max(rms, 1e-9)):F1} dB)");
-
-            Assert.NotEqual(LibVLCSharp.Shared.VLCState.Error, player.State);
+            Assert.NotEqual(LibVLCSharp.Shared.VLCState.Error, session.Player.State);
 
             // PICTURE: a 3 s 25 fps clip is 75 frames; allow for the decoder being cut short by the
             // deadline, but "a handful of frames" is not playback.
-            Assert.True(framesDisplayed >= 50, $"Only {framesDisplayed} frames decoded - picture is not really playing.");
+            Assert.True(frames.FramesDisplayed >= 50,
+                $"Only {frames.FramesDisplayed} frames decoded - picture is not really playing.");
 
             // ...and it is the RIGHT picture, not grey mush: authored as R=30 G=144 B=255, allowing
             // for yuv420p round-tripping.
-            Assert.True(pixelSamples > 0, "No frame was ever sampled.");
-            Assert.InRange(sumR / pixelSamples, 20, 40);
-            Assert.InRange(sumG / pixelSamples, 134, 154);
-            Assert.InRange(sumB / pixelSamples, 245, 255);
+            Assert.InRange(r, 20, 40);
+            Assert.InRange(g, 134, 154);
+            Assert.InRange(b, 245, 255);
 
             // SOUND: real samples, and not silence. A 440 Hz tone has an RMS far above the noise floor.
-            Assert.True(audioFrames >= 48000 * 2, $"Only {audioFrames} audio frames - sound is not really playing.");
-            Assert.True(audioPeak > 0.01, $"Audio peak {audioPeak:F4} - this is silence, not sound.");
-            Assert.True(rms > 0.005, $"Audio RMS {rms:F4} - this is silence, not sound.");
+            Assert.True(audio.Frames >= 48000 * 2, $"Only {audio.Frames} audio frames - sound is not really playing.");
+            Assert.True(audio.Peak > 0.01, $"Audio peak {audio.Peak:F4} - this is silence, not sound.");
+            Assert.True(audio.Rms > 0.005, $"Audio RMS {audio.Rms:F4} - this is silence, not sound.");
         }
         finally
         {
             session.Stop();
-            Marshal.FreeHGlobal(frameBuffer);
         }
     }
 
@@ -257,16 +207,13 @@ public class VideoPlaybackSessionTests
             return;
         }
 
-        session.Player!.SetVideoFormat("RV32", 32, 32, 32 * 4);
-        var scratch = Marshal.AllocHGlobal(32 * 32 * 4);
+        // Decoding goes through the production buffer, which roots its own libvlc delegates and frees
+        // its memory only after the player is gone. Hand-rolling that here is what previously crashed
+        // the test host.
+        Assert.NotNull(session.UseMemoryVideoOutput(64, 64));
 
         try
         {
-            session.Player.SetVideoCallbacks(
-                lockCb: (IntPtr _, IntPtr planes) => { Marshal.WriteIntPtr(planes, scratch); return IntPtr.Zero; },
-                unlockCb: null,
-                displayCb: (IntPtr _, IntPtr _) => { });
-
             session.Volume = 55;                          // before anything is playing
             Assert.True(session.Open(ProbeVideo, out var message), message);
 
@@ -283,7 +230,6 @@ public class VideoPlaybackSessionTests
         finally
         {
             session.Stop();
-            Marshal.FreeHGlobal(scratch);
         }
     }
 
@@ -302,16 +248,10 @@ public class VideoPlaybackSessionTests
         }
 
         // Decode to memory so no display or sound card is needed on the build machine.
-        session.Player!.SetVideoFormat("RV32", 32, 32, 32 * 4);
-        var scratch = Marshal.AllocHGlobal(32 * 32 * 4);
+        Assert.NotNull(session.UseMemoryVideoOutput(64, 64));
 
         try
         {
-            session.Player.SetVideoCallbacks(
-                lockCb: (IntPtr _, IntPtr planes) => { Marshal.WriteIntPtr(planes, scratch); return IntPtr.Zero; },
-                unlockCb: null,
-                displayCb: (IntPtr _, IntPtr _) => { });
-
             Assert.True(session.Open(ProbeVideo, out var message), message);
 
             // Wait for libvlc to actually open the media - it does that on its own thread, so Length is
@@ -373,7 +313,6 @@ public class VideoPlaybackSessionTests
         finally
         {
             session.Stop();
-            Marshal.FreeHGlobal(scratch);
         }
     }
 }

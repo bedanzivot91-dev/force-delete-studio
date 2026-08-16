@@ -333,7 +333,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         try
         {
             var outputPath = await _renderService.RenderAsync(Project, job);
-            RealPreview.LoadAndPlay(outputPath);
+            await RealPreview.LoadAndPlayAsync(outputPath);
             RealPreviewStatusMessage = "Pravi pregled je spreman i pušta se, sa zvukom.";
             _logger.Information("Pravi pregled renderovan i pušten: {Path}", outputPath);
         }
@@ -406,7 +406,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         try
         {
             var outputPath = await _renderService.RenderAsync(previewProject, job);
-            RealPreview.LoadAndPlay(outputPath);
+            await RealPreview.LoadAndPlayAsync(outputPath);
             RealPreviewStatusMessage = FormattableString.Invariant($"Deo pregleda ({rangeStart:0.0}s-{rangeEnd:0.0}s) je spreman i pušta se.");
             _logger.Information("Deo pravog pregleda renderovan i pušten: {Path} ({Start}s-{End}s)", outputPath, rangeStart, rangeEnd);
         }

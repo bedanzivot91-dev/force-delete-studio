@@ -10,12 +10,11 @@ namespace NPVideoStudio.UnitTests;
 ///
 /// These tests deliberately assert the *contract* in both directions rather than hardcoding either
 /// outcome, because whether libvlc's native library is actually present is a real property of the
-/// machine running the tests, not of the code: this project's Linux dev sandbox never has it (only the
-/// win-x64 build bundles it, via VideoLAN.LibVLC.Windows), while the real windows-latest CI runner does.
-/// A real CI failure came from exactly that gap - four tests written in the sandbox asserted
-/// `IsAvailable == false` as if it were a fact about the code, and they failed on Windows precisely
-/// because the player genuinely works there. Asserting both branches keeps the graceful-degradation
-/// guarantee under test where it applies, without turning "the feature works here" into a failure.
+/// machine running the tests, not of the code: this project's Linux dev sandbox only has it when VLC is
+/// installed there, while the win-x64 build always bundles it via VideoLAN.LibVLC.Windows. A real CI
+/// failure came from exactly that gap - four tests written in the sandbox asserted `IsAvailable == false`
+/// as if it were a fact about the code, and they failed on Windows precisely because the player genuinely
+/// works there.
 /// </summary>
 public class RealPreviewViewModelTests
 {
@@ -26,8 +25,8 @@ public class RealPreviewViewModelTests
 
         if (preview.IsAvailable)
         {
-            // Native libvlc really is present (a real Windows machine) - then there is nothing to
-            // explain, and the view model must not be carrying a stale "unavailable" excuse.
+            // Native libvlc really is present - then there is nothing to explain, and the view model
+            // must not be carrying a stale "unavailable" excuse.
             Assert.True(string.IsNullOrWhiteSpace(preview.UnavailableReason));
         }
         else
@@ -39,31 +38,89 @@ public class RealPreviewViewModelTests
     }
 
     /// <summary>
-    /// The real, environment-independent guarantee here is that <see cref="RealPreviewViewModel.LoadAndPlay"/>
-    /// never throws - not that it refuses the file. A first attempt at this test asserted
-    /// <c>HasLoadedFile == false</c> for a nonexistent path on the assumption that "even a working libvlc
-    /// has nothing to load here", and that assumption was wrong on the real Windows runner: libvlc opens
-    /// media asynchronously, so handing it a missing path fails later on VLC's own thread rather than
-    /// synchronously, and <c>LoadAndPlay</c> sets <c>HasLoadedFile</c> right after handing the media over.
-    /// So the flag honestly means "a file was handed to the player", not "the file exists and decoded" -
-    /// which is exactly what this now asserts, per environment.
+    /// The regression guard for the freeze/crash audit. This view model used to build a full LibVLC +
+    /// MediaPlayer in its constructor, so simply opening a workspace left a second native player alive
+    /// beside the player window's - and VideoLAN documents deadlocks on play and stop when one
+    /// application holds several media players. Availability must be answerable without that.
     /// </summary>
     [AvaloniaFact]
-    public void LoadAndPlay_MissingFile_NeverThrows()
+    public void Construction_DoesNotCreateANativePlayer_EvenWhenPlaybackIsSupported()
     {
         using var preview = new RealPreviewViewModel();
 
-        preview.LoadAndPlay("/tmp/does-not-exist.mp4");
+        // Reading availability must not be what creates a player either.
+        _ = preview.IsAvailable;
 
-        if (preview.IsAvailable)
+        Assert.False(preview.IsPlayerCreated);
+        Assert.False(preview.HasLoadedFile);
+    }
+
+    /// <summary>
+    /// Many workspaces over a session must not accumulate native players. Constructing a batch and
+    /// checking none of them made one is the cheap, non-flaky way to assert that.
+    /// </summary>
+    [AvaloniaFact]
+    public void ManyWorkspaces_DoNotAccumulateNativePlayers()
+    {
+        var previews = Enumerable.Range(0, 25).Select(_ => new RealPreviewViewModel()).ToList();
+
+        try
         {
-            // Player present: the path was accepted and handed to libvlc without throwing.
-            Assert.True(preview.HasLoadedFile);
+            Assert.All(previews, p => Assert.False(p.IsPlayerCreated));
         }
-        else
+        finally
         {
-            // No player: LoadAndPlay returns early and must not pretend anything was loaded.
-            Assert.False(preview.HasLoadedFile);
+            foreach (var preview in previews)
+            {
+                preview.Dispose();
+            }
         }
+    }
+
+    /// <summary>
+    /// A missing file must be refused rather than handed to libvlc. This is a deliberate behaviour
+    /// change from the previous version, which passed any path straight through: libvlc opens media
+    /// asynchronously, so a missing path failed later on VLC's own thread with nothing surfaced to the
+    /// user, and HasLoadedFile was set to true regardless. Now the file is checked first, so the flag
+    /// means what it says on every machine instead of meaning different things per environment.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task LoadAndPlay_MissingFile_NeverThrows_AndLoadsNothing()
+    {
+        using var preview = new RealPreviewViewModel();
+
+        await preview.LoadAndPlayAsync(Path.Combine(Path.GetTempPath(), $"nema-{Guid.NewGuid():N}.mp4"));
+
+        Assert.False(preview.HasLoadedFile);
+    }
+
+    [AvaloniaFact]
+    public async Task Commands_AreSafeBeforeAnythingIsLoaded()
+    {
+        using var preview = new RealPreviewViewModel();
+
+        // Every one of these runs against a session that does not exist yet. None may throw - a crash
+        // here would take the whole workspace down.
+        preview.TogglePlayPauseCommand.Execute(null);
+        preview.StopCommand.Execute(null);
+        preview.Volume = 40;
+        preview.IsMuted = true;
+        preview.CurrentTimeSeconds = 12;
+
+        Assert.False(preview.IsPlaying);
+        Assert.Equal(40, preview.Volume);
+
+        await Task.CompletedTask;
+    }
+
+    [AvaloniaFact]
+    public void Dispose_IsIdempotent()
+    {
+        var preview = new RealPreviewViewModel();
+
+        preview.Dispose();
+        preview.Dispose();
+
+        Assert.False(preview.IsPlayerCreated);
     }
 }

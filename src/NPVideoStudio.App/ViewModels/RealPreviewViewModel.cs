@@ -1,40 +1,39 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using LibVLCSharp.Shared;
+using NPVideoStudio.App.Services;
 
 namespace NPVideoStudio.App.ViewModels;
 
 /// <summary>
-/// Real, continuous audio+video playback of a rendered preview file, via LibVLC (bundled for win-x64 -
-/// see NPVideoStudio.App.csproj's VideoLAN.LibVLC.Windows reference). Deliberately separate from
-/// <see cref="PlayerViewModel"/>, which stays a frame-by-frame ffmpeg snapshot preview with no audio
-/// (cheap, always available, no native player dependency) - this is the answer to the real, repeated
-/// user request for actual playback with sound, at the real cost of a much larger bundled install
-/// (~100MB of libvlc + plugins) and a render step before anything plays (see
-/// <see cref="WorkspaceViewModel.RenderRealPreviewCommand"/>, which reuses the exact same
-/// <c>IRenderService</c>/<c>FfmpegFilterGraphBuilder</c> pipeline export uses - not a separate, possibly-
-/// inaccurate preview path).
+/// Real, continuous audio+video playback of a rendered preview file, inside the workspace.
 ///
-/// <see cref="IsAvailable"/> is false whenever LibVLC's native library can't be loaded - true on a real
-/// Windows install with the bundled libvlc.dll, but also the honest, expected outcome on this project's
-/// Linux dev sandbox (no libvlc.so present there), so construction never throws even when native
-/// playback genuinely isn't possible on the current machine.
+/// Two things changed here after the user reported the app freezing and closing itself, and both were
+/// real defects rather than tuning:
+///
+/// 1. This class used to call <c>Core.Initialize()</c> and build a whole LibVLC + MediaPlayer in its
+///    constructor, which runs whenever a workspace opens - so the app permanently held a SECOND native
+///    player beside the one in the player window, used or not. VideoLAN documents deadlocks on play and
+///    stop when one application holds several media players. Now nothing native exists until the user
+///    actually renders a preview, and <see cref="IsAvailable"/> answers the "can this machine play?"
+///    question through a loader probe that creates no player at all.
+///
+/// 2. That MediaPlayer had no video output attached at all once the workspace's VideoView was removed,
+///    which means libvlc would have opened its own bare window to put the picture in. It now decodes
+///    into <see cref="Frames"/> and the workspace draws it with the same VideoSurface the player window
+///    uses - one playback path, one set of tests, no native windows anywhere.
 /// </summary>
 public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 {
-    private readonly LibVLC? _libVlc;
     private readonly DispatcherTimer _timer;
+    private VideoPlaybackSession? _session;
     private bool _isSyncingFromPlayer;
     private bool _isDisposed;
 
-    public MediaPlayer? MediaPlayer { get; }
-
-    [ObservableProperty]
-    private bool _isAvailable;
-
-    [ObservableProperty]
-    private string? _unavailableReason;
+    /// <summary>Raised once decoded frames start landing somewhere, so the view can point a
+    /// VideoSurface at them. An event rather than a binding because the surface is a control that owns a
+    /// bitmap, not a value to display.</summary>
+    public event Action<VlcVideoFrameBuffer>? FramesReady;
 
     [ObservableProperty]
     private bool _hasLoadedFile;
@@ -59,108 +58,125 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
     public string CurrentTimeLabel => FormatTime(CurrentTimeSeconds);
     public string TotalTimeLabel => FormatTime(TotalDurationSeconds);
 
+    /// <summary>True when libvlc can be loaded here. Costs a loader probe, not a player.</summary>
+    public bool IsAvailable => VideoPlaybackSession.IsPlaybackSupported;
+
+    public string? UnavailableReason => VideoPlaybackSession.PlaybackUnavailableReason;
+
+    /// <summary>
+    /// Whether a native player exists yet. Public so the "no second media player until the feature is
+    /// actually used" guarantee is something a test can assert, rather than a claim in a comment - the
+    /// old eager constructor is precisely the kind of regression that would otherwise creep back.
+    /// </summary>
+    public bool IsPlayerCreated => _session is not null;
+
     public RealPreviewViewModel()
     {
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _timer.Tick += (_, _) => SyncFromPlayer();
-
-        try
-        {
-            // Fully qualified: this project also has sibling namespaces literally named "Core" and
-            // "Media" (NPVideoStudio.Core, NPVideoStudio.Media), which C#'s enclosing-namespace lookup
-            // resolves before the "using LibVLCSharp.Shared" import - an unqualified "Core"/"Media" here
-            // would silently bind to the wrong namespace instead of LibVLCSharp's types.
-            LibVLCSharp.Shared.Core.Initialize();
-            _libVlc = new LibVLC("--quiet");
-            MediaPlayer = new MediaPlayer(_libVlc);
-            IsAvailable = true;
-        }
-        catch (Exception ex)
-        {
-            // Real, expected outcome on any machine without libvlc's native library available (this
-            // sandbox included) - never let a missing native dependency crash the whole workspace, just
-            // disable this one feature and say why.
-            IsAvailable = false;
-            UnavailableReason = $"Pravi plejer nije dostupan na ovom računaru (libvlc nije učitan): {ex.Message}";
-        }
     }
 
-    /// <summary>Loads a real rendered file (see <see cref="WorkspaceViewModel.RenderRealPreviewCommand"/>) and starts playing it immediately, with real audio.</summary>
-    public void LoadAndPlay(string filePath)
+    /// <summary>
+    /// Loads a rendered preview file and starts playing it with sound. Async because the frame size is
+    /// read from the file first, so a vertical Shorts render is not decoded into a landscape buffer.
+    /// </summary>
+    public async Task LoadAndPlayAsync(string filePath)
     {
-        if (!IsAvailable || _isDisposed || _libVlc is null || MediaPlayer is null)
+        if (_isDisposed || !IsAvailable)
         {
             return;
         }
 
-        using (var media = new LibVLCSharp.Shared.Media(_libVlc, filePath, FromType.FromPath))
+        // One session per loaded file: reusing a player across media is where LibVLCSharp's documented
+        // "Stop hangs while connecting to another media" (#214) bites.
+        _session?.Dispose();
+        _session = VideoPlaybackSession.Create();
+
+        if (!_session.IsReady)
         {
-            MediaPlayer.Play(media);
+            return;
         }
 
-        MediaPlayer.Volume = Volume;
-        MediaPlayer.Mute = IsMuted;
+        var (width, height) = await ProbeFrameSizeAsync(filePath);
+
+        var frames = _session.UseMemoryVideoOutput(width, height);
+        if (frames is not null)
+        {
+            FramesReady?.Invoke(frames);
+        }
+
+        _session.Volume = Volume;
+
+        if (!_session.Open(filePath, out _))
+        {
+            return;
+        }
+
         HasLoadedFile = true;
         _timer.Start();
     }
 
-    [RelayCommand]
-    private void TogglePlayPause()
+    private static async Task<(int Width, int Height)> ProbeFrameSizeAsync(string filePath)
     {
-        if (MediaPlayer is null)
+        try
         {
-            return;
+            var asset = await new NPVideoStudio.Media.FfprobeService().ProbeAsync(filePath);
+            return (asset.Width, asset.Height);
         }
-
-        if (MediaPlayer.IsPlaying)
+        catch
         {
-            MediaPlayer.Pause();
-        }
-        else
-        {
-            MediaPlayer.Play();
+            // Falls back to a default decode size; never a reason to refuse to play.
+            return (0, 0);
         }
     }
 
     [RelayCommand]
+    private void TogglePlayPause() => IsPlaying = _session?.TogglePlayPause() ?? false;
+
+    [RelayCommand]
     private void Stop()
     {
-        MediaPlayer?.Stop();
+        _session?.Stop();
         _timer.Stop();
         IsPlaying = false;
     }
 
     partial void OnVolumeChanged(int value)
     {
-        if (MediaPlayer is not null && !_isDisposed)
+        if (!_isDisposed && _session is not null)
         {
-            MediaPlayer.Volume = value;
+            _session.Volume = value;
         }
     }
 
     partial void OnIsMutedChanged(bool value)
     {
-        if (MediaPlayer is not null && !_isDisposed)
+        if (_isDisposed || _session?.Player is null)
         {
-            MediaPlayer.Mute = value;
+            return;
         }
+
+        _session.Player.Mute = value;
     }
 
-    /// <summary>Mirrors the same real-vs-external-seek guard pattern as <see cref="PlayerViewModel.OnCurrentTimeSecondsChanged"/> - the seek slider two-way binds straight to this property, so an externally-driven value (a user drag) needs to reach the real player, while a value we ourselves just set from <see cref="SyncFromPlayer"/> must not re-seek and fight the player's own natural playback advance.</summary>
+    /// <summary>Mirrors the same real-vs-external-seek guard pattern as
+    /// <see cref="PlayerViewModel.OnCurrentTimeSecondsChanged"/> - the seek slider two-way binds straight
+    /// to this property, so a user drag needs to reach the real player, while a value this class just
+    /// wrote from <see cref="SyncFromPlayer"/> must not re-seek and fight playback.</summary>
     partial void OnCurrentTimeSecondsChanged(double value)
     {
-        if (!_isSyncingFromPlayer && !_isDisposed && MediaPlayer is not null && HasLoadedFile)
+        if (!_isSyncingFromPlayer && !_isDisposed && HasLoadedFile)
         {
-            MediaPlayer.Time = (long)(value * 1000);
+            _session?.SeekToSeconds(value);
         }
     }
 
     private void SyncFromPlayer()
     {
         // _isDisposed matters as much as the null check: a DispatcherTimer Tick can already be queued
-        // when Dispose() runs, and reading MediaPlayer.Time on a freed native player is an access
-        // violation that takes the whole process down with no managed exception to log.
-        if (MediaPlayer is null || _isDisposed)
+        // when Dispose() runs, and reading from a freed native player is an access violation that takes
+        // the whole process down with no managed exception to log.
+        if (_isDisposed || _session is null || !_session.IsReady)
         {
             return;
         }
@@ -168,8 +184,9 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         _isSyncingFromPlayer = true;
         try
         {
-            CurrentTimeSeconds = Math.Max(0, MediaPlayer.Time / 1000.0);
-            var lengthMs = MediaPlayer.Length;
+            CurrentTimeSeconds = _session.TimeMs / 1000.0;
+
+            var lengthMs = _session.LengthMs;
             if (lengthMs > 0)
             {
                 TotalDurationSeconds = lengthMs / 1000.0;
@@ -180,7 +197,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
             _isSyncingFromPlayer = false;
         }
 
-        IsPlaying = MediaPlayer.IsPlaying;
+        IsPlaying = _session.Player?.IsPlaying ?? false;
     }
 
     private static string FormatTime(double seconds)
@@ -189,16 +206,6 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         return $"{(int)t.TotalMinutes:D2}:{t.Seconds:D2}";
     }
 
-    /// <summary>
-    /// Real crash fix. The previous version disposed <see cref="MediaPlayer"/> while it could still be
-    /// playing (and while the Avalonia <c>VideoView</c> was still bound to it), which is a documented
-    /// native access-violation in LibVLCSharp - and a native crash kills the process outright, so it
-    /// never reaches <c>AppDomain.UnhandledException</c> and leaves no log at all. That matches the real
-    /// user report exactly: "program se sam gasi", no error, no crash.log entry. Now: stop the timer
-    /// first, mark disposed so a Tick already queued on the dispatcher can't touch a freed player, stop
-    /// playback before freeing it, and free in the required order (player before its LibVLC instance),
-    /// each guarded so one failure can't skip the rest.
-    /// </summary>
     public void Dispose()
     {
         if (_isDisposed)
@@ -209,8 +216,9 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         _isDisposed = true;
         _timer.Stop();
 
-        try { MediaPlayer?.Stop(); } catch { /* already gone - nothing to salvage */ }
-        try { MediaPlayer?.Dispose(); } catch { /* ditto */ }
-        try { _libVlc?.Dispose(); } catch { /* ditto */ }
+        // The session handles the ordering and the off-UI-thread teardown; both matter, and both are
+        // explained where they happen.
+        _session?.Dispose();
+        _session = null;
     }
 }

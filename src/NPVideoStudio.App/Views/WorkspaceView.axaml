@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:views="using:NPVideoStudio.App.Views"
              xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
-             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              x:Class="NPVideoStudio.App.Views.WorkspaceView"
              x:DataType="vm:WorkspaceViewModel"
              DragDrop.AllowDrop="True">
@@ -115,16 +115,15 @@
           </StackPanel>
           <TextBlock Classes="subtle" TextWrapping="Wrap"
                      Text="Renderuje pravi video sa zvukom, neprekidno (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka. „Deo oko plejhed-a“ renderuje samo kratak prozor umesto cele trake, pa je pregled brz i na dugačkim projektima." />
-          <!-- The embedded VideoView that used to sit here was removed, not restyled: LibVLCSharp's
-               VideoView is a NativeControlHost, and Avalonia does not surface a native window handle for
-               one nested inside a UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525). This
-               screen IS a UserControl, so the player ran with nowhere to draw - it could never have shown
-               a picture here. Playback now opens in PlayerWindow, where the VideoView is the window's
-               direct content, and where the user can resize or maximise it. -->
-          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="14,12"
-                  IsVisible="{Binding RealPreview.HasLoadedFile}">
-            <TextBlock Classes="subtle" TextWrapping="Wrap"
-                       Text="Pregled je renderovan. Kliknite „▶ Pusti moj video (sa zvukom)“ da ga otvorite u plejeru." />
+          <!-- The picture is back on this screen. It could not be before: the embedded control used to be
+               LibVLCSharp's VideoView, a NativeControlHost, and Avalonia does not surface a native window
+               handle for one nested inside a UserControl (AvaloniaUI/Avalonia#6237,
+               VideoLAN/LibVLCSharp#525) - this screen IS a UserControl, so the player ran with nowhere to
+               draw. VideoSurface has no native window at all, so it works here exactly as it does in the
+               player window, and the code-behind points it at the decoded frames. -->
+          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="0"
+                  ClipToBounds="True" IsVisible="{Binding RealPreview.HasLoadedFile}">
+            <views:VideoSurface Name="RealPreviewSurface" Height="360" />
           </Border>
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding RealPreview.HasLoadedFile}">
             <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding !RealPreview.IsPlaying}" />

@@ -22,7 +22,35 @@ public partial class WorkspaceView : UserControl
         AddHandler(PointerPressedEvent, OnLanePointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnLanePointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnLanePointerReleased, RoutingStrategies.Tunnel);
+
+        // Point the surface at the decoded frames as soon as the view model has some. Done here rather
+        // than through a binding because the surface owns a bitmap and a paint timer - it is a control to
+        // hand a buffer to, not a value to display. DataContextChanged rather than the constructor
+        // because this view is reused as the workspace view model is swapped.
+        DataContextChanged += (_, _) => SubscribeToRealPreviewFrames();
+        SubscribeToRealPreviewFrames();
     }
+
+    private RealPreviewViewModel? _subscribedPreview;
+
+    private void SubscribeToRealPreviewFrames()
+    {
+        if (DataContext is not WorkspaceViewModel workspace || ReferenceEquals(_subscribedPreview, workspace.RealPreview))
+        {
+            return;
+        }
+
+        if (_subscribedPreview is not null)
+        {
+            _subscribedPreview.FramesReady -= OnRealPreviewFramesReady;
+        }
+
+        _subscribedPreview = workspace.RealPreview;
+        _subscribedPreview.FramesReady += OnRealPreviewFramesReady;
+    }
+
+    private void OnRealPreviewFramesReady(NPVideoStudio.App.Services.VlcVideoFrameBuffer frames) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => RealPreviewSurface.Attach(frames));
 
     // --- Dragging a clip along the lane ------------------------------------------------------------
     // The timeline had no visual lane at all before this: clips could only be nudged 0.5s at a time with
