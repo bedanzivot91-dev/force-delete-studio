@@ -21,6 +21,7 @@ public sealed class VideoPlaybackSession : IDisposable
     private bool _isDisposed;
 
     private int _desiredVolume = 100;
+    private VlcVideoFrameBuffer? _frameBuffer;
 
     private VideoPlaybackSession(LibVLC? libVlc, MediaPlayer? player, string? failureReason)
     {
@@ -108,6 +109,31 @@ public sealed class VideoPlaybackSession : IDisposable
 
         message = "Pušta se. Prozor možete povećati ili prevući u ceo ekran.";
         return true;
+    }
+
+    /// <summary>
+    /// Switches this session to decoding video into memory instead of into a native child window, and
+    /// returns the buffer the frames land in. Must be called before <see cref="Open"/>, because libvlc
+    /// builds its video output chain when playback starts.
+    ///
+    /// This is what removes the whole class of failure the user kept hitting: with no native window
+    /// there is no handle to fail to attach, nothing that can only live directly inside a Window, and no
+    /// native crash path that kills the process without an exception.
+    /// </summary>
+    public VlcVideoFrameBuffer? UseMemoryVideoOutput(int nativeWidth, int nativeHeight)
+    {
+        if (!IsReady)
+        {
+            return null;
+        }
+
+        var (width, height) = VlcVideoFrameBuffer.ChooseDecodeSize(nativeWidth, nativeHeight);
+
+        _frameBuffer?.Dispose();
+        _frameBuffer = new VlcVideoFrameBuffer(width, height);
+        _frameBuffer.AttachTo(Player!);
+
+        return _frameBuffer;
     }
 
     /// <summary>Toggles playback; returns true when the result is "playing".</summary>
@@ -212,5 +238,10 @@ public sealed class VideoPlaybackSession : IDisposable
         try { player?.Dispose(); } catch { /* ditto */ }
         try { _libVlc?.Dispose(); } catch { /* ditto */ }
         _libVlc = null;
+
+        // Freed only after the player is gone: libvlc writes into these buffers from its decoder thread,
+        // so releasing them while it is still running is a native access violation.
+        try { _frameBuffer?.Dispose(); } catch { /* ditto */ }
+        _frameBuffer = null;
     }
 }

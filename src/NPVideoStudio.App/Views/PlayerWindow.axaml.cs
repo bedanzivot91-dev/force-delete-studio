@@ -125,7 +125,7 @@ public partial class PlayerWindow : Window
         FindLyricsButton.IsEnabled = enabled;
     }
 
-    private void InitialisePlayerAndStart()
+    private async void InitialisePlayerAndStart()
     {
         _session = VideoPlaybackSession.Create();
 
@@ -135,7 +135,16 @@ public partial class PlayerWindow : Window
             return;
         }
 
-        Video.MediaPlayer = _session.Player;
+        // Ask ffprobe for the real frame size so the decode buffer matches the video's shape and nothing
+        // is squashed. A probe failure is not fatal - ChooseDecodeSize falls back to 1280x720 and libvlc
+        // rescales - so this never blocks playback.
+        var (nativeWidth, nativeHeight) = await ProbeFrameSizeAsync();
+
+        var frames = _session.UseMemoryVideoOutput(nativeWidth, nativeHeight);
+        if (frames is not null)
+        {
+            Video.Attach(frames);
+        }
 
         var started = _session.Open(_filePath, out var message);
         StatusText.Text = message;
@@ -150,6 +159,25 @@ public partial class PlayerWindow : Window
 
         Title = $"NP Video Studio - {Path.GetFileName(_filePath)}";
         PlayPauseButton.Content = "⏸ Pauza";
+    }
+
+    private async Task<(int Width, int Height)> ProbeFrameSizeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_filePath) || !File.Exists(_filePath))
+        {
+            return (0, 0);
+        }
+
+        try
+        {
+            var asset = await new NPVideoStudio.Media.FfprobeService().ProbeAsync(_filePath);
+            return (asset.Width, asset.Height);
+        }
+        catch
+        {
+            // ffprobe missing or the file has no readable video stream - the fallback size handles it.
+            return (0, 0);
+        }
     }
 
     private void OnPlayPause(object? sender, RoutedEventArgs e) =>
@@ -257,8 +285,8 @@ public partial class PlayerWindow : Window
         _isDisposed = true;
         _timer.Stop();
 
-        // Detach before disposing: the VideoView must not be left pointing at a freed MediaPlayer.
-        try { Video.MediaPlayer = null; } catch { /* window already tearing down */ }
+        // Stop painting before the buffers behind the bitmap are freed by the session's Dispose.
+        try { Video.Detach(); } catch { /* window already tearing down */ }
         _session?.Dispose();
         _session = null;
     }

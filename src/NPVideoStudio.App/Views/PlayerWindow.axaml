@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+        xmlns:views="clr-namespace:NPVideoStudio.App.Views"
         x:Class="NPVideoStudio.App.Views.PlayerWindow"
         Title="NP Video Studio - Plejer"
         Width="1280" Height="760"
@@ -9,20 +9,21 @@
         Background="Black">
 
   <!--
-    The VideoView is the DIRECT content of this Window on purpose, not nested inside a UserControl.
+    VideoSurface is a plain Avalonia control that paints libvlc's decoded frames as a bitmap. It replaced
+    LibVLCSharp's VideoView, which VideoLAN's own README describes as "a detached window over your video
+    control" - a separate native window that must attach a handle, cannot be laid out normally, cannot be
+    drawn over ("you cannot easily draw things over the video"), misbehaves inside a UserControl
+    (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525), and, when the attach fails, kills the process
+    from native code with no exception to catch.
 
-    That is the actual fix for "video se ne pušta": LibVLCSharp's Avalonia VideoView is a
-    NativeControlHost, and Avalonia does not surface the native window handle when a NativeControlHost
-    sits inside a UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525 "VideoView misbehaves
-    when it's inside a child control"). The old player was a 220px-tall box buried deep inside
-    WorkspaceView, which is a UserControl - libvlc was running, but had nowhere to draw.
-
-    A separate window also answers the other two complaints directly: it opens large, and the user can
-    resize or maximise it, so the picture is no longer locked to a small fixed box.
+    Every complaint the user reported - the picture is a small fixed box, it cannot be enlarged, there is
+    no picture, the app closes itself on play - comes from that native window. There is no native window
+    here at all, so the picture is laid out, scaled and clipped by Avalonia like any other control: it
+    fills the window, follows a resize, and goes full screen.
   -->
   <Grid RowDefinitions="*,Auto">
 
-    <vlc:VideoView Name="Video" Grid.Row="0" />
+    <views:VideoSurface Name="Video" Grid.Row="0" />
 
     <Border Grid.Row="1" Background="#141414" Padding="14,10">
       <StackPanel Spacing="8">

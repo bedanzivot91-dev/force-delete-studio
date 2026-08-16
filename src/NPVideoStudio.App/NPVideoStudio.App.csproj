@@ -13,6 +13,9 @@
          defaults to bundling BOTH win-x64 and win-x86 native libvlc trees (~100MB each, ~200MB total)
          since this project's Platform is AnyCPU rather than an explicit x64. -->
     <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <!-- Needed only by VlcVideoFrameBuffer's per-row frame copy: libvlc hands over raw pointers, and a
+         pointer memcpy is what keeps a full-frame copy off the managed heap and out of the GC's way. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
