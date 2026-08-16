@@ -30,7 +30,9 @@
         <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
                 ToolTip.Tip="Svaka izgovorena reč se pojavljuje na ekranu pojedinačno, tačno kad se izgovori."
                 Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
-        <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center"
+        <Button Classes="ghost" Content="Prekini prepoznavanje" Command="{Binding CancelCaptionGenerationCommand}"
+                IsVisible="{Binding IsGeneratingCaptions}" />
+        <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
                    IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
       </StackPanel>
     </Border>

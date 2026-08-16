@@ -536,6 +536,25 @@ public class WorkspaceViewModelTests
         Assert.Contains("Generiši titlove (SRT)", workspace.CaptionsStatusMessage);
     }
 
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_RecognitionFails_ShowsTheActualErrorAndUnlocksTheButtons()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService { IsModelReady = true, ThrowOnGenerate = true };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.False(workspace.IsGeneratingCaptions);
+        Assert.Contains("prepoznavanje govora nije uspelo", workspace.CaptionsStatusMessage);
+        Assert.Single(workspace.Timeline.Tracks);
+    }
+
     /// <summary>
     /// The play command's real behaviour, now that there is ONE player.
     ///

@@ -30,6 +30,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
+    private CancellationTokenSource? _captionGenerationCts;
 
     public Project Project { get; }
 
@@ -254,6 +255,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     {
         _framePreviewCts?.Cancel();
         _framePreviewCts?.Dispose();
+        _captionGenerationCts?.Cancel();
+        _captionGenerationCts?.Dispose();
         Player.Dispose();
         RealPreview.Dispose();
     }
@@ -677,6 +680,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private Task GenerateKaraokeCaptionsForVideoAsync() => GenerateCaptionsCoreAsync(wordLevel: true);
 
+    [RelayCommand(CanExecute = nameof(IsGeneratingCaptions))]
+    private void CancelCaptionGeneration() => _captionGenerationCts?.Cancel();
+
     private async Task GenerateCaptionsCoreAsync(bool wordLevel)
     {
         var videoFilePath = ResolvePrimaryVideoFilePath();
@@ -692,14 +698,38 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _captionGenerationCts?.Dispose();
+        _captionGenerationCts = new CancellationTokenSource();
+        var cancellationToken = _captionGenerationCts.Token;
         IsGeneratingCaptions = true;
-        CaptionsStatusMessage = "Prepoznavanje govora u toku...";
+        CancelCaptionGenerationCommand.NotifyCanExecuteChanged();
+        CaptionsStatusMessage = "Pripremam zvuk za prepoznavanje...";
 
         try
         {
-            var segments = wordLevel
-                ? await _subtitleGeneratorService.TranscribeWordsAsync(videoFilePath)
-                : await _subtitleGeneratorService.TranscribeAsync(videoFilePath);
+            // Whisper is CPU-heavy. Running it on the UI thread made the window appear frozen at
+            // "Prepoznavanje govora u toku...", even while recognition was still working. Keep it on
+            // a worker thread and emit a heartbeat so the user can distinguish progress from a hang.
+            var startedAt = DateTimeOffset.UtcNow;
+            var transcription = Task.Run(
+                () => wordLevel
+                    ? _subtitleGeneratorService.TranscribeWordsAsync(videoFilePath, cancellationToken)
+                    : _subtitleGeneratorService.TranscribeAsync(videoFilePath, cancellationToken),
+                cancellationToken);
+
+            while (!transcription.IsCompleted)
+            {
+                var heartbeat = Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+                if (await Task.WhenAny(transcription, heartbeat) == transcription)
+                {
+                    break;
+                }
+
+                var elapsed = DateTimeOffset.UtcNow - startedAt;
+                CaptionsStatusMessage = $"Prepoznavanje govora je u toku ({elapsed.Minutes:00}:{elapsed.Seconds:00})...";
+            }
+
+            var segments = await transcription;
             Timeline.AddGeneratedCaptions(segments);
             CaptionsStatusMessage = segments.Count == 0
                 ? "Nije prepoznat nijedan izgovoren tekst u ovom videu."
@@ -707,6 +737,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                     ? $"Dodato {segments.Count} reč(i) na vremensku traku (karaoke)."
                     : $"Dodato {segments.Count} titl(ova) na vremensku traku.";
             _logger.Information("Automatski generisani titlovi dodati na traku: {Count} segmenata iz {File} (karaoke={WordLevel})", segments.Count, videoFilePath, wordLevel);
+        }
+        catch (OperationCanceledException)
+        {
+            CaptionsStatusMessage = "Prepoznavanje govora je prekinuto. Nijedan titl nije dodat.";
+            _logger.Information("Automatsko generisanje titlova je prekinuto za {File}", videoFilePath);
         }
         catch (Exception ex)
         {
@@ -716,6 +751,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         finally
         {
             IsGeneratingCaptions = false;
+            CancelCaptionGenerationCommand.NotifyCanExecuteChanged();
         }
     }
 
