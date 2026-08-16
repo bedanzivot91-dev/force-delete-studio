@@ -831,4 +831,55 @@ public class WorkspaceViewModelTests
         Assert.Single(workspace.Timeline.Tracks[0].Clips);
         Assert.Empty(workspace.Timeline.Tracks[1].Clips);
     }
+
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_NoMediaImported_SaysSoInsteadOfDoingNothing()
+    {
+        var workspace = CreateWorkspace();
+
+        workspace.OpenInSystemPlayerCommand.Execute(null);
+
+        Assert.Contains("Prvo dodajte", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_FileMissingFromDisk_ReportsThatRatherThanFailingSilently()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/ne-postoji-nikako.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+        workspace.OpenInSystemPlayerCommand.Execute(null);
+
+        Assert.Contains("više ne postoji", workspace.RealPreviewStatusMessage);
+    }
+
+    /// <summary>The whole point of this command is that it can never take the app down - it must report a
+    /// failure to launch, not propagate it.</summary>
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_WhenLaunchingFails_ReportsItAndNeverThrows()
+    {
+        // A real file with no handler (and no exec bit) - ShellExecute on it fails on the sandbox, which is
+        // exactly the "it did not open" path this must survive.
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-nohandler-{Guid.NewGuid():N}.zzzz");
+        File.WriteAllText(path, "x");
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var workspace = CreateWorkspace(project);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            var exception = Record.Exception(() => workspace.OpenInSystemPlayerCommand.Execute(null));
+
+            Assert.Null(exception);
+            Assert.False(string.IsNullOrWhiteSpace(workspace.RealPreviewStatusMessage));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

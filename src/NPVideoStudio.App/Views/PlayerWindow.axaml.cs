@@ -23,8 +23,8 @@ namespace NPVideoStudio.App.Views;
 /// </summary>
 public partial class PlayerWindow : Window
 {
-    private readonly LibVLC? _libVlc;
-    private readonly MediaPlayer? _mediaPlayer;
+    private LibVLC? _libVlc;
+    private MediaPlayer? _mediaPlayer;
     private readonly DispatcherTimer _timer;
     private readonly string _filePath;
     private readonly PlayerTextActions? _textActions;
@@ -46,22 +46,11 @@ public partial class PlayerWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _timer.Tick += (_, _) => SyncFromPlayer();
 
-        try
-        {
-            LibVLCSharp.Shared.Core.Initialize();
-            _libVlc = new LibVLC("--quiet");
-            _mediaPlayer = new MediaPlayer(_libVlc);
-            Video.MediaPlayer = _mediaPlayer;
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Plejer nije mogao da se pokrene na ovom računaru (libvlc nije učitan): {ex.Message}";
-        }
-
         PlayPauseButton.Click += OnPlayPause;
         StopButton.Click += OnStop;
         MuteButton.Click += OnToggleMute;
         FullScreenButton.Click += (_, _) => ToggleFullScreen();
+        OpenExternalButton.Click += (_, _) => OpenInSystemPlayer();
         SeekSlider.PropertyChanged += OnSeekSliderChanged;
         VolumeSlider.PropertyChanged += OnVolumeSliderChanged;
 
@@ -75,7 +64,12 @@ public partial class PlayerWindow : Window
             }
         };
 
-        Opened += (_, _) => StartPlayback();
+        // Everything native happens only after the window (and therefore the VideoView's native window
+        // handle) actually exists. Creating LibVLC and assigning VideoView.MediaPlayer in the constructor -
+        // which is what this class did before - hands libvlc a control that has no handle yet, and libvlc
+        // then crashes the whole PROCESS from native code: no exception, no log, the app just vanishes.
+        // That is exactly what the user kept reporting when pressing "Pusti moj video".
+        Opened += (_, _) => InitialisePlayerAndStart();
         Closed += (_, _) => Cleanup();
     }
 
@@ -132,6 +126,26 @@ public partial class PlayerWindow : Window
         AddCaptionsButton.IsEnabled = enabled;
         AddKaraokeButton.IsEnabled = enabled;
         FindLyricsButton.IsEnabled = enabled;
+    }
+
+    private void InitialisePlayerAndStart()
+    {
+        try
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+            _libVlc = new LibVLC("--quiet");
+            _mediaPlayer = new MediaPlayer(_libVlc);
+            Video.MediaPlayer = _mediaPlayer;
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text =
+                $"Ugrađeni plejer nije mogao da se pokrene: {ex.Message}\n" +
+                "Koristite dugme „Otvori u mom plejeru“ - radi uvek.";
+            return;
+        }
+
+        StartPlayback();
     }
 
     private void StartPlayback()
@@ -194,6 +208,36 @@ public partial class PlayerWindow : Window
 
         _mediaPlayer.Mute = !_mediaPlayer.Mute;
         MuteButton.Content = _mediaPlayer.Mute ? "🔇" : "🔊";
+    }
+
+    /// <summary>
+    /// Hands the file to whatever video player Windows already uses. Deliberately here as a guaranteed
+    /// escape hatch: the embedded player depends on libvlc loading and attaching a native window handle
+    /// correctly, which has failed on this user's machine more than once, and when it fails natively there
+    /// is nothing this code can catch. Launching the system player is a plain ShellExecute - it cannot
+    /// take this process down, and it gives full size, sound and full screen for free.
+    /// </summary>
+    private void OpenInSystemPlayer()
+    {
+        if (!File.Exists(_filePath))
+        {
+            StatusText.Text = $"Fajl ne postoji: {_filePath}";
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_filePath)
+            {
+                UseShellExecute = true
+            });
+
+            StatusText.Text = "Otvoreno u vašem plejeru.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Nije moguće otvoriti fajl: {ex.Message}";
+        }
     }
 
     private void ToggleFullScreen() =>

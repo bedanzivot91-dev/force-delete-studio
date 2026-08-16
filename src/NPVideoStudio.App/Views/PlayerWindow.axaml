@@ -40,6 +40,8 @@
                   ToolTip.Tip="Jačina zvuka" />
           <Button Name="FullScreenButton" Content="⛶ Ceo ekran" Width="130"
                   ToolTip.Tip="Ceo ekran (Esc za izlaz, ili dupli klik na sliku)" />
+          <Button Name="OpenExternalButton" Content="▶ Otvori u mom plejeru" Width="190"
+                  ToolTip.Tip="Otvara fajl u plejeru koji već imate na Windows-u. Uvek radi." />
         </StackPanel>
 
         <!-- Text tools for the file being watched, so the user can turn what they are hearing into

@@ -102,7 +102,9 @@
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="Pravi plejer (sa zvukom)" FontWeight="SemiBold" VerticalAlignment="Center" />
             <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
-                    ToolTip.Tip="Pušta uvezeni fajl odmah, bez renderovanja - video i zvuk." />
+                    ToolTip.Tip="Otvara plejer unutar programa." />
+            <Button Classes="cta" Content="▶ Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
+                    ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
             <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
                     ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
                     IsEnabled="{Binding !IsRenderingRealPreview}" />

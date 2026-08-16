@@ -256,6 +256,49 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         RealPreviewStatusMessage = "Plejer nije mogao da se otvori na ovom računaru.";
     }
 
+    /// <summary>
+    /// Opens the selected file in whatever video player Windows already uses.
+    ///
+    /// Exists as a separate, first-class button rather than only as a fallback inside the player window,
+    /// because the failure it guards against kills the app outright: when libvlc fails to attach its
+    /// native window handle it takes the whole process down from native code, so the user never reaches
+    /// any fallback offered inside that window. This path never touches libvlc at all - it is a plain
+    /// ShellExecute, so it cannot crash this program, and it gives full size, sound and full screen using
+    /// the player the user already has.
+    /// </summary>
+    [RelayCommand]
+    private void OpenInSystemPlayer()
+    {
+        var asset = Timeline.SelectedMediaAsset ?? MediaLibrary.FirstOrDefault();
+        if (asset is null)
+        {
+            RealPreviewStatusMessage = "Prvo dodajte video ili audio fajl (dugme \"Dodaj medije\").";
+            return;
+        }
+
+        if (!File.Exists(asset.Asset.FilePath))
+        {
+            RealPreviewStatusMessage = $"Fajl više ne postoji na disku: {asset.Asset.FilePath}";
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(asset.Asset.FilePath)
+            {
+                UseShellExecute = true
+            });
+
+            RealPreviewStatusMessage = $"Otvoreno u vašem plejeru: {asset.FileName}";
+            _logger.Information("Fajl otvoren u sistemskom plejeru: {Path}", asset.Asset.FilePath);
+        }
+        catch (Exception ex)
+        {
+            RealPreviewStatusMessage = $"Nije moguće otvoriti fajl: {ex.Message}";
+            _logger.Error(ex, "Otvaranje u sistemskom plejeru nije uspelo");
+        }
+    }
+
     private async Task RenderRealPreviewCoreAsync()
     {
         if (!Timeline.CurrentTracks.Any(t => t.Clips.Count > 0))
