@@ -1521,6 +1521,15 @@ async function loadSongFinderStatus(){
         +(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.')
         +(noChroma?' UPOZORENJE: tvoj FFmpeg nema Chromaprint modul, pa prepoznavanje radi na slabijem rezervnom načinu koji ne prepoznaje ponovo kompresovan Shorts zvuk. Otvori Audio obrada i klikni „Proveri / pripremi alate“ da program preuzme pun FFmpeg.':'');
     }
+    const fast=d.fast_index||{};
+    const fastBox=$('songFinderFastIndex');
+    if(fastBox){
+      const ready=!!fast.ready&&Number(fast.songs||0)>0;
+      fastBox.className=`inline-message ${ready?'success':'warning'}`;
+      fastBox.textContent=ready
+        ?`Brza pretraga je uključena: ${Number(fast.songs||0)} pesama u indeksu (${(Number(fast.size_bytes||0)/1048576).toFixed(0)} MB). Pretraga proverava samo najverovatnije pesme umesto svih, pa traje sekunde i kada biblioteka naraste.`
+        :'Brzi indeks još nije napravljen, pa se svaki snimak poredi sa SVAKOM pesmom — to je tačno, ali sporo i sve sporije kako dodaješ pesme. Pokreni indeksiranje da se napravi.';
+    }
   }catch(e){const box=$('songFinderIndexStatus');if(box){box.className='inline-message error';box.textContent=e.message;}}
 }
 function songFinderBadge(status){
