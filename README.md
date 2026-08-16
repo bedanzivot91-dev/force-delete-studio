@@ -153,7 +153,7 @@ Potreban je [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) i FFm
 
 ```
 git clone <repozitorijum>
-cd force-delete-studio
+cd <folder-repozitorijuma>
 dotnet build
 dotnet run --project src/NPVideoStudio.App
 ```
