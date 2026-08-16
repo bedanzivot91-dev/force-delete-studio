@@ -161,6 +161,28 @@ public sealed class TimelineClip
 
     public bool IsMuted { get; set; }
     public double Volume { get; set; } = 1.0;
+
+    // --- Layer compositing (CapCut-style picture-in-picture / stickers / logo) -------------------
+    // Only meaningful for clips on an overlay layer - i.e. any Video track after the first, or an
+    // ImageOverlay track. The base (bottom) video track always fills the frame and ignores these, the
+    // same way every layer-based editor treats its background layer.
+    //
+    // Percentages rather than pixels on purpose: a project can be re-rendered at 1080p or 4K, or switched
+    // between 16:9 and 9:16, and an overlay pinned at "70% across, 20% down, 30% of frame width" stays
+    // where the user put it, while a pixel offset would silently drift off-frame.
+
+    /// <summary>Overlay width as a percentage of the finished frame's width. Height follows from the
+    /// source's own aspect ratio, so an overlay is never stretched.</summary>
+    public double ScalePercent { get; set; } = 100;
+
+    /// <summary>Horizontal position of the overlay's CENTER, 0 = left edge, 50 = centered, 100 = right edge.</summary>
+    public double PositionXPercent { get; set; } = 50;
+
+    /// <summary>Vertical position of the overlay's CENTER, 0 = top edge, 50 = centered, 100 = bottom edge.</summary>
+    public double PositionYPercent { get; set; } = 50;
+
+    /// <summary>1.0 = fully opaque, 0 = invisible.</summary>
+    public double Opacity { get; set; } = 1.0;
 }
 
 /// <summary>One track (a lane of non-overlapping clips) in the timeline.</summary>

@@ -182,6 +182,17 @@ public static class FfmpegFilterGraphBuilder
             return Math.Max(0, originalSeconds - shift);
         }
 
+        // --- Layer compositing (the CapCut-style part) -------------------------------------------
+        // Everything above the base video track gets laid over it here, before any text is burned in, so
+        // captions stay on top of overlays rather than being hidden behind a sticker or picture-in-picture.
+        //
+        // Deliberately keyed off the *first* Video track being the background: that matches how every
+        // layer-based editor works (bottom layer fills the frame) and matches what the base chain above
+        // already built. Track order in Timeline.Tracks is the z-order, first = furthest back.
+        currentVideoLabel = AppendOverlayLayers(
+            timeline, videoTrack, mediaLibrary, inputs, filterLines,
+            currentVideoLabel!, targetWidth, targetHeight, MapToRenderedTime);
+
         var currentTextVideoLabel = currentVideoLabel!;
         var textClips = timeline.Tracks
             .Where(t => t.Kind is TimelineTrackKind.Caption or TimelineTrackKind.Text)
@@ -357,6 +368,97 @@ public static class FfmpegFilterGraphBuilder
     /// very first segment - nothing to join yet, so it just becomes the running output - gap fillers, and
     /// any clip that doesn't have a transition into it). Returns the new running (video, audio) labels and
     /// output duration so far.</summary>
+    /// <summary>
+    /// Lays every overlay clip over the already-built base video, in track order (z-order), and returns
+    /// the label of the composited result. Returns <paramref name="baseVideoLabel"/> untouched when there
+    /// is nothing to overlay, so a single-track project produces the exact same filter graph as before -
+    /// this feature costs nothing when unused.
+    ///
+    /// Each overlay is: scaled to its own <see cref="TimelineClip.ScalePercent"/> of the frame width
+    /// (height follows the source aspect ratio, never stretched), given its
+    /// <see cref="TimelineClip.Opacity"/>, and switched on only for its own time range via ffmpeg's
+    /// <c>enable='between(t,...)'</c> - the overlay input keeps running underneath, but is simply not
+    /// drawn outside its window, which is what makes a sticker appear and disappear on cue.
+    ///
+    /// Positions are computed from the clip's CENTER (see <see cref="TimelineClip.PositionXPercent"/>),
+    /// because that is what a user dragging a sticker actually means by "put it here" - a top-left anchor
+    /// would make a large overlay jump away from the cursor.
+    /// </summary>
+    private static string AppendOverlayLayers(
+        Timeline timeline,
+        TimelineTrack baseVideoTrack,
+        IReadOnlyList<MediaAsset> mediaLibrary,
+        List<string> inputs,
+        List<string> filterLines,
+        string baseVideoLabel,
+        int targetWidth,
+        int targetHeight,
+        Func<double, double> mapToRenderedTime)
+    {
+        var overlayClips = timeline.Tracks
+            .Where(t => !t.IsHidden)
+            .Where(t => (t.Kind == TimelineTrackKind.Video && !ReferenceEquals(t, baseVideoTrack))
+                        || t.Kind == TimelineTrackKind.ImageOverlay)
+            .SelectMany(t => t.Clips)
+            .Where(c => !string.IsNullOrEmpty(c.MediaAssetId))
+            .OrderBy(c => c.TimelineStartSeconds)
+            .ToList();
+
+        if (overlayClips.Count == 0)
+        {
+            return baseVideoLabel;
+        }
+
+        var currentLabel = baseVideoLabel;
+
+        for (var i = 0; i < overlayClips.Count; i++)
+        {
+            var clip = overlayClips[i];
+
+            var asset = mediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId);
+            if (asset is null)
+            {
+                throw new InvalidOperationException(
+                    $"Sloj referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+            }
+
+            var inputIndex = inputs.Count;
+            inputs.Add(asset.FilePath);
+
+            var scale = Math.Clamp(clip.ScalePercent, 1, 1000) / 100.0;
+            var overlayWidth = Math.Max(1, (int)Math.Round(targetWidth * scale));
+            var opacity = Math.Clamp(clip.Opacity, 0, 1);
+
+            var preparedLabel = $"[ovl{i}]";
+            var prepared = new StringBuilder();
+            prepared.Append(FormattableString.Invariant(
+                $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            // -1 keeps the source aspect ratio; the overlay is sized by width only.
+            prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
+            // colorchannelmixer needs an alpha channel to write into, hence format=rgba first.
+            prepared.Append(FormattableString.Invariant($",format=rgba,colorchannelmixer=aa={opacity}"));
+            prepared.Append(preparedLabel);
+            filterLines.Add(prepared.ToString());
+
+            // Centre-anchored: shift left/up by half the overlay's own rendered size. main_w/overlay_w are
+            // ffmpeg's own variables for the base and overlay sizes, so this stays correct even though the
+            // overlay's height is only known to ffmpeg (scale=-1 above).
+            var centreX = FormattableString.Invariant($"(main_w*{clip.PositionXPercent / 100.0})-(overlay_w/2)");
+            var centreY = FormattableString.Invariant($"(main_h*{clip.PositionYPercent / 100.0})-(overlay_h/2)");
+
+            var start = mapToRenderedTime(clip.TimelineStartSeconds);
+            var end = mapToRenderedTime(clip.TimelineEndSeconds);
+
+            var outLabel = i == overlayClips.Count - 1 ? "[vlayered]" : $"[vlay{i}]";
+            filterLines.Add(FormattableString.Invariant(
+                $"{currentLabel}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})'{outLabel}"));
+
+            currentLabel = outLabel;
+        }
+
+        return currentLabel;
+    }
+
     private static (string VideoLabel, string AudioLabel, double Duration) AppendSegment(
         List<string> filterLines, string? currentVideoLabel, string? currentAudioLabel,
         string nextVideoLabel, string nextAudioLabel, double nextDuration, double runningDuration, ref int joinIndex)
