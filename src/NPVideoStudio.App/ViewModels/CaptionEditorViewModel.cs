@@ -174,6 +174,78 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
         RefreshFromSession();
     }
 
+    /// <summary>Every readability/structure problem found by the last quality check, in Serbian, ready to
+    /// list in the UI. Empty after a clean check - the UI can treat "empty" as "nothing to fix".</summary>
+    public ObservableCollection<string> QualityProblems { get; } = new();
+
+    [ObservableProperty]
+    private bool _hasRunQualityCheck;
+
+    /// <summary>
+    /// Runs the caption-quality rules ported from the user's other project (PROGRAM-ZA-TEKST-U-VIDEO)
+    /// over the whole open document: structural problems from <see cref="CaptionTrackValidator"/>
+    /// (overlaps, empty text, impossible ranges) plus per-line readability from
+    /// <see cref="CaptionReadability"/> (too fast to read, line too wide, on screen too briefly).
+    /// Read-only - it never changes the document, so the user sees the full picture before deciding
+    /// whether to let <see cref="FixQualityProblems"/> touch anything.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasDocument))]
+    private void CheckQuality()
+    {
+        QualityProblems.Clear();
+        HasRunQualityCheck = true;
+
+        var captions = Words.Select(w => w.Word).ToList();
+
+        var report = CaptionTrackValidator.Validate(captions, minimumGap: TimeSpan.FromMilliseconds(120));
+        foreach (var problem in report.Problems)
+        {
+            QualityProblems.Add($"Titl #{problem.Index + 1}: {problem.Message}");
+        }
+
+        for (var i = 0; i < captions.Count; i++)
+        {
+            var caption = captions[i];
+            foreach (var warning in CaptionReadability.BuildWarnings(caption.OriginalText, caption.End - caption.Start))
+            {
+                QualityProblems.Add($"Titl #{i + 1}: {warning}");
+            }
+        }
+
+        StatusMessage = QualityProblems.Count == 0
+            ? $"Provera kvaliteta: sve je u redu ({captions.Count} titlova)."
+            : $"Provera kvaliteta: pronađeno {QualityProblems.Count} stvari za popravku.";
+
+        _logger.Information(
+            "Provera kvaliteta titlova: {ProblemCount} problema na {CaptionCount} titlova",
+            QualityProblems.Count, captions.Count);
+    }
+
+    /// <summary>
+    /// Repairs what can be repaired automatically - overlaps, captions running past the media, captions
+    /// shorter than the minimum - via <see cref="CaptionTrackValidator.Normalize"/>. Deliberately does NOT
+    /// touch anything that would change the words themselves (splitting an over-long line, rewriting text):
+    /// timing is safe to correct mechanically, wording is the user's call.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasDocument))]
+    private void FixQualityProblems()
+    {
+        if (_session is null)
+        {
+            return;
+        }
+
+        var before = Words.Select(w => w.Word).ToList();
+        var repaired = CaptionTrackValidator.Normalize(before);
+
+        _session.ReplaceAll(repaired);
+        RefreshFromSession();
+        CheckQuality();
+
+        StatusMessage = $"Automatski ispravljeno vreme titlova ({repaired.Count} titlova). " +
+                        "Poništavanje (Undo) vraća prethodno stanje.";
+    }
+
     [RelayCommand]
     private void Undo()
     {

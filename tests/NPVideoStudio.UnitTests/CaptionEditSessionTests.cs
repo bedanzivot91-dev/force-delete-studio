@@ -185,4 +185,32 @@ public class CaptionEditSessionTests
 
         Assert.False(session.CanRedo);
     }
+
+    [Fact]
+    public void ReplaceAll_SwapsTheWholeDocumentInOneUndoableStep()
+    {
+        var original = new[] { Word("prva", 0, 3), Word("druga", 2, 5) };
+        var session = new CaptionEditSession(original);
+
+        // Exactly what the bulk caption-quality repair does: recompute many captions' timing at once.
+        var repaired = NPVideoStudio.AI.CaptionTrackValidator.Normalize(session.Words.ToList());
+        session.ReplaceAll(repaired);
+
+        Assert.Equal(TimeSpan.FromSeconds(2), session.Words[0].End);
+
+        // One Undo must take the whole bulk fix back, not just the last caption of it.
+        session.Undo();
+        Assert.Equal(TimeSpan.FromSeconds(3), session.Words[0].End);
+    }
+
+    [Fact]
+    public void ReplaceAll_KeepsWordsOrderedByStartTime()
+    {
+        var session = new CaptionEditSession(new[] { Word("prva", 0, 1) });
+
+        session.ReplaceAll(new[] { Word("kasnija", 5, 6), Word("ranija", 1, 2) });
+
+        Assert.Equal("ranija", session.Words[0].OriginalText);
+        Assert.Equal("kasnija", session.Words[1].OriginalText);
+    }
 }

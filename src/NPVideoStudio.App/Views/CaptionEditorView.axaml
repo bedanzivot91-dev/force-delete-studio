@@ -28,7 +28,30 @@
             <Button Classes="ghost" Content="Obriši izabrane" Command="{Binding DeleteSelectedCommand}" Margin="0,0,8,8" />
             <Button Classes="ghost" Content="→ Ćirilica" Command="{Binding ConvertToCyrillicCommand}" Margin="0,0,8,8" />
             <Button Classes="ghost" Content="→ Latinica" Command="{Binding ConvertToLatinCommand}" Margin="0,0,8,8" />
+            <Button Classes="cta" Content="Proveri kvalitet titlova" Command="{Binding CheckQualityCommand}" Margin="0,0,8,8"
+                    ToolTip.Tip="Traži preklapanja, prazne titlove, prebrz tekst i preširoke redove." />
+            <Button Classes="ghost" Content="Automatski ispravi vreme" Command="{Binding FixQualityProblemsCommand}" Margin="0,0,8,8"
+                    ToolTip.Tip="Ispravlja preklapanja i prekratke titlove. Ne menja tekst. Undo vraća prethodno stanje." />
           </WrapPanel>
+
+          <!-- Only appears after a check has actually been run, so an untouched editor doesn't show a
+               misleading empty "everything is fine" box before anything was verified. -->
+          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="14,12"
+                  IsVisible="{Binding HasRunQualityCheck}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Rezultat provere kvaliteta" FontWeight="SemiBold" />
+              <TextBlock Text="Nema pronađenih problema - titlovi su spremni."
+                         Classes="subtle"
+                         IsVisible="{Binding !QualityProblems.Count}" />
+              <ItemsControl ItemsSource="{Binding QualityProblems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,2" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
 
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBox Watermark="Pronađi..." Text="{Binding FindText}" Width="200" />

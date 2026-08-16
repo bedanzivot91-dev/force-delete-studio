@@ -55,6 +55,18 @@ public sealed class CaptionEditSession
         _words.Insert(Math.Clamp(index, 0, _words.Count), word);
     }
 
+    /// <summary>
+    /// Replaces the whole document in one undoable step - used by the bulk caption-quality repair
+    /// (<see cref="CaptionTrackValidator.Normalize"/>), which recomputes many captions' timing at once
+    /// and would otherwise need one undo entry per caption, making the fix impossible to take back
+    /// cleanly. Kept ordered by start time, same invariant the constructor establishes.
+    /// </summary>
+    public void ReplaceAll(IEnumerable<CaptionWord> words)
+    {
+        SaveUndoSnapshot();
+        _words = words.OrderBy(w => w.Start).ToList();
+    }
+
     public void DeleteWords(IEnumerable<Guid> ids)
     {
         var idSet = ids.ToHashSet();
