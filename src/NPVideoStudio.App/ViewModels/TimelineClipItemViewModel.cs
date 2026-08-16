@@ -44,7 +44,19 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     /// <summary>How many pixels one second of timeline occupies - the lane's zoom level. Set by the owning
     /// track so every clip on screen uses the same scale.</summary>
-    public double PixelsPerSecond { get; init; } = 40;
+    private double _pixelsPerSecond = 40;
+    public double PixelsPerSecond
+    {
+        get => _pixelsPerSecond;
+        set
+        {
+            if (Math.Abs(_pixelsPerSecond - value) < 0.001) return;
+            _pixelsPerSecond = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(PixelLeft));
+            OnPropertyChanged(nameof(PixelWidth));
+        }
+    }
 
     /// <summary>Where this clip's left edge sits in the lane, in pixels.</summary>
     public double PixelLeft => StartSeconds * PixelsPerSecond;

@@ -24,7 +24,8 @@
     </Border>
 
     <Border DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="10">
+      <WrapPanel Orientation="Horizontal">
+        <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,10,6" /></Style></WrapPanel.Styles>
         <Button Classes="cta" Content="Automatski dodaj titlove iz videa"
                 Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
         <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
@@ -34,10 +35,10 @@
                 IsVisible="{Binding IsGeneratingCaptions}" />
         <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
                    IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
-      </StackPanel>
+      </WrapPanel>
     </Border>
 
-    <Grid RowDefinitions="3*,Auto,2*">
+    <Grid RowDefinitions="1.1*,Auto,1*">
 
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
@@ -77,14 +78,22 @@
             <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding PlayerStopCommand}" />
             <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding Player.StepForwardCommand}" />
 
-            <TextBlock Text="{Binding Player.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="{Binding Player.TotalDurationSeconds}" Value="{Binding Player.CurrentTimeSeconds}"
+            <!-- This transport belongs to the continuous audio+video player. It was incorrectly bound
+                 to the still-frame scrubber, so the visible time/seek could disagree with the file
+                 that was actually playing. -->
+            <TextBlock Text="{Binding RealPreview.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="{Binding RealPreview.TotalDurationSeconds}" Value="{Binding RealPreview.CurrentTimeSeconds}"
                     Width="240" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding Player.TotalTimeLabel}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding RealPreview.TotalTimeLabel}" VerticalAlignment="Center" />
 
             <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding RealPreview.IsMuted}" Margin="10,0,0,0" />
             <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center"
                     ToolTip.Tip="Jačina zvuka" />
+            <TextBlock Text="Sinhronizacija:" VerticalAlignment="Center" Margin="8,0,0,0" />
+            <Slider Minimum="-1000" Maximum="1000" TickFrequency="50" Value="{Binding RealPreview.AudioSyncMilliseconds}"
+                    Width="130" VerticalAlignment="Center"
+                    ToolTip.Tip="Ako slika žuri ispred zvuka, pomerite ulevo (negativna vrednost)." />
+            <TextBlock Text="{Binding RealPreview.AudioSyncLabel}" VerticalAlignment="Center" MinWidth="72" />
 
             <!-- Size controls. The three complaints this answers directly: the picture could not be
                  enlarged, could not be moved, and the panel itself could not be made bigger. -->
@@ -101,7 +110,8 @@
                to be a sliver of video between two huge black bars in a wide landscape box, and zooming
                only made the picture bigger inside that same wide box. Sized to the project ratio, a
                vertical project gives a vertical player. -->
-          <views:AspectRatioPanel Ratio="{Binding ProjectAspectRatio}">
+          <views:AspectRatioPanel Ratio="{Binding ProjectAspectRatio}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Stretch">
             <Border Background="Black" ClipToBounds="True"
                     BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
               <Grid>
@@ -171,11 +181,12 @@
       <GridSplitter Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
                     ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili traku" />
 
-      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="220" DataContext="{Binding Timeline}">
+      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="300" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <WrapPanel Orientation="Horizontal">
+              <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,6" /></Style></WrapPanel.Styles>
               <ComboBox ItemsSource="{Binding AvailableMedia}" SelectedItem="{Binding SelectedMediaAsset}" MinWidth="160" PlaceholderText="Izaberite medij za dodavanje">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:MediaAssetViewModel">
@@ -187,10 +198,19 @@
               <Button Classes="ghost" Content="+ Audio traka" Command="{Binding AddAudioTrackCommand}" />
               <Button Classes="ghost" Content="+ Titl traka" Command="{Binding AddCaptionTrackCommand}" />
               <Button Classes="ghost" Content="+ Tekst traka" Command="{Binding AddTextTrackCommand}" />
+              <Button Classes="cta" Content="+ DODAJ TEKST" Command="{Binding AddTextAtPlayheadCommand}"
+                      ToolTip.Tip="Odmah dodaje tekst na poziciju plejheda i otvara sve kontrole za uređivanje." />
               <Button Classes="ghost" Content="+ Slika (overlay)" Command="{Binding AddImageOverlayTrackCommand}" />
               <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" />
               <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" />
-            </StackPanel>
+              <Border Width="1" Background="{DynamicResource ThemeBorderBrush}" Margin="6,2" />
+              <TextBlock Text="Zum trake:" VerticalAlignment="Center" />
+              <Button Classes="ghost" Content="−" Command="{Binding ZoomOutCommand}" />
+              <Slider Minimum="10" Maximum="300" Width="150" Value="{Binding ZoomPixelsPerSecond}" />
+              <Button Classes="ghost" Content="+" Command="{Binding ZoomInCommand}" />
+              <Button Classes="ghost" Content="Vrati" Command="{Binding ResetZoomCommand}" />
+              <TextBlock Text="{Binding ZoomLabel}" VerticalAlignment="Center" MinWidth="62" />
+            </WrapPanel>
           </StackPanel>
 
           <ScrollViewer>
@@ -220,7 +240,7 @@
                            clicking 0.5s at a time. Each clip is a Canvas child positioned by
                            PixelLeft/PixelWidth (seconds x zoom), so what you see matches the real timing. -->
                       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding Clips}" Height="52" Name="ClipLane">
+                        <ItemsControl ItemsSource="{Binding Clips}" Height="52" Width="{Binding LaneWidth}" Name="ClipLane">
                           <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                               <Canvas Height="52" Background="#1A1A1A" />

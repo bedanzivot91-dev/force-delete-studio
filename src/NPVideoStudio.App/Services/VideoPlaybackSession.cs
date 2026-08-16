@@ -36,6 +36,7 @@ public sealed class VideoPlaybackSession : IDisposable
     private readonly object _nativeLock = new();
 
     private int _desiredVolume = 100;
+    private int _audioDelayMilliseconds;
     private VlcVideoFrameBuffer? _frameBuffer;
 
     private VideoPlaybackSession(LibVLC? libVlc, MediaPlayer? player, string? failureReason)
@@ -344,6 +345,24 @@ public sealed class VideoPlaybackSession : IDisposable
         {
             _desiredVolume = Math.Clamp(value, 0, 100);
             ApplyVolumeToPlayer();
+        }
+    }
+
+    /// <summary>Manual A/V correction supported by libvlc itself. Negative values move sound earlier
+    /// (the reported case: picture runs ahead); positive values move sound later.</summary>
+    public int AudioDelayMilliseconds
+    {
+        get => _audioDelayMilliseconds;
+        set
+        {
+            _audioDelayMilliseconds = Math.Clamp(value, -2000, 2000);
+            lock (_nativeLock)
+            {
+                if (!_isDisposed && Player is not null)
+                {
+                    Player.SetAudioDelay(_audioDelayMilliseconds * 1000L);
+                }
+            }
         }
     }
 

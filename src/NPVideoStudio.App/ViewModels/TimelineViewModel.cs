@@ -20,7 +20,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
 
     /// <summary>Zoom of the visual lane: how many pixels one second occupies. Mirrors
     /// <c>Timeline.ZoomPixelsPerSecond</c> so a saved project reopens at the zoom the user left it at.</summary>
-    public double ZoomPixelsPerSecond => _project.Timeline.ZoomPixelsPerSecond;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ZoomLabel))]
+    private double _zoomPixelsPerSecond;
+
+    public string ZoomLabel => $"{ZoomPixelsPerSecond:0} px/s";
     private const double DefaultTextClipDurationSeconds = 3.0;
 
     private readonly Project _project;
@@ -70,6 +74,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
     public TimelineViewModel(Project project, ObservableCollection<MediaAssetViewModel> availableMedia, Func<double> getPlayhead)
     {
         _project = project;
+        _zoomPixelsPerSecond = Math.Clamp(project.Timeline.ZoomPixelsPerSecond, 10, 300);
         AvailableMedia = availableMedia;
         _getPlayhead = getPlayhead;
         _session = new TimelineEditSession(project.Timeline.Tracks);
@@ -90,6 +95,53 @@ public sealed partial class TimelineViewModel : ViewModelBase
 
     [RelayCommand]
     private void AddTextTrack() => AddTrack(TimelineTrackKind.Text);
+
+    /// <summary>One practical action: create a text track when needed, add a text clip at the playhead,
+    /// select it, and therefore expose the complete text inspector immediately.</summary>
+    [RelayCommand]
+    private void AddTextAtPlayhead()
+    {
+        var track = _session.Tracks.FirstOrDefault(t => t.Kind == TimelineTrackKind.Text && !t.IsLocked);
+        if (track is null)
+        {
+            track = new TimelineTrack { Kind = TimelineTrackKind.Text, Name = "Tekst" };
+            _session.AddTrack(track);
+        }
+
+        var clip = new TimelineClip
+        {
+            TextContent = "Novi tekst",
+            TimelineStartSeconds = _getPlayhead(),
+            SourceTrimInSeconds = 0,
+            SourceTrimOutSeconds = DefaultTextClipDurationSeconds
+        };
+        _session.AddClip(track.Id, clip);
+        SelectedClipId = clip.Id;
+        RefreshFromSession();
+        SelectedClipId = clip.Id;
+    }
+
+    [RelayCommand]
+    private void ZoomIn() => ZoomPixelsPerSecond = Math.Min(300, ZoomPixelsPerSecond * 1.35);
+
+    [RelayCommand]
+    private void ZoomOut() => ZoomPixelsPerSecond = Math.Max(10, ZoomPixelsPerSecond / 1.35);
+
+    [RelayCommand]
+    private void ResetZoom() => ZoomPixelsPerSecond = 40;
+
+    partial void OnZoomPixelsPerSecondChanged(double value)
+    {
+        var clamped = Math.Clamp(value, 10, 300);
+        if (Math.Abs(clamped - value) > 0.001)
+        {
+            ZoomPixelsPerSecond = clamped;
+            return;
+        }
+
+        _project.Timeline.ZoomPixelsPerSecond = clamped;
+        foreach (var track in Tracks) track.ApplyZoom(clamped, TotalDurationSeconds);
+    }
 
     [RelayCommand]
     private void AddImageOverlayTrack() => AddTrack(TimelineTrackKind.ImageOverlay);
@@ -196,6 +248,8 @@ public sealed partial class TimelineViewModel : ViewModelBase
         {
             trackItem.Clips.Add(CreateClipItem(clip, track));
         }
+
+        trackItem.ApplyZoom(ZoomPixelsPerSecond, TotalDurationSeconds);
 
         return trackItem;
     }
@@ -327,6 +381,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
     {
         var track = new TimelineTrack { Kind = TimelineTrackKind.Caption, Name = "Automatski titlovi" };
         _session.AddTrack(track);
+        string? firstCaptionId = null;
 
         foreach (var segment in segments)
         {
@@ -344,9 +399,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
                 SourceTrimOutSeconds = (segment.End - segment.Start).TotalSeconds
             };
             _session.AddClip(track.Id, clip);
+            firstCaptionId ??= clip.Id;
         }
 
         RefreshFromSession();
+        if (firstCaptionId is not null)
+        {
+            SelectedClipId = firstCaptionId;
+        }
     }
 
     private string ResolveClipLabel(TimelineClip clip)

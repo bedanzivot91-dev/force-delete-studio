@@ -26,6 +26,19 @@ public sealed class TimelineTrackItemViewModel : ViewModelBase
     public bool IsMuted => Track.IsMuted;
     public bool IsSolo => Track.IsSolo;
 
+    private double _laneWidth = 1200;
+    public double LaneWidth
+    {
+        get => _laneWidth;
+        private set { if (Math.Abs(_laneWidth - value) < 0.01) return; _laneWidth = value; OnPropertyChanged(); }
+    }
+
+    public void ApplyZoom(double pixelsPerSecond, double projectDurationSeconds)
+    {
+        foreach (var clip in Clips) clip.PixelsPerSecond = pixelsPerSecond;
+        LaneWidth = Math.Max(1200, Math.Max(projectDurationSeconds, 10) * pixelsPerSecond + 120);
+    }
+
     public ICommand ToggleLockCommand { get; }
     public ICommand ToggleHideCommand { get; }
     public ICommand ToggleMuteCommand { get; }

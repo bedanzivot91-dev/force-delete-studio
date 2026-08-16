@@ -63,4 +63,38 @@ public class TimelineViewModelTests
 
         Assert.Empty(trackItem.Clips);
     }
+
+    [Fact]
+    public void AddTextAtPlayhead_IsOneClickAndSelectsTheNewEditableClip()
+    {
+        var project = new Project { Name = "Test" };
+        var timeline = new TimelineViewModel(project, new ObservableCollection<MediaAssetViewModel>(), () => 7.5);
+
+        timeline.AddTextAtPlayheadCommand.Execute(null);
+
+        var track = Assert.Single(timeline.Tracks);
+        Assert.Equal(TimelineTrackKind.Text, track.Track.Kind);
+        var clip = Assert.Single(track.Clips);
+        Assert.Equal(7.5, clip.StartSeconds);
+        Assert.True(clip.IsSelected);
+        Assert.Equal("Novi tekst", clip.TextContent);
+    }
+
+    [Fact]
+    public void TimelineZoom_ChangesClipGeometryAndCreatesScrollableLaneWidth()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/video.mp4", Duration = TimeSpan.FromSeconds(30), HasVideoStream = true };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var media = new ObservableCollection<MediaAssetViewModel> { new(asset) };
+        var timeline = new TimelineViewModel(project, media, () => 0) { SelectedMediaAsset = media[0] };
+        timeline.AddVideoTrackCommand.Execute(null);
+        timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        var oldWidth = timeline.Tracks[0].Clips[0].PixelWidth;
+
+        timeline.ZoomInCommand.Execute(null);
+
+        Assert.True(timeline.Tracks[0].Clips[0].PixelWidth > oldWidth);
+        Assert.True(timeline.Tracks[0].LaneWidth > 1200);
+        Assert.Equal(timeline.ZoomPixelsPerSecond, project.Timeline.ZoomPixelsPerSecond);
+    }
 }

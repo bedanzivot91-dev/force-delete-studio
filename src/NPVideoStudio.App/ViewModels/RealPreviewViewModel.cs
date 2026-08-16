@@ -55,6 +55,14 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isMuted;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AudioSyncLabel))]
+    private int _audioSyncMilliseconds;
+
+    public string AudioSyncLabel => AudioSyncMilliseconds == 0
+        ? "A/V 0 ms"
+        : $"A/V {AudioSyncMilliseconds:+0;-0} ms";
+
     public string CurrentTimeLabel => FormatTime(CurrentTimeSeconds);
     public string TotalTimeLabel => FormatTime(TotalDurationSeconds);
 
@@ -106,6 +114,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         }
 
         _session.Volume = Volume;
+        _session.AudioDelayMilliseconds = AudioSyncMilliseconds;
 
         if (!_session.Open(filePath, out _))
         {
@@ -157,6 +166,14 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         }
 
         _session.Player.Mute = value;
+    }
+
+    partial void OnAudioSyncMillisecondsChanged(int value)
+    {
+        if (!_isDisposed && _session is not null)
+        {
+            _session.AudioDelayMilliseconds = value;
+        }
     }
 
     /// <summary>Mirrors the same real-vs-external-seek guard pattern as
