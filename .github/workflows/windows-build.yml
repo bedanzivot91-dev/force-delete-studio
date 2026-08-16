@@ -94,6 +94,17 @@ jobs:
             Write-Host "No winget-installed ffmpeg.exe found -- ffmpeg-dependent tests below will report that, same as before this step existed."
           }
 
+      - name: Verify the FFmpeg used by tests actually has Chromaprint
+        # A real user could not recognise their own songs because the shipped
+        # FFmpeg (gyan.dev "essentials") has no Chromaprint muxer, so every
+        # fingerprint silently fell back to a weak loudness-envelope metric
+        # that a re-encoded Shorts clip cannot pass. CI never caught it
+        # because CI's winget FFmpeg DOES have Chromaprint -- so the
+        # song-finder test below was passing on a configuration no user had.
+        # Fail loudly instead of testing a path the product does not ship.
+        run: |
+          python -c "import sys; sys.path.insert(0,'app'); import audio_tools as t; ok=t.has_chromaprint(); print('ffmpeg:', t.ffmpeg_path()); print('chromaprint muxer present:', ok); sys.exit(0 if ok else 1)"
+
       - name: Import smoke test -- every app/plugins module, for real
         run: python tests/import_smoke_test.py
 

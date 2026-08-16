@@ -1467,10 +1467,12 @@ async function loadSongFinderStatus(){
     if(box){
       const ok=Number(d.songs_indexed||0)>0;
       const remote=Number(d.songs_remote_only||0);
-      box.className=`inline-message ${ok?'success':(noSource?'error':'warning')}`;
+      const noChroma=d.chromaprint===false;
+      box.className=`inline-message ${noChroma?'error':(ok?'success':(noSource?'error':'warning'))}`;
       box.textContent=`Indeksirano: ${Number(d.songs_indexed||0)} / ${Number(d.songs_with_audio||0)} pesama sa dostupnim audio izvorom (od ukupno ${Number(d.songs_total||0)} u Biblioteci).`
         +(remote?` ${remote} od njih se otiskuje direktno sa Suno servera bez trajnog preuzimanja.`:'')
-        +(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.');
+        +(d.last_indexed_at?` Poslednje indeksiranje: ${d.last_indexed_at}.`:' Indeksiranje još nije pokrenuto.')
+        +(noChroma?' UPOZORENJE: tvoj FFmpeg nema Chromaprint modul, pa prepoznavanje radi na slabijem rezervnom načinu koji ne prepoznaje ponovo kompresovan Shorts zvuk. Otvori Audio obrada i klikni „Proveri / pripremi alate“ da program preuzme pun FFmpeg.':'');
     }
   }catch(e){const box=$('songFinderIndexStatus');if(box){box.className='inline-message error';box.textContent=e.message;}}
 }

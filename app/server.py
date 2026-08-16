@@ -51,7 +51,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cdp import ChromeConnector
 from database import LibraryDB
-from audio_tools import AudioCancelled, ensure_ffmpeg, ffmpeg_path, ffprobe_path, probe_audio, process_audio, waveform_peaks, status as audio_tools_status
+from audio_tools import AudioCancelled, ensure_ffmpeg, ffmpeg_path, ffprobe_path, has_chromaprint, probe_audio, process_audio, waveform_peaks, status as audio_tools_status
 from id3 import embed_mp3_metadata
 from suno_client import SunoAPIError, SunoClient, extract_items, format_lrc, format_srt, sanitize_filename
 from suno_compat import validate_fixture
@@ -2803,6 +2803,10 @@ def song_finder_status() -> dict[str, Any]:
         "songs_without_any_source": sum(1 for source, _ in sources if not source) - no_source_but_indexed,
         "algorithm_version": AUDIO_MATCH_VERSION,
         "last_indexed_at": DB.get_setting("song_finder_last_index_at", ""),
+        # Without FFmpeg's Chromaprint muxer the finder silently degrades to a
+        # loudness-envelope match that a re-encoded Shorts clip cannot pass, so
+        # this has to be visible instead of showing "not found" forever.
+        "chromaprint": has_chromaprint(),
     }
 
 
@@ -2929,8 +2933,18 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
     if not song_finder.is_supported_file(path):
         raise RuntimeError(f"Format {path.suffix or '?'} nije podržan za Pronalazač mojih pesama.")
     file_sha256 = sha256_file(path)
+    chromaprint_ready = has_chromaprint()
     upload_signature = extract_signature(path)
-    songs = [s for s in DB.export_rows() if _existing_audio_path(s)]
+    # Match against every song that actually HAS a fingerprint -- not only the
+    # ones that happen to have a local audio file on disk. Songs indexed
+    # straight from their Suno URL (the normal case: nothing is downloaded
+    # permanently) have a perfectly valid fingerprint but no local file, and
+    # the old _existing_audio_path() filter threw all of them away, leaving an
+    # empty list to compare against. That made "not found" the only possible
+    # answer for a remote-only library, no matter how good the clip was.
+    # _song_finder_candidates() already skips any song without a cached
+    # fingerprint, so passing the full library here is both correct and safe.
+    songs = DB.export_rows()
     candidates, checked = _song_finder_candidates(upload_signature, songs)
     for item in candidates:
         item["tempo_hint"] = 1.0
@@ -2970,6 +2984,7 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
         "songs_checked": checked, "songs_indexed_total": len(songs),
         "primary": primary, "alternatives": ranked[1:4], "matches": ranked,
         "distinct_matches": distinct_matches, "multiple_songs_detected": len(distinct_matches) >= 2,
+        "chromaprint": chromaprint_ready,
     }
     record = DB.add_recognition({
         "original_filename": path.name, "input_path": str(path), "prepared_audio_path": "",

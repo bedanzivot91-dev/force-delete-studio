@@ -20,7 +20,14 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parent.parent
 TOOLS_DIR = ROOT / "tools" / "ffmpeg"
 BIN_DIR = TOOLS_DIR / "bin"
-FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+# The "full" build, NOT "essentials". Song recognition depends on FFmpeg's
+# Chromaprint muxer (-f chromaprint), and gyan.dev's essentials build is
+# compiled WITHOUT libchromaprint. With essentials, _extract_chromaprint()
+# silently returns [] for every song, every comparison falls back to the
+# envelope metric, and that metric collapses as soon as the audio has been
+# re-encoded -- which a Shorts clip always has. The result was that a Short
+# genuinely containing the user's own song could never be recognised.
+FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.zip"
 FFMPEG_SHA_URL = FFMPEG_URL + ".sha256"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Suno-Pesme-Studio/1.2"
 
@@ -70,11 +77,40 @@ def status() -> dict[str, Any]:
         "ffprobe": ffprobe or "",
         "version": version,
         "portable_dir": str(BIN_DIR),
-        "download_mb": 105,
+        "download_mb": 145,
         "fast_cut": True,
         "cached_waveform": True,
         "direct_remote_processing": True,
+        "chromaprint": has_chromaprint(),
     }
+
+
+_CHROMAPRINT_CACHE: dict[str, bool] = {}
+
+
+def has_chromaprint(ffmpeg: str | None = None) -> bool:
+    """True when this FFmpeg build actually has the Chromaprint muxer.
+
+    Song recognition is only reliable with it. Without it every fingerprint
+    falls back to a loudness-envelope metric that does not survive the
+    re-encoding a Shorts clip always went through, so a Short containing the
+    user's own song silently never matches. Detecting it explicitly is what
+    lets the UI say so instead of just reporting "not found" forever.
+    """
+    exe = ffmpeg or ffmpeg_path()
+    if not exe:
+        return False
+    cached = _CHROMAPRINT_CACHE.get(exe)
+    if cached is not None:
+        return cached
+    ok = False
+    try:
+        result = _run([exe, "-hide_banner", "-muxers"], timeout=15)
+        ok = bool(re.search(r"^\s*\S*E\S*\s+chromaprint\b", result.stdout or "", re.MULTILINE))
+    except Exception:
+        ok = False
+    _CHROMAPRINT_CACHE[exe] = ok
+    return ok
 
 
 def _download(url: str, target: Path, progress: Callable[[int, int], None] | None = None) -> None:
@@ -109,11 +145,11 @@ def ensure_ffmpeg(progress: Callable[[str, int], None] | None = None, force_upda
 
     TOOLS_DIR.mkdir(parents=True, exist_ok=True)
     BIN_DIR.mkdir(parents=True, exist_ok=True)
-    archive = TOOLS_DIR / "ffmpeg-release-essentials.zip.part"
-    checksum_file = TOOLS_DIR / "ffmpeg-release-essentials.zip.sha256"
+    archive = TOOLS_DIR / "ffmpeg-release-full.zip.part"
+    checksum_file = TOOLS_DIR / "ffmpeg-release-full.zip.sha256"
 
     if progress:
-        progress("Preuzimam FFmpeg audio alate (oko 105 MB)...", 0)
+        progress("Preuzimam FFmpeg audio alate (oko 145 MB)...", 0)
 
     def dl_progress(done: int, total: int) -> None:
         percent = int(done * 100 / total) if total else 0
