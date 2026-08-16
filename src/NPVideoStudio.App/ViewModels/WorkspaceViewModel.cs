@@ -772,7 +772,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
     }
 
-    internal static IReadOnlyList<TranscribedCaptionSegment> GroupSongWordsIntoCaptionLines(
+    public static IReadOnlyList<TranscribedCaptionSegment> GroupSongWordsIntoCaptionLines(
         IReadOnlyList<AiWorkerWord> words, int maximumWordsPerLine = 6)
     {
         var result = new List<TranscribedCaptionSegment>();
