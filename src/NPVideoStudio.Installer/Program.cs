@@ -88,11 +88,46 @@ public static class Program
     {
         var sourceDir = AppContext.BaseDirectory;
 
-        var installDir = PromptForInstallDir(DefaultInstallDir);
-        if (installDir is null)
+        var (choice, chosenDir, dialogError) = PromptForInstallDir(DefaultInstallDir);
+        string installDir;
+        switch (choice)
         {
-            // User closed/cancelled the folder-browse dialog - quit quietly, same as clicking "Cancel"
-            // in any real installer wizard, not an error worth a message box.
+            case InstallDirChoice.Cancelled:
+                // User genuinely clicked "Cancel" in the dialog - quit quietly, same as clicking
+                // "Cancel" in any real installer wizard, not an error worth a message box.
+                return;
+            case InstallDirChoice.Failed:
+                // Real bug fixed here: the previous version of this method treated "the dialog itself
+                // failed to run" (PowerShell/WinForms error, execution policy, AV interference,
+                // anything) exactly the same as "user clicked Cancel" - both silently returned null,
+                // which made Install() return with zero visible sign to the user. That reproduced the
+                // *exact* silent "double-click, nothing happens" symptom this whole installer-robustness
+                // pass exists to eliminate. Now a real failure shows a real message and falls back to
+                // the default location instead of exiting silently.
+                ShowMessage(
+                    $"Dijalog za biranje foldera nije uspeo da se prikaže:\n\n{dialogError}\n\n" +
+                    $"Instalacija će nastaviti u podrazumevani folder:\n{DefaultInstallDir}",
+                    "Upozorenje pri instalaciji");
+                installDir = DefaultInstallDir;
+                break;
+            default:
+                installDir = chosenDir!;
+                break;
+        }
+
+        // Real edge case the new free-choice folder picker makes possible that the old fixed-location
+        // installer never had to worry about: the user can now browse to and pick the very folder
+        // NPVideoStudioSetup.exe is already running from (or a parent of it) - without this guard,
+        // CopyDirectory would then try to copy sourceDir into a subfolder of itself.
+        var normalizedSource = Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourceDir));
+        var normalizedTarget = Path.TrimEndingDirectorySeparator(Path.GetFullPath(installDir));
+        if (normalizedTarget.Equals(normalizedSource, StringComparison.OrdinalIgnoreCase) ||
+            normalizedTarget.StartsWith(normalizedSource + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            ShowMessage(
+                "Ne možete instalirati program u isti folder iz kog pokrećete instalaciju (ili u njegov " +
+                "podfolder). Pokrenite instalaciju ponovo i izaberite neki drugi folder.",
+                "Nevažeći folder za instalaciju");
             return;
         }
 
@@ -129,15 +164,21 @@ public static class Program
         }
     }
 
+    private enum InstallDirChoice { Selected, Cancelled, Failed }
+
     /// <summary>
     /// Real folder-browse dialog via powershell.exe + System.Windows.Forms.FolderBrowserDialog (see the
     /// class-level doc comment for why it's implemented this way instead of a direct UI reference).
-    /// Returns the chosen "&lt;parent&gt;\NP Video Studio" install path, or null if the user cancelled the
-    /// dialog or the dialog itself failed to run (treated the same as cancelling - never blocks install
-    /// entirely just because the picker couldn't show, since <see cref="DefaultInstallDir"/> is still a
-    /// perfectly valid fallback the user can accept by simply not changing anything in a working dialog).
+    /// Deliberately distinguishes "user clicked Cancel" (<see cref="InstallDirChoice.Cancelled"/> - a
+    /// normal, silent outcome) from "the dialog itself couldn't run or errored"
+    /// (<see cref="InstallDirChoice.Failed"/> - always surfaced with a real message, never silent) -
+    /// an earlier version of this method collapsed both into the same "return null", which made a real
+    /// PowerShell/WinForms failure look exactly like a normal Cancel: Install() would just return with
+    /// nothing shown, reproducing the silent "double-click, nothing happens" symptom this installer is
+    /// supposed to have eliminated.
     /// </summary>
-    private static string? PromptForInstallDir(string defaultInstallDir)
+    private static (InstallDirChoice Choice, string? InstallDir, string? Error) PromptForInstallDir(
+        string defaultInstallDir)
     {
         var startingParent = Path.GetDirectoryName(defaultInstallDir) ?? defaultInstallDir;
 
@@ -167,21 +208,27 @@ public static class Program
         {
             using var process = Process.Start(psi)!;
             var stdout = process.StandardOutput.ReadToEnd().Trim();
-            process.StandardError.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd().Trim();
             process.WaitForExit();
 
-            if (process.ExitCode != 0 || string.IsNullOrEmpty(stdout) || stdout == "__OTKAZANO__")
+            if (process.ExitCode != 0)
             {
-                return null;
+                var message = string.IsNullOrWhiteSpace(stderr)
+                    ? $"Dijalog za biranje foldera je vraćen sa greškom (kod {process.ExitCode})."
+                    : stderr;
+                return (InstallDirChoice.Failed, null, message);
             }
 
-            return Path.Combine(stdout, AppDisplayName);
+            if (string.IsNullOrEmpty(stdout) || stdout == "__OTKAZANO__")
+            {
+                return (InstallDirChoice.Cancelled, null, null);
+            }
+
+            return (InstallDirChoice.Selected, Path.Combine(stdout, AppDisplayName), null);
         }
-        catch
+        catch (Exception ex)
         {
-            // Dialog itself failed to launch (e.g. powershell.exe missing) - fall back to the default
-            // location rather than blocking installation entirely over a picker that couldn't show.
-            return defaultInstallDir;
+            return (InstallDirChoice.Failed, null, ex.Message);
         }
     }
 
