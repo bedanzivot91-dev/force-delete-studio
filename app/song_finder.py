@@ -24,6 +24,28 @@ CONFIRMED_MIN_SECONDS = 6.0
 POSSIBLE_MIN_SCORE = 48.0
 POSSIBLE_MIN_SECONDS = 4.0
 
+# A short match needs a much higher score than a long one to mean anything.
+# Measured on a real Shorts against deliberately hard wrong answers (the same
+# song reversed, and pitch-shifted five semitones -- identical timbre, wrong
+# music), sampling every window from 4 s to 20 s:
+#
+#     match length     true scores          highest WRONG score
+#      4 s             55.2 - 88.8                61.9
+#      5 s             57.7 - 87.7                71.6
+#      6 s             46.8 - 92.2                70.9
+#      8 s             57.3 - 98.4                66.1
+#     10 s             63.4 - 100.0               66.1
+#     12 s+            62.3 - 100.0               62.2  <- ranges separate here
+#
+# Below ~12 s the true and false ranges OVERLAP, so length plus the old 48.0
+# floor cannot tell them apart -- a wrong song would be named as a "possible"
+# match. No wrong answer anywhere in that sweep reached 75, while genuine
+# matches reach the high 80s and 90s at every length, so a short match is
+# reported only when it clears 75. That trades some recall on weak short
+# clips for not naming the wrong song, which is the right way round.
+SHORT_MATCH_SECONDS = 12.0
+SHORT_MATCH_MIN_SCORE = 75.0
+
 STATUS_CONFIRMED = "confirmed"
 STATUS_POSSIBLE = "possible"
 STATUS_NOT_FOUND = "not_found"
@@ -45,6 +67,10 @@ def classify_match(analysis: dict[str, Any]) -> str:
     """Turn a compare_signatures() result into confirmed/possible/not_found."""
     score = float(analysis.get("audio_score") or 0)
     seconds = float(analysis.get("matched_seconds") or analysis.get("covered_seconds") or 0)
+    # Short matches are held to SHORT_MATCH_MIN_SCORE because at those lengths
+    # score alone stops being able to tell a real match from a wrong song.
+    if seconds < SHORT_MATCH_SECONDS and score < SHORT_MATCH_MIN_SCORE:
+        return STATUS_NOT_FOUND
     if score >= CONFIRMED_MIN_SCORE and seconds >= CONFIRMED_MIN_SECONDS:
         return STATUS_CONFIRMED
     if score >= POSSIBLE_MIN_SCORE and seconds >= POSSIBLE_MIN_SECONDS:

@@ -18,9 +18,23 @@ def main():
     assert confirmed == song_finder.STATUS_CONFIRMED
     checks.append('classify: high score + long match -> confirmed')
 
-    possible = song_finder.classify_match({"audio_score": 55, "matched_seconds": 5})
-    assert possible == song_finder.STATUS_POSSIBLE
-    checks.append('classify: mid score + short match -> possible')
+    # A mid score over a SHORT match is no longer accepted, and that is the
+    # point. Measured on a real Shorts against deliberately hard wrong answers
+    # (same song reversed, same song pitch-shifted), wrong songs scored as
+    # high as 71.6 on 5-second windows -- so 55 over 5 s cannot distinguish
+    # the right song from the wrong one, and naming one would be a guess.
+    assert song_finder.classify_match({"audio_score": 55, "matched_seconds": 5}) == song_finder.STATUS_NOT_FOUND
+    checks.append('classify: mid score + short match -> not_found (wrong songs reach that score too)')
+
+    # A short match still counts when the evidence is genuinely strong: no
+    # wrong answer in that sweep reached 75, while real matches reach the 80s
+    # and 90s at every clip length.
+    assert song_finder.classify_match({"audio_score": 88, "matched_seconds": 5}) == song_finder.STATUS_POSSIBLE
+    checks.append('classify: strong score + short match -> possible (a 5s Shorts can still be found)')
+
+    # Length alone must never confirm: 4-6s can only ever be "possible".
+    assert song_finder.classify_match({"audio_score": 99, "matched_seconds": 5}) == song_finder.STATUS_POSSIBLE
+    checks.append('classify: even a near-perfect score on a 5s match is only "possible", never confirmed')
 
     not_found = song_finder.classify_match({"audio_score": 10, "matched_seconds": 1})
     assert not_found == song_finder.STATUS_NOT_FOUND
@@ -33,7 +47,11 @@ def main():
     checks.append('classify: high score but too few matched seconds -> not_found, not confirmed')
 
     # covered_seconds is accepted as a fallback key when matched_seconds is absent.
-    fallback = song_finder.classify_match({"audio_score": 70, "covered_seconds": 7})
+    # (Score raised from 70 to 80 here: 70 no longer clears the short-match bar,
+    # because wrong songs were measured scoring up to 66.1 on 8-10s matches --
+    # far too close to 70 to call it evidence. This case is about the fallback
+    # KEY being read, not about where the threshold sits.)
+    fallback = song_finder.classify_match({"audio_score": 80, "covered_seconds": 7})
     assert fallback == song_finder.STATUS_CONFIRMED
     checks.append('classify: covered_seconds fallback key honored')
 

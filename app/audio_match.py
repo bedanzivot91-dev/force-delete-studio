@@ -55,6 +55,48 @@ SAMPLE_RATE = 2000
 FULL_SONG_MIN_MATCH_SECONDS = 12.0
 SHORT_CLIP_MIN_MATCH_SECONDS = 4.0
 
+# The shortest clip a fingerprint may be built from. This used to be a hard 8s,
+# which quietly contradicted everything above: a 5-second Shorts was rejected
+# with "Audio je prekratak" before any comparison ran, so the 4s "possible"
+# rule could never actually fire. 4s is the floor because song_finder's
+# POSSIBLE_MIN_SECONDS is 4s -- anything shorter could not be classified as
+# even a possible match, so extracting it would be pointless rather than
+# merely weak. Length alone still confirms nothing: a clip under 6s cannot
+# reach CONFIRMED_MIN_SECONDS, so 4-6s can only ever come back as "possible".
+MIN_SIGNATURE_SECONDS = 4.0
+
+# Chromaprint emits frames at a fixed rate and only after filling its first
+# analysis window, so a clip's frame count is NOT duration/rate -- it is
+# duration/rate minus a constant warm-up. Measured by least squares over real
+# files from 6 s to 178 s (fit was near-exact, and 0.123795 matches the
+# algorithm's own 1365.33/11025 hop):
+#     frames = 8.0779 * seconds - 21.5
+# Deriving the step as duration/len(chromaprint) -- which is what this file
+# used to do -- therefore overstates it badly on exactly the short clips that
+# matter: +1.5% on a 3-minute song, +11% on a 28 s Shorts, +79% on a 6 s one.
+# Since matched_seconds is frames * step, that inflation made short clips look
+# like they matched far more audio than they did, in the one direction a
+# recognition threshold must never be wrong.
+CHROMAPRINT_FRAME_SECONDS = 0.123795
+CHROMAPRINT_WARMUP_SECONDS = 2.666
+
+# Only short inputs are padded to recover that warm-up. Full songs are left
+# untouched so their stored fingerprints stay valid and nobody has to
+# re-fingerprint a whole library.
+CHROMAPRINT_PAD_BELOW_SECONDS = 60.0
+
+# A fingerprint whose frames are nearly all the same value identifies nothing.
+# This deliberately counts DISTINCT VALUES, not a percentage: real songs
+# routinely contain long constant stretches -- the very original used to
+# validate all of this opens with about 60 s of silence before the music
+# starts -- so a ratio would refuse genuine songs. Measured distinct values:
+#     pure silence 1 | held tone 1 (12 once padded)
+#     real music 6 s 49 | real Shorts 27 s 225 | full 178 s song 248
+#     real music at 2% volume 70   (quiet is not the same as featureless)
+# 20 sits in a very wide gap, so this refuses silence and held tones while
+# accepting even a few seconds of real music.
+CHROMAPRINT_MIN_DISTINCT_VALUES = 20
+
 
 class AudioMatchCancelled(RuntimeError):
     pass
@@ -549,12 +591,38 @@ def _frame_features(samples: array, frame_size: int) -> list[list[float]]:
     return result
 
 
-def _extract_chromaprint(ffmpeg: str, source: str, tempo: float = 1.0) -> list[int]:
-    """Use FFmpeg's bundled Chromaprint muxer when available."""
+def _extract_chromaprint(
+    ffmpeg: str, source: str, tempo: float = 1.0, pad_seconds: float = 0.0,
+) -> list[int]:
+    """Use FFmpeg's bundled Chromaprint muxer when available.
+
+    pad_seconds prepends silence. Chromaprint only emits its first frame after
+    filling an analysis window, so without padding the opening
+    CHROMAPRINT_WARMUP_SECONDS of the input are never fingerprinted at all --
+    which is invisible on a 3-minute song and ruinous on a short clip, where
+    it is most of the audio. Spending the warm-up on silence instead recovers
+    it. Measured on a real Shorts: a 6 s clip went from 27 usable frames to
+    51, and its match score from 51.8 to 86.3.
+    """
     try:
-        args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", source, "-vn"]
-        if tempo != 1.0:
-            args += ["-af", f"atempo={tempo:.4f}"]
+        args = [ffmpeg, "-hide_banner", "-loglevel", "error"]
+        tempo_filter = f",atempo={tempo:.4f}" if tempo != 1.0 else ""
+        if pad_seconds > 0:
+            # Both concat inputs must already agree on rate/layout/format --
+            # the concat filter will not convert them for us.
+            shape = "aresample=44100,aformat=sample_fmts=s16:channel_layouts=mono"
+            args += ["-f", "lavfi", "-t", f"{pad_seconds:.3f}", "-i", "anullsrc=r=44100:cl=mono"]
+            args += ["-i", source, "-vn"]
+            args += [
+                "-filter_complex",
+                f"[0:a]{shape}[silence];[1:a]{shape}[audio];"
+                f"[silence][audio]concat=n=2:v=0:a=1{tempo_filter}[padded]",
+                "-map", "[padded]",
+            ]
+        else:
+            args += ["-i", source, "-vn"]
+            if tempo_filter:
+                args += ["-af", tempo_filter.lstrip(",")]
         args += ["-f", "chromaprint", "-fp_format", "raw", "pipe:1"]
         result = subprocess.run(
             args,
@@ -588,10 +656,11 @@ def _chromaprint_candidates(
     frame_floor = 24 if min_match_seconds < FULL_SONG_MIN_MATCH_SECONDS else 80
     if len(src) < frame_floor or len(vid) < frame_floor:
         return []
-    source_duration = float(source.get("duration") or 0)
-    video_duration = float(video.get("duration") or 0)
-    src_step = source_duration / len(src) if source_duration > 0 else 0.128
-    vid_step = video_duration / len(vid) if video_duration > 0 else src_step
+    # Chromaprint's frame rate is fixed, so the spacing between frames is a
+    # constant -- not duration/len(), which silently absorbs the warm-up gap
+    # and inflates every short clip's matched_seconds (see
+    # CHROMAPRINT_FRAME_SECONDS).
+    src_step = vid_step = CHROMAPRINT_FRAME_SECONDS
     # Require exactly as many frames as it takes to actually reach
     # min_match_seconds of real matched audio. matched_seconds below is
     # computed with min(src_step, vid_step), so the same step must be used
@@ -677,8 +746,10 @@ def extract_signature(
     if code != 0:
         raise AudioMatchError((stderr or "FFmpeg nije mogao da pročita audio.").strip())
     raw = b"".join(chunks)
-    if len(raw) < SAMPLE_RATE * 2 * 8:
-        raise AudioMatchError("Audio je prekratak za pouzdano prepoznavanje.")
+    if len(raw) < int(SAMPLE_RATE * 2 * MIN_SIGNATURE_SECONDS):
+        raise AudioMatchError(
+            f"Audio je kraći od {MIN_SIGNATURE_SECONDS:.0f} s, pa se ne može pouzdano prepoznati."
+        )
     if len(raw) % 2:
         raw = raw[:-1]
     samples = array("h")
@@ -688,9 +759,25 @@ def extract_signature(
     frame_size = int(SAMPLE_RATE * FRAME_SECONDS)
     features = _frame_features(samples, frame_size)
     duration = len(samples) / SAMPLE_RATE
-    if len(features) < 16:
+    # Was a flat 16 frames (8s at FRAME_SECONDS=0.5), which re-imposed the very
+    # floor the check above just lifted.
+    if len(features) < int(MIN_SIGNATURE_SECONDS / FRAME_SECONDS):
         raise AudioMatchError("Nema dovoljno audio okvira za poređenje.")
-    chromaprint = _extract_chromaprint(ffmpeg, source_str, tempo=tempo)
+    # Short inputs lose most of themselves to Chromaprint's warm-up, so they
+    # are padded. Long songs are left alone: the warm-up is a rounding error
+    # for them, and padding would change every stored fingerprint and force a
+    # full re-index of the whole library for no benefit.
+    pad = CHROMAPRINT_WARMUP_SECONDS + 0.4 if duration < CHROMAPRINT_PAD_BELOW_SECONDS else 0.0
+    chromaprint = _extract_chromaprint(ffmpeg, source_str, tempo=tempo, pad_seconds=pad)
+    # Silence or a held tone produces the SAME Chromaprint value over and
+    # over. Such a fingerprint matches anything with a similarly flat passage,
+    # at a perfect score -- measured: 8 s of pure digital silence scored
+    # 100/100 against a real song. It carries no identity, so it must not be
+    # treated as evidence.
+    if chromaprint and len(set(chromaprint)) < CHROMAPRINT_MIN_DISTINCT_VALUES:
+        raise AudioMatchError(
+            "Zvuk je previše jednoličan (tišina, jedan ton ili šum) i ne može se prepoznati."
+        )
     if progress:
         progress("Audio otisak je spreman.", 100)
     return {
@@ -702,7 +789,7 @@ def extract_signature(
         "frame_count": len(features),
         "chromaprint": chromaprint,
         "chromaprint_count": len(chromaprint),
-        "chromaprint_interval": (duration / len(chromaprint)) if chromaprint else 0.0,
+        "chromaprint_interval": CHROMAPRINT_FRAME_SECONDS if chromaprint else 0.0,
     }
 
 
