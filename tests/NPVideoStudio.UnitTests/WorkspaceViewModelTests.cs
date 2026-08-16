@@ -362,14 +362,14 @@ public class WorkspaceViewModelTests
         Assert.Contains("Dodajte bar jedan klip", workspace.RealPreviewStatusMessage);
     }
 
-    /// <summary>On any machine without libvlc's native library available - this project's own Linux dev
-    /// sandbox included, since only the win-x64 build bundles libvlc.dll - RealPreview.IsAvailable is
-    /// false by construction (see RealPreviewViewModel's constructor try/catch around
-    /// LibVLCSharp.Shared.Core.Initialize()). The command must degrade gracefully with a clear message
-    /// instead of throwing, and must never call the render service for a render nothing could play back
-    /// anyway.</summary>
+    /// <summary>Whether libvlc's native library is actually present is a property of the machine running
+    /// the tests, not of this code: this project's Linux dev sandbox never has it (only the win-x64 build
+    /// bundles libvlc.dll, via VideoLAN.LibVLC.Windows), while the real windows-latest CI runner does. So
+    /// this asserts both branches of the contract - bail out with the real reason and never render when
+    /// the player is unavailable, actually render when it is. A real CI failure came from asserting only
+    /// the sandbox's branch as if it were universal.</summary>
     [AvaloniaFact]
-    public async Task RenderRealPreviewAsync_ClipExistsButRealPlayerUnavailableOnThisMachine_DoesNotCallRenderService()
+    public async Task RenderRealPreviewAsync_ClipExists_RendersWhenPlayerIsAvailableAndBailsOutCleanlyWhenItIsNot()
     {
         var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(5) };
         var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
@@ -381,14 +381,17 @@ public class WorkspaceViewModelTests
         workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
         workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
 
-        // This sandbox never has libvlc's native library available - a real, disclosed environment
-        // constraint (same category as huggingface.co being blocked for the Whisper model), not assumed.
-        Assert.False(workspace.RealPreview.IsAvailable);
-
         await workspace.RenderRealPreviewCommand.ExecuteAsync(null);
 
-        Assert.False(renderCalled);
-        Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+        if (workspace.RealPreview.IsAvailable)
+        {
+            Assert.True(renderCalled);
+        }
+        else
+        {
+            Assert.False(renderCalled);
+            Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+        }
     }
 
     [AvaloniaFact]
@@ -407,13 +410,12 @@ public class WorkspaceViewModelTests
     /// <summary>Real, researched motivation (see PHASE_STATUS.md - FramePFX, a comparable open-source
     /// editor on the same C#/Avalonia stack, documents live full-timeline compositing as still-unsolved):
     /// this command renders only a short window around the playhead instead of the whole project, so a
-    /// preview on a long timeline stays fast. This sandbox never has libvlc available (same as the
-    /// full-render command's tests), so the command bails out before ever reaching the range-extraction/
-    /// render-service call - <see cref="FfmpegFilterGraphBuilderTests.ExtractRangeTimeline_ClipFullyInsideRange_KeptWithTimeShiftedToRangeStart"/>
-    /// and friends cover the actual range math directly; this test covers the same graceful-degrade
-    /// contract as the full-render command above.</summary>
+    /// preview on a long timeline stays fast. Same both-branches reasoning as the full-render command's
+    /// test above - libvlc's presence is a property of the machine, not the code.
+    /// <see cref="FfmpegFilterGraphBuilderTests.ExtractRangeTimeline_ClipFullyInsideRange_KeptWithTimeShiftedToRangeStart"/>
+    /// and friends cover the actual range math directly.</summary>
     [AvaloniaFact]
-    public async Task RenderRealPreviewAroundPlayheadAsync_ClipExistsButPlayerUnavailable_ReportsUnavailableWithoutCallingRenderService()
+    public async Task RenderRealPreviewAroundPlayheadAsync_ClipExists_RendersWhenPlayerIsAvailableAndBailsOutCleanlyWhenItIsNot()
     {
         var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(30) };
         var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
@@ -425,12 +427,17 @@ public class WorkspaceViewModelTests
         workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
         workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
 
-        Assert.False(workspace.RealPreview.IsAvailable);
-
         await workspace.RenderRealPreviewAroundPlayheadCommand.ExecuteAsync(null);
 
-        Assert.False(renderCalled);
-        Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+        if (workspace.RealPreview.IsAvailable)
+        {
+            Assert.True(renderCalled);
+        }
+        else
+        {
+            Assert.False(renderCalled);
+            Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+        }
     }
 
     /// <summary>Real feature request from a user: "automatically add text from the video" - this drives

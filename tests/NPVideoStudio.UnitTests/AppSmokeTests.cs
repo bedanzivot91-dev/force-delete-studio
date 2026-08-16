@@ -262,11 +262,19 @@ public class AppSmokeTests
     }
 
     /// <summary>Real navigation smoke test for the exact tool a user reported as broken ("ne prepoznaje
-    /// tekst pesme") - a gap in this file's coverage until now. Confirms the page opens, initializes,
-    /// and correctly reflects the real (in this sandbox, not-downloaded) Whisper model state without
-    /// throwing - the actual matching logic itself is covered separately by LyricMatcherTests.cs.</summary>
+    /// tekst pesme") - a gap in this file's coverage until now. Confirms the page opens, initializes, and
+    /// starts in a sane state without throwing - the actual matching logic itself is covered separately by
+    /// LyricMatcherTests.cs.
+    ///
+    /// Deliberately does NOT assert whether the Whisper model is downloaded: that is a property of the
+    /// machine (this sandbox can't reach huggingface.co; a real machine or CI runner can) and, worse, of
+    /// test *ordering*, since the Whisper integration tests download the shared model into the same
+    /// per-user folder. A sibling test asserting `IsModelReady == false` really did fail on the
+    /// windows-latest runner for exactly that reason. What genuinely holds either way is asserted instead:
+    /// no file is selected on open, and the search cannot run without one no matter how ready the model
+    /// is.</summary>
     [AvaloniaFact]
-    public void Navigating_ToLyricSearch_StartsWithNoFileSelectedAndReflectsRealModelState()
+    public void Navigating_ToLyricSearch_StartsWithNoFileSelectedAndCannotSearchYet()
     {
         var app = (NPVideoStudio.App.App)Application.Current!;
         var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
@@ -285,14 +293,13 @@ public class AppSmokeTests
 
         Assert.False(lyricSearch.HasSelectedFile);
         Assert.False(lyricSearch.CanSearch);
-        // This sandbox never has the Whisper model downloaded (huggingface.co is blocked here) - a
-        // real, disclosed environment constraint, not a bug; confirming it's reported correctly rather
-        // than silently defaulting to true.
-        Assert.False(lyricSearch.IsModelReady);
     }
 
+    /// <summary>Same both-environments reasoning as the lyric-search test above - this is the test that
+    /// actually failed on the windows-latest runner by asserting the sandbox's Whisper-model state as if
+    /// it were universal.</summary>
     [AvaloniaFact]
-    public void Navigating_ToSubtitleGenerator_StartsWithNoFileSelectedAndReflectsRealModelState()
+    public void Navigating_ToSubtitleGenerator_StartsWithNoFileSelectedAndCannotGenerateYet()
     {
         var app = (NPVideoStudio.App.App)Application.Current!;
         var services = app.Services ?? throw new InvalidOperationException("DI kontejner nije inicijalizovan.");
@@ -311,7 +318,6 @@ public class AppSmokeTests
 
         Assert.False(subtitleGenerator.HasSelectedFile);
         Assert.False(subtitleGenerator.CanGenerate);
-        Assert.False(subtitleGenerator.IsModelReady);
     }
 
     [AvaloniaFact]
