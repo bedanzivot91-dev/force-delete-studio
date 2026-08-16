@@ -1,0 +1,134 @@
+using System.Text.Json;
+using NPVideoStudio.Domain;
+
+namespace NPVideoStudio.Infrastructure.Persistence;
+
+/// <summary>
+/// A template the user saved themselves, from a project they already set up. Unlike
+/// <see cref="ProjectTemplate.BuiltIn"/> (a fixed starter list that ships with the app), these are
+/// created, renamed and deleted by the user - which is what "Upravljanje šablonima" actually means.
+/// </summary>
+public sealed class UserTemplate
+{
+    public required string Name { get; set; }
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>The starter tracks, same idea as a built-in template.</summary>
+    public List<TimelineTrackKind> StarterTrackKinds { get; set; } = new();
+
+    /// <summary>Export format saved with the template, so "my TikTok setup" restores 1080x1920 at the
+    /// right frame rate too - not just the track layout.</summary>
+    public int Width { get; set; } = 1920;
+    public int Height { get; set; } = 1080;
+    public FrameRatePreset FrameRate { get; set; } = FrameRatePreset.Fps30;
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+/// <summary>
+/// Stores user-created templates as one JSON file per template under
+/// <c>%LocalAppData%\NP Video Studio\Templates</c>.
+///
+/// One file per template on purpose rather than a single templates.json: a corrupt or half-written file
+/// then costs the user exactly one template instead of all of them, and deleting a template is a plain
+/// file delete with nothing to rewrite.
+/// </summary>
+public sealed class UserTemplateRepository
+{
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    private readonly string _folder;
+
+    public UserTemplateRepository(string? folderOverride = null)
+    {
+        _folder = folderOverride ?? Path.Combine(AppSettings.AppDataRoot(), "Templates");
+    }
+
+    /// <summary>Every saved template, newest first. A single unreadable file is skipped rather than
+    /// throwing - one bad file must not make the whole template list unopenable.</summary>
+    public IReadOnlyList<UserTemplate> LoadAll()
+    {
+        if (!Directory.Exists(_folder))
+        {
+            return Array.Empty<UserTemplate>();
+        }
+
+        var templates = new List<UserTemplate>();
+
+        foreach (var file in Directory.EnumerateFiles(_folder, "*.json"))
+        {
+            try
+            {
+                var template = JsonSerializer.Deserialize<UserTemplate>(File.ReadAllText(file), JsonOptions);
+                if (template is not null && !string.IsNullOrWhiteSpace(template.Name))
+                {
+                    templates.Add(template);
+                }
+            }
+            catch
+            {
+                // Corrupt/partial file - skip this one template, keep the rest usable.
+            }
+        }
+
+        return templates.OrderByDescending(t => t.CreatedAt).ToList();
+    }
+
+    /// <summary>Saves (or overwrites) a template under its name. Returns the file path written.</summary>
+    public string Save(UserTemplate template)
+    {
+        if (string.IsNullOrWhiteSpace(template.Name))
+        {
+            throw new ArgumentException("Šablon mora imati ime.", nameof(template));
+        }
+
+        Directory.CreateDirectory(_folder);
+        var path = Path.Combine(_folder, $"{SanitizeFileName(template.Name)}.json");
+
+        // Write to a temp file then move: a crash mid-write leaves the previous template intact instead
+        // of a truncated file that LoadAll would have to skip.
+        var tempPath = path + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(template, JsonOptions));
+        File.Move(tempPath, path, overwrite: true);
+
+        return path;
+    }
+
+    /// <summary>True if a template with that name existed and was deleted.</summary>
+    public bool Delete(string name)
+    {
+        var path = Path.Combine(_folder, $"{SanitizeFileName(name)}.json");
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        File.Delete(path);
+        return true;
+    }
+
+    /// <summary>Builds a template from a project the user has already set up - the "save what I have as a
+    /// template" direction. Empty tracks and full ones alike contribute only their KIND: a template is a
+    /// starting point, never a copy of the user's actual footage.</summary>
+    public static UserTemplate FromProject(Project project, string name, string description = "") => new()
+    {
+        Name = name,
+        Description = description,
+        StarterTrackKinds = project.Timeline.Tracks.Select(t => t.Kind).ToList(),
+        Width = project.Format.Width,
+        Height = project.Format.Height,
+        FrameRate = project.Format.FrameRate
+    };
+
+    /// <summary>Names come from a free-text box, so anything Windows forbids in a file name has to go -
+    /// otherwise saving a template called "9:16" would throw instead of saving.</summary>
+    public static string SanitizeFileName(string name)
+    {
+        var cleaned = new string(name
+            .Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
+            .ToArray())
+            .Trim();
+
+        return string.IsNullOrEmpty(cleaned) ? "sablon" : cleaned;
+    }
+}

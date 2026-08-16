@@ -281,6 +281,29 @@ public sealed class TimelineEditSession
         liveClip.Opacity = Math.Clamp(opacity, 0, 1);
     }
 
+    /// <summary>
+    /// Sets a clip's picture look and playback speed (rendered by
+    /// <c>FfmpegFilterGraphBuilder.BuildEffectFilters</c>/<c>BuildSpeedFilter</c>). Values are clamped to
+    /// what ffmpeg accepts rather than trusted, so a slider dragged to its end can't produce a filter
+    /// graph that fails the whole export.
+    /// </summary>
+    public void SetClipEffects(string clipId, ClipVideoEffect effect, double brightness, double contrast, double saturation, double speed)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.Effect = effect;
+        liveClip.Brightness = Math.Clamp(brightness, -1, 1);
+        liveClip.Contrast = Math.Clamp(contrast, 0, 3);
+        liveClip.Saturation = Math.Clamp(saturation, 0, 3);
+        liveClip.SpeedMultiplier = Math.Clamp(speed, 0.25, 4);
+    }
+
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);

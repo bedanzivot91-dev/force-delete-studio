@@ -20,22 +20,21 @@ public sealed partial class StartScreenViewModel : ViewModelBase
 
     public bool HasRecentProjects => RecentProjects.Count > 0;
 
-    /// <summary>Features listed in the spec that are not implemented yet. Shown disabled with a clear
-    /// "uskoro" label instead of a dead button that looks functional (spec §53).</summary>
     /// <summary>
-    /// Features from the original planned-tile list that are staying disabled a while longer (spec Phase
-    /// 10: "each must be fully implemented or removed" - the other 3 planned tiles are now real screens
-    /// below; these 3 were removed rather than faked since none has any groundwork elsewhere in the app
-    /// (no font system anywhere in caption rendering, no effects concept beyond the fade in/out that
-    /// already exists under its own name, and no user-authored template content to "manage" once template
-    /// selection itself became real - see PHASE_STATUS.md for the full reasoning).
+    /// Now empty, and deliberately kept rather than deleted: the start screen still binds to it, and an
+    /// empty list is the honest way to say "nothing is merely planned any more".
+    ///
+    /// The three that used to live here - template management, font management and effects management -
+    /// are all real, working features now, each backed by code that genuinely runs on export:
+    /// <list type="bullet">
+    /// <item>Templates: <c>UserTemplateRepository</c> saves/lists/deletes the user's own templates on disk.</item>
+    /// <item>Fonts: <c>SystemFontCatalog</c> enumerates the machine's real font files and verifies each can
+    /// actually draw Serbian characters (š/đ/č/ć/ž) before offering it.</item>
+    /// <item>Effects: <c>ClipVideoEffect</c> + <c>FfmpegFilterGraphBuilder.BuildEffectFilters</c> map to
+    /// documented ffmpeg filters and are applied to the rendered picture.</item>
+    /// </list>
     /// </summary>
-    public IReadOnlyList<string> PlannedFeatures { get; } = new[]
-    {
-        "Upravljanje šablonima",
-        "Upravljanje fontovima",
-        "Upravljanje efektima"
-    };
+    public IReadOnlyList<string> PlannedFeatures { get; } = Array.Empty<string>();
 
     [ObservableProperty]
     private string? _recoveryMessage;

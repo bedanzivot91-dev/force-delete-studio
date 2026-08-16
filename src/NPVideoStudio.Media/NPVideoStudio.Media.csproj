@@ -7,6 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Already present transitively via Avalonia in the App project; referenced explicitly here because
+         SystemFontCatalog reads real font files (glyph coverage for Serbian characters) and this project
+         must not depend on the UI layer to get it. -->
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.8" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
     <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
   </ItemGroup>

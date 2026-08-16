@@ -202,6 +202,22 @@
                                   <TextBox Text="{Binding TextContent}" Width="260" Watermark="Tekst titla..." />
                                 </StackPanel>
 
+                                <!-- Real picture effects - each maps to a documented ffmpeg filter and is
+                                     genuinely applied on export, not a decorative dropdown. -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !IsTextClip}">
+                                  <TextBlock Text="Efekat:" Classes="subtle" VerticalAlignment="Center" />
+                                  <ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}" MinWidth="120" />
+                                  <TextBlock Text="Osvetljenje:" Classes="subtle" VerticalAlignment="Center" />
+                                  <Slider Minimum="-1" Maximum="1" Value="{Binding Brightness}" Width="100" VerticalAlignment="Center" />
+                                  <TextBlock Text="Kontrast:" Classes="subtle" VerticalAlignment="Center" />
+                                  <Slider Minimum="0" Maximum="3" Value="{Binding Contrast}" Width="100" VerticalAlignment="Center" />
+                                  <TextBlock Text="Zasićenost:" Classes="subtle" VerticalAlignment="Center" />
+                                  <Slider Minimum="0" Maximum="3" Value="{Binding Saturation}" Width="100" VerticalAlignment="Center" />
+                                  <TextBlock Text="Brzina:" Classes="subtle" VerticalAlignment="Center" />
+                                  <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25" Width="90"
+                                                 ToolTip.Tip="0.5 = usporeno, 2 = ubrzano" />
+                                </StackPanel>
+
                                 <!-- Placement of a layer laid OVER the video underneath (slika u slici /
                                      nalepnica / logo). Only shown for ImageOverlay clips - on the base video
                                      track these are meaningless, the background always fills the frame. -->

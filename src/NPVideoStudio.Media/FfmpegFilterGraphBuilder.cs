@@ -102,8 +102,10 @@ public static class FfmpegFilterGraphBuilder
             var videoFilter = new StringBuilder();
             videoFilter.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            videoFilter.Append(BuildSpeedFilter(clip));
             videoFilter.Append(FormattableString.Invariant(
                 $",scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"));
+            videoFilter.Append(BuildEffectFilters(clip));
             if (clip.FadeInSeconds > 0)
             {
                 videoFilter.Append(FormattableString.Invariant($",fade=t=in:st=0:d={clip.FadeInSeconds}"));
@@ -434,7 +436,9 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
+            prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
+            prepared.Append(BuildEffectFilters(clip));
             // colorchannelmixer needs an alpha channel to write into, hence format=rgba first.
             prepared.Append(FormattableString.Invariant($",format=rgba,colorchannelmixer=aa={opacity}"));
             prepared.Append(preparedLabel);
@@ -474,6 +478,71 @@ public static class FfmpegFilterGraphBuilder
         filterLines.Add($"{currentAudioLabel}{nextAudioLabel}concat=n=2:v=0:a=1{joinedAudioLabel}");
         joinIndex++;
         return (joinedVideoLabel, joinedAudioLabel, runningDuration + nextDuration);
+    }
+
+    /// <summary>
+    /// The real ffmpeg filters behind a clip's picture effects, as a string ready to append to that clip's
+    /// own filter chain (empty when the clip is untouched, so an unedited project's graph is unchanged).
+    ///
+    /// Order matters and is deliberate: the named look goes on first, then any manual brightness/contrast/
+    /// saturation, so a user who picks "Crno-belo" and then nudges brightness gets a brighter black-and-
+    /// white picture - not a grayscale filter silently undoing their colour adjustment.
+    ///
+    /// Filters chosen from ffmpeg's own documented set (eq/hue/gblur/vignette/unsharp/negate/hflip); the
+    /// sepia matrix is the standard colorchannelmixer one.
+    /// </summary>
+    public static string BuildEffectFilters(TimelineClip clip)
+    {
+        var parts = new List<string>();
+
+        var named = clip.Effect switch
+        {
+            ClipVideoEffect.Grayscale => "hue=s=0",
+            ClipVideoEffect.Sepia => "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131",
+            ClipVideoEffect.Blur => "gblur=sigma=8",
+            ClipVideoEffect.Vignette => "vignette",
+            ClipVideoEffect.Sharpen => "unsharp=5:5:1.0:5:5:0.0",
+            ClipVideoEffect.Invert => "negate",
+            ClipVideoEffect.Mirror => "hflip",
+            _ => null
+        };
+
+        if (named is not null)
+        {
+            parts.Add(named);
+        }
+
+        // Only emit `eq` when something actually differs from neutral - an always-on eq would add a real
+        // decode/encode cost to every clip in every project for no visible change.
+        var brightness = Math.Clamp(clip.Brightness, -1, 1);
+        var contrast = Math.Clamp(clip.Contrast, 0, 3);
+        var saturation = Math.Clamp(clip.Saturation, 0, 3);
+
+        if (Math.Abs(brightness) > 1e-6 || Math.Abs(contrast - 1) > 1e-6 || Math.Abs(saturation - 1) > 1e-6)
+        {
+            parts.Add(FormattableString.Invariant(
+                $"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}"));
+        }
+
+        return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
+    }
+
+    /// <summary>
+    /// The <c>setpts</c> filter that changes a clip's playback speed, or empty at normal speed.
+    /// Deliberately separate from <see cref="BuildEffectFilters"/> because speed must be applied
+    /// immediately after <c>setpts=PTS-STARTPTS</c> (which resets the timestamps it operates on) and
+    /// before anything that depends on the clip's duration.
+    /// </summary>
+    public static string BuildSpeedFilter(TimelineClip clip)
+    {
+        var speed = Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+        if (Math.Abs(speed - 1) < 1e-6)
+        {
+            return string.Empty;
+        }
+
+        // Higher speed = shorter presentation timestamps, hence dividing by the multiplier.
+        return FormattableString.Invariant($",setpts=PTS/{speed}");
     }
 
     private static string TransitionName(ClipTransitionType type) => type switch

@@ -94,6 +94,38 @@ public enum ClipTransitionType
 }
 
 /// <summary>
+/// A ready-made look applied to a whole clip's picture. Each maps to a real, standard ffmpeg video
+/// filter (see <c>FfmpegFilterGraphBuilder.BuildEffectFilters</c>) - these are not decorative names with
+/// nothing behind them.
+/// </summary>
+public enum ClipVideoEffect
+{
+    /// <summary>Untouched picture.</summary>
+    None,
+
+    /// <summary>Black and white (<c>hue=s=0</c>).</summary>
+    Grayscale,
+
+    /// <summary>Warm brown old-photo look (<c>colorchannelmixer</c>).</summary>
+    Sepia,
+
+    /// <summary>Soft focus (<c>gblur</c>).</summary>
+    Blur,
+
+    /// <summary>Darkened corners, draws the eye to the middle (<c>vignette</c>).</summary>
+    Vignette,
+
+    /// <summary>Crisper edges (<c>unsharp</c>).</summary>
+    Sharpen,
+
+    /// <summary>Colour negative (<c>negate</c>).</summary>
+    Invert,
+
+    /// <summary>Mirrored left-to-right (<c>hflip</c>) - the usual fix for selfie-camera footage.</summary>
+    Mirror
+}
+
+/// <summary>
 /// One clip placed on a timeline track. Non-destructive: <see cref="SourceTrimInSeconds"/>/
 /// <see cref="SourceTrimOutSeconds"/> only change which slice of the original source plays - the
 /// underlying <see cref="MediaAssetId"/> file is never modified (spec Phase 8: "non-destructive").
@@ -183,6 +215,25 @@ public sealed class TimelineClip
 
     /// <summary>1.0 = fully opaque, 0 = invisible.</summary>
     public double Opacity { get; set; } = 1.0;
+
+    // --- Picture effects -------------------------------------------------------------------------
+    // Applied to the clip's own picture before it is placed on the timeline, so an effect on an overlay
+    // affects only that overlay, not the video underneath it.
+
+    /// <summary>A ready-made look, or <see cref="ClipVideoEffect.None"/>.</summary>
+    public ClipVideoEffect Effect { get; set; } = ClipVideoEffect.None;
+
+    /// <summary>Manual brightness, -1..1, 0 = unchanged. Stacks on top of <see cref="Effect"/>.</summary>
+    public double Brightness { get; set; }
+
+    /// <summary>Manual contrast, 0..3, 1 = unchanged.</summary>
+    public double Contrast { get; set; } = 1.0;
+
+    /// <summary>Manual colour saturation, 0..3, 1 = unchanged. 0 is fully grey.</summary>
+    public double Saturation { get; set; } = 1.0;
+
+    /// <summary>Playback speed, 0.25..4. 1 = normal, 0.5 = slow motion, 2 = double speed.</summary>
+    public double SpeedMultiplier { get; set; } = 1.0;
 }
 
 /// <summary>One track (a lane of non-overlapping clips) in the timeline.</summary>

@@ -27,6 +27,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// above: routed through the owning session so one undo takes the whole placement change back.</summary>
     private readonly Action<string, double, double, double, double>? _onLayerPlacementChanged;
 
+    /// <summary>(clipId, effect, brightness, contrast, saturation, speed) - routed through the session so
+    /// one undo takes the whole effect change back.</summary>
+    private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
+
     public TimelineClip Clip { get; }
     public string TrackId { get; }
 
@@ -86,6 +90,41 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     }
 
     private double LayerOpacity => Clip.Opacity;
+
+    // --- Picture effects (available on every picture clip, layer or background) --------------------
+
+    public IReadOnlyList<ClipVideoEffect> AvailableEffects { get; } = Enum.GetValues<ClipVideoEffect>();
+
+    public ClipVideoEffect Effect
+    {
+        get => Clip.Effect;
+        set { if (Clip.Effect == value) return; _onEffectsChanged?.Invoke(Clip.Id, value, Brightness, Contrast, Saturation, SpeedMultiplier); }
+    }
+
+    public double Brightness
+    {
+        get => Clip.Brightness;
+        set { if (Math.Abs(Clip.Brightness - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, value, Contrast, Saturation, SpeedMultiplier); }
+    }
+
+    public double Contrast
+    {
+        get => Clip.Contrast;
+        set { if (Math.Abs(Clip.Contrast - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, value, Saturation, SpeedMultiplier); }
+    }
+
+    public double Saturation
+    {
+        get => Clip.Saturation;
+        set { if (Math.Abs(Clip.Saturation - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, value, SpeedMultiplier); }
+    }
+
+    /// <summary>0.5 = slow motion, 2 = double speed.</summary>
+    public double SpeedMultiplier
+    {
+        get => Clip.SpeedMultiplier;
+        set { if (Math.Abs(Clip.SpeedMultiplier - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, Saturation, value); }
+    }
 
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
     /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
@@ -310,8 +349,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, string>? onTextContentChanged = null,
         Action<string, TextAdvancedStyle>? onAdvancedStyleChanged = null,
         Action<string, double, double, double, double>? onLayerPlacementChanged = null,
-        bool isOverlayClip = false)
+        bool isOverlayClip = false,
+        Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null)
     {
+        _onEffectsChanged = onEffectsChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
         IsOverlayClip = isOverlayClip;
         Clip = clip;
