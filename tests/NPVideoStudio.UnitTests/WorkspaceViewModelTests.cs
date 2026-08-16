@@ -754,4 +754,81 @@ public class WorkspaceViewModelTests
 
         Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
     }
+
+    private static WorkspaceViewModel WorkspaceWithTwoTracks(out string clipId, out string videoTrackId, out string overlayTrackId)
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.AddImageOverlayTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        clipId = workspace.Timeline.Tracks[0].Clips[0].Clip.Id;
+        videoTrackId = workspace.Timeline.Tracks[0].Track.Id;
+        overlayTrackId = workspace.Timeline.Tracks[1].Track.Id;
+        return workspace;
+    }
+
+    [AvaloniaFact]
+    public void SelectingAClip_MarksItSelectedAndLeavesTheOthersAlone()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out _);
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        workspace.Timeline.SelectedClipId = clipId;
+
+        Assert.Equal(clipId, workspace.Timeline.SelectedClip!.Clip.Id);
+        Assert.Single(workspace.Timeline.Tracks.SelectMany(t => t.Clips).Where(c => c.IsSelected));
+    }
+
+    [AvaloniaFact]
+    public void DraggingAClipOntoAnotherPictureTrack_MovesItThere()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+
+        var moved = workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 3);
+
+        Assert.True(moved);
+        Assert.Empty(workspace.Timeline.Tracks[0].Clips);
+        var landed = Assert.Single(workspace.Timeline.Tracks[1].Clips);
+        Assert.Equal(3, landed.StartSeconds);
+    }
+
+    [AvaloniaFact]
+    public void DraggingAVideoClipOntoAnAudioTrack_IsRefusedRatherThanSilentlyNeverRendering()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out _);
+        workspace.Timeline.AddAudioTrackCommand.Execute(null);
+        var audioTrackId = workspace.Timeline.Tracks[^1].Track.Id;
+
+        var moved = workspace.Timeline.MoveClipToTrack(clipId, audioTrackId, 2);
+
+        Assert.False(moved);
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+    }
+
+    [AvaloniaFact]
+    public void DraggingOntoALockedTrack_IsRefused()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+        workspace.Timeline.Tracks[1].ToggleLockCommand.Execute(null);
+
+        Assert.False(workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 2));
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+    }
+
+    [AvaloniaFact]
+    public void MovingAClipBetweenTracks_IsOneUndoStep()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+
+        workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 3);
+        workspace.Timeline.UndoCommand.Execute(null);
+
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+        Assert.Empty(workspace.Timeline.Tracks[1].Clips);
+    }
 }

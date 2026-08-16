@@ -83,6 +83,55 @@ try {
     Write-Host "Program ce i dalje raditi ako korisnik sam instalira yt-dlp (scripts\check-dependencies.ps1)." -ForegroundColor Yellow
 }
 
+# FfmpegLocator.cs already resolves fpcalc/tesseract from Tools\fpcalc\ and Tools\tesseract\ next to the
+# exe before falling back to PATH - these were the last two dependencies the user still had to install by
+# hand, which meant song recognition and reading text off a picture silently did nothing on a clean machine.
+# Same best-effort treatment as everything above: a failed download here is a warning, never a fatal build
+# error, and the app keeps its existing PATH/manual-install fallback.
+try {
+    Write-Host "Preuzimam fpcalc (Chromaprint) za prepoznavanje pesme po zvuku..." -ForegroundColor Cyan
+    $fpcalcToolsDir = Join-Path $toolsDir 'fpcalc'
+    New-Item -ItemType Directory -Force -Path $fpcalcToolsDir | Out-Null
+    $fpcalcZip = Join-Path $env:TEMP 'npvs-fpcalc.zip'
+    $fpcalcExtract = Join-Path $env:TEMP 'npvs-fpcalc-extract'
+    if (Test-Path $fpcalcExtract) { Remove-Item $fpcalcExtract -Recurse -Force }
+    Invoke-WebRequest -Uri 'https://github.com/acoustid/chromaprint/releases/download/v1.5.1/chromaprint-fpcalc-1.5.1-windows-x86_64.zip' -OutFile $fpcalcZip -UseBasicParsing
+    Expand-Archive -Path $fpcalcZip -DestinationPath $fpcalcExtract -Force
+    $fpcalcExe = Get-ChildItem -Path $fpcalcExtract -Filter 'fpcalc.exe' -Recurse | Select-Object -First 1
+    if ($null -eq $fpcalcExe) { throw "fpcalc.exe nije pronadjen u preuzetoj arhivi." }
+    Copy-Item -Path $fpcalcExe.FullName -Destination $fpcalcToolsDir -Force
+    Remove-Item $fpcalcZip, $fpcalcExtract -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "fpcalc spakovan u Tools\fpcalc\." -ForegroundColor Green
+} catch {
+    $bundledToolsOk = $false
+    Write-Host "UPOZORENJE: Preuzimanje fpcalc-a nije uspelo ($_)." -ForegroundColor Yellow
+    Write-Host "Prepoznavanje pesme po zvuku ce raditi tek kad korisnik sam instalira Chromaprint." -ForegroundColor Yellow
+}
+
+# Tesseract is copied from a local install rather than downloaded: it ships as a Windows installer, not a
+# portable archive, and it needs its DLLs and its tessdata language files alongside the exe - copying the
+# whole installed folder is the only way to get a working copy. The CI runner installs it via Chocolatey
+# (see .github/workflows/windows-build.yml), so this finds it there; on a dev machine without it, this is
+# skipped with a warning like everything else.
+try {
+    Write-Host "Pakujem Tesseract (citanje teksta sa slike)..." -ForegroundColor Cyan
+    $tesseractSource = @(
+        'C:\Program Files\Tesseract-OCR',
+        'C:\Program Files (x86)\Tesseract-OCR'
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if ($null -eq $tesseractSource) { throw "Tesseract nije instaliran na ovoj masini." }
+
+    $tesseractToolsDir = Join-Path $toolsDir 'tesseract'
+    New-Item -ItemType Directory -Force -Path $tesseractToolsDir | Out-Null
+    Copy-Item -Path (Join-Path $tesseractSource '*') -Destination $tesseractToolsDir -Recurse -Force
+    Write-Host "Tesseract spakovan u Tools\tesseract\." -ForegroundColor Green
+} catch {
+    $bundledToolsOk = $false
+    Write-Host "UPOZORENJE: Pakovanje Tesseract-a nije uspelo ($_)." -ForegroundColor Yellow
+    Write-Host "Citanje teksta sa slike ce raditi tek kad korisnik sam instalira Tesseract." -ForegroundColor Yellow
+}
+
 # WhisperModelLocator.cs resolves the model from Tools\whisper-models\ggml-tiny.bin next to the exe
 # before falling back to the per-user AppData download-on-demand path - bundling it here means titlovi/
 # karaoke/"pronadji tekst u pesmi" all work immediately after install, with no separate "Preuzmi model"

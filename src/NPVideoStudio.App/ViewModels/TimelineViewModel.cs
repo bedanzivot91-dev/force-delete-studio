@@ -28,6 +28,30 @@ public sealed partial class TimelineViewModel : ViewModelBase
     private readonly TimelineEditSession _session;
 
     public ObservableCollection<TimelineTrackItemViewModel> Tracks { get; } = new();
+
+    /// <summary>
+    /// The clip the user last clicked in the visual lane. Added because the timeline had no notion of a
+    /// selection at all: every action had to be a per-clip button, which is why Delete and "split" had no
+    /// keyboard shortcut and why a clip could not be dragged onto another track.
+    ///
+    /// Stored as the clip's ID rather than the ViewModel because RefreshFromSession rebuilds every clip
+    /// ViewModel from scratch after each edit - holding the object would leave the selection pointing at a
+    /// discarded instance the moment anything changed.
+    /// </summary>
+    [ObservableProperty]
+    private string? _selectedClipId;
+
+    public TimelineClipItemViewModel? SelectedClip =>
+        Tracks.SelectMany(t => t.Clips).FirstOrDefault(c => c.Clip.Id == SelectedClipId);
+
+    partial void OnSelectedClipIdChanged(string? value)
+    {
+        OnPropertyChanged(nameof(SelectedClip));
+        foreach (var clip in Tracks.SelectMany(t => t.Clips))
+        {
+            clip.RefreshSelection(value);
+        }
+    }
     public ObservableCollection<MediaAssetViewModel> AvailableMedia { get; }
 
     [ObservableProperty]
@@ -82,6 +106,48 @@ public sealed partial class TimelineViewModel : ViewModelBase
     {
         _session.MoveClip(clipId, Math.Max(0, newStartSeconds));
         RefreshFromSession();
+    }
+
+    /// <summary>
+    /// Moves a clip to a new position AND onto a different track - dropping a clip on another lane.
+    /// Refuses a move onto a locked track, and onto a track of a kind that cannot hold it: a video clip on
+    /// an audio lane would silently never render, which is worse than the drop simply not being accepted.
+    /// Returns false (and changes nothing) when the move is refused, so the caller can say why.
+    /// </summary>
+    public bool MoveClipToTrack(string clipId, string targetTrackId, double newStartSeconds)
+    {
+        var target = _session.Tracks.FirstOrDefault(t => t.Id == targetTrackId);
+        var clip = _session.Tracks.SelectMany(t => t.Clips).FirstOrDefault(c => c.Id == clipId);
+        if (target is null || clip is null || target.IsLocked)
+        {
+            return false;
+        }
+
+        var sourceTrack = _session.Tracks.First(t => t.Clips.Any(c => c.Id == clipId));
+        if (!CanTrackHold(sourceTrack.Kind, target.Kind))
+        {
+            return false;
+        }
+
+        _session.MoveClip(clipId, Math.Max(0, newStartSeconds), targetTrackId);
+        RefreshFromSession();
+        return true;
+    }
+
+    /// <summary>Text belongs on text/caption lanes, pictures on picture lanes, sound on sound lanes -
+    /// mirroring what <c>FfmpegFilterGraphBuilder</c> actually reads from each kind of track.</summary>
+    private static bool CanTrackHold(TimelineTrackKind from, TimelineTrackKind to)
+    {
+        if (from == to)
+        {
+            return true;
+        }
+
+        var textKinds = new[] { TimelineTrackKind.Caption, TimelineTrackKind.Text };
+        var pictureKinds = new[] { TimelineTrackKind.Video, TimelineTrackKind.ImageOverlay };
+
+        return (textKinds.Contains(from) && textKinds.Contains(to))
+            || (pictureKinds.Contains(from) && pictureKinds.Contains(to));
     }
 
     [RelayCommand]

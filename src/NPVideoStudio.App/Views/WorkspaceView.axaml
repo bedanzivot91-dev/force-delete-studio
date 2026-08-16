@@ -193,6 +193,11 @@
                             </ItemsPanelTemplate>
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.Styles>
+                            <!-- The selected clip is what Delete and S (split) act on, so it has to be
+                                 visibly different - otherwise those keys would feel random. -->
+                            <Style Selector="Border.cliplane.selected">
+                              <Setter Property="BorderThickness" Value="3" />
+                            </Style>
                             <!-- x:DataType is required here: the setter's binding is evaluated against the
                                  CONTAINER, whose compiled-binding type would otherwise be inferred from the
                                  enclosing template (the track), not the clip it actually holds. -->
@@ -203,12 +208,13 @@
                           </ItemsControl.Styles>
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
-                              <Border Classes="cliplane" Width="{Binding PixelWidth}" Height="40"
+                              <Border Classes="cliplane" Classes.selected="{Binding IsSelected}"
+                                      Width="{Binding PixelWidth}" Height="40"
                                       Background="{DynamicResource ThemeAccentSubtleBrush}"
                                       BorderBrush="{DynamicResource ThemeAccentBrush}" BorderThickness="1"
                                       CornerRadius="4" ClipToBounds="True"
                                       Tag="{Binding}"
-                                      ToolTip.Tip="Prevucite mišem da pomerite klip po vremenu.">
+                                      ToolTip.Tip="Kliknite da izaberete. Prevucite da pomerite po vremenu ili na drugu traku.">
                                 <TextBlock Text="{Binding Label}" Margin="6,4" FontSize="11"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                               </Border>

@@ -66,6 +66,23 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// meaningless, since the base layer always fills the frame.</summary>
     public bool IsOverlayClip { get; }
 
+    private bool _isSelected;
+
+    /// <summary>Drives the lane highlight so the user can see which clip the keyboard will act on.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        private set
+        {
+            if (_isSelected == value) return;
+            _isSelected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Called by the owning timeline when the selection changes.</summary>
+    public void RefreshSelection(string? selectedClipId) => IsSelected = Clip.Id == selectedClipId;
+
     /// <summary>Overlay width as a percentage of the finished frame's width.</summary>
     public double ScalePercent
     {

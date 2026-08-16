@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using NPVideoStudio.App.ViewModels;
 
 namespace NPVideoStudio.App.Views;
@@ -50,6 +52,31 @@ public partial class WorkspaceView : UserControl
         _dragStartX = e.GetPosition(this).X;
         _dragOriginalStartSeconds = clip.StartSeconds;
         _dragMoved = false;
+
+        // Clicking a clip selects it, so the keyboard has something to act on.
+        if (DataContext is WorkspaceViewModel vm)
+        {
+            vm.Timeline.SelectedClipId = clip.Clip.Id;
+        }
+    }
+
+    /// <summary>Finds the track lane under the pointer, so a clip dropped on another lane lands there.
+    /// Walks up from whatever was hit to the nearest element carrying a track ViewModel - the lane's own
+    /// Canvas, the clips on it and the border around them all resolve to the same track that way.</summary>
+    private static TimelineTrackItemViewModel? FindTrackUnderPointer(object? source)
+    {
+        var current = source as Visual;
+        while (current is not null)
+        {
+            if (current is Control { DataContext: TimelineTrackItemViewModel track })
+            {
+                return track;
+            }
+
+            current = current.GetVisualParent();
+        }
+
+        return null;
     }
 
     private void OnLanePointerMoved(object? sender, PointerEventArgs e)
@@ -80,7 +107,26 @@ public partial class WorkspaceView : UserControl
         var secondsMoved = pixelsMoved / Math.Max(1, clip.PixelsPerSecond);
         var newStart = Math.Max(0, _dragOriginalStartSeconds + secondsMoved);
 
-        viewModel.Timeline.MoveClipTo(clip.Clip.Id, newStart);
+        var targetTrack = FindTrackUnderPointer(e.Source);
+
+        if (targetTrack is not null && targetTrack.Track.Id != clip.TrackId)
+        {
+            if (!viewModel.Timeline.MoveClipToTrack(clip.Clip.Id, targetTrack.Track.Id, newStart))
+            {
+                viewModel.StatusMessage =
+                    "Klip ne može na tu traku (zaključana je, ili je druge vrste - video na audio traku i sl.).";
+                e.Handled = true;
+                return;
+            }
+
+            viewModel.StatusMessage = $"Klip premešten na traku „{targetTrack.DisplayName}“.";
+        }
+        else
+        {
+            viewModel.Timeline.MoveClipTo(clip.Clip.Id, newStart);
+        }
+
+        viewModel.Timeline.SelectedClipId = clip.Clip.Id;
         e.Handled = true;
     }
 
@@ -88,9 +134,8 @@ public partial class WorkspaceView : UserControl
     /// The editing shortcuts every video editor has and this one had none of: space to play/pause,
     /// arrows to step a frame, Ctrl+Z/Ctrl+Y to undo/redo, Ctrl+S to save.
     ///
-    /// Deliberately no Delete/split shortcut yet: this timeline has no concept of a "selected clip" (clips
-    /// are acted on through their own per-clip buttons), so those keys would have nothing to act on.
-    /// Shipping a key that silently does nothing is worse than not binding it.
+    /// Delete removes the selected clip and S splits it at the playhead - both now real, since clicking a
+    /// clip in the visual lane selects it.
     /// </summary>
     private void OnShortcutKeyDown(object? sender, KeyEventArgs e)
     {
@@ -138,6 +183,14 @@ public partial class WorkspaceView : UserControl
 
             case Key.S when ctrl:
                 viewModel.SaveProjectCommand.Execute(null);
+                break;
+
+            case Key.S:
+                viewModel.Timeline.SelectedClip?.SplitAtPlayheadCommand.Execute(null);
+                break;
+
+            case Key.Delete:
+                viewModel.Timeline.SelectedClip?.DeleteCommand.Execute(null);
                 break;
 
             default:
