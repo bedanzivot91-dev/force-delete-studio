@@ -38,6 +38,10 @@ public partial class WorkspaceView : UserControl
             {
                 ToggleFullScreen();
             }
+            else if (e.Key == Key.Escape && _isPlayerFocused)
+            {
+                SetPlayerFocus(false);
+            }
         }, RoutingStrategies.Tunnel);
     }
 
@@ -72,6 +76,7 @@ public partial class WorkspaceView : UserControl
         ZoomInButton.Click += (_, _) => StepZoom(1.25);
         ZoomOutButton.Click += (_, _) => StepZoom(1 / 1.25);
         ZoomFitButton.Click += (_, _) => { PlayerSurface.ResetView(); UpdateZoomLabel(); };
+        FocusPlayerButton.Click += (_, _) => TogglePlayerFocus();
         FullScreenButton.Click += (_, _) => ToggleFullScreen();
 
         PlayerSurface.PointerWheelChanged += (_, _) => UpdateZoomLabel();
@@ -103,9 +108,35 @@ public partial class WorkspaceView : UserControl
             return;
         }
 
-        window.WindowState = window.WindowState == WindowState.FullScreen
-            ? WindowState.Normal
-            : WindowState.FullScreen;
+        var leaving = window.WindowState == WindowState.FullScreen;
+        window.WindowState = leaving ? WindowState.Normal : WindowState.FullScreen;
+        SetPlayerFocus(!leaving);
+    }
+
+    private bool _isPlayerFocused;
+
+    /// <summary>
+    /// A portrait picture cannot become large while half of the window is permanently reserved for the
+    /// timeline and library. Focus mode gives the existing player the entire editing area; it does not
+    /// create another player or crop the video inside the old small rectangle.
+    /// </summary>
+    private void TogglePlayerFocus() => SetPlayerFocus(!_isPlayerFocused);
+
+    private void SetPlayerFocus(bool focused)
+    {
+        _isPlayerFocused = focused;
+        MediaLibraryPanel.IsVisible = !focused;
+        TimelinePanel.IsVisible = !focused;
+        TimelineSplitter.IsVisible = !focused;
+        CaptionToolbar.IsVisible = !focused;
+
+        PlayerLibraryGrid.ColumnDefinitions[1].Width = focused ? new GridLength(0) : new GridLength(8);
+        PlayerLibraryGrid.ColumnDefinitions[2].Width = focused ? new GridLength(0) : new GridLength(320);
+        EditingGrid.RowDefinitions[0].Height = new GridLength(1, GridUnitType.Star);
+        EditingGrid.RowDefinitions[1].Height = focused ? new GridLength(0) : new GridLength(10);
+        EditingGrid.RowDefinitions[2].Height = focused ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        PlayerPanel.Margin = focused ? new Thickness(8) : new Thickness(20, 0, 0, 0);
+        FocusPlayerButton.Content = focused ? "← VRATI MONTAŽU" : "⛶ VELIKI PLEJER";
     }
 
     // --- Dragging a clip along the lane ------------------------------------------------------------

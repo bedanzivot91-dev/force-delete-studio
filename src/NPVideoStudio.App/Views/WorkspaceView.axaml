@@ -7,8 +7,8 @@
              x:DataType="vm:WorkspaceViewModel"
              DragDrop.AllowDrop="True">
 
-  <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="surface" Padding="24,16" BorderThickness="0,0,0,1">
+  <DockPanel Name="WorkspaceRoot">
+    <Border Name="ProjectHeader" DockPanel.Dock="Top" Classes="surface" Padding="24,16" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Spacing="2">
           <TextBlock Text="{Binding Project.Name}" FontSize="19" FontWeight="SemiBold" />
@@ -23,11 +23,14 @@
       </Grid>
     </Border>
 
-    <Border DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
+    <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
       <WrapPanel Orientation="Horizontal">
         <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,10,6" /></Style></WrapPanel.Styles>
         <Button Classes="cta" Content="Automatski dodaj titlove iz videa"
                 Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        <Button Classes="cta" Content="♪ PREPOZNAJ STIHOVE PESME (AI)"
+                ToolTip.Tip="Izdvaja vokal iz muzike (Demucs), zatim prepoznaje i vremenski raspoređuje stihove (faster-whisper)."
+                Command="{Binding GenerateSongLyricsCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
         <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
                 ToolTip.Tip="Svaka izgovorena reč se pojavljuje na ekranu pojedinačno, tačno kad se izgovori."
                 Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
@@ -38,12 +41,12 @@
       </WrapPanel>
     </Border>
 
-    <Grid RowDefinitions="1.1*,Auto,1*">
+    <Grid Name="EditingGrid" RowDefinitions="1.1*,Auto,1*">
 
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,320" Margin="0,0,0,4">
-      <Border Grid.Column="0" Classes="panel" Margin="20,0,0,0" Padding="16">
+      <Grid Name="PlayerLibraryGrid" Grid.Row="0" ColumnDefinitions="*,Auto,320" Margin="0,0,0,4">
+      <Border Name="PlayerPanel" Grid.Column="0" Classes="panel" Margin="20,0,0,0" Padding="16">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
             <WrapPanel.Styles>
@@ -52,6 +55,8 @@
               </Style>
             </WrapPanel.Styles>
             <TextBlock Text="Plejer" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Name="FocusPlayerButton" Classes="cta" Content="⛶ VELIKI PLEJER"
+                    ToolTip.Tip="Sklanja timeline i biblioteku da vertikalni video zauzme celu radnu površinu. Ponovni klik ili Esc vraća montažu." />
             <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
                     ToolTip.Tip="Pušta izabrani video ovde, sa zvukom." />
             <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
@@ -131,7 +136,7 @@
 
         <GridSplitter Grid.Column="1" Width="8" Background="Transparent"
                       ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu plejera" />
-      <Border Grid.Column="2" Margin="0,0,20,0" Classes="panel" Padding="0">
+      <Border Name="MediaLibraryPanel" Grid.Column="2" Margin="0,0,20,0" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
             <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
@@ -178,10 +183,10 @@
       </Grid>
 
       <!-- Drag to give the timeline more room, or the player more room. -->
-      <GridSplitter Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
+      <GridSplitter Name="TimelineSplitter" Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
                     ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili traku" />
 
-      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="300" DataContext="{Binding Timeline}">
+      <Border Name="TimelinePanel" Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="300" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />
@@ -200,6 +205,8 @@
               <Button Classes="ghost" Content="+ Tekst traka" Command="{Binding AddTextTrackCommand}" />
               <Button Classes="cta" Content="+ DODAJ TEKST" Command="{Binding AddTextAtPlayheadCommand}"
                       ToolTip.Tip="Odmah dodaje tekst na poziciju plejheda i otvara sve kontrole za uređivanje." />
+              <Button Classes="cta" Content="+ DODAJ VIDEO NA KRAJ" Command="{Binding AppendSelectedVideoCommand}"
+                      ToolTip.Tip="Izabrani video dodaje odmah posle poslednjeg video-klipa. Tako se više videa spaja u jedan izvoz." />
               <Button Classes="ghost" Content="+ Slika (overlay)" Command="{Binding AddImageOverlayTrackCommand}" />
               <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" />
               <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" />
@@ -280,7 +287,7 @@
                       <ItemsControl ItemsSource="{Binding Clips}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
-                            <Border Classes="panel" Padding="8" Margin="0,4,0,0">
+                            <Border Classes="panel" Padding="8" Margin="0,4,0,0" IsVisible="{Binding IsSelected}">
                               <StackPanel Spacing="6">
                                 <Grid ColumnDefinitions="*,Auto">
                                   <StackPanel Spacing="2">

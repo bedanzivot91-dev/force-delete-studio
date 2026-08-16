@@ -26,6 +26,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IStorageService _storageService;
     private readonly IFramePreviewService _framePreviewService;
     private readonly ISubtitleGeneratorService _subtitleGeneratorService;
+    private readonly IAiWorkerClient? _aiWorkerClient;
     private readonly IRenderService _renderService;
 
     private readonly ILogger _logger;
@@ -156,7 +157,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IAiWorkerClient? aiWorkerClient = null)
     {
         Project = project;
         _projectRepository = projectRepository;
@@ -164,6 +165,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _storageService = storageService;
         _framePreviewService = framePreviewService;
         _subtitleGeneratorService = subtitleGeneratorService;
+        _aiWorkerClient = aiWorkerClient;
         _renderService = renderService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
         RefreshFormatSummaryLabel();
@@ -679,6 +681,128 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// </summary>
     [RelayCommand]
     private Task GenerateKaraokeCaptionsForVideoAsync() => GenerateCaptionsCoreAsync(wordLevel: true);
+
+    /// <summary>
+    /// Song-specific pipeline. Unlike the lightweight speech button, this calls the Python worker that
+    /// separates vocals with Demucs and runs a substantially larger faster-whisper model. Returned words
+    /// are grouped into editable subtitle lines so the timeline is not flooded with one editor per word.
+    /// </summary>
+    [RelayCommand]
+    private async Task GenerateSongLyricsAsync()
+    {
+        var videoFilePath = ResolvePrimaryVideoFilePath();
+        if (videoFilePath is null)
+        {
+            CaptionsStatusMessage = "Dodajte video na video traku pre prepoznavanja pesme.";
+            return;
+        }
+
+        if (_aiWorkerClient is null)
+        {
+            CaptionsStatusMessage = "AI worker nije dostupan u ovoj instalaciji.";
+            return;
+        }
+
+        _captionGenerationCts?.Dispose();
+        _captionGenerationCts = new CancellationTokenSource();
+        var cancellationToken = _captionGenerationCts.Token;
+        IsGeneratingCaptions = true;
+        CancelCaptionGenerationCommand.NotifyCanExecuteChanged();
+        CaptionsStatusMessage = "Proveravam AI alate za pesmu...";
+
+        try
+        {
+            var capabilities = await _aiWorkerClient.CheckCapabilitiesAsync(cancellationToken);
+            if (!capabilities.WorkerReachable || !capabilities.FasterWhisperAvailable)
+            {
+                CaptionsStatusMessage =
+                    "AI za pesme nije instaliran. Otvorite Podešavanja → Alati i instalirajte Python AI paket " +
+                    "(faster-whisper + Demucs). Obični mali Whisper model nije dovoljan za pevanje.";
+                return;
+            }
+
+            var words = new List<AiWorkerWord>();
+            string? workerError = null;
+            await foreach (var evt in _aiWorkerClient.RunAsync(new AiWorkerRequest
+            {
+                JobKind = AiWorkerJobKind.UnknownSongTranscription,
+                Profile = AiProcessingProfile.MostAccurate,
+                AudioFilePath = Path.GetFullPath(videoFilePath),
+                LanguageHint = "sr"
+            }, cancellationToken))
+            {
+                if (!string.IsNullOrWhiteSpace(evt.Message) && evt.Type is AiWorkerEventType.Progress or AiWorkerEventType.Warning)
+                {
+                    CaptionsStatusMessage = evt.Message;
+                }
+                if (evt.Type == AiWorkerEventType.Result && evt.Words is not null)
+                {
+                    words.AddRange(evt.Words);
+                }
+                if (evt.Type == AiWorkerEventType.Error)
+                {
+                    workerError = evt.Message;
+                }
+            }
+
+            if (workerError is not null)
+            {
+                throw new InvalidOperationException(workerError);
+            }
+
+            var lines = GroupSongWordsIntoCaptionLines(words);
+            Timeline.AddGeneratedCaptions(lines);
+            CaptionsStatusMessage = lines.Count == 0
+                ? "AI nije pouzdano prepoznao nijedan stih. Pokušajte sa čistijim zvukom ili unesite provereni tekst ručno."
+                : $"Dodato {lines.Count} stihova iz pesme. Kliknite stih na traci za font, veličinu, boju i položaj.";
+        }
+        catch (OperationCanceledException)
+        {
+            CaptionsStatusMessage = "Prepoznavanje pesme je prekinuto.";
+        }
+        catch (Exception ex)
+        {
+            CaptionsStatusMessage = $"Prepoznavanje pesme nije uspelo: {ex.Message}";
+            _logger.Error(ex, "AI prepoznavanje pesme nije uspelo za {File}", videoFilePath);
+        }
+        finally
+        {
+            IsGeneratingCaptions = false;
+            CancelCaptionGenerationCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    internal static IReadOnlyList<TranscribedCaptionSegment> GroupSongWordsIntoCaptionLines(
+        IReadOnlyList<AiWorkerWord> words, int maximumWordsPerLine = 6)
+    {
+        var result = new List<TranscribedCaptionSegment>();
+        var line = new List<AiWorkerWord>();
+
+        void Flush()
+        {
+            if (line.Count == 0) return;
+            result.Add(new TranscribedCaptionSegment(
+                line[0].Start,
+                line[^1].End > line[0].Start ? line[^1].End : line[0].Start + TimeSpan.FromMilliseconds(250),
+                string.Join(' ', line.Select(w => w.Text.Trim()))));
+            line.Clear();
+        }
+
+        foreach (var word in words.Where(w => !string.IsNullOrWhiteSpace(w.Text)).OrderBy(w => w.Start))
+        {
+            if (line.Count > 0 && (word.Start - line[^1].End > TimeSpan.FromMilliseconds(850) || line.Count >= maximumWordsPerLine))
+            {
+                Flush();
+            }
+            line.Add(word);
+            if (word.Text.EndsWith('.') || word.Text.EndsWith('!') || word.Text.EndsWith('?'))
+            {
+                Flush();
+            }
+        }
+        Flush();
+        return result;
+    }
 
     [RelayCommand(CanExecute = nameof(IsGeneratingCaptions))]
     private void CancelCaptionGeneration() => _captionGenerationCts?.Cancel();

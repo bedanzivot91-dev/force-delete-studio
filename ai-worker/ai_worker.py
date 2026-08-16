@@ -16,6 +16,10 @@ import argparse
 import json
 import sys
 import platform
+import os
+import subprocess
+import tempfile
+from pathlib import Path
 
 # Force UTF-8 stdout/stderr regardless of the OS locale/codepage. Matters most on Windows: a redirected
 # (piped) stream there defaults to the locale's codepage, not UTF-8, which silently mangles Serbian
@@ -57,12 +61,45 @@ def run_capability_check() -> int:
     return 0
 
 
-def run_transcription(job_kind: str, profile: str) -> int:
+def _find_vocals(root: str) -> str | None:
+    matches = list(Path(root).rglob("vocals.wav"))
+    return str(matches[0]) if matches else None
+
+
+def _separate_vocals(source: str, work_dir: str) -> str:
+    """Use Demucs' supported two-stem mode. If separation fails, keep the original audio usable."""
+    try:
+        __import__("demucs")
+    except ImportError:
+        emit({"type": "Warning", "message": "Demucs nije instaliran; prepoznajem originalni miks bez izdvajanja vokala."})
+        return source
+
+    emit({"type": "Progress", "progressPercent": 5, "message": "Izdvajam pevanje od instrumentalne muzike (Demucs)..."})
+    completed = subprocess.run(
+        [sys.executable, "-m", "demucs", "--two-stems=vocals", "-n", "htdemucs", "--out", work_dir, source],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    vocals = _find_vocals(work_dir)
+    if completed.returncode == 0 and vocals:
+        emit({"type": "Progress", "progressPercent": 40, "message": "Vokal je izdvojen. Prepoznajem stihove..."})
+        return vocals
+
+    detail = completed.stderr.strip().splitlines()[-1] if completed.stderr.strip() else "nepoznata greška"
+    emit({"type": "Warning", "message": f"Demucs nije uspeo ({detail}); nastavljam sa originalnim miksom."})
+    return source
+
+
+def run_transcription(request: dict, job_kind: str, profile: str) -> int:
     # Balanced/MostAccurate need faster-whisper at minimum; Demucs/WhisperX are used opportunistically
     # by those profiles for vocals-only ASR / forced alignment where installed. None are bundled or
     # auto-installed - see requirements.txt and docs/PHASE_STATUS.md for the honest current gap.
     try:
-        import faster_whisper  # noqa: F401
+        from faster_whisper import WhisperModel
     except ImportError:
         emit({
             "type": "Error",
@@ -74,14 +111,62 @@ def run_transcription(job_kind: str, profile: str) -> int:
         })
         return 1
 
-    # Real faster-whisper/Demucs/WhisperX orchestration is not implemented yet (spec Phase 5 tracks
-    # this as the next real gap once the above import succeeds in a real deployment) - emitting a
-    # fabricated transcript here would violate the "never guess" rule the rest of this codebase follows.
-    emit({
-        "type": "Error",
-        "message": f"Obrada profila '{profile}' za '{job_kind}' još nije implementirana u AI worker-u.",
-    })
-    return 1
+    source = request.get("audioFilePath")
+    if not source or not os.path.isfile(source):
+        emit({"type": "Error", "message": "Audio/video fajl za prepoznavanje ne postoji."})
+        return 1
+
+    model_name = "large-v3" if profile == "MostAccurate" else "medium"
+    language = request.get("languageHint") or "sr"
+    verified = (request.get("verifiedLyrics") or "").strip()
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="npvs_song_") as work_dir:
+            recognition_source = _separate_vocals(source, work_dir)
+            emit({"type": "Progress", "progressPercent": 45, "message": f"Učitavam Whisper model {model_name}..."})
+
+            # int8 works on ordinary Windows CPUs; CUDA users can opt into GPU through the environment
+            # without making the application unusable on machines that do not have an NVIDIA card.
+            device = os.environ.get("NPVS_WHISPER_DEVICE", "cpu")
+            compute_type = "float16" if device == "cuda" else "int8"
+            model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            segments, info = model.transcribe(
+                recognition_source,
+                language=language,
+                task="transcribe",
+                beam_size=5,
+                best_of=5,
+                temperature=0,
+                word_timestamps=True,
+                # Speech VAD often removes sustained sung vowels. Demucs has already reduced the
+                # accompaniment, so preserving the complete vocal is the safer choice for lyrics.
+                vad_filter=False,
+                condition_on_previous_text=True,
+                initial_prompt=verified or "Srpska pesma. Prepiši tačno otpevane stihove sa dijakriticima č ć š ž đ.",
+            )
+
+            words = []
+            raw_parts = []
+            for segment in segments:
+                raw_parts.append(segment.text.strip())
+                for word in segment.words or []:
+                    text = word.word.strip()
+                    if not text or word.start is None or word.end is None:
+                        continue
+                    words.append({
+                        "text": text,
+                        "start": float(word.start),
+                        "end": max(float(word.end), float(word.start) + 0.05),
+                        "confidence": float(word.probability or 0),
+                    })
+
+            emit({"type": "Progress", "progressPercent": 95, "message": "Grupišem prepoznate reči u stihove..."})
+            emit({"type": "Result", "words": words, "rawText": " ".join(raw_parts).strip()})
+            emit({"type": "Done", "message": f"Prepoznato {len(words)} reči; jezik {info.language}."})
+            return 0
+    except Exception as ex:
+        emit({"type": "Error", "message": f"Prepoznavanje stihova nije uspelo: {ex}"})
+        return 1
 
 
 def main() -> int:
@@ -109,7 +194,7 @@ def main() -> int:
     if job_kind == "CapabilityCheck":
         return run_capability_check()
     if job_kind in ("KnownSongAlignment", "UnknownSongTranscription"):
-        return run_transcription(job_kind, profile)
+        return run_transcription(request, job_kind, profile)
 
     emit({"type": "Error", "message": f"Nepoznat tip posla: {job_kind!r}"})
     return 1

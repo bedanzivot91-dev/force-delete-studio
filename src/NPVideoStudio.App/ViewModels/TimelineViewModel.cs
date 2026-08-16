@@ -120,6 +120,39 @@ public sealed partial class TimelineViewModel : ViewModelBase
         SelectedClipId = clip.Id;
     }
 
+    /// <summary>
+    /// The direct multi-video workflow: pick a video in the media dropdown and append it after the last
+    /// video clip. The old workflow required creating a track, clicking "+ Klip" and manually guessing
+    /// the next start time, which made a basic join operation unnecessarily difficult.
+    /// </summary>
+    [RelayCommand]
+    private void AppendSelectedVideo()
+    {
+        var asset = SelectedMediaAsset?.Asset;
+        if (asset is null || !asset.HasVideoStream || asset.ProbeError is not null)
+        {
+            return;
+        }
+
+        var track = _session.Tracks.FirstOrDefault(t => t.Kind == TimelineTrackKind.Video && !t.IsLocked);
+        if (track is null)
+        {
+            track = new TimelineTrack { Kind = TimelineTrackKind.Video, Name = "Video" };
+            _session.AddTrack(track);
+        }
+
+        var appendAt = _session.Tracks
+            .Where(t => t.Kind == TimelineTrackKind.Video)
+            .SelectMany(t => t.Clips)
+            .Select(c => (double?)c.TimelineEndSeconds)
+            .DefaultIfEmpty(0)
+            .Max() ?? 0;
+        var clip = BuildMediaClip(asset, appendAt);
+        _session.AddClip(track.Id, clip);
+        RefreshFromSession();
+        SelectedClipId = clip.Id;
+    }
+
     [RelayCommand]
     private void ZoomIn() => ZoomPixelsPerSecond = Math.Min(300, ZoomPixelsPerSecond * 1.35);
 
@@ -227,6 +260,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
             Tracks.Add(CreateTrackItem(track));
         }
 
+        // Refresh rebuilds every clip ViewModel. Keep the inspector open for the same selected clip;
+        // otherwise changing one font/color value immediately hid the editor because the replacement
+        // ViewModel started unselected while SelectedClipId itself had not changed.
+        foreach (var clip in Tracks.SelectMany(t => t.Clips))
+        {
+            clip.RefreshSelection(SelectedClipId);
+        }
+
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(TotalDurationSeconds));
@@ -329,6 +370,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
 
         _session.AddClip(track.Id, clip);
         RefreshFromSession();
+        SelectedClipId = clip.Id;
     }
 
     private static TimelineClip BuildMediaClip(MediaAsset asset, double timelineStartSeconds)

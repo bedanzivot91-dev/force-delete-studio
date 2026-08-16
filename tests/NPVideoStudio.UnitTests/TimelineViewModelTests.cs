@@ -43,6 +43,7 @@ public class TimelineViewModelTests
         // rather than trusting the stale clipItem instance - exactly what the real WorkspaceView does.
         var refreshedClipItem = timeline.Tracks[0].Clips[0];
         Assert.Equal("Ispravljen tekst", refreshedClipItem.TextContent);
+        Assert.True(refreshedClipItem.IsSelected);
 
         timeline.SaveToProject();
         Assert.Equal("Ispravljen tekst", project.Timeline.Tracks[0].Clips[0].TextContent);
@@ -96,5 +97,27 @@ public class TimelineViewModelTests
         Assert.True(timeline.Tracks[0].Clips[0].PixelWidth > oldWidth);
         Assert.True(timeline.Tracks[0].LaneWidth > 1200);
         Assert.Equal(timeline.ZoomPixelsPerSecond, project.Timeline.ZoomPixelsPerSecond);
+    }
+
+    [Fact]
+    public void AppendSelectedVideo_PlacesEveryVideoAfterThePreviousOne()
+    {
+        var first = new MediaAsset { FilePath = "/tmp/one.mp4", Duration = TimeSpan.FromSeconds(8), HasVideoStream = true };
+        var second = new MediaAsset { FilePath = "/tmp/two.mp4", Duration = TimeSpan.FromSeconds(12), HasVideoStream = true };
+        var project = new Project { Name = "Spojeni video", MediaLibrary = { first, second } };
+        var media = new ObservableCollection<MediaAssetViewModel> { new(first), new(second) };
+        var timeline = new TimelineViewModel(project, media, () => 0);
+
+        timeline.SelectedMediaAsset = media[0];
+        timeline.AppendSelectedVideoCommand.Execute(null);
+        timeline.SelectedMediaAsset = media[1];
+        timeline.AppendSelectedVideoCommand.Execute(null);
+
+        var clips = Assert.Single(timeline.Tracks).Clips;
+        Assert.Equal(2, clips.Count);
+        Assert.Equal(0, clips[0].StartSeconds);
+        Assert.Equal(8, clips[1].StartSeconds);
+        Assert.Equal(20, timeline.TotalDurationSeconds);
+        Assert.True(clips[1].IsSelected);
     }
 }

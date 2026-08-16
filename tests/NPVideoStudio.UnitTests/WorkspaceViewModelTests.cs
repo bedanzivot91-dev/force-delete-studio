@@ -77,6 +77,26 @@ public class WorkspaceViewModelTests
         Assert.Equal(0, workspace.Player.TotalDurationSeconds);
     }
 
+    [Fact]
+    public void SongWords_AreGroupedIntoReadableTimedLines()
+    {
+        var words = new[]
+        {
+            new AiWorkerWord { Text = "Još", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(.3) },
+            new AiWorkerWord { Text = "pamtim", Start = TimeSpan.FromSeconds(.31), End = TimeSpan.FromSeconds(.7) },
+            new AiWorkerWord { Text = "tvoj", Start = TimeSpan.FromSeconds(.72), End = TimeSpan.FromSeconds(1) },
+            new AiWorkerWord { Text = "pogled.", Start = TimeSpan.FromSeconds(1.02), End = TimeSpan.FromSeconds(1.4) },
+            new AiWorkerWord { Text = "Novi", Start = TimeSpan.FromSeconds(2.5), End = TimeSpan.FromSeconds(2.8) }
+        };
+
+        var lines = WorkspaceViewModel.GroupSongWordsIntoCaptionLines(words);
+
+        Assert.Equal(2, lines.Count);
+        Assert.Equal("Još pamtim tvoj pogled.", lines[0].Text);
+        Assert.Equal(TimeSpan.FromSeconds(1.4), lines[0].End);
+        Assert.Equal("Novi", lines[1].Text);
+    }
+
     [AvaloniaFact]
     public void AddingTrackAndClip_UpdatesPlayerTotalDuration()
     {
