@@ -180,6 +180,43 @@
                         </StackPanel>
                       </Grid>
 
+                      <!-- The visual lane: clips drawn at their real position and length, and draggable.
+                           Until now the "timeline" was only a vertical list of clips with nudge buttons -
+                           you could not see where a clip sat relative to the others, and moving one meant
+                           clicking 0.5s at a time. Each clip is a Canvas child positioned by
+                           PixelLeft/PixelWidth (seconds x zoom), so what you see matches the real timing. -->
+                      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Clips}" Height="52" Name="ClipLane">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <Canvas Height="52" Background="#1A1A1A" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.Styles>
+                            <!-- x:DataType is required here: the setter's binding is evaluated against the
+                                 CONTAINER, whose compiled-binding type would otherwise be inferred from the
+                                 enclosing template (the track), not the clip it actually holds. -->
+                            <Style Selector="ContentPresenter" x:DataType="vm:TimelineClipItemViewModel">
+                              <Setter Property="Canvas.Left" Value="{Binding PixelLeft}" />
+                              <Setter Property="Canvas.Top" Value="6" />
+                            </Style>
+                          </ItemsControl.Styles>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
+                              <Border Classes="cliplane" Width="{Binding PixelWidth}" Height="40"
+                                      Background="{DynamicResource ThemeAccentSubtleBrush}"
+                                      BorderBrush="{DynamicResource ThemeAccentBrush}" BorderThickness="1"
+                                      CornerRadius="4" ClipToBounds="True"
+                                      Tag="{Binding}"
+                                      ToolTip.Tip="Prevucite mišem da pomerite klip po vremenu.">
+                                <TextBlock Text="{Binding Label}" Margin="6,4" FontSize="11"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+
                       <ItemsControl ItemsSource="{Binding Clips}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:TimelineClipItemViewModel">

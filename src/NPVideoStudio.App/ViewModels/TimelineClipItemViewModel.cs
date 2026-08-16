@@ -41,6 +41,17 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public string Label { get; }
     public double StartSeconds => Clip.TimelineStartSeconds;
     public double DurationSeconds => Clip.TimelineDurationSeconds;
+
+    /// <summary>How many pixels one second of timeline occupies - the lane's zoom level. Set by the owning
+    /// track so every clip on screen uses the same scale.</summary>
+    public double PixelsPerSecond { get; init; } = 40;
+
+    /// <summary>Where this clip's left edge sits in the lane, in pixels.</summary>
+    public double PixelLeft => StartSeconds * PixelsPerSecond;
+
+    /// <summary>How wide this clip is drawn. Floored at a few pixels so a very short clip is still big
+    /// enough to see and grab with the mouse instead of collapsing to an invisible sliver.</summary>
+    public double PixelWidth => Math.Max(6, DurationSeconds * PixelsPerSecond);
     public string TimingLabel => $"{FormatTime(Clip.TimelineStartSeconds)} → {FormatTime(Clip.TimelineEndSeconds)}";
     public bool IsMuted => Clip.IsMuted;
     public bool HasFadeIn => Clip.FadeInSeconds > 0;

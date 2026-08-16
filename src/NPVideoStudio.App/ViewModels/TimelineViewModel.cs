@@ -17,6 +17,10 @@ namespace NPVideoStudio.App.ViewModels;
 public sealed partial class TimelineViewModel : ViewModelBase
 {
     private const double NudgeStepSeconds = 0.5;
+
+    /// <summary>Zoom of the visual lane: how many pixels one second occupies. Mirrors
+    /// <c>Timeline.ZoomPixelsPerSecond</c> so a saved project reopens at the zoom the user left it at.</summary>
+    public double ZoomPixelsPerSecond => _project.Timeline.ZoomPixelsPerSecond;
     private const double DefaultTextClipDurationSeconds = 3.0;
 
     private readonly Project _project;
@@ -69,6 +73,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
     private void AddTrack(TimelineTrackKind kind)
     {
         _session.AddTrack(new TimelineTrack { Kind = kind });
+        RefreshFromSession();
+    }
+
+    /// <summary>Moves a clip to a new position on its track - what a mouse drag in the visual lane commits
+    /// on release. One session call, so the whole drag is a single undo step.</summary>
+    public void MoveClipTo(string clipId, double newStartSeconds)
+    {
+        _session.MoveClip(clipId, Math.Max(0, newStartSeconds));
         RefreshFromSession();
     }
 
@@ -167,7 +179,10 @@ public sealed partial class TimelineViewModel : ViewModelBase
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
-            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay, OnEffectsChanged);
+            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay, OnEffectsChanged)
+        {
+            PixelsPerSecond = ZoomPixelsPerSecond
+        };
     }
 
     private void AddClipToTrack(TimelineTrack track)

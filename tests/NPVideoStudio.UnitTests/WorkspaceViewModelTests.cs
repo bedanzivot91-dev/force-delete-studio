@@ -685,4 +685,73 @@ public class WorkspaceViewModelTests
             File.Delete(path);
         }
     }
+
+    [AvaloniaFact]
+    public void ClipsInTheVisualLane_ArePositionedAndSizedByTheirRealTiming()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(20) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        project.Timeline.ZoomPixelsPerSecond = 40;
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        workspace.Timeline.MoveClipTo(workspace.Timeline.Tracks[0].Clips[0].Clip.Id, 5);
+
+        var clip = workspace.Timeline.Tracks[0].Clips[0];
+
+        // 5s in at 40 px/s = 200px from the left; 20s long = 800px wide.
+        Assert.Equal(200, clip.PixelLeft);
+        Assert.Equal(800, clip.PixelWidth);
+    }
+
+    [AvaloniaFact]
+    public void AVeryShortClip_IsStillWideEnoughToSeeAndGrabWithTheMouse()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromMilliseconds(20) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        Assert.True(workspace.Timeline.Tracks[0].Clips[0].PixelWidth >= 6);
+    }
+
+    [AvaloniaFact]
+    public void MoveClipTo_WhatADragCommits_RepositionsTheClipAndIsOneUndoStep()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        var clipId = workspace.Timeline.Tracks[0].Clips[0].Clip.Id;
+
+        workspace.Timeline.MoveClipTo(clipId, 7.5);
+        Assert.Equal(7.5, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+
+        workspace.Timeline.UndoCommand.Execute(null);
+        Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+    }
+
+    [AvaloniaFact]
+    public void MoveClipTo_DraggedPastTheStart_IsClampedToZeroInsteadOfGoingNegative()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        workspace.Timeline.MoveClipTo(workspace.Timeline.Tracks[0].Clips[0].Clip.Id, -50);
+
+        Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+    }
 }

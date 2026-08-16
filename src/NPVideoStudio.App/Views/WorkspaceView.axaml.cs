@@ -16,6 +16,72 @@ public partial class WorkspaceView : UserControl
         // which is most of this screen. Typing in a text box must still work normally, so text-entry
         // controls are excluded below rather than the shortcut being dropped everywhere.
         AddHandler(KeyDownEvent, OnShortcutKeyDown, RoutingStrategies.Tunnel);
+
+        AddHandler(PointerPressedEvent, OnLanePointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerMovedEvent, OnLanePointerMoved, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnLanePointerReleased, RoutingStrategies.Tunnel);
+    }
+
+    // --- Dragging a clip along the lane ------------------------------------------------------------
+    // The timeline had no visual lane at all before this: clips could only be nudged 0.5s at a time with
+    // buttons. Drag works on the clip's own Border (tagged with its ViewModel in the lane template), and
+    // commits the new position through the timeline session on release, so the whole drag is ONE undo
+    // step instead of one per pixel moved.
+
+    private TimelineClipItemViewModel? _draggingClip;
+    private double _dragStartX;
+    private double _dragOriginalStartSeconds;
+    private bool _dragMoved;
+
+    private void OnLanePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is not Control { Tag: TimelineClipItemViewModel clip } control ||
+            !control.Classes.Contains("cliplane"))
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _draggingClip = clip;
+        _dragStartX = e.GetPosition(this).X;
+        _dragOriginalStartSeconds = clip.StartSeconds;
+        _dragMoved = false;
+    }
+
+    private void OnLanePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_draggingClip is null)
+        {
+            return;
+        }
+
+        // A few pixels of slack so a plain click doesn't register as a drag and nudge the clip.
+        if (Math.Abs(e.GetPosition(this).X - _dragStartX) > 3)
+        {
+            _dragMoved = true;
+        }
+    }
+
+    private void OnLanePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        var clip = _draggingClip;
+        _draggingClip = null;
+
+        if (clip is null || !_dragMoved || DataContext is not WorkspaceViewModel viewModel)
+        {
+            return;
+        }
+
+        var pixelsMoved = e.GetPosition(this).X - _dragStartX;
+        var secondsMoved = pixelsMoved / Math.Max(1, clip.PixelsPerSecond);
+        var newStart = Math.Max(0, _dragOriginalStartSeconds + secondsMoved);
+
+        viewModel.Timeline.MoveClipTo(clip.Clip.Id, newStart);
+        e.Handled = true;
     }
 
     /// <summary>
