@@ -116,7 +116,6 @@ public sealed partial class TimelineViewModel : ViewModelBase
             SourceTrimOutSeconds = DefaultTextClipDurationSeconds
         };
         _session.AddClip(track.Id, clip);
-        SelectedClipId = clip.Id;
         RefreshFromSession();
         SelectedClipId = clip.Id;
     }
