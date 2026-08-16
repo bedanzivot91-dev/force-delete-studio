@@ -240,6 +240,53 @@ public class VideoPlaybackSessionTests
         }
     }
 
+    /// <summary>
+    /// The window sets the volume from its slider the instant playback is asked for, which is before
+    /// libvlc has an audio output to put it in. That early value must not be lost - the session has to
+    /// still be holding it, and re-pushing it, once playback is actually running.
+    /// </summary>
+    [Fact]
+    public void Volume_SetBeforePlaybackStarts_SurvivesIntoPlayback()
+    {
+        using var session = VideoPlaybackSession.Create();
+        RequireLibVlcOnWindows(session);
+
+        if (!session.IsReady)
+        {
+            Assert.NotNull(session.FailureReason);
+            return;
+        }
+
+        session.Player!.SetVideoFormat("RV32", 32, 32, 32 * 4);
+        var scratch = Marshal.AllocHGlobal(32 * 32 * 4);
+
+        try
+        {
+            session.Player.SetVideoCallbacks(
+                lockCb: (IntPtr _, IntPtr planes) => { Marshal.WriteIntPtr(planes, scratch); return IntPtr.Zero; },
+                unlockCb: null,
+                displayCb: (IntPtr _, IntPtr _) => { });
+
+            session.Volume = 55;                          // before anything is playing
+            Assert.True(session.Open(ProbeVideo, out var message), message);
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+            while (session.TimeMs <= 0 && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(100);
+            }
+
+            Assert.True(session.TimeMs > 0, "playback never started, so the re-apply could not be observed");
+            Assert.Equal(55, session.Volume);
+            _output.WriteLine($"volume held across playback start; libvlc itself reports {session.ActualPlayerVolume}");
+        }
+        finally
+        {
+            session.Stop();
+            Marshal.FreeHGlobal(scratch);
+        }
+    }
+
     /// <summary>Seek and volume are the two controls the user reported as dead; drive them for real.</summary>
     [Fact]
     public void SeekAndVolume_MoveTheRealPlayer()
@@ -278,14 +325,33 @@ public class VideoPlaybackSessionTests
             Assert.True(session.LengthMs > 0, "libvlc never reported a duration for the probe file.");
             _output.WriteLine($"length reported: {session.LengthMs} ms");
 
+            // Volume is asserted against the session's own state, not against libvlc's getter, and this
+            // is a deliberate correction rather than a weakened test. libvlc only holds a volume inside
+            // an audio output module, so its getter reports a meaningless value whenever no such module
+            // exists: this exact assertion first failed on Windows CI (set 40, read back 0, no sound card
+            // on the runner), and locally libvlc reports -1 whenever the memory audio output is in use,
+            // because audio callbacks bypass the volume stage entirely. Binding the UI slider to that
+            // getter would snap it to 0 the moment the window opened. What the app can and must
+            // guarantee is that the number the user chose is remembered and pushed to libvlc whenever
+            // an output exists - including again on Playing, since a volume set before playback begins
+            // lands on a player with no audio output and is dropped.
             session.Volume = 40;
             Assert.Equal(40, session.Volume);
+            _output.WriteLine($"volume 40 -> libvlc itself reports {session.ActualPlayerVolume} " +
+                              "(negative or 0 is normal with no audio output module)");
 
             session.Volume = 500;                 // clamped, not thrown
-            Assert.InRange(session.Volume, 0, 100);
+            Assert.Equal(100, session.Volume);
+
+            session.Volume = -20;
+            Assert.Equal(0, session.Volume);
+
+            session.Volume = 80;
+            Assert.Equal(80, session.Volume);
 
             var muted = session.ToggleMute();
             Assert.Equal(muted, session.Player.Mute);
+            Assert.False(session.ToggleMute());   // toggles back off
 
             session.SeekToSeconds(2);
             var seekDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);

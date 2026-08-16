@@ -20,11 +20,23 @@ public sealed class VideoPlaybackSession : IDisposable
     private LibVLC? _libVlc;
     private bool _isDisposed;
 
+    private int _desiredVolume = 100;
+
     private VideoPlaybackSession(LibVLC? libVlc, MediaPlayer? player, string? failureReason)
     {
         _libVlc = libVlc;
         Player = player;
         FailureReason = failureReason;
+
+        if (player is not null)
+        {
+            // THE reason sound could go missing. libvlc does not create its audio output module until
+            // playback has actually begun, so a volume set any earlier - which is exactly what the
+            // window did, right after Play() returned - is written to a player that has no audio output
+            // yet and is silently dropped. Windows CI proved it: set 40, read back 0.
+            // Re-applying once playback really starts is what makes the volume stick.
+            player.Playing += (_, _) => ApplyVolumeToPlayer();
+        }
     }
 
     /// <summary>The live player, or null when libvlc could not start on this machine.</summary>
@@ -136,16 +148,34 @@ public sealed class VideoPlaybackSession : IDisposable
         return Player.Mute;
     }
 
+    /// <summary>
+    /// The volume the user asked for. Reads back what was set rather than what libvlc currently reports,
+    /// because libvlc reports a meaningless value whenever no audio output module exists yet - so
+    /// trusting its getter would make the slider jump to 0 the moment the window opened.
+    /// The value is pushed to libvlc now if possible, and again when playback starts.
+    /// </summary>
     public int Volume
     {
-        get => IsReady ? Player!.Volume : 0;
+        get => _desiredVolume;
         set
         {
-            if (IsReady)
-            {
-                Player!.Volume = Math.Clamp(value, 0, 100);
-            }
+            _desiredVolume = Math.Clamp(value, 0, 100);
+            ApplyVolumeToPlayer();
         }
+    }
+
+    /// <summary>What libvlc itself currently reports, purely for diagnostics and tests. Negative or
+    /// stale values here are normal before an audio output exists.</summary>
+    public int ActualPlayerVolume => IsReady ? Player!.Volume : -1;
+
+    private void ApplyVolumeToPlayer()
+    {
+        if (!IsReady)
+        {
+            return;
+        }
+
+        try { Player!.Volume = _desiredVolume; } catch { /* no audio output yet; retried on Playing */ }
     }
 
     public long TimeMs => IsReady ? Math.Max(0, Player!.Time) : 0;
