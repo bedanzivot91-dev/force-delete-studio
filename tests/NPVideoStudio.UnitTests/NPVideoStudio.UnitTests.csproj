@@ -12,6 +12,11 @@
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="Avalonia.Headless.XUnit" Version="11.1.3" />
+    <!-- So VideoPlaybackSessionTests runs against the SAME bundled libvlc build the app ships on
+         Windows, rather than whatever happens to be installed on the machine. On Linux there is no
+         win-x64 native to load and the tests fall back to a system libvlc if one exists, or report
+         the unavailable branch. -->
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
   </ItemGroup>
 
   <ItemGroup>

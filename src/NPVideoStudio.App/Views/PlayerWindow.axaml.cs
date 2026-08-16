@@ -3,7 +3,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using LibVLCSharp.Shared;
 using NPVideoStudio.App.Services;
 
 namespace NPVideoStudio.App.Views;
@@ -11,20 +10,18 @@ namespace NPVideoStudio.App.Views;
 /// <summary>
 /// A real, resizable video player window with continuous playback and sound.
 ///
-/// Deliberately owns its OWN <see cref="LibVLC"/>/<see cref="MediaPlayer"/> rather than sharing the
-/// workspace's: two VideoView controls bound to one MediaPlayer is a known-broken configuration
-/// (donandren/vlcsharpavalonia#13, "Multiple VideoView Controls Behavior"), and this window is opened
-/// while the workspace screen is still alive behind it.
+/// All playback behaviour lives in <see cref="VideoPlaybackSession"/>, which is covered by tests that
+/// really decode a file and measure the frames and audio samples that come out. This class is only the
+/// window around it: native handle lifetime, the controls, and full screen.
 ///
-/// Written in code-behind rather than MVVM on purpose: the native handle lifetime here is tied to this
-/// Window's own open/close, and the whole point of this class is to keep the VideoView as the window's
-/// direct content (see the XAML comment for the Avalonia/LibVLCSharp issue this works around) - routing
-/// it through a shared ViewModel is what made the previous embedded player unfixable.
+/// Deliberately owns its OWN session rather than sharing the workspace's: two VideoView controls bound
+/// to one MediaPlayer is a known-broken configuration (donandren/vlcsharpavalonia#13, "Multiple
+/// VideoView Controls Behavior"), and this window is opened while the workspace screen is still alive
+/// behind it.
 /// </summary>
 public partial class PlayerWindow : Window
 {
-    private LibVLC? _libVlc;
-    private MediaPlayer? _mediaPlayer;
+    private VideoPlaybackSession? _session;
     private readonly DispatcherTimer _timer;
     private readonly string _filePath;
     private readonly PlayerTextActions? _textActions;
@@ -112,7 +109,7 @@ public partial class PlayerWindow : Window
         catch (Exception ex)
         {
             // Reported here rather than swallowed: this runs on a button click in a window with no
-            // logger of its own, so the message box is the only place the user would ever see it.
+            // logger of its own, so this line is the only place the user would ever see it.
             TextToolsStatus.Text = $"Nije uspelo: {ex.Message}";
         }
         finally
@@ -130,85 +127,42 @@ public partial class PlayerWindow : Window
 
     private void InitialisePlayerAndStart()
     {
-        try
+        _session = VideoPlaybackSession.Create();
+
+        if (!_session.IsReady)
         {
-            LibVLCSharp.Shared.Core.Initialize();
-            _libVlc = new LibVLC("--quiet");
-            _mediaPlayer = new MediaPlayer(_libVlc);
-            Video.MediaPlayer = _mediaPlayer;
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text =
-                $"Ugrađeni plejer nije mogao da se pokrene: {ex.Message}\n" +
-                "Koristite dugme „Otvori u mom plejeru“ - radi uvek.";
+            StatusText.Text = _session.FailureReason;
             return;
         }
 
-        StartPlayback();
-    }
+        Video.MediaPlayer = _session.Player;
 
-    private void StartPlayback()
-    {
-        if (_mediaPlayer is null || _libVlc is null || string.IsNullOrWhiteSpace(_filePath))
+        var started = _session.Open(_filePath, out var message);
+        StatusText.Text = message;
+
+        if (!started)
         {
             return;
         }
 
-        if (!File.Exists(_filePath))
-        {
-            StatusText.Text = $"Fajl ne postoji: {_filePath}";
-            return;
-        }
-
-        using (var media = new LibVLCSharp.Shared.Media(_libVlc, _filePath, FromType.FromPath))
-        {
-            _mediaPlayer.Play(media);
-        }
-
-        _mediaPlayer.Volume = (int)VolumeSlider.Value;
+        _session.Volume = (int)VolumeSlider.Value;
         _timer.Start();
 
         Title = $"NP Video Studio - {Path.GetFileName(_filePath)}";
-        StatusText.Text = "Pušta se. Prozor možete povećati ili prevući u ceo ekran.";
         PlayPauseButton.Content = "⏸ Pauza";
     }
 
-    private void OnPlayPause(object? sender, RoutedEventArgs e)
-    {
-        if (_mediaPlayer is null)
-        {
-            return;
-        }
-
-        if (_mediaPlayer.IsPlaying)
-        {
-            _mediaPlayer.Pause();
-            PlayPauseButton.Content = "▶ Pusti";
-        }
-        else
-        {
-            _mediaPlayer.Play();
-            PlayPauseButton.Content = "⏸ Pauza";
-        }
-    }
+    private void OnPlayPause(object? sender, RoutedEventArgs e) =>
+        PlayPauseButton.Content = _session?.TogglePlayPause() == true ? "⏸ Pauza" : "▶ Pusti";
 
     private void OnStop(object? sender, RoutedEventArgs e)
     {
-        _mediaPlayer?.Stop();
+        _session?.Stop();
         PlayPauseButton.Content = "▶ Pusti";
     }
 
-    private void OnToggleMute(object? sender, RoutedEventArgs e)
-    {
-        if (_mediaPlayer is null)
-        {
-            return;
-        }
-
-        _mediaPlayer.Mute = !_mediaPlayer.Mute;
-        MuteButton.Content = _mediaPlayer.Mute ? "🔇" : "🔊";
-    }
+    private void OnToggleMute(object? sender, RoutedEventArgs e) =>
+        MuteButton.Content = _session?.ToggleMute() == true ? "🔇" : "🔊";
 
     /// <summary>
     /// Hands the file to whatever video player Windows already uses. Deliberately here as a guaranteed
@@ -247,36 +201,33 @@ public partial class PlayerWindow : Window
     /// <see cref="SyncFromPlayer"/> must not be treated as a user seek and fight playback.</summary>
     private void OnSeekSliderChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != Slider.ValueProperty || _isSyncingFromPlayer || _mediaPlayer is null || _isDisposed)
+        if (e.Property != Slider.ValueProperty || _isSyncingFromPlayer || _isDisposed)
         {
             return;
         }
 
-        if (_mediaPlayer.Length > 0)
-        {
-            _mediaPlayer.Time = (long)(SeekSlider.Value * 1000);
-        }
+        _session?.SeekToSeconds(SeekSlider.Value);
     }
 
     private void OnVolumeSliderChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != Slider.ValueProperty || _mediaPlayer is null || _isDisposed)
+        if (e.Property != Slider.ValueProperty || _isDisposed || _session is null)
         {
             return;
         }
 
-        _mediaPlayer.Volume = (int)VolumeSlider.Value;
+        _session.Volume = (int)VolumeSlider.Value;
     }
 
     private void SyncFromPlayer()
     {
-        if (_mediaPlayer is null || _isDisposed)
+        if (_session is null || !_session.IsReady || _isDisposed)
         {
             return;
         }
 
-        var lengthMs = _mediaPlayer.Length;
-        var timeMs = Math.Max(0, _mediaPlayer.Time);
+        var lengthMs = _session.LengthMs;
+        var timeMs = _session.TimeMs;
 
         _isSyncingFromPlayer = true;
         try
@@ -296,9 +247,6 @@ public partial class PlayerWindow : Window
         }
     }
 
-    /// <summary>Same ordering as RealPreviewViewModel.Dispose, and for the same reason: freeing a still-
-    /// playing MediaPlayer is a native access violation that kills the process with no managed exception
-    /// and no log entry.</summary>
     private void Cleanup()
     {
         if (_isDisposed)
@@ -309,10 +257,10 @@ public partial class PlayerWindow : Window
         _isDisposed = true;
         _timer.Stop();
 
-        try { _mediaPlayer?.Stop(); } catch { /* already gone */ }
-        try { Video.MediaPlayer = null; } catch { /* ditto */ }
-        try { _mediaPlayer?.Dispose(); } catch { /* ditto */ }
-        try { _libVlc?.Dispose(); } catch { /* ditto */ }
+        // Detach before disposing: the VideoView must not be left pointing at a freed MediaPlayer.
+        try { Video.MediaPlayer = null; } catch { /* window already tearing down */ }
+        _session?.Dispose();
+        _session = null;
     }
 
     private static string Format(double seconds)
