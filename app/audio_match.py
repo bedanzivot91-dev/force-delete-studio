@@ -39,6 +39,16 @@ ALGORITHM_VERSION = "sps-spectral-v3"
 FRAME_SECONDS = 0.5
 SAMPLE_RATE = 2000
 
+# Two genuinely different questions need two different minimum match lengths:
+#   * "is this whole song published on YouTube" -> needs a long match to mean
+#     anything, so it keeps the original 12s floor.
+#   * "which of my songs is inside this Shorts clip" -> a Short may only carry
+#     a few seconds of the song. song_finder.py's own thresholds (possible at
+#     4s, confirmed only at 6s+ with a high score) then decide how much that
+#     short match is actually worth; it is never auto-confirmed on length alone.
+FULL_SONG_MIN_MATCH_SECONDS = 12.0
+SHORT_CLIP_MIN_MATCH_SECONDS = 4.0
+
 
 class AudioMatchCancelled(RuntimeError):
     pass
@@ -561,16 +571,28 @@ def _chromaprint_bit_similarity(a: int, b: int) -> float:
     return 1.0 - ((int(a) ^ int(b)).bit_count() / 32.0)
 
 
-def _chromaprint_candidates(source: dict[str, Any], video: dict[str, Any]) -> list[dict[str, Any]]:
+def _chromaprint_candidates(
+    source: dict[str, Any], video: dict[str, Any], min_match_seconds: float = FULL_SONG_MIN_MATCH_SECONDS,
+) -> list[dict[str, Any]]:
     src = [int(x) for x in (source.get("chromaprint") or [])]
     vid = [int(x) for x in (video.get("chromaprint") or [])]
-    if len(src) < 80 or len(vid) < 80:
+    # A short Shorts clip legitimately has few frames; the old flat 80-frame
+    # floor silently rejected every genuinely short query before any
+    # comparison happened.
+    frame_floor = 24 if min_match_seconds < FULL_SONG_MIN_MATCH_SECONDS else 80
+    if len(src) < frame_floor or len(vid) < frame_floor:
         return []
     source_duration = float(source.get("duration") or 0)
     video_duration = float(video.get("duration") or 0)
     src_step = source_duration / len(src) if source_duration > 0 else 0.128
     vid_step = video_duration / len(vid) if video_duration > 0 else src_step
-    min_frames = max(60, int(10.0 / max(src_step, 0.05)))
+    # Require exactly as many frames as it takes to actually reach
+    # min_match_seconds of real matched audio. matched_seconds below is
+    # computed with min(src_step, vid_step), so the same step must be used
+    # here -- otherwise segments are built and then thrown away by the
+    # caller's own duration filter (the old code used a hardcoded 10s here
+    # against a 12s filter, wasting work on a 10-12s dead zone).
+    min_frames = max(12, math.ceil(min_match_seconds / max(1e-6, min(src_step, vid_step))))
     candidates: list[dict[str, Any]] = []
     for offset in range(-len(src) + min_frames, len(vid) - min_frames + 1):
         src_start = max(0, -offset)
@@ -782,20 +804,30 @@ def _missing_intervals(covered: list[tuple[float, float]], duration: float, min_
     return gaps
 
 
-def compare_signatures(source: dict[str, Any], video: dict[str, Any]) -> dict[str, Any]:
+def compare_signatures(
+    source: dict[str, Any], video: dict[str, Any],
+    min_match_seconds: float = FULL_SONG_MIN_MATCH_SECONDS,
+) -> dict[str, Any]:
     """Compare two compact signatures and report every reliable matching segment.
 
     v2 keeps the previous best-match behaviour, but also returns non-overlapping
     segments. This allows the program to recognise mixes, repeated songs and a
     full song assembled from several excerpts inside one YouTube video.
+
+    min_match_seconds is how much genuinely matched audio a segment must carry
+    to count at all. It stays at 12s for the YouTube "is the whole song
+    published" check; the Shorts finder passes SHORT_CLIP_MIN_MATCH_SECONDS so
+    a clip that only contains a few seconds of the song is not silently thrown
+    away before it can be scored.
     """
     src = source.get("features") or []
     vid = video.get("features") or []
     interval = float(source.get("interval") or FRAME_SECONDS)
     if not src or not vid:
         raise AudioMatchError("Nedostaje audio otisak za poređenje.")
-    min_frames = max(20, int(12 / interval))
-    raw_candidates: list[dict[str, Any]] = _chromaprint_candidates(source, video)
+    min_match_seconds = max(1.0, float(min_match_seconds or FULL_SONG_MIN_MATCH_SECONDS))
+    min_frames = max(8, int(min_match_seconds / interval))
+    raw_candidates: list[dict[str, Any]] = _chromaprint_candidates(source, video, min_match_seconds)
     if not raw_candidates:
         # Dependency-free fallback for FFmpeg builds without Chromaprint.
         # offset = video_index - source_index
@@ -849,7 +881,7 @@ def compare_signatures(source: dict[str, Any], video: dict[str, Any]) -> dict[st
             score = max(0.0, min(100.0, (float(candidate["quality"]) - 0.80) / 0.18 * 100.0))
         else:
             score = max(0.0, min(100.0, (float(candidate["quality"]) - 0.34) / 0.48 * 100.0))
-        if score < 46 or float(candidate["matched_seconds"]) < 12:
+        if score < 46 or float(candidate["matched_seconds"]) < min_match_seconds:
             continue
         conflicting_alignment = False
         for prior in selected:

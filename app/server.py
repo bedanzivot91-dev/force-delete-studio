@@ -60,8 +60,8 @@ from youtube_oauth import YouTubeOAuthError, YouTubeOAuthManager
 from audio_match import (
     AudioMatchCancelled, AudioMatchError, ALGORITHM_VERSION as AUDIO_MATCH_VERSION,
     analyze_audio_pair, closest_duration_candidates, compare_signatures, cleanup_youtube_audio_cache,
-    download_youtube_audio, ensure_ytdlp, ensure_deno, search_youtube_with_ytdlp, extract_signature, inspect_youtube_video, pack_signature, source_identity,
-    unpack_signature, ytdlp_status, ytdlp_path,
+    download_youtube_audio, ensure_ytdlp, ensure_deno, search_youtube_with_ytdlp, extract_signature, inspect_youtube_video, pack_signature,
+    SHORT_CLIP_MIN_MATCH_SECONDS, source_identity, unpack_signature, ytdlp_status, ytdlp_path,
 )
 from advanced_features import (
     analyze_audio_quality, check_update, compare_lyrics_transcript, create_cloud_backup, restore_cloud_backup,
@@ -2888,7 +2888,15 @@ def _song_finder_candidates(upload_signature: dict[str, Any], songs: list[dict[s
             continue
         try:
             song_signature = unpack_signature(cached.get("payload") or b"")
-            analysis = compare_signatures(song_signature, upload_signature)
+            # Shorts mode: a clip may only carry a few seconds of the song.
+            # song_finder.classify_match() below still applies the stricter
+            # per-length rules (4-6s can only ever be "possible", 6s+ needs a
+            # high score to be "confirmed"), so this widens what can be found
+            # without weakening what counts as confirmed.
+            analysis = compare_signatures(
+                song_signature, upload_signature,
+                min_match_seconds=SHORT_CLIP_MIN_MATCH_SECONDS,
+            )
         except (AudioMatchError, Exception):
             continue
         checked += 1
