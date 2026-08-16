@@ -29,6 +29,16 @@ public partial class WorkspaceView : UserControl
         // because this view is reused as the workspace view model is swapped.
         DataContextChanged += (_, _) => SubscribeToRealPreviewFrames();
         SubscribeToRealPreviewFrames();
+        WireZoomControls();
+
+        // Esc leaves full screen, the way every player does it.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Escape && this.GetVisualRoot() is Window { WindowState: WindowState.FullScreen })
+            {
+                ToggleFullScreen();
+            }
+        }, RoutingStrategies.Tunnel);
     }
 
     private RealPreviewViewModel? _subscribedPreview;
@@ -50,7 +60,53 @@ public partial class WorkspaceView : UserControl
     }
 
     private void OnRealPreviewFramesReady(NPVideoStudio.App.Services.VlcVideoFrameBuffer frames) =>
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => RealPreviewSurface.Attach(frames));
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => PlayerSurface.Attach(frames));
+
+    // --- Making the picture bigger, smaller and movable ---------------------------------------------
+    // "Ne moze da se poveca video" was literally true: the old panel drew into a fixed 220px box with a
+    // native window on top of it, so there was nothing to zoom and nothing to click. Now the picture is
+    // an ordinary painted control, so these are just numbers on it.
+
+    private void WireZoomControls()
+    {
+        ZoomInButton.Click += (_, _) => StepZoom(1.25);
+        ZoomOutButton.Click += (_, _) => StepZoom(1 / 1.25);
+        ZoomFitButton.Click += (_, _) => { PlayerSurface.ResetView(); UpdateZoomLabel(); };
+        FullScreenButton.Click += (_, _) => ToggleFullScreen();
+
+        PlayerSurface.PointerWheelChanged += (_, _) => UpdateZoomLabel();
+        PlayerSurface.DoubleTapped += (_, _) => ToggleFullScreen();
+
+        UpdateZoomLabel();
+    }
+
+    private void StepZoom(double factor)
+    {
+        // Zoom about the middle of the panel, which is what a button press means - the wheel zooms about
+        // the pointer instead, handled inside the surface.
+        PlayerSurface.ZoomAt(
+            new Avalonia.Point(PlayerSurface.Bounds.Width / 2, PlayerSurface.Bounds.Height / 2),
+            factor);
+
+        UpdateZoomLabel();
+    }
+
+    private void UpdateZoomLabel() =>
+        ZoomLabel.Text = $"{PlayerSurface.Zoom * 100:0}%";
+
+    /// <summary>Full screen for the picture. Uses the hosting window rather than a second player: a
+    /// separate window is how this app ended up looking like it had several players.</summary>
+    private void ToggleFullScreen()
+    {
+        if (this.GetVisualRoot() is not Window window)
+        {
+            return;
+        }
+
+        window.WindowState = window.WindowState == WindowState.FullScreen
+            ? WindowState.Normal
+            : WindowState.FullScreen;
+    }
 
     // --- Dragging a clip along the lane ------------------------------------------------------------
     // The timeline had no visual lane at all before this: clips could only be nudged 0.5s at a time with

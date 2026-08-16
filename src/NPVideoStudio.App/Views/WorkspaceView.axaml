@@ -35,7 +35,7 @@
       </StackPanel>
     </Border>
 
-    <Grid RowDefinitions="2*,Auto,Auto,2*">
+    <Grid RowDefinitions="*,3*,Auto,2*">
       <Border Margin="20" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
@@ -68,75 +68,82 @@
         </DockPanel>
       </Border>
 
-      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,12" Padding="16" DataContext="{Binding Player}">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Plejer" FontWeight="SemiBold" />
-          <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Prikazani kadar je pravi, dekodiran preko ffmpeg-a za tačnu poziciju - osvežava se pri pomeranju, koraku napred/nazad i tokom reprodukcije, ali nije neprekidan video na 30 kadrova u sekundi (svaki prikaz je pojedinačna slika, ne uživo strimovan video)." />
-          <Border Background="Black" Height="220" HorizontalAlignment="Stretch" ClipToBounds="True">
-            <Grid>
-              <Image Source="{Binding CurrentFrameBitmap}" Stretch="Uniform" />
-              <TextBlock Text="{Binding PreviewStatusMessage}"
-                         IsVisible="{Binding CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
-                         Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
-                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" />
-            </Grid>
-          </Border>
-          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding StepBackwardCommand}" />
-            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayCommand}" IsVisible="{Binding !IsPlaying}" />
-            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding PauseCommand}" IsVisible="{Binding IsPlaying}" />
-            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding StopCommand}" />
-            <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding StepForwardCommand}" />
-            <TextBlock Text="{Binding CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="{Binding TotalDurationSeconds}" Value="{Binding CurrentTimeSeconds}" Width="240" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding TotalTimeLabel}" VerticalAlignment="Center" />
-            <Button Classes="ghost" Content="🔇" ToolTip.Tip="Utišaj" Command="{Binding ToggleMuteCommand}" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="1" Value="{Binding Volume}" Width="100" VerticalAlignment="Center" />
-          </StackPanel>
-        </StackPanel>
-      </Border>
+      <!--
+        ONE player. There used to be four things on this screen that the user reasonably read as
+        separate players: an ffmpeg still-frame panel, a second "pravi plejer" panel with its own
+        picture and its own transport, a separate player window, and a button that handed the file to
+        Windows. They are now a single panel with a single picture and a single row of controls.
 
-      <Border Grid.Row="2" Classes="panel" Margin="20,0,20,12" Padding="16">
-        <StackPanel Spacing="8">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="Pravi plejer (sa zvukom)" FontWeight="SemiBold" VerticalAlignment="Center" />
+        The picture is a VideoSurface, which draws either the live libvlc stream or the scrub still, so
+        one control covers both cases. Because it is a normal Avalonia control rather than
+        LibVLCSharp's VideoView ("a detached window over your video control" - VideoLAN's README), the
+        video can finally be interacted with: scroll to zoom, drag to move, and the panel itself is
+        resizable by the splitter below it.
+      -->
+      <Border Grid.Row="1" Classes="panel" Margin="20,0,20,4" Padding="16">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+            <TextBlock Text="Plejer" FontWeight="SemiBold" VerticalAlignment="Center" />
             <Button Classes="cta" Content="▶ Pusti moj video (sa zvukom)" Command="{Binding PlaySelectedSourceCommand}"
-                    ToolTip.Tip="Otvara plejer unutar programa." />
-            <Button Classes="cta" Content="▶ Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
-                    ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
+                    ToolTip.Tip="Pušta izabrani video ovde, sa zvukom." />
             <Button Classes="ghost" Content="Renderuj deo oko plejhed-a (brzo)" Command="{Binding RenderRealPreviewAroundPlayheadCommand}"
                     ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
                     IsEnabled="{Binding !IsRenderingRealPreview}" />
-            <Button Classes="cta" Content="Renderuj celu traku i pusti sa zvukom" Command="{Binding RenderRealPreviewCommand}"
+            <Button Classes="ghost" Content="Renderuj celu traku" Command="{Binding RenderRealPreviewCommand}"
                     IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <Button Classes="ghost" Content="Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
+                    ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
             <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
                        IsVisible="{Binding RealPreviewStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
           </StackPanel>
-          <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Renderuje pravi video sa zvukom, neprekidno (isti proces kao „Izvezi video“, samo brži/manje kvalitetan pregled) - za razliku od plejera iznad, koji samo prikazuje pojedinačne kadrove bez zvuka. „Deo oko plejhed-a“ renderuje samo kratak prozor umesto cele trake, pa je pregled brz i na dugačkim projektima." />
-          <!-- The picture is back on this screen. It could not be before: the embedded control used to be
-               LibVLCSharp's VideoView, a NativeControlHost, and Avalonia does not surface a native window
-               handle for one nested inside a UserControl (AvaloniaUI/Avalonia#6237,
-               VideoLAN/LibVLCSharp#525) - this screen IS a UserControl, so the player ran with nowhere to
-               draw. VideoSurface has no native window at all, so it works here exactly as it does in the
-               player window, and the code-behind points it at the decoded frames. -->
-          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="0"
-                  ClipToBounds="True" IsVisible="{Binding RealPreview.HasLoadedFile}">
-            <views:VideoSurface Name="RealPreviewSurface" Height="360" />
-          </Border>
-          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding RealPreview.HasLoadedFile}">
-            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding !RealPreview.IsPlaying}" />
-            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding RealPreview.TogglePlayPauseCommand}" IsVisible="{Binding RealPreview.IsPlaying}" />
-            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding RealPreview.StopCommand}" />
-            <TextBlock Text="{Binding RealPreview.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="{Binding RealPreview.TotalDurationSeconds}" Value="{Binding RealPreview.CurrentTimeSeconds}" Width="240" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding RealPreview.TotalTimeLabel}" VerticalAlignment="Center" />
+
+          <!-- Transport. One row, whichever source is showing. -->
+          <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0" VerticalAlignment="Center">
+            <Button Classes="ghost" Content="⏮" ToolTip.Tip="Kadar unazad" Command="{Binding Player.StepBackwardCommand}" />
+            <Button Classes="cta" Content="▶" ToolTip.Tip="Reprodukuj" Command="{Binding PlayerPlayCommand}" IsVisible="{Binding !IsPlayerPlaying}" />
+            <Button Classes="cta" Content="⏸" ToolTip.Tip="Pauza" Command="{Binding PlayerPauseCommand}" IsVisible="{Binding IsPlayerPlaying}" />
+            <Button Classes="ghost" Content="⏹" ToolTip.Tip="Zaustavi" Command="{Binding PlayerStopCommand}" />
+            <Button Classes="ghost" Content="⏭" ToolTip.Tip="Kadar unapred" Command="{Binding Player.StepForwardCommand}" />
+
+            <TextBlock Text="{Binding Player.CurrentTimeLabel}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Slider Minimum="0" Maximum="{Binding Player.TotalDurationSeconds}" Value="{Binding Player.CurrentTimeSeconds}"
+                    Width="240" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Player.TotalTimeLabel}" VerticalAlignment="Center" />
+
             <ToggleButton Content="🔇" ToolTip.Tip="Utišaj" IsChecked="{Binding RealPreview.IsMuted}" Margin="10,0,0,0" />
-            <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center" />
+            <Slider Minimum="0" Maximum="100" Value="{Binding RealPreview.Volume}" Width="100" VerticalAlignment="Center"
+                    ToolTip.Tip="Jačina zvuka" />
+
+            <!-- Size controls. The three complaints this answers directly: the picture could not be
+                 enlarged, could not be moved, and the panel itself could not be made bigger. -->
+            <Border Width="1" Background="{DynamicResource ThemeBorderBrush}" Margin="10,2" />
+            <Button Name="ZoomOutButton" Classes="ghost" Content="➖" ToolTip.Tip="Umanji sliku" />
+            <TextBlock Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Width="52" TextAlignment="Center" />
+            <Button Name="ZoomInButton" Classes="ghost" Content="➕" ToolTip.Tip="Uvećaj sliku" />
+            <Button Name="ZoomFitButton" Classes="ghost" Content="Uklopi" ToolTip.Tip="Vrati na celu sliku" />
+            <Button Name="FullScreenButton" Classes="cta" Content="⛶ Ceo ekran"
+                    ToolTip.Tip="Preko celog ekrana. Esc ili dupli klik za izlaz." />
           </StackPanel>
-        </StackPanel>
+
+          <Border Background="Black" ClipToBounds="True" MinHeight="240">
+            <Grid>
+              <views:VideoSurface Name="PlayerSurface" StaticImage="{Binding Player.CurrentFrameBitmap}" />
+              <TextBlock Text="{Binding Player.PreviewStatusMessage}"
+                         IsVisible="{Binding Player.CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
+                         Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,0" IsHitTestVisible="False" />
+              <TextBlock Text="Točkić miša = zumiranje, prevlačenje mišem = pomeranje slike"
+                         Classes="subtle" Foreground="White" Opacity="0.45" Margin="12,8"
+                         HorizontalAlignment="Left" VerticalAlignment="Bottom" IsHitTestVisible="False" />
+            </Grid>
+          </Border>
+        </DockPanel>
       </Border>
+
+      <!-- Drag this to make the player bigger or smaller. "Ne može da se uveća plejer" was literally
+           true before: the panel had a hardcoded 220px picture and no way to resize it. -->
+      <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" Background="Transparent"
+                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate ili smanjite plejer" />
 
       <Border Grid.Row="3" Classes="panel" Margin="20,0,20,20" Padding="16" DataContext="{Binding Timeline}">
         <DockPanel>

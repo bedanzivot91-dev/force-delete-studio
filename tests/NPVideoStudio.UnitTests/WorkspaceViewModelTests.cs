@@ -54,8 +54,7 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 public class WorkspaceViewModelTests
 {
     private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null,
-        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null,
-        IVideoPlayerWindowService? playerWindowService = null)
+        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null)
     {
         project ??= new Project { Name = "Test projekat" };
         return new WorkspaceViewModel(
@@ -66,8 +65,7 @@ public class WorkspaceViewModelTests
             new FakeFramePreviewService(),
             subtitleGeneratorService ?? new FakeSubtitleGeneratorService(),
             renderService ?? new FakeRenderService(),
-            new LoggerConfiguration().CreateLogger(),
-            playerWindowService);
+            new LoggerConfiguration().CreateLogger());
     }
 
     [AvaloniaFact]
@@ -538,91 +536,57 @@ public class WorkspaceViewModelTests
         Assert.Contains("Generiši titlove (SRT)", workspace.CaptionsStatusMessage);
     }
 
-    /// <summary>Records what the workspace asked the player window service to open, so the play command's
-    /// real behaviour is testable without a desktop session.</summary>
-    private sealed class FakePlayerWindowService : NPVideoStudio.App.Services.IVideoPlayerWindowService
-    {
-        public string? OpenedPath { get; private set; }
-        public NPVideoStudio.App.Services.PlayerTextActions? TextActions { get; private set; }
-        public bool Result { get; set; } = true;
-
-        public bool OpenPlayer(string filePath, NPVideoStudio.App.Services.PlayerTextActions? textActions = null)
-        {
-            OpenedPath = filePath;
-            TextActions = textActions;
-            return Result;
-        }
-    }
-
+    /// <summary>
+    /// The play command's real behaviour, now that there is ONE player.
+    ///
+    /// These used to assert against a fake "player window service", because pressing play opened a
+    /// separate window - which was itself a workaround for LibVLCSharp's VideoView being unable to draw
+    /// inside a UserControl. With the picture painted by Avalonia that window is gone, so what is
+    /// asserted here is what actually happens now: the file is loaded into the one embedded player, or
+    /// the user is told exactly why it was not.
+    /// </summary>
     [AvaloniaFact]
-    public void PlaySelectedSource_WithAnImportedFile_OpensThatFileInThePlayerWindow()
+    public async Task PlaySelectedSource_NoMediaImported_SaysSoAndPlaysNothing()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"npvs-play-{Guid.NewGuid():N}.mp4");
-        File.WriteAllBytes(path, new byte[] { 0, 1, 2 });
+        var workspace = CreateWorkspace();
 
-        try
-        {
-            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
-            var project = new Project { Name = "Test", MediaLibrary = { asset } };
-            var player = new FakePlayerWindowService();
-            var workspace = CreateWorkspace(project, playerWindowService: player);
-            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
 
-            workspace.PlaySelectedSourceCommand.Execute(null);
-
-            Assert.Equal(path, player.OpenedPath);
-            Assert.Contains("Plejer otvoren", workspace.RealPreviewStatusMessage);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [AvaloniaFact]
-    public void PlaySelectedSource_NoMediaImported_SaysSoAndOpensNothing()
-    {
-        var player = new FakePlayerWindowService();
-        var workspace = CreateWorkspace(playerWindowService: player);
-
-        workspace.PlaySelectedSourceCommand.Execute(null);
-
-        Assert.Null(player.OpenedPath);
+        Assert.False(workspace.RealPreview.HasLoadedFile);
         Assert.Contains("Prvo dodajte", workspace.RealPreviewStatusMessage);
     }
 
     [AvaloniaFact]
-    public void PlaySelectedSource_FileDeletedFromDisk_ReportsThatInsteadOfOpeningAPlayerOnNothing()
+    public async Task PlaySelectedSource_FileDeletedFromDisk_ReportsThatInsteadOfPlayingNothing()
     {
         var asset = new MediaAsset { FilePath = "/tmp/ne-postoji-nikad.mp4", Duration = TimeSpan.FromSeconds(5) };
         var project = new Project { Name = "Test", MediaLibrary = { asset } };
-        var player = new FakePlayerWindowService();
-        var workspace = CreateWorkspace(project, playerWindowService: player);
+        var workspace = CreateWorkspace(project);
         workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
 
-        workspace.PlaySelectedSourceCommand.Execute(null);
+        await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
 
-        Assert.Null(player.OpenedPath);
+        Assert.False(workspace.RealPreview.HasLoadedFile);
         Assert.Contains("više ne postoji", workspace.RealPreviewStatusMessage);
     }
 
     [AvaloniaFact]
-    public void PlaySelectedSource_PlayerWindowCannotOpen_ReportsItRatherThanClaimingItPlayed()
+    public async Task PlaySelectedSource_NeverThrows_AndAlwaysSaysSomething()
     {
         var path = Path.Combine(Path.GetTempPath(), $"npvs-play-{Guid.NewGuid():N}.mp4");
-        File.WriteAllBytes(path, new byte[] { 0 });
+        File.WriteAllBytes(path, new byte[] { 0, 1, 2 });   // not decodable - the honest hard case
 
         try
         {
             var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
             var project = new Project { Name = "Test", MediaLibrary = { asset } };
-            var player = new FakePlayerWindowService { Result = false };
-            var workspace = CreateWorkspace(project, playerWindowService: player);
+            var workspace = CreateWorkspace(project);
             workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
 
-            workspace.PlaySelectedSourceCommand.Execute(null);
+            await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
 
-            Assert.Contains("nije mogao da se otvori", workspace.RealPreviewStatusMessage);
+            // Whatever happened, the user is told - a silent no-op is what made the old player feel broken.
+            Assert.False(string.IsNullOrWhiteSpace(workspace.RealPreviewStatusMessage));
         }
         finally
         {
@@ -630,60 +594,47 @@ public class WorkspaceViewModelTests
         }
     }
 
+    /// <summary>
+    /// One player means one set of transport buttons, and they must drive whichever engine is behind the
+    /// picture. With nothing loaded that is the frame-snapshot preview; the buttons must still work and
+    /// must never throw.
+    /// </summary>
     [AvaloniaFact]
-    public void PlaySelectedSource_GivesThePlayerTheTextToolsSoTheyCanBeUsedWhileWatching()
+    public void TransportButtons_DriveTheSinglePlayer()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"npvs-tools-{Guid.NewGuid():N}.mp4");
-        File.WriteAllBytes(path, new byte[] { 0 });
+        // A duration is required for play to mean anything - the transport refuses to run a zero-length
+        // timeline, which is correct, so the test gives it something to play.
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(30) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
 
-        try
-        {
-            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
-            var project = new Project { Name = "Test", MediaLibrary = { asset } };
-            var player = new FakePlayerWindowService();
-            var workspace = CreateWorkspace(project, playerWindowService: player);
-            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        // Nothing continuous loaded, so the buttons drive the frame-snapshot preview.
+        Assert.False(workspace.IsShowingContinuousVideo);
 
-            workspace.PlaySelectedSourceCommand.Execute(null);
+        workspace.PlayerPlayCommand.Execute(null);
+        Assert.True(workspace.IsPlayerPlaying);
 
-            Assert.NotNull(player.TextActions);
-            Assert.NotNull(player.TextActions!.AddCaptionsFromVideo);
-            Assert.NotNull(player.TextActions.AddKaraokeCaptions);
-            Assert.NotNull(player.TextActions.FindLyricsInSong);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        workspace.PlayerPauseCommand.Execute(null);
+        Assert.False(workspace.IsPlayerPlaying);
+
+        workspace.PlayerPlayCommand.Execute(null);
+        workspace.PlayerStopCommand.Execute(null);
+        Assert.False(workspace.IsPlayerPlaying);
     }
 
+    /// <summary>With nothing at all loaded the buttons must still be harmless - a crash here would take
+    /// the whole workspace down for a click that should simply do nothing.</summary>
     [AvaloniaFact]
-    public void PlayerLyricSearchAction_AsksToOpenTheLyricToolForTheFileBeingWatched()
+    public void TransportButtons_AreSafeWithNothingLoaded()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"npvs-lyrics-{Guid.NewGuid():N}.mp4");
-        File.WriteAllBytes(path, new byte[] { 0 });
+        var workspace = CreateWorkspace();
 
-        try
-        {
-            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
-            var project = new Project { Name = "Test", MediaLibrary = { asset } };
-            var player = new FakePlayerWindowService();
-            var workspace = CreateWorkspace(project, playerWindowService: player);
-            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.PlayerPlayCommand.Execute(null);
+        workspace.PlayerPauseCommand.Execute(null);
+        workspace.PlayerStopCommand.Execute(null);
 
-            string? requestedPath = null;
-            workspace.LyricSearchRequested += p => requestedPath = p;
-
-            workspace.PlaySelectedSourceCommand.Execute(null);
-            player.TextActions!.FindLyricsInSong!().GetAwaiter().GetResult();
-
-            // Must carry the file the user is actually watching, so the tool opens with it preselected.
-            Assert.Equal(path, requestedPath);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        Assert.False(workspace.IsPlayerPlaying);
+        Assert.False(workspace.IsShowingContinuousVideo);
     }
 
     [AvaloniaFact]

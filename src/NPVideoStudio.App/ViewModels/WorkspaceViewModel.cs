@@ -28,8 +28,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly ISubtitleGeneratorService _subtitleGeneratorService;
     private readonly IRenderService _renderService;
 
-    /// <summary>Optional: null under the headless test host, where no real window can be opened.</summary>
-    private readonly IVideoPlayerWindowService? _playerWindowService;
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
 
@@ -47,6 +45,78 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// drives it. Kept separate from <see cref="Player"/> (the always-available frame-snapshot preview).</summary>
     public RealPreviewViewModel RealPreview { get; } = new();
 
+    /// <summary>
+    /// True when the real, continuous player is what is on screen, rather than the frame-snapshot
+    /// preview. The screen shows ONE player, so the transport buttons have to know which engine the
+    /// picture is currently coming from.
+    /// </summary>
+    public bool IsShowingContinuousVideo => RealPreview.HasLoadedFile;
+
+    /// <summary>Whether whichever engine is currently driving the picture is playing.</summary>
+    public bool IsPlayerPlaying => IsShowingContinuousVideo ? RealPreview.IsPlaying : Player.IsPlaying;
+
+    /// <summary>
+    /// The single Play button. Routing lives here rather than in the view because the user should not
+    /// have to know, or care, which of the two decode paths is behind the picture - that distinction is
+    /// what made this screen look like it had several players.
+    /// </summary>
+    [RelayCommand]
+    private void PlayerPlay()
+    {
+        if (IsShowingContinuousVideo)
+        {
+            if (!RealPreview.IsPlaying)
+            {
+                RealPreview.TogglePlayPauseCommand.Execute(null);
+            }
+        }
+        else
+        {
+            Player.PlayCommand.Execute(null);
+        }
+
+        RaisePlayerTransportChanged();
+    }
+
+    [RelayCommand]
+    private void PlayerPause()
+    {
+        if (IsShowingContinuousVideo)
+        {
+            if (RealPreview.IsPlaying)
+            {
+                RealPreview.TogglePlayPauseCommand.Execute(null);
+            }
+        }
+        else
+        {
+            Player.PauseCommand.Execute(null);
+        }
+
+        RaisePlayerTransportChanged();
+    }
+
+    [RelayCommand]
+    private void PlayerStop()
+    {
+        if (IsShowingContinuousVideo)
+        {
+            RealPreview.StopCommand.Execute(null);
+        }
+        else
+        {
+            Player.StopCommand.Execute(null);
+        }
+
+        RaisePlayerTransportChanged();
+    }
+
+    private void RaisePlayerTransportChanged()
+    {
+        OnPropertyChanged(nameof(IsPlayerPlaying));
+        OnPropertyChanged(nameof(IsShowingContinuousVideo));
+    }
+
     [ObservableProperty]
     private bool _isRenderingRealPreview;
 
@@ -54,10 +124,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private string? _realPreviewStatusMessage;
 
     public event Action? ExportRequested;
-
-    /// <summary>Raised with a media file path when the user asks, from inside the player window, to find
-    /// the song's lyrics for that file - handled by MainWindowViewModel, which owns page navigation.</summary>
-    public event Action<string>? LyricSearchRequested;
 
     [ObservableProperty]
     private bool _isImporting;
@@ -89,9 +155,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IVideoPlayerWindowService? playerWindowService = null)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger)
     {
-        _playerWindowService = playerWindowService;
         Project = project;
         _projectRepository = projectRepository;
         _mediaProbeService = mediaProbeService;
@@ -218,7 +283,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// render; this is the source-monitor half that every editor has and this one was missing.
     /// </summary>
     [RelayCommand]
-    private void PlaySelectedSource()
+    private async Task PlaySelectedSourceAsync()
     {
         var asset = Timeline.SelectedMediaAsset ?? MediaLibrary.FirstOrDefault();
         if (asset is null)
@@ -233,27 +298,29 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Opens the standalone PlayerWindow rather than the embedded preview: LibVLCSharp's VideoView is a
-        // NativeControlHost, and Avalonia does not surface the native window handle for one nested inside a
-        // UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525) - which is exactly where the old
-        // embedded player lived, so it ran with nowhere to draw. A real window also lets the user resize or
-        // maximise the picture instead of being stuck with a fixed 220px box.
-        // The player gets the workspace's own caption/lyric pipelines rather than its own copy, so
-        // "dodaj tekst iz videa" from inside the player lands on the same timeline as the button on this
-        // screen does - one implementation, two places to reach it.
-        var textActions = new PlayerTextActions(
-            AddCaptionsFromVideo: () => GenerateCaptionsCoreAsync(wordLevel: false),
-            AddKaraokeCaptions: () => GenerateCaptionsCoreAsync(wordLevel: true),
-            FindLyricsInSong: () => { LyricSearchRequested?.Invoke(asset.Asset.FilePath); return Task.CompletedTask; });
-
-        if (_playerWindowService?.OpenPlayer(asset.Asset.FilePath, textActions) == true)
+        if (!RealPreview.IsAvailable)
         {
-            RealPreviewStatusMessage = $"Plejer otvoren u zasebnom prozoru: {asset.FileName}";
-            _logger.Information("Plejer otvoren za {Path}", asset.Asset.FilePath);
+            RealPreviewStatusMessage = RealPreview.UnavailableReason ?? "Plejer nije dostupan na ovom računaru.";
             return;
         }
 
-        RealPreviewStatusMessage = "Plejer nije mogao da se otvori na ovom računaru.";
+        // Plays HERE, in the one player panel, instead of opening a separate window.
+        //
+        // It used to open a standalone PlayerWindow, and for a real reason at the time: the embedded
+        // picture was LibVLCSharp's VideoView, a NativeControlHost, which does not get a native window
+        // handle inside a UserControl (AvaloniaUI/Avalonia#6237, VideoLAN/LibVLCSharp#525) - this screen
+        // is a UserControl, so an embedded player had nowhere to draw and a window was the only way to
+        // see anything. VideoSurface has no native window at all, so that constraint is gone, and with
+        // it the reason this screen had several players instead of one.
+        await RealPreview.LoadAndPlayAsync(asset.Asset.FilePath);
+
+        RaisePlayerTransportChanged();
+
+        RealPreviewStatusMessage = RealPreview.HasLoadedFile
+            ? $"Pušta se: {asset.FileName}"
+            : "Plejer nije mogao da pusti ovaj fajl.";
+
+        _logger.Information("Plejer pokrenut za {Path}, uspeh={Ok}", asset.Asset.FilePath, RealPreview.HasLoadedFile);
     }
 
     /// <summary>
