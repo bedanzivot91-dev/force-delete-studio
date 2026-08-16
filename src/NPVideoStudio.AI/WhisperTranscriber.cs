@@ -128,6 +128,13 @@ public sealed class WhisperTranscriber
         process.StartInfo.ArgumentList.Add("-y");
         process.StartInfo.ArgumentList.Add("-i");
         process.StartInfo.ArgumentList.Add(inputPath);
+        process.StartInfo.ArgumentList.Add("-vn");
+        // A music video is not clean dictation: bass, kick and bright instruments mask the vocal and
+        // the old raw down-mix frequently returned no words at all. Keep the vocal band, remove the
+        // extremes and normalise it before Whisper sees it. This remains local and non-destructive -
+        // only the temporary recognition WAV is filtered; the user's video/audio is never changed.
+        process.StartInfo.ArgumentList.Add("-af");
+        process.StartInfo.ArgumentList.Add("highpass=f=100,lowpass=f=7800,loudnorm=I=-16:LRA=11:TP=-1.5");
         process.StartInfo.ArgumentList.Add("-ar");
         process.StartInfo.ArgumentList.Add("16000");
         process.StartInfo.ArgumentList.Add("-ac");
