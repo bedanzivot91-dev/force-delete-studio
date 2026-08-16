@@ -222,6 +222,7 @@ async function loadStatus() {
     $('connectBtn').textContent = data.connected ? 'Suno povezan' : 'Poveži Suno'; $('downloadFolderLabel').textContent = data.download_dir || 'Preuzete_pesme';
     if (!$('downloadTargetInput').value) $('downloadTargetInput').value = data.download_dir || ''; if (!$('downloadDirInput').value) $('downloadDirInput').value = data.download_dir || '';
     if ($('youtubeProcessedDirInput') && !$('youtubeProcessedDirInput').value) $('youtubeProcessedDirInput').value = data.youtube_processed_dir || '';
+    if (data.update) { renderAutoUpdate(data.update); showUpdateBanner(data.update); }
     const count = Number(data.last_new_count || 0); $('newSongsBadge').textContent = count; $('newSongsBadge').classList.toggle('hidden', count <= 0);
     if ($('lastNewCheckLabel')) $('lastNewCheckLabel').textContent = data.last_new_check_at ? `Poslednja provera: ${formatDate(data.last_new_check_at)} · novih: ${count}` : 'Nove pesme još nisu proveravane.';
     if ($('autoCheckMinutes')) $('autoCheckMinutes').value = String(data.auto_check_minutes || 0);
@@ -591,6 +592,50 @@ async function openFolder() { try { await api('/api/open-folder', { method: 'POS
 async function saveYoutubeProcessedDir() { const dir = $('youtubeProcessedDirInput').value.trim(); if (!dir) return toast('Izaberi folder.', 'error'); try { const data = await api('/api/settings', { method: 'POST', body: { youtube_processed_dir: dir } }); $('youtubeProcessedDirInput').value = data.youtube_processed_dir || dir; toast('Folder je sačuvan.', 'success'); } catch (e) { toast(e.message, 'error'); } }
 async function chooseYoutubeProcessedDir() { const path = await chooseFolder('youtubeProcessedDirInput'); if (path) saveYoutubeProcessedDir(); }
 async function openYoutubeProcessedDir() { try { await api('/api/open-folder', { method: 'POST', body: { path: $('youtubeProcessedDirInput').value.trim() } }); } catch (e) { toast(e.message, 'error'); } }
+
+// --- Automatsko ažuriranje ---
+function renderAutoUpdate(u) {
+  const box = $('autoUpdateStatus'); if (!box || !u) return;
+  if (u.error) { box.className = 'inline-message warning'; box.textContent = `Provera nije uspela: ${u.error}`; return; }
+  if (u.available) {
+    box.className = 'inline-message success';
+    box.textContent = `Dostupna je nova verzija ${u.latest || ''}. ${u.notes || ''} Klikni „Preuzmi novu verziju“.`.trim();
+  } else if (u.checked_at) {
+    box.className = 'inline-message success';
+    box.textContent = `Koristiš najnoviju verziju. Poslednja provera: ${u.checked_at}.`;
+  } else {
+    box.className = 'inline-message';
+    box.textContent = 'Provera još nije pokrenuta.';
+  }
+}
+function showUpdateBanner(u) {
+  if (!u || !u.available || state.updateBannerShown) return;
+  state.updateBannerShown = true;
+  toast(`Dostupna je nova verzija programa ${u.latest || ''}. Otvori Podešavanja → Automatsko ažuriranje.`, 'success', 20000);
+}
+async function saveAutoUpdateSettings() {
+  try {
+    const d = await api('/api/settings', { method: 'POST', body: {
+      auto_update_enabled: $('autoUpdateEnabled').checked,
+      auto_update_download: $('autoUpdateDownload').checked,
+    } });
+    if ($('autoUpdateEnabled')) $('autoUpdateEnabled').checked = d.auto_update_enabled !== false;
+    if ($('autoUpdateDownload')) $('autoUpdateDownload').checked = d.auto_update_download === true;
+    toast('Podešavanje ažuriranja je sačuvano.', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function checkUpdateNow() {
+  const box = $('autoUpdateStatus'); if (box) { box.className = 'inline-message'; box.textContent = 'Proveravam...'; }
+  try { const d = await api('/api/update/status', { timeoutMs: 30000, retries: 0 }); renderAutoUpdate(d.update); }
+  catch (e) { renderAutoUpdate({ error: e.message }); }
+}
+async function downloadUpdateNow() {
+  const box = $('autoUpdateStatus'); if (box) { box.className = 'inline-message'; box.textContent = 'Preuzimam novu verziju...'; }
+  try {
+    const d = await api('/api/update/download', { method: 'POST', body: {}, timeoutMs: 900000, retries: 0 });
+    if (box) { box.className = 'inline-message success'; box.textContent = `Preuzeto: ${d.path || ''}. Zatvori program, raspakuj taj ZIP i pokreni INSTALIRAJ_PROGRAM.exe — prepoznaje postojeću instalaciju i nadograđuje je.`; }
+  } catch (e) { if (box) { box.className = 'inline-message error'; box.textContent = e.message; } }
+}
 
 
 function applyTheme(themeId, persist = true) {
@@ -1395,6 +1440,8 @@ function bindEvents() {
   $('waveformCanvas').addEventListener('click', (e) => { const duration = Number(state.currentSong?.duration || 0); if (!duration) return; const rect = e.currentTarget.getBoundingClientRect(); const seconds = Math.max(0, Math.min(duration, (e.clientX - rect.left) / rect.width * duration)); $('audioPlayer').currentTime = seconds; });
   $('audioPlayer').addEventListener('timeupdate', () => { if (state.previewEnd !== null && $('audioPlayer').currentTime >= Number(state.previewEnd)) { $('audioPlayer').pause(); state.previewEnd = null; } }); $('audioPlayer').addEventListener('error', () => toast('Pesma nije mogla da se pusti. Pogledaj Dnevnik ili ponovo sinhronizuj podatke.', 'error', 8000)); $('audioPlayer').addEventListener('ended', playNextQueue); $('playerSpeed').addEventListener('change',()=>{$('audioPlayer').playbackRate=Number($('playerSpeed').value||1);}); $('repeatPlayerBtn').addEventListener('click',()=>{state.repeat=!state.repeat;$('repeatPlayerBtn').classList.toggle('active',state.repeat);toast(state.repeat?'Ponavljanje uključeno.':'Ponavljanje isključeno.','info');}); $('playQueueBtn').addEventListener('click',playSelectedQueue); $('closePlayerBtn').addEventListener('click', () => { $('audioPlayer').pause(); $('playerBar').classList.remove('visible'); });
   $('refreshLogsBtn').addEventListener('click', loadLogs); $('chooseSettingsFolderBtn').addEventListener('click', () => chooseFolder('downloadDirInput')); $('saveSettingsBtn').addEventListener('click', saveSettings); $('openDownloadFolderBtn').addEventListener('click', openFolder);
+  $('autoUpdateEnabled')?.addEventListener('change', saveAutoUpdateSettings); $('autoUpdateDownload')?.addEventListener('change', saveAutoUpdateSettings);
+  $('checkUpdateNowBtn')?.addEventListener('click', checkUpdateNow); $('downloadUpdateNowBtn')?.addEventListener('click', downloadUpdateNow);
   $('chooseYoutubeProcessedDirBtn')?.addEventListener('click', chooseYoutubeProcessedDir); $('saveYoutubeProcessedDirBtn')?.addEventListener('click', saveYoutubeProcessedDir); $('openYoutubeProcessedDirBtn')?.addEventListener('click', openYoutubeProcessedDir); $('backupBtn').addEventListener('click', backup); $('chooseRestoreFileBtn').addEventListener('click', chooseBackupFile); $('restoreBackupBtn').addEventListener('click', restoreBackup); $('runSelfTestBtn').addEventListener('click', runProgramSelfTest); $('exportDiagnosticsBtn').addEventListener('click', exportDiagnostics); $('refreshStorageBtn').addEventListener('click', loadStorageSummary); $('checkLibraryBtn').addEventListener('click', () => checkLibraryHealth(false)); $('repairLibraryBtn').addEventListener('click', () => { if (confirm('Očistiti samo putanje ka fajlovima koji više ne postoje? Postojeći fajlovi se ne brišu.')) checkLibraryHealth(true); }); qsa('.export-all').forEach((b) => b.addEventListener('click', () => exportData(b.dataset.format))); $('disconnectBtn').addEventListener('click', async () => { try { const data = await api('/api/connect/disconnect', { method: 'POST', body: {} }); toast(data.message, 'success'); loadStatus(); } catch (e) { toast(e.message, 'error'); } });
   $('themeSelect').addEventListener('change',(e)=>applyTheme(e.target.value)); $('themeGrid').addEventListener('click',(e)=>{const card=e.target.closest('[data-theme]');if(card)applyTheme(card.dataset.theme);});
   $('resetThemeBtn').addEventListener('click', resetThemeAndAppearance);

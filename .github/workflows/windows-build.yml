@@ -14,6 +14,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -444,6 +447,56 @@ jobs:
           Expand-Archive -LiteralPath "$rel.zip" -DestinationPath $zipProbe -Force
           Assert-ProgramManifest (Join-Path $zipProbe $rel)
           Write-Host "The ZIP itself was expanded and verified successfully."
+
+
+      - name: Publish release + update manifest (this is what auto-update reads)
+        # Automatic updates need two public, stable things: a downloadable
+        # package and a manifest describing it. Workflow artifacts are neither
+        # (they expire and need auth), so publish a GitHub Release asset and
+        # commit docs/updates.json pointing at it. app/server.py ships
+        # DEFAULT_UPDATE_MANIFEST_URL aimed at that file, so a user receives
+        # fixes without configuring anything.
+        if: success() && github.ref == 'refs/heads/claude/suno-pesme-studio-full-build-ljk5m7'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ZIP="Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
+          BASE_VERSION=$(python -c "import re,io;print(re.search(r'APP_VERSION = \"([^\"]+)\"',io.open('app/server.py',encoding='utf-8').read()).group(1))")
+          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
+          TAG="v${VERSION}"
+          SHA=$(python -c "import hashlib,sys;h=hashlib.sha256();f=open('$ZIP','rb');[h.update(c) for c in iter(lambda:f.read(1<<20),b'')];print(h.hexdigest())")
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP}"
+
+          gh release create "$TAG" "$ZIP" \
+            --title "Suno Pesme Studio ${VERSION}" \
+            --notes "Automatski build sa ${GITHUB_SHA}." \
+            --latest || gh release upload "$TAG" "$ZIP" --clobber
+
+          python - "$VERSION" "$URL" "$SHA" <<'PYEOF'
+          import json, pathlib, sys
+          version, url, sha = sys.argv[1], sys.argv[2], sys.argv[3]
+          out = pathlib.Path("docs/updates.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps({
+              "version": version,
+              "download_url": url,
+              "sha256": sha,
+              "notes": "Automatski objavljena nova verzija.",
+          }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          print("wrote", out)
+          PYEOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/updates.json
+          if git diff --cached --quiet; then
+            echo "manifest unchanged"
+          else
+            git commit -m "Publish update manifest for ${VERSION} [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
       - name: Upload full offline package
         uses: actions/upload-artifact@v4

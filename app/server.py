@@ -87,6 +87,18 @@ USER_DATA_ROOT = Path(os.environ.get("SUNO_STUDIO_USER_DIR") or ROOT).expanduser
 DATA_DIR = Path(os.environ.get("SUNO_STUDIO_DATA_DIR") or (USER_DATA_ROOT / "data")).expanduser().resolve()
 DEFAULT_DOWNLOAD_DIR = Path(os.environ.get("SUNO_STUDIO_DOWNLOAD_DIR") or (USER_DATA_ROOT / "Preuzete_pesme")).expanduser().resolve()
 EXPORT_DIR = Path(os.environ.get("SUNO_STUDIO_EXPORT_DIR") or (USER_DATA_ROOT / "Izvoz")).expanduser().resolve()
+# Automatic updates: the program ships knowing where its own update manifest
+# lives, so a user never has to find and paste a URL to receive a fix. CI
+# publishes this file on every successful build of the release branch.
+DEFAULT_UPDATE_MANIFEST_URL = (
+    "https://raw.githubusercontent.com/bedanzivot91-dev/force-delete-studio/"
+    "claude/suno-pesme-studio-full-build-ljk5m7/docs/updates.json"
+)
+UPDATE_CHECK_INTERVAL_SECONDS = 6 * 60 * 60
+UPDATE_STOP = threading.Event()
+UPDATE_THREAD: threading.Thread | None = None
+UPDATE_STATE: dict[str, Any] = {"checked_at": "", "available": False, "latest": "", "notes": "", "message": "", "error": ""}
+
 PUBLISHED_DIR = Path(os.environ.get("SUNO_STUDIO_PUBLISHED_DIR") or (USER_DATA_ROOT / "OBRAĐENO NA YOUTUBE")).expanduser().resolve()
 YOUTUBE_PROCESSED_STATUSES = ("complete", "almost_complete", "partial", "short_clip")
 LOCAL_LIBRARY_DIR = Path(os.environ.get("SUNO_STUDIO_LIBRARY_DIR") or (USER_DATA_ROOT / "Biblioteka_pesama")).expanduser().resolve()
@@ -4164,6 +4176,64 @@ def run_persistent_job(job_id: int) -> TaskState:
     return start_task(task_type, title, runner, job_id=job_id)
 
 
+def get_update_manifest_url() -> str:
+    """The user's own URL wins; otherwise the built-in one, so automatic
+    updates work out of the box without any configuration."""
+    return str(DB.get_setting("update_manifest_url", "") or "").strip() or DEFAULT_UPDATE_MANIFEST_URL
+
+
+def auto_update_enabled() -> bool:
+    return DB.get_setting("auto_update_enabled", "1") != "0"
+
+
+def auto_update_download_enabled() -> bool:
+    """Off by default: checking is automatic, but pulling a ~200 MB package
+    is not started behind the user's back unless they ask for it."""
+    return DB.get_setting("auto_update_download", "0") == "1"
+
+
+def run_update_check(download_if_available: bool | None = None) -> dict[str, Any]:
+    """Check for a newer version and remember the result for the UI."""
+    info = check_update(get_update_manifest_url(), APP_VERSION)
+    UPDATE_STATE.update({
+        "checked_at": now_iso(),
+        "available": bool(info.get("available")),
+        "latest": str(info.get("latest") or ""),
+        "notes": str(info.get("notes") or ""),
+        "message": str(info.get("message") or ""),
+        "error": "",
+    })
+    wants_download = auto_update_download_enabled() if download_if_available is None else bool(download_if_available)
+    if info.get("available") and wants_download:
+        try:
+            result = download_update(ROOT, get_update_manifest_url(), APP_VERSION)
+            UPDATE_STATE["downloaded_path"] = str(result.get("path") or "")
+            runtime_log(f"Novo ažuriranje je preuzeto: {result.get('path')}", "success")
+        except Exception as exc:
+            UPDATE_STATE["error"] = str(exc)
+            runtime_log(f"Automatsko preuzimanje ažuriranja nije uspelo: {exc}", "warning")
+    return dict(UPDATE_STATE)
+
+
+def update_check_loop() -> None:
+    """Check shortly after startup, then periodically. Failures are logged and
+    retried on the next cycle -- a missing internet connection must never stop
+    the program from running."""
+    if UPDATE_STOP.wait(45):
+        return
+    while True:
+        if auto_update_enabled():
+            try:
+                state = run_update_check()
+                if state.get("available"):
+                    runtime_log(f"Dostupna je nova verzija programa: {state.get('latest')}.", "success")
+            except Exception as exc:
+                UPDATE_STATE.update({"checked_at": now_iso(), "error": str(exc)})
+                runtime_log(f"Provera ažuriranja nije uspela: {exc}", "warning")
+        if UPDATE_STOP.wait(UPDATE_CHECK_INTERVAL_SECONDS):
+            return
+
+
 def scheduler_loop() -> None:
     runtime_log("Planer poslova je pokrenut.")
     while not SCHEDULER_STOP.wait(30):
@@ -4687,7 +4757,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "cues": load_subtitle_cues(song, DB), "song": {"id": song_id, "title": song.get("title"), "duration": song.get("duration")}})
                 return
             if path == "/api/update/status":
-                self._send_json({"ok": True, "update": check_update(DB.get_setting("update_manifest_url", ""), APP_VERSION)})
+                self._send_json({"ok": True, "update": run_update_check(download_if_available=False)})
                 return
             if path == "/api/connect/diagnostics":
                 with STATE_LOCK:
@@ -4705,6 +4775,7 @@ class Handler(BaseHTTPRequestHandler):
                     "songs": DB.count_songs(),
                     "download_dir": str(get_download_dir()),
                     "youtube_processed_dir": str(get_youtube_processed_dir()),
+                    "update": dict(UPDATE_STATE),
                     "task": task,
                     "browser_found": bool(CONNECTOR.find_browser()),
                     "last_new_check_at": DB.get_setting("last_new_check_at", ""),
@@ -5268,9 +5339,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/plugins/transcription/install":
                 payload={"component":"transcription"}; task=start_task("plugin_install","Instalacija: lokalna transkripcija",lambda t:install_ai_plugin_task(t,payload),persistent_payload=payload); self._send_json({"ok":True,"task":task.as_dict()}); return
             if path == "/api/update/settings":
-                DB.set_setting("update_manifest_url",str(body.get("manifest_url") or "").strip()); self._send_json({"ok":True,"update":check_update(DB.get_setting("update_manifest_url", ""),APP_VERSION)}); return
+                DB.set_setting("update_manifest_url",str(body.get("manifest_url") or "").strip()); self._send_json({"ok":True,"update":run_update_check(download_if_available=False)}); return
             if path == "/api/update/download":
-                result=download_update(ROOT,DB.get_setting("update_manifest_url", ""),APP_VERSION); self._send_json({"ok":True,**result}); return
+                result=download_update(ROOT,get_update_manifest_url(),APP_VERSION); self._send_json({"ok":True,**result}); return
             if path == "/api/connect/start":
                 browser = CONNECTOR.find_browser()
                 if not browser:
@@ -5761,6 +5832,10 @@ class Handler(BaseHTTPRequestHandler):
                         DB.set_setting("download_dir", value)
                 if "theme" in body:
                     DB.set_setting("theme", str(body.get("theme") or "default"))
+                if "auto_update_enabled" in body:
+                    DB.set_setting("auto_update_enabled", "1" if body.get("auto_update_enabled") else "0")
+                if "auto_update_download" in body:
+                    DB.set_setting("auto_update_download", "1" if body.get("auto_update_download") else "0")
                 if "youtube_processed_dir" in body:
                     value = str(body.get("youtube_processed_dir") or "").strip()
                     if value:
@@ -5785,7 +5860,7 @@ class Handler(BaseHTTPRequestHandler):
                     if value not in {"none", "chrome", "edge", "brave", "firefox", "opera", "vivaldi"}:
                         raise RuntimeError("Nepodržan browser za YouTube kolačiće.")
                     DB.set_setting("youtube_cookies_browser", value)
-                self._send_json({"ok": True, "download_dir": str(get_download_dir()), "youtube_processed_dir": str(get_youtube_processed_dir()), "theme": DB.get_setting("theme", "default"), "auto_check_minutes": int(DB.get_setting("auto_check_minutes", "0") or 0), "auto_backup_before_sync": DB.get_setting("auto_backup_before_sync", "0") == "1", "suno_keepalive_enabled": _suno_keepalive_enabled(), "suno_keepalive_minutes": _suno_keepalive_minutes(), "suno_auto_reopen_browser": _suno_auto_reopen_browser(), "suno_session": suno_session_public_state(), "has_youtube_api_key": bool(get_youtube_api_key()), "youtube_oauth": YOUTUBE_OAUTH.status(), "copyright_owner_name": DB.get_setting("copyright_owner_name", ""), "youtube_cookies_browser": DB.get_setting("youtube_cookies_browser", "none")})
+                self._send_json({"ok": True, "download_dir": str(get_download_dir()), "youtube_processed_dir": str(get_youtube_processed_dir()), "auto_update_enabled": auto_update_enabled(), "auto_update_download": auto_update_download_enabled(), "update_manifest_url": get_update_manifest_url(), "theme": DB.get_setting("theme", "default"), "auto_check_minutes": int(DB.get_setting("auto_check_minutes", "0") or 0), "auto_backup_before_sync": DB.get_setting("auto_backup_before_sync", "0") == "1", "suno_keepalive_enabled": _suno_keepalive_enabled(), "suno_keepalive_minutes": _suno_keepalive_minutes(), "suno_auto_reopen_browser": _suno_auto_reopen_browser(), "suno_session": suno_session_public_state(), "has_youtube_api_key": bool(get_youtube_api_key()), "youtube_oauth": YOUTUBE_OAUTH.status(), "copyright_owner_name": DB.get_setting("copyright_owner_name", ""), "youtube_cookies_browser": DB.get_setting("youtube_cookies_browser", "none")})
                 return
             if path == "/api/open-folder":
                 target = Path(str(body.get("path") or get_download_dir()))
@@ -5886,7 +5961,7 @@ class AppHTTPServer(ThreadingHTTPServer):
 
 
 def main() -> None:
-    global SESSION_KEEPALIVE_THREAD, SCHEDULER_THREAD
+    global SESSION_KEEPALIVE_THREAD, SCHEDULER_THREAD, UPDATE_THREAD
     port = SERVER_PORT
     url = f"http://127.0.0.1:{port}/"
     runtime_log(f"Pokretanje Suno Pesme Studio v{APP_VERSION} na {url}")
@@ -5906,6 +5981,9 @@ def main() -> None:
     SCHEDULER_STOP.clear()
     SCHEDULER_THREAD = threading.Thread(target=scheduler_loop, daemon=True, name="persistent-scheduler")
     SCHEDULER_THREAD.start()
+    UPDATE_STOP.clear()
+    UPDATE_THREAD = threading.Thread(target=update_check_loop, daemon=True, name="auto-update-check")
+    UPDATE_THREAD.start()
     if os.environ.get("SUNO_AUTO_OPEN", "0") == "1":
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
@@ -5918,6 +5996,7 @@ def main() -> None:
     finally:
         SESSION_KEEPALIVE_STOP.set()
         SCHEDULER_STOP.set()
+        UPDATE_STOP.set()
         server.server_close()
         runtime_log("Lokalni server je zaustavljen.")
 
