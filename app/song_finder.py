@@ -46,6 +46,10 @@ POSSIBLE_MIN_SECONDS = 4.0
 SHORT_MATCH_SECONDS = 12.0
 SHORT_MATCH_MIN_SCORE = 75.0
 
+# Mirrors audio_match.SHORT_CLIP_MATCH_FRACTION, kept here so this module has
+# no import-time dependency on FFmpeg-related code.
+SHORT_CLIP_MATCH_FRACTION = 0.60
+
 STATUS_CONFIRMED = "confirmed"
 STATUS_POSSIBLE = "possible"
 STATUS_NOT_FOUND = "not_found"
@@ -63,17 +67,25 @@ def is_supported_file(path: Path) -> bool:
     return path.suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def classify_match(analysis: dict[str, Any]) -> str:
-    """Turn a compare_signatures() result into confirmed/possible/not_found."""
+def classify_match(analysis: dict[str, Any], clip_seconds: float = 0.0) -> str:
+    """Turn a compare_signatures() result into confirmed/possible/not_found.
+
+    clip_seconds is how long the uploaded clip is. Without it a 4-second clip
+    is asked to show 4 seconds of matched audio -- i.e. to be perfect end to
+    end -- which is why genuine short clips used to come back as nothing.
+    """
     score = float(analysis.get("audio_score") or 0)
     seconds = float(analysis.get("matched_seconds") or analysis.get("covered_seconds") or 0)
+    floor = POSSIBLE_MIN_SECONDS
+    if clip_seconds and clip_seconds < POSSIBLE_MIN_SECONDS / SHORT_CLIP_MATCH_FRACTION:
+        floor = max(1.0, clip_seconds * SHORT_CLIP_MATCH_FRACTION)
     # Short matches are held to SHORT_MATCH_MIN_SCORE because at those lengths
     # score alone stops being able to tell a real match from a wrong song.
     if seconds < SHORT_MATCH_SECONDS and score < SHORT_MATCH_MIN_SCORE:
         return STATUS_NOT_FOUND
     if score >= CONFIRMED_MIN_SCORE and seconds >= CONFIRMED_MIN_SECONDS:
         return STATUS_CONFIRMED
-    if score >= POSSIBLE_MIN_SCORE and seconds >= POSSIBLE_MIN_SECONDS:
+    if score >= POSSIBLE_MIN_SCORE and seconds >= floor:
         return STATUS_POSSIBLE
     return STATUS_NOT_FOUND
 

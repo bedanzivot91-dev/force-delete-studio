@@ -63,14 +63,14 @@ def main():
         clip_sig = signature(2)          # clip really is song2
         seen_song_ids = []
 
-        def fake_candidates(upload_signature, songs):
+        def fake_candidates(upload_signatures, songs):
             seen_song_ids.extend(str(s.get("id") or "") for s in songs)
             return [], 0
 
         with patch.object(server_module, "DB", db), \
              patch.object(server_module, "has_chromaprint", return_value=True), \
              patch.object(server_module, "sha256_file", return_value="deadbeef"), \
-             patch.object(server_module, "extract_signature", return_value=clip_sig), \
+             patch.object(server_module, "extract_query_signatures", return_value=[clip_sig]), \
              patch.object(server_module, "_song_finder_candidates", side_effect=fake_candidates), \
              patch.object(server_module.song_finder, "is_supported_file", return_value=True):
             probe = Path(raw) / "shorts.mp4"

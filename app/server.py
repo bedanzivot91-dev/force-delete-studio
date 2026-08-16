@@ -62,6 +62,7 @@ from audio_match import (
     analyze_audio_pair, closest_duration_candidates, compare_signatures, cleanup_youtube_audio_cache,
     download_youtube_audio, ensure_ytdlp, ensure_deno, search_youtube_with_ytdlp, extract_signature, inspect_youtube_video, pack_signature,
     SHORT_CLIP_MIN_MATCH_SECONDS, source_identity, unpack_signature, ytdlp_status, ytdlp_path,
+    extract_query_signatures, required_match_seconds,
 )
 from advanced_features import (
     analyze_audio_quality, check_update, compare_lyrics_transcript, create_cloud_backup, restore_cloud_backup,
@@ -2951,6 +2952,11 @@ SONG_FINDER_TEMPO_VARIANTS = (0.97, 1.03, 0.93, 1.08)
 # 20 is far more headroom than the ranking actually needs.
 SONG_FINDER_SHORTLIST = 20
 
+# How many of the best-scoring songs get re-checked at the other sub-frame
+# grid offsets. Doing that for all 20 made a 5s clip take 31s; doing it for
+# the top few keeps the recall and the speed.
+SONG_FINDER_PHASE_RETRY = 6
+
 FINGERPRINT_INDEX: FingerprintIndex | None = None
 FINGERPRINT_INDEX_LOCK = threading.Lock()
 
@@ -3067,9 +3073,30 @@ def _song_finder_shortlist(
     return shortlist, True
 
 
-def _song_finder_candidates(upload_signature: dict[str, Any], songs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+def _song_finder_candidates(
+    upload_signatures: dict[str, Any] | list[dict[str, Any]], songs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    variants = [upload_signatures] if isinstance(upload_signatures, dict) else list(upload_signatures)
+    if not variants:
+        return [], 0
+    clip_seconds = float(variants[0].get("duration") or 0.0)
+    # How much matched audio to demand, scaled to the clip: a 4s clip cannot
+    # be asked to show 4s of match and still tolerate a re-encode.
+    needed = required_match_seconds(clip_seconds)
     candidates: list[dict[str, Any]] = []
     checked = 0
+
+    def compare(song_signature: dict[str, Any], variant: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            return compare_signatures(song_signature, variant, min_match_seconds=needed)
+        except Exception:
+            return None
+
+    # Pass 1: every shortlisted song, against one grid offset only. Trying all
+    # offsets against all songs is what made a 5s clip take 31s; the correct
+    # song still ranks near the top here even when its alignment is poor,
+    # because a bad alignment lowers the score without erasing it.
+    scored: list[tuple[float, str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     for song in songs:
         song_id = str(song.get("id") or "")
         cached = DB.get_audio_fingerprint("suno", song_id, AUDIO_MATCH_VERSION)
@@ -3077,19 +3104,35 @@ def _song_finder_candidates(upload_signature: dict[str, Any], songs: list[dict[s
             continue
         try:
             song_signature = unpack_signature(cached.get("payload") or b"")
-            # Shorts mode: a clip may only carry a few seconds of the song.
-            # song_finder.classify_match() below still applies the stricter
-            # per-length rules (4-6s can only ever be "possible", 6s+ needs a
-            # high score to be "confirmed"), so this widens what can be found
-            # without weakening what counts as confirmed.
-            analysis = compare_signatures(
-                song_signature, upload_signature,
-                min_match_seconds=SHORT_CLIP_MIN_MATCH_SECONDS,
-            )
-        except (AudioMatchError, Exception):
+        except Exception:
+            continue
+        analysis = compare(song_signature, variants[0])
+        if analysis is None:
             continue
         checked += 1
-        status = song_finder.classify_match(analysis)
+        scored.append((float(analysis.get("audio_score") or 0), song_id, song, song_signature, analysis))
+
+    # Pass 2: only the strongest few get the remaining grid offsets. Where the
+    # clip was cut decides its alignment, and a half-frame error alone drops a
+    # genuine match from ~94 to ~56 -- so the songs worth a closer look are
+    # exactly the ones that scored well enough to be plausible.
+    scored.sort(key=lambda row: row[0], reverse=True)
+    best_analysis: dict[str, dict[str, Any]] = {}
+    for rank, (score, song_id, song, song_signature, analysis) in enumerate(scored):
+        if len(variants) > 1 and rank < SONG_FINDER_PHASE_RETRY and score < 95:
+            for variant in variants[1:]:
+                attempt = compare(song_signature, variant)
+                if attempt and float(attempt.get("audio_score") or 0) > float(analysis.get("audio_score") or 0):
+                    analysis = attempt
+                if float(analysis.get("audio_score") or 0) >= 95:
+                    break
+        best_analysis[song_id] = analysis
+
+    for score, song_id, song, song_signature, _first in scored:
+        analysis = best_analysis.get(song_id)
+        if analysis is None:
+            continue
+        status = song_finder.classify_match(analysis, clip_seconds=clip_seconds)
         if status == song_finder.STATUS_NOT_FOUND:
             continue
         candidates.append({
@@ -3119,7 +3162,10 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
         raise RuntimeError(f"Format {path.suffix or '?'} nije podržan za Pronalazač mojih pesama.")
     file_sha256 = sha256_file(path)
     chromaprint_ready = has_chromaprint()
-    upload_signature = extract_signature(path)
+    # A short clip is fingerprinted at several sub-frame grid offsets, because
+    # where it was cut decides how it lines up with the song it came from.
+    upload_variants = extract_query_signatures(path)
+    upload_signature = upload_variants[0]
     # Match against every song that actually HAS a fingerprint -- not only the
     # ones that happen to have a local audio file on disk. Songs indexed
     # straight from their Suno URL (the normal case: nothing is downloaded
@@ -3134,21 +3180,30 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
     # expensive precise comparison; everything the index does not cover is
     # still compared, so nothing can be missed.
     shortlist, used_index = _song_finder_shortlist(upload_signature, songs)
-    candidates, checked = _song_finder_candidates(upload_signature, shortlist)
+    candidates, checked = _song_finder_candidates(upload_variants, shortlist)
     for item in candidates:
         item["tempo_hint"] = 1.0
     ranked = song_finder.rank_song_candidates(candidates)
 
-    if not ranked or ranked[0]["status"] != song_finder.STATUS_CONFIRMED:
+    # The tempo search exists to rescue a clip that matched nothing, by
+    # re-extracting it at compensating speeds. A clip shorter than
+    # CONFIRMED_MIN_SECONDS can never be upgraded past "possible" no matter
+    # what it finds, so running four more tempo passes over an already-found
+    # short clip only costs the user time.
+    too_short_to_confirm = 0 < float(upload_signature.get("duration") or 0) < song_finder.CONFIRMED_MIN_SECONDS
+    already_found = bool(ranked) and ranked[0]["status"] != song_finder.STATUS_NOT_FOUND
+    if not (ranked and ranked[0]["status"] == song_finder.STATUS_CONFIRMED) and not (too_short_to_confirm and already_found):
         for tempo in SONG_FINDER_TEMPO_VARIANTS:
             try:
-                variant_signature = extract_signature(path, tempo=tempo)
+                tempo_variants = extract_query_signatures(path, tempo=tempo)
             except AudioMatchError:
+                continue
+            if not tempo_variants:
                 continue
             # A tempo-shifted clip has a genuinely different fingerprint, so
             # it needs its own shortlist rather than reusing the one above.
-            variant_shortlist, _ = _song_finder_shortlist(variant_signature, songs)
-            variant_candidates, variant_checked = _song_finder_candidates(variant_signature, variant_shortlist)
+            variant_shortlist, _ = _song_finder_shortlist(tempo_variants[0], songs)
+            variant_candidates, variant_checked = _song_finder_candidates(tempo_variants, variant_shortlist)
             checked = max(checked, variant_checked)
             for item in variant_candidates:
                 item["tempo_hint"] = tempo
