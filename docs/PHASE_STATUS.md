@@ -1496,6 +1496,48 @@ means when live execution isn't available. New package rebuilt and delivered wit
 fix, the next real diagnostic step is the `NPVideoStudioSetup-greska.log` file (or its absence) - there is no
 further code-reading path forward from this sandbox without that signal.
 
+## Nineteenth post-Phase-11 follow-up: CI was dead for 12 days, and fixing it immediately found real bugs
+
+The single most important finding of this whole stretch, and it was never in the app code. Every claim in
+the follow-ups above that a change was "verified on real Windows CI" was false from 2026-08-04 onward:
+**every** workflow run from run#126 (2026-08-04 19:39) through run#185 failed in 2-3 seconds with no logs
+at all and `runner_name` empty - the job never started. Cause was account-level, not code: a *private*
+repo on windows-latest (billed at 2x minutes) that had exhausted its GitHub Actions allowance, plus an
+artifact-storage quota hit (the last successful run, #125, has `total_count: 0` artifacts). None of this
+was noticed for ~60 consecutive red runs because nothing in the loop ever checked run status - packages
+were hand-assembled in the Linux sandbox and shipped straight to the user instead. The user made the repo
+public (Actions is free and unlimited for public repos), and the very next run executed for real.
+
+**What real Windows execution found the moment it came back** - 5 test failures, none of them app bugs,
+all of them tests that encoded *this sandbox's* environment as if it were a property of the code:
+- Four asserted `RealPreview.IsAvailable == false` ("no libvlc on this machine"). On Windows libvlc loads
+  fine, so they failed precisely *because the video player genuinely works there*. Rewritten to assert
+  both branches of the contract (render when available; bail out with the real reason when not).
+- One asserted `IsModelReady == false` for the Whisper model. That is doubly environment-dependent - it
+  depends on the machine *and* on test ordering, since the Whisper integration tests download the same
+  shared model into the same per-user folder. Replaced with what holds unconditionally: no file selected
+  on open means search/generate can't run, whatever the model state.
+
+A second run then found one more, and it was a bad assumption in the *fix*: a test asserted
+`HasLoadedFile == false` after `LoadAndPlay` on a nonexistent path, reasoning "even a working libvlc has
+nothing to load". Wrong on real Windows - libvlc opens media asynchronously, so a missing path fails later
+on VLC's own thread, and `LoadAndPlay` sets the flag right after handing the media over. The flag honestly
+means "a file was handed to the player", not "the file exists and decoded"; the test now says so.
+
+Third run: **green**, 412/412 on windows-latest, and both artifacts uploaded for the first time since
+August 4 - `NPVideoStudio-Setup-0.1.0.exe` (203 MB, real Inno Setup wizard with its own destination page
+and desktop-icon task) and the portable folder (262 MB). Confirmed from the Inno Setup compile log that
+the bundle is genuinely complete rather than assumed: `Tools\ffmpeg\ffmpeg.exe`, `Tools\ffmpeg\ffprobe.exe`,
+`Tools\whisper-models\ggml-tiny.bin`, `Tools\yt-dlp\yt-dlp.exe`, the full libvlc plugin tree, and
+whisper.dll/ggml-*.dll all appear in the file list. That closes, for the CI-built installer, both gaps the
+hand-built sandbox packages could never close (gyan.dev and huggingface.co are unreachable from this
+sandbox) - no manual FFmpeg install and no "Preuzmi model" click needed.
+
+**Standing lesson, worth more than any of the fixes above**: check that CI is actually running before
+treating "CI verifies this" as true, and prefer a real-Windows artifact over a sandbox-assembled package.
+The sandbox can build, but it cannot execute a Windows binary, and 60 red runs went unnoticed because
+nothing looked.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
