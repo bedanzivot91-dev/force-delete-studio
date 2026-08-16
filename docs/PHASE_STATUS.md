@@ -1465,6 +1465,37 @@ delivered package also now includes real cleanup instructions for the mangled `%
 Video Studio*` leftovers a prior buggy install run may have left behind, since deleting those wasn't
 something code could safely automate from here.
 
+## Eighteenth post-Phase-11 follow-up: fixed a real regression the seventeenth follow-up itself introduced
+
+Self-caught, not user-reported with specifics this time (the user refused to describe the actual on-screen
+symptom and instead demanded a full code-by-code re-audit) - re-reading `PromptForInstallDir` from the
+seventeenth follow-up line by line surfaced a real, serious bug: it treated "user clicked Cancel in the
+folder-browse dialog" and "the dialog itself failed to run or errored" (PowerShell error, WinForms
+`Add-Type` failure, AV interference, execution policy, anything) as the exact same outcome - both silently
+returned `null`, and `Install()` then just `return`ed with zero visible sign to the user. That reproduces
+the *exact* silent "double-click, nothing happens" symptom the sixteenth follow-up was supposed to have
+eliminated - a real regression introduced by the very next change on top of it. Fixed by replacing the
+nullable-string return with an explicit `(InstallDirChoice Choice, string? InstallDir, string? Error)`
+three-way result (`Selected` / `Cancelled` / `Failed`): `Cancelled` still exits quietly (correct - matches
+every real installer's Cancel button), but `Failed` now always shows a real message box with the actual
+error and falls back to installing at the default location instead of vanishing.
+
+Also closed a second, related edge case the new free-choice folder picker makes newly possible that the old
+fixed-location installer never had to consider: the user can now browse to and select the very folder
+`NPVideoStudioSetup.exe` is running from (or a parent of it), which would make `CopyDirectory` try to copy
+the whole source tree into a subfolder of itself. Added an explicit `Path.GetFullPath`-normalized containment
+check before doing any copying, with a real error message asking for a different folder instead of silently
+producing a nonsensical nested/doubled install.
+
+Verified: full non-integration suite still green (408/408). Cannot verify on a real Windows machine that this
+specific bug was in fact the cause of the user's latest silent-failure report (this sandbox still cannot
+execute the resulting `.exe`) - but it's a real, confirmed logic bug independent of whether it's *the* cause,
+found by re-reading the actual code rather than guessing, which is what re-auditing "code by code" concretely
+means when live execution isn't available. New package rebuilt and delivered with both fixes, with
+`PROCITAJ_PRVO.txt` explaining plainly that if `NPVideoStudioSetup.exe` still shows nothing at all after this
+fix, the next real diagnostic step is the `NPVideoStudioSetup-greska.log` file (or its absence) - there is no
+further code-reading path forward from this sandbox without that signal.
+
 ## Next action
 
 Phase 11 needs the two items above from the user (a real Windows machine, and their own regression clip)
