@@ -129,13 +129,15 @@ public partial class WorkspaceView : UserControl
         TimelinePanel.IsVisible = !focused;
         TimelineSplitter.IsVisible = !focused;
         CaptionToolbar.IsVisible = !focused;
+        ProjectHeader.IsVisible = !focused;
 
         PlayerLibraryGrid.ColumnDefinitions[1].Width = focused ? new GridLength(0) : new GridLength(8);
-        PlayerLibraryGrid.ColumnDefinitions[2].Width = focused ? new GridLength(0) : new GridLength(320);
-        EditingGrid.RowDefinitions[0].Height = new GridLength(1, GridUnitType.Star);
-        EditingGrid.RowDefinitions[1].Height = focused ? new GridLength(0) : new GridLength(10);
-        EditingGrid.RowDefinitions[2].Height = focused ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        PlayerPanel.Margin = focused ? new Thickness(8) : new Thickness(20, 0, 0, 0);
+        PlayerLibraryGrid.ColumnDefinitions[2].Width = focused ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
+        PlayerLibraryGrid.RowDefinitions[0].Height = focused ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        PlayerLibraryGrid.RowDefinitions[1].Height = focused ? new GridLength(0) : new GridLength(10);
+        PlayerLibraryGrid.RowDefinitions[2].Height = focused ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
+        PlayerPanel.Margin = focused ? new Thickness(4) : new Thickness(20, 0, 0, 20);
+        PlayerPanel.Padding = focused ? new Thickness(6) : new Thickness(16);
         FocusPlayerButton.Content = focused ? "← VRATI MONTAŽU" : "⛶ VELIKI PLEJER";
     }
 

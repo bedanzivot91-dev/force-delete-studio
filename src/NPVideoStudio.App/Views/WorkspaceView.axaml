@@ -39,12 +39,13 @@
       </WrapPanel>
     </Border>
 
-    <Grid Name="EditingGrid" RowDefinitions="2*,Auto,1*">
+    <Grid Name="EditingGrid" RowDefinitions="*">
 
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
-      <Grid Name="PlayerLibraryGrid" Grid.Row="0" ColumnDefinitions="*,Auto,320" Margin="0,0,0,4">
-      <Border Name="PlayerPanel" Grid.Column="0" Classes="panel" Margin="20,0,0,0" Padding="16">
+      <Grid Name="PlayerLibraryGrid" Grid.Row="0" RowDefinitions="1*,Auto,2*"
+            ColumnDefinitions="3*,Auto,2*" Margin="0,0,0,0">
+      <Border Name="PlayerPanel" Grid.Column="0" Grid.RowSpan="3" Classes="panel" Margin="20,0,0,20" Padding="16">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
             <WrapPanel.Styles>
@@ -132,9 +133,9 @@
         </DockPanel>
       </Border>
 
-        <GridSplitter Grid.Column="1" Width="8" Background="Transparent"
+        <GridSplitter Grid.Column="1" Grid.RowSpan="3" Width="10" Background="Transparent"
                       ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu plejera" />
-      <Border Name="MediaLibraryPanel" Grid.Column="2" Margin="0,0,20,0" Classes="panel" Padding="0">
+      <Border Name="MediaLibraryPanel" Grid.Column="2" Grid.Row="0" Margin="0,0,20,0" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
             <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
@@ -178,13 +179,13 @@
         video can finally be interacted with: scroll to zoom, drag to move, and the panel itself is
         resizable by the splitter below it.
       -->
-      </Grid>
+      <!-- Media biblioteka i timeline su zajedno desno. Hvataljka menja koliko visine dobija svaki. -->
+      <GridSplitter Name="TimelineSplitter" Grid.Column="2" Grid.Row="1" Height="10"
+                    Margin="0,0,20,0" HorizontalAlignment="Stretch" Background="Transparent"
+                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate media biblioteku ili timeline" />
 
-      <!-- Drag to give the timeline more room, or the player more room. -->
-      <GridSplitter Name="TimelineSplitter" Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
-                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili traku" />
-
-      <Border Name="TimelinePanel" Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="220" DataContext="{Binding Timeline}">
+      <Border Name="TimelinePanel" Grid.Column="2" Grid.Row="2" Classes="panel" Margin="0,0,20,20"
+              Padding="12" MinHeight="160" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />
@@ -401,6 +402,7 @@
           </ScrollViewer>
         </DockPanel>
       </Border>
+      </Grid>
     </Grid>
   </DockPanel>
 </UserControl>

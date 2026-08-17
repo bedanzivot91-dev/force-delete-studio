@@ -55,4 +55,32 @@ public class InstallerCopyDirectoryTests
             }
         }
     }
+
+    [Fact]
+    public void ResetLocalApplicationState_RemovesOnlyGeneratedState_AndKeepsUnrelatedFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "npvs-reset-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "AutoSave"));
+            Directory.CreateDirectory(Path.Combine(root, "PreviewCache"));
+            Directory.CreateDirectory(Path.Combine(root, "Models"));
+            File.WriteAllText(Path.Combine(root, "settings.json"), "old settings");
+            File.WriteAllText(Path.Combine(root, "npvideostudio.db"), "old database");
+            File.WriteAllText(Path.Combine(root, "AutoSave", "old.npvsproject"), "autosave");
+            File.WriteAllText(Path.Combine(root, "Models", "model.bin"), "keep expensive model");
+
+            NPVideoStudio.Installer.Program.ResetLocalApplicationState(root);
+
+            Assert.False(File.Exists(Path.Combine(root, "settings.json")));
+            Assert.False(File.Exists(Path.Combine(root, "npvideostudio.db")));
+            Assert.False(Directory.Exists(Path.Combine(root, "AutoSave")));
+            Assert.False(Directory.Exists(Path.Combine(root, "PreviewCache")));
+            Assert.True(File.Exists(Path.Combine(root, "Models", "model.bin")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
 }

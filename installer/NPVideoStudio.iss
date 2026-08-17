@@ -54,6 +54,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Napravi prečicu na Radnoj površini"; GroupDescription: "Dodatne prečice:"
 Name: "associate"; Description: "Poveži .npvsproject fajlove sa NP Video Studio"; GroupDescription: "Registracija fajlova:"
+Name: "resetstate"; Description: "Čista instalacija — ukloni stara podešavanja, listu nedavnih projekata i autosave"; GroupDescription: "Stari podaci:"; Flags: checkedonce
 
 [Files]
 Source: "..\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -71,6 +72,14 @@ Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\shell\open\command"; V
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Pokreni {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[InstallDelete]
+; Čista instalacija briše samo lokalno stanje programa. Originalni .npvsproject, video i audio fajlovi
+; u Dokumentima ili drugim korisničkim folderima nikada nisu meta ovih pravila.
+Type: files; Name: "{localappdata}\NP Video Studio\settings.json"; Tasks: resetstate
+Type: files; Name: "{localappdata}\NP Video Studio\npvideostudio.db"; Tasks: resetstate
+Type: filesandordirs; Name: "{localappdata}\NP Video Studio\AutoSave"; Tasks: resetstate
+Type: filesandordirs; Name: "{localappdata}\NP Video Studio\PreviewCache"; Tasks: resetstate
 
 [UninstallDelete]
 ; Namerno NE brišemo korisničke projekte, podešavanja niti logove pri deinstalaciji -

@@ -123,14 +123,21 @@ public class WorkspaceViewModelTests
         var button = view.FindControl<Button>("FocusPlayerButton")!;
         var timeline = view.FindControl<Border>("TimelinePanel")!;
         var library = view.FindControl<Border>("MediaLibraryPanel")!;
+        var projectHeader = view.FindControl<Border>("ProjectHeader")!;
+        var player = view.FindControl<Border>("PlayerPanel")!;
         Assert.True(timeline.IsVisible);
         Assert.True(library.IsVisible);
+        Assert.Equal(2, Grid.GetColumn(timeline));
+        Assert.Equal(2, Grid.GetColumn(library));
+        Assert.NotEqual(Grid.GetRow(timeline), Grid.GetRow(library));
 
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(timeline.IsVisible);
         Assert.False(library.IsVisible);
+        Assert.False(projectHeader.IsVisible);
+        Assert.Equal(new Thickness(4), player.Margin);
         Assert.Contains("VRATI MONTAŽU", button.Content?.ToString());
         window.Close();
     }
