@@ -57,7 +57,7 @@
         <StackPanel Spacing="10">
           <TextBlock Text="AI za prepoznavanje stihova pesme nije instaliran" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Program će sam instalirati kompatibilan Python 3.12, faster-whisper i Demucs. Preuzimanje je veliko i može trajati nekoliko minuta." />
+                     Text="Program će sam instalirati kompatibilan Python 3.12, faster-whisper, Demucs i model large-v3. Potrebno je najmanje 8 GB slobodnog prostora; prvo preuzimanje može dugo trajati." />
           <Button Classes="cta" Content="INSTALIRAJ AI ZA PESME" Command="{Binding InstallSongAiCommand}"
                   IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
         </StackPanel>

@@ -105,8 +105,12 @@ public sealed class DependencyManagerService : IDependencyManagerService
     private async Task<DependencyInfo> CheckAiWorkerAsync(CancellationToken cancellationToken)
     {
         var capabilities = await _aiWorkerClient.CheckCapabilitiesAsync(cancellationToken).ConfigureAwait(false);
-        var anyEngine = capabilities.FasterWhisperAvailable || capabilities.WhisperXAvailable || capabilities.DemucsAvailable;
-        var installed = capabilities.WorkerReachable && anyEngine;
+        // The song button requires BOTH transcription and vocal separation. Reporting the worker as
+        // installed when only Demucs (or only faster-whisper) happened to import made the diagnostics
+        // screen green while the actual song workflow still could not do what it promised.
+        var installed = capabilities.WorkerReachable &&
+                        capabilities.FasterWhisperAvailable &&
+                        capabilities.DemucsAvailable;
 
         var details = capabilities.WorkerReachable
             ? $"faster-whisper: {(capabilities.FasterWhisperAvailable ? "da" : "ne")}, " +
@@ -120,7 +124,7 @@ public sealed class DependencyManagerService : IDependencyManagerService
             Name = "AI radnik (napredna obrada govora)",
             Status = installed ? DependencyStatus.Installed : DependencyStatus.NotInstalled,
             Version = capabilities.PythonVersion,
-            WhyItMatters = "Potreban samo za profile „Balanced“/„Most accurate“ - profil „Fast“ (Whisper.net) radi i bez njega.",
+            WhyItMatters = "Za automatsko prepoznavanje stihova moraju raditi i faster-whisper i Demucs. WhisperX je opcion za napredno poravnanje.",
             TechnicalDetails = details
         };
     }

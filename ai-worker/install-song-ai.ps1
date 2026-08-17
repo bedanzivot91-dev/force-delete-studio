@@ -3,7 +3,13 @@ $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $runtime = Join-Path $env:LOCALAPPDATA 'NPVideoStudio\ai-runtime'
+$modelCache = Join-Path $env:LOCALAPPDATA 'NPVideoStudio\ai-models'
 $python = $null
+
+$drive = Get-PSDrive -Name ($env:SystemDrive.TrimEnd(':'))
+if ($drive.Free -lt 8GB) {
+    throw 'Za AI modele je potrebno najmanje 8 GB slobodnog prostora na sistemskom disku.'
+}
 
 Write-Output 'Tražim kompatibilan Python 3.12...'
 try {
@@ -29,6 +35,8 @@ if (-not (Test-Path (Join-Path $runtime 'Scripts\python.exe'))) {
     & $python -m venv $runtime
 }
 $managedPython = Join-Path $runtime 'Scripts\python.exe'
+$env:HF_HOME = $modelCache
+$env:PYTHONUTF8 = '1'
 
 Write-Output 'Ažuriram instalacioni sistem...'
 & $managedPython -m pip install --disable-pip-version-check --upgrade pip setuptools wheel
@@ -41,3 +49,10 @@ Write-Output 'Instaliram Demucs za izdvajanje vokala iz pesme...'
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija Demucs paketa nije uspela.' }
 Write-Output 'Proveravam AI instalaciju...'
 & $managedPython -c "import faster_whisper, demucs; print('AI za pesme je spreman.')"
+if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa nije uspela.' }
+
+Write-Output 'Preuzimam model large-v3 za stihove (ovo je veliko i radi se samo prvi put)...'
+& $managedPython -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8'); print('Whisper large-v3 model je spreman.')"
+if ($LASTEXITCODE -ne 0) { throw 'Preuzimanje ili učitavanje Whisper large-v3 modela nije uspelo.' }
+
+Write-Output 'Svi AI alati i model za pesme su instalirani.'

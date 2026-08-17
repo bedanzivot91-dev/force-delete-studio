@@ -100,7 +100,7 @@ public class DependencyManagerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDependenciesAsync_AiWorkerReachableWithFasterWhisper_ReportsInstalled()
+    public async Task GetDependenciesAsync_AiWorkerWithOnlyFasterWhisper_ReportsNotInstalled()
     {
         _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
         {
@@ -112,8 +112,25 @@ public class DependencyManagerServiceTests : IDisposable
         var results = await _service.GetDependenciesAsync();
         var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
 
-        Assert.Equal(DependencyStatus.Installed, aiWorker.Status);
+        Assert.Equal(DependencyStatus.NotInstalled, aiWorker.Status);
         Assert.Equal("3.11.0", aiWorker.Version);
+    }
+
+    [Fact]
+    public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperAndDemucs_ReportsInstalled()
+    {
+        _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
+        {
+            WorkerReachable = true,
+            PythonVersion = "3.12.0",
+            FasterWhisperAvailable = true,
+            DemucsAvailable = true
+        };
+
+        var results = await _service.GetDependenciesAsync();
+        var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
+
+        Assert.Equal(DependencyStatus.Installed, aiWorker.Status);
     }
 
     [Fact]

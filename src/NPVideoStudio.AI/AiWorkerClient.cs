@@ -296,6 +296,24 @@ public sealed class AiWorkerClient : IAiWorkerClient
             // Windows in particular, where Python's default for a *redirected* stream is the locale's
             // codepage, not UTF-8).
             startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+
+            // Demucs/torchaudio may launch ffmpeg while decoding an MP4. The application deliberately
+            // ships FFmpeg in Tools/ffmpeg instead of modifying the user's machine PATH, so the child
+            // process must receive that directory explicitly. Without this, Diagnostics could report
+            // bundled FFmpeg as installed while song separation failed with "ffmpeg not found".
+            var bundledFfmpegDirectory = Path.Combine(AppContext.BaseDirectory, "Tools", "ffmpeg");
+            if (Directory.Exists(bundledFfmpegDirectory))
+            {
+                var existingPath = startInfo.EnvironmentVariables["PATH"] ?? Environment.GetEnvironmentVariable("PATH") ?? "";
+                startInfo.EnvironmentVariables["PATH"] = bundledFfmpegDirectory + Path.PathSeparator + existingPath;
+            }
+
+            // Keep downloaded model files owned by this application and reusable between runs.
+            var modelCache = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NPVideoStudio", "ai-models");
+            Directory.CreateDirectory(modelCache);
+            startInfo.EnvironmentVariables["HF_HOME"] = modelCache;
         }
 
         startInfo.ArgumentList.Add("--request");

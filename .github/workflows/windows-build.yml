@@ -47,17 +47,12 @@ jobs:
         run: choco install yt-dlp -y --no-progress
 
       - name: Install Chromaprint (fpcalc)
-        # Optional dependency (song-fingerprint recognition in "Moje pesme" only, Phase 4) - the rest of
-        # the app works without it, same as yt-dlp/Whisper, so a failed install here must not fail the
-        # whole build. If missing, DependencyManagerService honestly reports it as NotInstalled.
+        # Release-completeness gate requires this in the clean-install payload.
         run: choco install chromaprint -y --no-progress
-        continue-on-error: true
 
       - name: Install Tesseract OCR
-        # Optional dependency (video layout analysis in "Analiza rasporeda videa" only, Phase 7) - same
-        # treatment as Chromaprint above, no test asserts it's present.
+        # Release-completeness gate requires this in the clean-install payload.
         run: choco install tesseract -y --no-progress
-        continue-on-error: true
 
       - name: Add Tesseract to PATH
         # Unlike ffmpeg/yt-dlp/chromaprint (installed as Chocolatey shims into a directory already on

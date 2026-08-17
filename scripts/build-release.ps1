@@ -44,10 +44,8 @@ Write-Host "== 4/7: Preuzimanje FFmpeg/FFprobe/yt-dlp/Whisper modela da program 
 # FfmpegLocator.cs resolves these from Tools\ffmpeg\{ffmpeg,ffprobe}.exe and Tools\yt-dlp\yt-dlp.exe next
 # to the exe before falling back to PATH - placing them here (in $publishDir, BEFORE it's copied into the
 # portable folder and BEFORE Inno Setup packages it) means both the portable ZIP and the installer ship
-# with a working FFmpeg/FFprobe/yt-dlp out of the box. Best-effort: a failed download here is a warning,
-# not a fatal error - the app still runs and falls back to PATH/manual install (see FfmpegLocator), same
-# as it always has, so a machine with no internet access can still produce a runnable (if dependency-less)
-# build rather than the whole release failing.
+# with a working FFmpeg/FFprobe/yt-dlp out of the box. A release artifact must not be published when a
+# required file is missing: that was how an installer could be green in CI but unusable on a clean PC.
 $toolsDir = Join-Path $publishDir 'Tools'
 $bundledToolsOk = $true
 
@@ -63,6 +61,7 @@ try {
     New-Item -ItemType Directory -Force -Path $ffmpegToolsDir | Out-Null
     Copy-Item -Path (Join-Path $ffmpegBinDir 'ffmpeg.exe') -Destination $ffmpegToolsDir -Force
     Copy-Item -Path (Join-Path $ffmpegBinDir 'ffprobe.exe') -Destination $ffmpegToolsDir -Force
+    Copy-Item -Path (Join-Path $ffmpegBinDir 'ffplay.exe') -Destination $ffmpegToolsDir -Force
     Remove-Item $ffmpegZip, $ffmpegExtractDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "FFmpeg i FFprobe spakovani u Tools\ffmpeg\." -ForegroundColor Green
 } catch {
@@ -86,8 +85,7 @@ try {
 # FfmpegLocator.cs already resolves fpcalc/tesseract from Tools\fpcalc\ and Tools\tesseract\ next to the
 # exe before falling back to PATH - these were the last two dependencies the user still had to install by
 # hand, which meant song recognition and reading text off a picture silently did nothing on a clean machine.
-# Same best-effort treatment as everything above: a failed download here is a warning, never a fatal build
-# error, and the app keeps its existing PATH/manual-install fallback.
+# A missing copy is caught by the release gate below, so incomplete artifacts are never uploaded.
 try {
     Write-Host "Preuzimam fpcalc (Chromaprint) za prepoznavanje pesme po zvuku..." -ForegroundColor Cyan
     $fpcalcToolsDir = Join-Path $toolsDir 'fpcalc'
@@ -151,6 +149,28 @@ try {
     Write-Host "Titlovi/karaoke i dalje rade ako korisnik klikne 'Preuzmi model' unutar programa (jednom, uz internet)." -ForegroundColor Yellow
 }
 
+# Release completeness gate. Building the UI successfully is not sufficient: every clean-install
+# feature requested by the product must have its executable/model inside the published payload.
+$requiredReleaseFiles = @(
+    'Tools\ffmpeg\ffmpeg.exe',
+    'Tools\ffmpeg\ffprobe.exe',
+    'Tools\ffmpeg\ffplay.exe',
+    'Tools\yt-dlp\yt-dlp.exe',
+    'Tools\fpcalc\fpcalc.exe',
+    'Tools\tesseract\tesseract.exe',
+    'Tools\whisper-models\ggml-tiny.bin',
+    'Tools\ai-worker\ai_worker.py',
+    'Tools\ai-worker\install-song-ai.ps1'
+)
+$missingReleaseFiles = @($requiredReleaseFiles | Where-Object {
+    $file = Join-Path $publishDir $_
+    -not (Test-Path $file) -or (Get-Item $file).Length -eq 0
+})
+if ($missingReleaseFiles.Count -gt 0) {
+    throw "Release je nepotpun. Nedostaju obavezni fajlovi: $($missingReleaseFiles -join ', ')"
+}
+Write-Host "Release gate: svi video/OCR/govor alati i AI instalater su prisutni." -ForegroundColor Green
+
 Write-Host "== 5/7: Pravljenje ugradjenog instalatera (NPVideoStudioSetup.exe) ==" -ForegroundColor Cyan
 # A real, self-contained alternative to the Inno Setup installer below, for machines that don't have
 # Inno Setup and can't reach jrsoftware.org to get it - see src/NPVideoStudio.Installer's doc comment.
@@ -175,7 +195,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $portableDir 'scripts') | O
 Copy-Item -Path (Join-Path $repoRoot 'scripts\check-dependencies.ps1') -Destination (Join-Path $portableDir 'scripts\check-dependencies.ps1') -Force
 Set-Content -Path (Join-Path $portableDir 'VERSION.txt') -Value $version
 $toolsNote = if ($bundledToolsOk) {
-    "FFmpeg, FFprobe i yt-dlp su vec ukljuceni u ovaj folder (Tools\) - ne treba nista dodatno da instalirate za osnovne funkcije (plejer, export, YouTube preuzimanje)."
+    "FFmpeg, FFprobe, FFplay, yt-dlp, fpcalc i Tesseract su ukljuceni u Tools\ - nisu potrebne rucne instalacije za video, YouTube, OCR i fingerprint."
 } else {
     "FFmpeg/yt-dlp NISU uspeli da se preuzmu tokom pravljenja ovog build-a (nije bilo interneta ili je preuzimanje palo). Pokrenite scripts\check-dependencies.ps1 (nalazi se u ovom folderu) ili instalirajte alat rucno i podesite putanju u Podesavanja unutar programa."
 }
@@ -197,8 +217,8 @@ $toolsNote
 
 $whisperNote
 
-Za OCR (prepoznavanje teksta u kadru) i prepoznavanje pesama (fingerprint) i dalje su potrebni Tesseract
-i fpcalc - ti alati nisu ukljuceni u ovaj build, instalirajte ih rucno ili preko scripts\check-dependencies.ps1.
+Za stihove iz pevanja otvorite Podesavanja > Alati i modeli i jednom kliknite INSTALIRAJ AI ZA PESME.
+Program tada pravi svoje odvojeno Python 3.12 okruzenje i instalira faster-whisper i Demucs.
 "@
 
 $zipPath = Join-Path $distDir "NPVideoStudio-Portable-x64-$version.zip"
