@@ -148,6 +148,14 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _formatSummaryLabel = string.Empty;
 
+    /// <summary>
+    /// Shape of the video currently selected/playing. This is intentionally NOT permanently tied to
+    /// Project.Format: one project can contain both Shorts (9:16) and landscape (16:9) sources, and the
+    /// source monitor must change shape when the user switches files.
+    /// </summary>
+    [ObservableProperty]
+    private double _playerAspectRatio = 16.0 / 9.0;
+
     /// <summary>How far back from the playhead the "render just a window" quick preview starts, and how
     /// wide that window is - see <see cref="RenderRealPreviewAroundPlayheadAsync"/>.</summary>
     private const double RangePreviewLeadInSeconds = 2;
@@ -169,6 +177,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _renderService = renderService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
         RefreshFormatSummaryLabel();
+        PlayerAspectRatio = ProjectAspectRatio;
 
         foreach (var asset in project.MediaLibrary)
         {
@@ -179,6 +188,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         Player = new PlayerViewModel(totalDurationSeconds: ComputeInitialDuration(project));
         Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds);
+        Timeline.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TimelineViewModel.SelectedMediaAsset))
+            {
+                UpdatePlayerAspectRatio(Timeline.SelectedMediaAsset?.Asset);
+            }
+        };
         Timeline.TimelineChanged += () =>
         {
             Player.Retarget(Timeline.TotalDurationSeconds);
@@ -202,7 +218,20 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        UpdatePlayerAspectRatio(Project.MediaLibrary.FirstOrDefault(a =>
+            string.Equals(a.FilePath, request.Value.SourceFilePath, StringComparison.OrdinalIgnoreCase)));
+
         _ = ExtractAndApplyFrameAsync(request.Value, cts.Token);
+    }
+
+    private void UpdatePlayerAspectRatio(MediaAsset? asset)
+    {
+        if (asset is not { Width: > 0, Height: > 0 } || !asset.HasVideoStream)
+        {
+            return;
+        }
+
+        PlayerAspectRatio = (double)asset.Width / asset.Height;
     }
 
     private async Task ExtractAndApplyFrameAsync(TimelinePreviewResolver.PreviewFrameRequest request, CancellationToken cancellationToken)
@@ -317,6 +346,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // is a UserControl, so an embedded player had nowhere to draw and a window was the only way to
         // see anything. VideoSurface has no native window at all, so that constraint is gone, and with
         // it the reason this screen had several players instead of one.
+        UpdatePlayerAspectRatio(asset.Asset);
         await RealPreview.LoadAndPlayAsync(asset.Asset.FilePath);
 
         RaisePlayerTransportChanged();
@@ -405,6 +435,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         try
         {
             var outputPath = await _renderService.RenderAsync(Project, job);
+            PlayerAspectRatio = ProjectAspectRatio;
             await RealPreview.LoadAndPlayAsync(outputPath);
             RealPreviewStatusMessage = "Pravi pregled je spreman i pušta se, sa zvukom.";
             _logger.Information("Pravi pregled renderovan i pušten: {Path}", outputPath);
@@ -478,6 +509,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         try
         {
             var outputPath = await _renderService.RenderAsync(previewProject, job);
+            PlayerAspectRatio = ProjectAspectRatio;
             await RealPreview.LoadAndPlayAsync(outputPath);
             RealPreviewStatusMessage = FormattableString.Invariant($"Deo pregleda ({rangeStart:0.0}s-{rangeEnd:0.0}s) je spreman i pušta se.");
             _logger.Information("Deo pravog pregleda renderovan i pušten: {Path} ({Start}s-{End}s)", outputPath, rangeStart, rangeEnd);

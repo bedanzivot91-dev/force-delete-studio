@@ -114,7 +114,7 @@
                to be a sliver of video between two huge black bars in a wide landscape box, and zooming
                only made the picture bigger inside that same wide box. Sized to the project ratio, a
                vertical project gives a vertical player. -->
-          <views:AspectRatioPanel Ratio="{Binding ProjectAspectRatio}"
+          <views:AspectRatioPanel Name="PlayerAspectPanel" Ratio="{Binding PlayerAspectRatio}"
                                   HorizontalAlignment="Center" VerticalAlignment="Stretch">
             <Border Background="Black" ClipToBounds="True"
                     BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
