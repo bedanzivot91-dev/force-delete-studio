@@ -113,6 +113,62 @@ public class WorkspaceViewModelTests
     }
 
     [AvaloniaFact]
+    public void PlayerAspectRatio_ChangesEveryTimeSelectedVideoChangesOrientation()
+    {
+        var portrait = new MediaAsset
+        {
+            FilePath = "/tmp/portrait.mp4", Width = 1080, Height = 1920,
+            HasVideoStream = true, Kind = MediaKind.Video
+        };
+        var landscape = new MediaAsset
+        {
+            FilePath = "/tmp/landscape.mp4", Width = 1920, Height = 1080,
+            HasVideoStream = true, Kind = MediaKind.Video
+        };
+        var project = new Project { Name = "Mešoviti video", MediaLibrary = { portrait, landscape } };
+        using var workspace = CreateWorkspace(project);
+
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        Assert.Equal(9.0 / 16.0, workspace.PlayerAspectRatio, 6);
+
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[1];
+        Assert.Equal(16.0 / 9.0, workspace.PlayerAspectRatio, 6);
+
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        Assert.Equal(9.0 / 16.0, workspace.PlayerAspectRatio, 6);
+    }
+
+    [AvaloniaFact]
+    public void PlayerPanelBinding_ActuallyChangesFromPortraitToLandscapeOnScreen()
+    {
+        var portrait = new MediaAsset
+        {
+            FilePath = "/tmp/portrait.mp4", Width = 1080, Height = 1920,
+            HasVideoStream = true, Kind = MediaKind.Video
+        };
+        var landscape = new MediaAsset
+        {
+            FilePath = "/tmp/landscape.mp4", Width = 1920, Height = 1080,
+            HasVideoStream = true, Kind = MediaKind.Video
+        };
+        var project = new Project { Name = "Mešoviti video", MediaLibrary = { portrait, landscape } };
+        using var workspace = CreateWorkspace(project);
+        var view = new WorkspaceView { DataContext = workspace };
+        var window = new Window { Width = 1600, Height = 1000, Content = view };
+        window.Show();
+
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        Dispatcher.UIThread.RunJobs();
+        var panel = view.FindControl<AspectRatioPanel>("PlayerAspectPanel")!;
+        Assert.Equal(9.0 / 16.0, panel.Ratio, 6);
+
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[1];
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(16.0 / 9.0, panel.Ratio, 6);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void BigPlayerButton_ReallyHidesTimelineAndLibrary_AndGivesPlayerWholeEditor()
     {
         using var workspace = CreateWorkspace();
