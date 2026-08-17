@@ -518,3 +518,464 @@ public class WorkspaceViewModelTests
 
         Assert.False(renderCalled);
         Assert.Contains("Dodajte bar jedan klip", workspace.RealPreviewStatusMessage);
+    }
+
+    /// <summary>Real, researched motivation (see PHASE_STATUS.md - FramePFX, a comparable open-source
+    /// editor on the same C#/Avalonia stack, documents live full-timeline compositing as still-unsolved):
+    /// this command renders only a short window around the playhead instead of the whole project, so a
+    /// preview on a long timeline stays fast. Same both-branches reasoning as the full-render command's
+    /// test above - libvlc's presence is a property of the machine, not the code.
+    /// <see cref="FfmpegFilterGraphBuilderTests.ExtractRangeTimeline_ClipFullyInsideRange_KeptWithTimeShiftedToRangeStart"/>
+    /// and friends cover the actual range math directly.</summary>
+    [AvaloniaFact]
+    public async Task RenderRealPreviewAroundPlayheadAsync_ClipExists_RendersWhenPlayerIsAvailableAndBailsOutCleanlyWhenItIsNot()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(30) };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var renderCalled = false;
+        var renderService = new FakeRenderService { Handler = (_, job, _) => { renderCalled = true; return Task.FromResult(job.Settings.OutputFilePath); } };
+        var workspace = CreateWorkspace(project, renderService: renderService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.RenderRealPreviewAroundPlayheadCommand.ExecuteAsync(null);
+
+        if (workspace.RealPreview.IsAvailable)
+        {
+            Assert.True(renderCalled);
+        }
+        else
+        {
+            Assert.False(renderCalled);
+            Assert.Equal(workspace.RealPreview.UnavailableReason, workspace.RealPreviewStatusMessage);
+        }
+    }
+
+    /// <summary>Real feature request from a user: "automatically add text from the video" - this drives
+    /// the same local Whisper transcription the standalone "Generiši titlove (SRT)" tool uses, but lands
+    /// the result directly on the timeline as real caption clips instead of only a standalone .srt file.</summary>
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_VideoOnTimelineAndModelReady_AddsCaptionTrackWithClips()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService
+        {
+            IsModelReady = true,
+            SegmentsToReturn = new[]
+            {
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2), "Zdravo"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), "svima")
+            }
+        };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        var captionTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Caption);
+        Assert.Equal(2, captionTrack.Clips.Count);
+        Assert.Equal("Zdravo", captionTrack.Clips[0].Clip.TextContent);
+        Assert.Equal(2, captionTrack.Clips[1].Clip.TimelineStartSeconds);
+        Assert.Contains("2", workspace.CaptionsStatusMessage);
+    }
+
+    /// <summary>Real feature request: karaoke-style captions where each spoken word appears on screen
+    /// individually, timed to when it's actually said - drives word-level Whisper transcription
+    /// (TranscribeWordsAsync) instead of line-level, but reuses the exact same timeline-placement path.</summary>
+    [AvaloniaFact]
+    public async Task GenerateKaraokeCaptionsForVideoAsync_VideoOnTimelineAndModelReady_AddsOneClipPerWord()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService
+        {
+            IsModelReady = true,
+            WordSegmentsToReturn = new[]
+            {
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(0.4), "Zdravo"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0.4), TimeSpan.FromSeconds(0.7), "svima"),
+                new TranscribedCaptionSegment(TimeSpan.FromSeconds(0.7), TimeSpan.FromSeconds(1.0), "danas")
+            }
+        };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateKaraokeCaptionsForVideoCommand.ExecuteAsync(null);
+
+        var captionTrack = Assert.Single(workspace.Timeline.Tracks, t => t.Track.Kind == TimelineTrackKind.Caption);
+        Assert.Equal(3, captionTrack.Clips.Count);
+        Assert.Equal("Zdravo", captionTrack.Clips[0].Clip.TextContent);
+        Assert.Equal("svima", captionTrack.Clips[1].Clip.TextContent);
+        Assert.Equal("danas", captionTrack.Clips[2].Clip.TextContent);
+        Assert.Equal(0.4, captionTrack.Clips[1].Clip.TimelineStartSeconds, precision: 5);
+        Assert.Contains("karaoke", workspace.CaptionsStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_NoVideoOnTimeline_DoesNotCallTranscribeAndExplainsWhy()
+    {
+        var workspace = CreateWorkspace(subtitleGeneratorService: new FakeSubtitleGeneratorService { IsModelReady = true });
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.Empty(workspace.Timeline.Tracks);
+        Assert.Contains("Dodajte video", workspace.CaptionsStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_ModelNotReady_DoesNotAddTrackAndPointsToSrtTool()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService { IsModelReady = false };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.Single(workspace.Timeline.Tracks); // still just the video track, no caption track added
+        Assert.Contains("Generiši titlove (SRT)", workspace.CaptionsStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task GenerateCaptionsForVideoAsync_RecognitionFails_ShowsTheActualErrorAndUnlocksTheButtons()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10), HasVideoStream = true };
+        var project = new Project { Name = "Test projekat", MediaLibrary = { asset } };
+        var subtitleService = new FakeSubtitleGeneratorService { IsModelReady = true, ThrowOnGenerate = true };
+        var workspace = CreateWorkspace(project, subtitleService);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+        Assert.False(workspace.IsGeneratingCaptions);
+        Assert.Contains("prepoznavanje govora nije uspelo", workspace.CaptionsStatusMessage);
+        Assert.Single(workspace.Timeline.Tracks);
+    }
+
+    /// <summary>
+    /// The play command's real behaviour, now that there is ONE player.
+    ///
+    /// These used to assert against a fake "player window service", because pressing play opened a
+    /// separate window - which was itself a workaround for LibVLCSharp's VideoView being unable to draw
+    /// inside a UserControl. With the picture painted by Avalonia that window is gone, so what is
+    /// asserted here is what actually happens now: the file is loaded into the one embedded player, or
+    /// the user is told exactly why it was not.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task PlaySelectedSource_NoMediaImported_SaysSoAndPlaysNothing()
+    {
+        var workspace = CreateWorkspace();
+
+        await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
+
+        Assert.False(workspace.RealPreview.HasLoadedFile);
+        Assert.Contains("Prvo dodajte", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task PlaySelectedSource_FileDeletedFromDisk_ReportsThatInsteadOfPlayingNothing()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/ne-postoji-nikad.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+        await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
+
+        Assert.False(workspace.RealPreview.HasLoadedFile);
+        Assert.Contains("više ne postoji", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public async Task PlaySelectedSource_NeverThrows_AndAlwaysSaysSomething()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-play-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(path, new byte[] { 0, 1, 2 });   // not decodable - the honest hard case
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            using var workspace = CreateWorkspace(project);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            await workspace.PlaySelectedSourceCommand.ExecuteAsync(null);
+
+            // Whatever happened, the user is told - a silent no-op is what made the old player feel broken.
+            Assert.False(string.IsNullOrWhiteSpace(workspace.RealPreviewStatusMessage));
+        }
+        finally
+        {
+            // VLC releases a currently-opening media file on its decoder thread after Dispose. Windows
+            // correctly refuses an immediate delete while that native handle is still closing.
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                try
+                {
+                    File.Delete(path);
+                    break;
+                }
+                catch (IOException) when (attempt < 19)
+                {
+                    await Task.Delay(50);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// One player means one set of transport buttons, and they must drive whichever engine is behind the
+    /// picture. With nothing loaded that is the frame-snapshot preview; the buttons must still work and
+    /// must never throw.
+    /// </summary>
+    [AvaloniaFact]
+    public void TransportButtons_DriveTheSinglePlayer()
+    {
+        // A duration is required for play to mean anything - the transport refuses to run a zero-length
+        // timeline, which is correct, so the test gives it something to play.
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(30) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+
+        // Nothing continuous loaded, so the buttons drive the frame-snapshot preview.
+        Assert.False(workspace.IsShowingContinuousVideo);
+
+        workspace.PlayerPlayCommand.Execute(null);
+        Assert.True(workspace.IsPlayerPlaying);
+
+        workspace.PlayerPauseCommand.Execute(null);
+        Assert.False(workspace.IsPlayerPlaying);
+
+        workspace.PlayerPlayCommand.Execute(null);
+        workspace.PlayerStopCommand.Execute(null);
+        Assert.False(workspace.IsPlayerPlaying);
+    }
+
+    /// <summary>With nothing at all loaded the buttons must still be harmless - a crash here would take
+    /// the whole workspace down for a click that should simply do nothing.</summary>
+    [AvaloniaFact]
+    public void TransportButtons_AreSafeWithNothingLoaded()
+    {
+        var workspace = CreateWorkspace();
+
+        workspace.PlayerPlayCommand.Execute(null);
+        workspace.PlayerPauseCommand.Execute(null);
+        workspace.PlayerStopCommand.Execute(null);
+
+        Assert.False(workspace.IsPlayerPlaying);
+        Assert.False(workspace.IsShowingContinuousVideo);
+    }
+
+    [AvaloniaFact]
+    public void ClipsInTheVisualLane_ArePositionedAndSizedByTheirRealTiming()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(20) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        project.Timeline.ZoomPixelsPerSecond = 40;
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        workspace.Timeline.MoveClipTo(workspace.Timeline.Tracks[0].Clips[0].Clip.Id, 5);
+
+        var clip = workspace.Timeline.Tracks[0].Clips[0];
+
+        // 5s in at 40 px/s = 200px from the left; 20s long = 800px wide.
+        Assert.Equal(200, clip.PixelLeft);
+        Assert.Equal(800, clip.PixelWidth);
+    }
+
+    [AvaloniaFact]
+    public void AVeryShortClip_IsStillWideEnoughToSeeAndGrabWithTheMouse()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromMilliseconds(20) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        Assert.True(workspace.Timeline.Tracks[0].Clips[0].PixelWidth >= 6);
+    }
+
+    [AvaloniaFact]
+    public void MoveClipTo_WhatADragCommits_RepositionsTheClipAndIsOneUndoStep()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+        var clipId = workspace.Timeline.Tracks[0].Clips[0].Clip.Id;
+
+        workspace.Timeline.MoveClipTo(clipId, 7.5);
+        Assert.Equal(7.5, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+
+        workspace.Timeline.UndoCommand.Execute(null);
+        Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+    }
+
+    [AvaloniaFact]
+    public void MoveClipTo_DraggedPastTheStart_IsClampedToZeroInsteadOfGoingNegative()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        workspace.Timeline.MoveClipTo(workspace.Timeline.Tracks[0].Clips[0].Clip.Id, -50);
+
+        Assert.Equal(0, workspace.Timeline.Tracks[0].Clips[0].StartSeconds);
+    }
+
+    private static WorkspaceViewModel WorkspaceWithTwoTracks(out string clipId, out string videoTrackId, out string overlayTrackId)
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/fake.mp4", Duration = TimeSpan.FromSeconds(10) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+        workspace.Timeline.AddVideoTrackCommand.Execute(null);
+        workspace.Timeline.AddImageOverlayTrackCommand.Execute(null);
+        workspace.Timeline.SelectedMediaAsset = workspace.MediaLibrary[0];
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        clipId = workspace.Timeline.Tracks[0].Clips[0].Clip.Id;
+        videoTrackId = workspace.Timeline.Tracks[0].Track.Id;
+        overlayTrackId = workspace.Timeline.Tracks[1].Track.Id;
+        return workspace;
+    }
+
+    [AvaloniaFact]
+    public void SelectingAClip_MarksItSelectedAndLeavesTheOthersAlone()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out _);
+        workspace.Timeline.Tracks[0].AddClipAtPlayheadCommand.Execute(null);
+
+        workspace.Timeline.SelectedClipId = clipId;
+
+        Assert.Equal(clipId, workspace.Timeline.SelectedClip!.Clip.Id);
+        Assert.Single(workspace.Timeline.Tracks.SelectMany(t => t.Clips).Where(c => c.IsSelected));
+    }
+
+    [AvaloniaFact]
+    public void DraggingAClipOntoAnotherPictureTrack_MovesItThere()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+
+        var moved = workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 3);
+
+        Assert.True(moved);
+        Assert.Empty(workspace.Timeline.Tracks[0].Clips);
+        var landed = Assert.Single(workspace.Timeline.Tracks[1].Clips);
+        Assert.Equal(3, landed.StartSeconds);
+    }
+
+    [AvaloniaFact]
+    public void DraggingAVideoClipOntoAnAudioTrack_IsRefusedRatherThanSilentlyNeverRendering()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out _);
+        workspace.Timeline.AddAudioTrackCommand.Execute(null);
+        var audioTrackId = workspace.Timeline.Tracks[^1].Track.Id;
+
+        var moved = workspace.Timeline.MoveClipToTrack(clipId, audioTrackId, 2);
+
+        Assert.False(moved);
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+    }
+
+    [AvaloniaFact]
+    public void DraggingOntoALockedTrack_IsRefused()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+        workspace.Timeline.Tracks[1].ToggleLockCommand.Execute(null);
+
+        Assert.False(workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 2));
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+    }
+
+    [AvaloniaFact]
+    public void MovingAClipBetweenTracks_IsOneUndoStep()
+    {
+        var workspace = WorkspaceWithTwoTracks(out var clipId, out _, out var overlayTrackId);
+
+        workspace.Timeline.MoveClipToTrack(clipId, overlayTrackId, 3);
+        workspace.Timeline.UndoCommand.Execute(null);
+
+        Assert.Single(workspace.Timeline.Tracks[0].Clips);
+        Assert.Empty(workspace.Timeline.Tracks[1].Clips);
+    }
+
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_NoMediaImported_SaysSoInsteadOfDoingNothing()
+    {
+        var workspace = CreateWorkspace();
+
+        workspace.OpenInSystemPlayerCommand.Execute(null);
+
+        Assert.Contains("Prvo dodajte", workspace.RealPreviewStatusMessage);
+    }
+
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_FileMissingFromDisk_ReportsThatRatherThanFailingSilently()
+    {
+        var asset = new MediaAsset { FilePath = "/tmp/ne-postoji-nikako.mp4", Duration = TimeSpan.FromSeconds(5) };
+        var project = new Project { Name = "Test", MediaLibrary = { asset } };
+        var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+        workspace.OpenInSystemPlayerCommand.Execute(null);
+
+        Assert.Contains("više ne postoji", workspace.RealPreviewStatusMessage);
+    }
+
+    /// <summary>The whole point of this command is that it can never take the app down - it must report a
+    /// failure to launch, not propagate it.</summary>
+    [AvaloniaFact]
+    public void OpenInSystemPlayer_WhenLaunchingFails_ReportsItAndNeverThrows()
+    {
+        // A real file with no handler (and no exec bit) - ShellExecute on it fails on the sandbox, which is
+        // exactly the "it did not open" path this must survive.
+        var path = Path.Combine(Path.GetTempPath(), $"npvs-nohandler-{Guid.NewGuid():N}.zzzz");
+        File.WriteAllText(path, "x");
+
+        try
+        {
+            var asset = new MediaAsset { FilePath = path, Duration = TimeSpan.FromSeconds(5) };
+            var project = new Project { Name = "Test", MediaLibrary = { asset } };
+            var workspace = CreateWorkspace(project);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+
+            var exception = Record.Exception(() => workspace.OpenInSystemPlayerCommand.Execute(null));
+
+            Assert.Null(exception);
+            Assert.False(string.IsNullOrWhiteSpace(workspace.RealPreviewStatusMessage));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+}
