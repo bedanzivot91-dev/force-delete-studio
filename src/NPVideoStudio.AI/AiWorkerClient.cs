@@ -28,7 +28,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
     };
 
     private readonly string? _workerCommandOverride;
-    private readonly string _pythonPath;
+    private string _pythonPath;
     private readonly string _workerScriptPath;
 
     public AiWorkerClient(
@@ -39,9 +39,75 @@ public sealed class AiWorkerClient : IAiWorkerClient
         _workerCommandOverride = workerCommandOverride;
         _pythonPath = !string.IsNullOrWhiteSpace(pythonOverridePath)
             ? pythonOverridePath
-            : OperatingSystem.IsWindows() ? "python" : "python3";
+            : ResolveAppPythonPath();
         _workerScriptPath = workerScriptOverridePath
             ?? Path.Combine(AppContext.BaseDirectory, "Tools", "ai-worker", "ai_worker.py");
+    }
+
+    private static string ResolveAppPythonPath()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var managedPython = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NPVideoStudio", "ai-runtime", "Scripts", "python.exe");
+            if (File.Exists(managedPython))
+            {
+                return managedPython;
+            }
+            return "python";
+        }
+        return "python3";
+    }
+
+    public async Task InstallSongAiAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Automatska AI instalacija je trenutno namenjena Windows verziji programa.");
+        }
+
+        var scriptPath = Path.Combine(AppContext.BaseDirectory, "Tools", "ai-worker", "install-song-ai.ps1");
+        if (!File.Exists(scriptPath))
+        {
+            throw new FileNotFoundException("Installer za AI nije pronađen u programu.", scriptPath);
+        }
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Utf8NoBom,
+                StandardErrorEncoding = Utf8NoBom,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        process.StartInfo.ArgumentList.Add("-NoProfile");
+        process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+        process.StartInfo.ArgumentList.Add("Bypass");
+        process.StartInfo.ArgumentList.Add("-File");
+        process.StartInfo.ArgumentList.Add(scriptPath);
+        process.StartInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+
+        process.Start();
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+        {
+            if (!string.IsNullOrWhiteSpace(line)) progress?.Report(line.Trim());
+        }
+        await process.WaitForExitAsync(cancellationToken);
+        var error = await errorTask;
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
+                ? $"AI instalacija nije uspela (kod {process.ExitCode})."
+                : error.Trim());
+        }
+        _pythonPath = ResolveAppPythonPath();
     }
 
     public async Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default)

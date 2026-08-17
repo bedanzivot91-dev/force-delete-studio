@@ -8,6 +8,9 @@ public interface IDependencyManagerService
     /// <summary>Downloads the local Whisper speech-recognition model. Must only run after explicit user consent.</summary>
     Task DownloadWhisperModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Installs the app-owned Python environment for recognizing sung lyrics.</summary>
+    Task InstallSongAiAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default);
+
     /// <summary>Opens the OS file browser at the folder containing <paramref name="path"/>.</summary>
     void OpenContainingFolder(string path);
 }

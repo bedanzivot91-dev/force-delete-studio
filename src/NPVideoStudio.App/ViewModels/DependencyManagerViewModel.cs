@@ -33,6 +33,7 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
     public ObservableCollection<DependencyItemViewModel> Dependencies { get; } = new();
 
     public bool HasDownloadableWhisperModel => Dependencies.Any(d => d.CanDownload);
+    public bool HasMissingSongAi => Dependencies.Any(d => d.Name.StartsWith("AI radnik") && !d.IsInstalled);
 
     public DependencyManagerViewModel(IDependencyManagerService service, ILogger logger)
     {
@@ -59,7 +60,9 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(HasDownloadableWhisperModel));
+            OnPropertyChanged(nameof(HasMissingSongAi));
             DownloadWhisperModelCommand.NotifyCanExecuteChanged();
+            InstallSongAiCommand.NotifyCanExecuteChanged();
         }
         catch (Exception ex)
         {
@@ -106,4 +109,34 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(IsDownloadingModel))]
     private void CancelDownload() => _downloadCts?.Cancel();
+
+    [RelayCommand(CanExecute = nameof(HasMissingSongAi))]
+    private async Task InstallSongAiAsync()
+    {
+        _downloadCts = new CancellationTokenSource();
+        IsDownloadingModel = true;
+        ModelStatusMessage = "Pripremam AI za prepoznavanje pesama...";
+        try
+        {
+            var progress = new Progress<string>(message => ModelStatusMessage = message);
+            await _service.InstallSongAiAsync(progress, _downloadCts.Token);
+            ModelStatusMessage = "AI za pesme je instaliran i spreman.";
+            await RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            ModelStatusMessage = "AI instalacija je prekinuta.";
+        }
+        catch (Exception ex)
+        {
+            ModelStatusMessage = $"AI instalacija nije uspela: {ex.Message}";
+            _logger.Error(ex, "AI instalacija nije uspela");
+        }
+        finally
+        {
+            IsDownloadingModel = false;
+            _downloadCts?.Dispose();
+            _downloadCts = null;
+        }
+    }
 }

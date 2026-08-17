@@ -128,6 +128,9 @@ public sealed class DependencyManagerService : IDependencyManagerService
     public Task DownloadWhisperModelAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
         _lyricSearchService.DownloadModelAsync(progress, cancellationToken);
 
+    public Task InstallSongAiAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
+        _aiWorkerClient.InstallSongAiAsync(progress, cancellationToken);
+
     public void OpenContainingFolder(string path)
     {
         var folder = Path.GetDirectoryName(path);

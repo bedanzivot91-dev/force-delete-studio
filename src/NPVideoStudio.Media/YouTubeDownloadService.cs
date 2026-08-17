@@ -27,7 +27,8 @@ public sealed class YouTubeDownloadService : IYouTubeDownloadService
         YouTubeDownloadHelpers.ValidateYouTubeUrl(url);
 
         var (exitCode, stdOut, stdErr) = await RunYtDlpAsync(
-            new[] { "--no-playlist", "--skip-download", "--dump-json", "--no-warnings", url },
+            new[] { "--no-playlist", "--skip-download", "--dump-json", "--no-warnings",
+                "--extractor-args", "youtube:player_client=web_embedded", url },
             cancellationToken);
 
         if (exitCode != 0)
@@ -76,7 +77,9 @@ public sealed class YouTubeDownloadService : IYouTubeDownloadService
         progress?.Report($"Preuzimanje: {info.Title}...");
 
         var outputTemplate = Path.Combine(outputDirectory, "%(id)s.%(ext)s");
-        var args = new List<string> { "--no-playlist", "--no-warnings", "-x", "--audio-format", "mp3", "--audio-quality", "0" };
+        var args = new List<string> { "--no-playlist", "--no-warnings",
+            "--extractor-args", "youtube:player_client=web_embedded",
+            "-x", "--audio-format", "mp3", "--audio-quality", "0" };
 
         var ffmpegDirectory = Path.GetDirectoryName(Path.GetFullPath(_ffmpegPath));
         if (!string.IsNullOrEmpty(ffmpegDirectory) && Directory.Exists(ffmpegDirectory))

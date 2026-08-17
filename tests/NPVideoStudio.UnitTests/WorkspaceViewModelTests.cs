@@ -1,11 +1,15 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using NPVideoStudio.App.Services;
 using NPVideoStudio.App.ViewModels;
+using NPVideoStudio.App.Views;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
 using Serilog;
 using Xunit;
+using System.Runtime.CompilerServices;
 
 namespace NPVideoStudio.UnitTests;
 
@@ -47,6 +51,34 @@ public sealed class FakeFramePreviewService : IFramePreviewService
         Task.FromResult(Handler?.Invoke(sourceFilePath, timestampSeconds));
 }
 
+public sealed class ReadySongAiWorker : IAiWorkerClient
+{
+    public Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new AiWorkerCapabilities
+        {
+            WorkerReachable = true,
+            FasterWhisperAvailable = true,
+            DemucsAvailable = true,
+            PythonVersion = "3.12-test"
+        });
+
+    public async IAsyncEnumerable<AiWorkerEvent> RunAsync(
+        AiWorkerRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        yield return new AiWorkerEvent
+        {
+            Type = AiWorkerEventType.Result,
+            Words = new[]
+            {
+                new AiWorkerWord { Text = "Ovo", Start = TimeSpan.Zero, End = TimeSpan.FromSeconds(.4), Confidence = .9 },
+                new AiWorkerWord { Text = "je", Start = TimeSpan.FromSeconds(.41), End = TimeSpan.FromSeconds(.6), Confidence = .9 },
+                new AiWorkerWord { Text = "pesma.", Start = TimeSpan.FromSeconds(.61), End = TimeSpan.FromSeconds(1.1), Confidence = .9 }
+            }
+        };
+        await Task.CompletedTask;
+    }
+}
+
 /// <summary>
 /// Uses [AvaloniaFact] (not a plain [Fact]) because PlayerViewModel constructs a real Avalonia
 /// DispatcherTimer, which needs a running Dispatcher - same reason AppSmokeTests.cs uses it.
@@ -54,7 +86,8 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 public class WorkspaceViewModelTests
 {
     private static WorkspaceViewModel CreateWorkspace(Project? project = null, ISubtitleGeneratorService? subtitleGeneratorService = null,
-        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null)
+        IMediaProbeService? mediaProbeService = null, IStorageService? storageService = null, IRenderService? renderService = null,
+        IAiWorkerClient? aiWorkerClient = null)
     {
         project ??= new Project { Name = "Test projekat" };
         return new WorkspaceViewModel(
@@ -65,7 +98,8 @@ public class WorkspaceViewModelTests
             new FakeFramePreviewService(),
             subtitleGeneratorService ?? new FakeSubtitleGeneratorService(),
             renderService ?? new FakeRenderService(),
-            new LoggerConfiguration().CreateLogger());
+            new LoggerConfiguration().CreateLogger(),
+            aiWorkerClient);
     }
 
     [AvaloniaFact]
@@ -75,6 +109,30 @@ public class WorkspaceViewModelTests
 
         Assert.Empty(workspace.Timeline.Tracks);
         Assert.Equal(0, workspace.Player.TotalDurationSeconds);
+    }
+
+    [AvaloniaFact]
+    public void BigPlayerButton_ReallyHidesTimelineAndLibrary_AndGivesPlayerWholeEditor()
+    {
+        using var workspace = CreateWorkspace();
+        var view = new WorkspaceView { DataContext = workspace };
+        var window = new Window { Width = 1400, Height = 900, Content = view };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var button = view.FindControl<Button>("FocusPlayerButton")!;
+        var timeline = view.FindControl<Border>("TimelinePanel")!;
+        var library = view.FindControl<Border>("MediaLibraryPanel")!;
+        Assert.True(timeline.IsVisible);
+        Assert.True(library.IsVisible);
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(timeline.IsVisible);
+        Assert.False(library.IsVisible);
+        Assert.Contains("VRATI MONTAŽU", button.Content?.ToString());
+        window.Close();
     }
 
     [Fact]
@@ -95,6 +153,33 @@ public class WorkspaceViewModelTests
         Assert.Equal("Još pamtim tvoj pogled.", lines[0].Text);
         Assert.Equal(TimeSpan.FromSeconds(1.4), lines[0].End);
         Assert.Equal("Novi", lines[1].Text);
+    }
+
+    [AvaloniaFact]
+    public async Task AutomaticTextButton_WithInstalledSongAi_UsesAdvancedWorkerAndAddsEditableLine()
+    {
+        var asset = new MediaAsset
+        {
+            FilePath = Path.GetTempFileName(), Duration = TimeSpan.FromSeconds(5), HasVideoStream = true
+        };
+        try
+        {
+            var project = new Project { Name = "Pesma", MediaLibrary = { asset } };
+            using var workspace = CreateWorkspace(project, aiWorkerClient: new ReadySongAiWorker());
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+            workspace.Timeline.AutoPlaceFirstImportOnEmptyTimeline(asset);
+
+            await workspace.GenerateCaptionsForVideoCommand.ExecuteAsync(null);
+
+            var captions = workspace.Timeline.Tracks.Single(t => t.Track.Kind == TimelineTrackKind.Caption);
+            var clip = Assert.Single(captions.Clips);
+            Assert.Equal("Ovo je pesma.", clip.TextContent);
+            Assert.True(clip.IsSelected);
+        }
+        finally
+        {
+            File.Delete(asset.FilePath);
+        }
     }
 
     [AvaloniaFact]

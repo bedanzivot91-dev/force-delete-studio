@@ -26,11 +26,9 @@
     <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
       <WrapPanel Orientation="Horizontal">
         <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,10,6" /></Style></WrapPanel.Styles>
-        <Button Classes="cta" Content="Automatski dodaj titlove iz videa"
+        <Button Classes="cta" Content="♪ AUTOMATSKI PREPOZNAJ I DODAJ TEKST"
+                ToolTip.Tip="Za govor i pesmu: izdvaja vokal, prepoznaje srpski tekst i dodaje uređive titlove na timeline."
                 Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
-        <Button Classes="cta" Content="♪ PREPOZNAJ STIHOVE PESME (AI)"
-                ToolTip.Tip="Izdvaja vokal iz muzike (Demucs), zatim prepoznaje i vremenski raspoređuje stihove (faster-whisper)."
-                Command="{Binding GenerateSongLyricsCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
         <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
                 ToolTip.Tip="Svaka izgovorena reč se pojavljuje na ekranu pojedinačno, tačno kad se izgovori."
                 Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
@@ -41,7 +39,7 @@
       </WrapPanel>
     </Border>
 
-    <Grid Name="EditingGrid" RowDefinitions="1.1*,Auto,1*">
+    <Grid Name="EditingGrid" RowDefinitions="2*,Auto,1*">
 
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
@@ -186,7 +184,7 @@
       <GridSplitter Name="TimelineSplitter" Grid.Row="1" Height="10" HorizontalAlignment="Stretch" Background="Transparent"
                     ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili traku" />
 
-      <Border Name="TimelinePanel" Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="300" DataContext="{Binding Timeline}">
+      <Border Name="TimelinePanel" Grid.Row="2" Classes="panel" Margin="20,0,20,20" Padding="16" MinHeight="220" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />

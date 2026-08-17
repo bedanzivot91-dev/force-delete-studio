@@ -668,7 +668,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// the user to do that first if the model isn't ready yet.
     /// </summary>
     [RelayCommand]
-    private Task GenerateCaptionsForVideoAsync() => GenerateCaptionsCoreAsync(wordLevel: false);
+    private Task GenerateCaptionsForVideoAsync() =>
+        _aiWorkerClient is null ? GenerateCaptionsCoreAsync(wordLevel: false) : GenerateSongLyricsAsync();
 
     /// <summary>
     /// "Automatski dodaj karaoke titlove (reč po reč)" - same pipeline as the line-level command above,

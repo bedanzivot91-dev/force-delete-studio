@@ -16,6 +16,11 @@ public interface IAiWorkerClient
     /// </summary>
     Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Creates the app-owned Python 3.12 environment and installs the song-recognition
+    /// engines after an explicit click in "Alati i modeli".</summary>
+    Task InstallSongAiAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Ovaj AI klijent ne podržava automatsku instalaciju.");
+
     /// <summary>
     /// Runs one job and streams its events as they arrive. Cancelling kills the worker process.
     /// Throws <see cref="InvalidOperationException"/> if the process can't be started at all.
