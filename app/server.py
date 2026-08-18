@@ -11,6 +11,7 @@ large-library download fixes without rewriting the mature server in-place:
 """
 
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -26,9 +27,37 @@ import server_core as _core
 # Preserve the old module API.  Existing tests/plugins import many names from
 # "server", including a few private helpers, so mirror everything except
 # Python's own dunder attributes before applying the small overrides below.
+_CORE_EXPORT_NAMES = {
+    name for name in vars(_core)
+    if not name.startswith("__")
+}
 for _name, _value in vars(_core).items():
-    if not _name.startswith("__"):
+    if _name in _CORE_EXPORT_NAMES:
         globals()[_name] = _value
+
+
+class _CoreMirroringModule(types.ModuleType):
+    """Keep monkeypatches on ``server`` compatible with the old single module.
+
+    Functions re-exported from server_core retain server_core as their globals
+    dictionary.  Existing tests and plugins legitimately patch attributes such
+    as ``server.DB``, ``server.check_update`` and ``server.download_update``.
+    Without mirroring those assignments into server_core, the re-exported
+    functions would silently continue using the unpatched originals.  A module
+    subclass lets normal ``setattr`` / unittest.mock.patch semantics keep both
+    module views synchronized while leaving direct wrapper-only helpers alone.
+    """
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if name in _CORE_EXPORT_NAMES:
+            setattr(_core, name, value)
+
+
+# Python supports changing a live module to a ModuleType subclass.  Install the
+# bridge after the initial export so later monkeypatches behave exactly as they
+# did when server.py was a single file.
+sys.modules[__name__].__class__ = _CoreMirroringModule
 
 
 def _list_song_ids_unbounded(
