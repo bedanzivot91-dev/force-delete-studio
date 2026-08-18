@@ -10,8 +10,16 @@ large-library download fixes without rewriting the mature server in-place:
   existing UI keeps all of its original code and gains whole-library controls.
 """
 
+import sys
 from pathlib import Path
 from typing import Any
+
+# The shipped embeddable Python uses isolated-path mode.  Add this script's
+# directory before importing server_core, matching the production-safe path
+# handling of the original server entrypoint.
+APP_DIR = Path(__file__).resolve().parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
 
 import server_core as _core
 
