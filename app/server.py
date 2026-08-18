@@ -24,6 +24,15 @@ if str(APP_DIR) not in sys.path:
 
 import server_core as _core
 
+# The release workflow intentionally reads a literal APP_VERSION from this
+# production entrypoint. Keep the literal for publishing compatibility, but
+# fail immediately if it ever drifts from the mature core implementation.
+APP_VERSION = "3.3.2"
+if APP_VERSION != str(getattr(_core, "APP_VERSION", "")):
+    raise RuntimeError(
+        f"APP_VERSION mismatch: wrapper={APP_VERSION!r}, core={getattr(_core, 'APP_VERSION', None)!r}"
+    )
+
 # Preserve the old module API.  Existing tests/plugins import many names from
 # "server", including a few private helpers, so mirror everything except
 # Python's own dunder attributes before applying the small overrides below.
