@@ -46,6 +46,23 @@ def _degrade(frames, rnd, bits=2):
     return out
 
 
+def _add_decoys(index, rnd, start, stop, batch_size=50):
+    """Populate a large synthetic library through the production bulk path.
+
+    The scale test is about search/index behaviour with many songs, not about
+    measuring thousands of individual SQLite fsync/commit calls. Production
+    first-run indexing already uses add_songs() specifically so many songs are
+    committed in one transaction. Small batches keep memory bounded while
+    preserving the exact song/frame population and deterministic RNG order.
+    """
+    for batch_start in range(start, stop, batch_size):
+        batch_stop = min(stop, batch_start + batch_size)
+        index.add_songs([
+            (f"decoy-{i}", _song(rnd), "v4")
+            for i in range(batch_start, batch_stop)
+        ])
+
+
 def main():
     checks = []
     rnd = random.Random(1234)
@@ -56,8 +73,7 @@ def main():
         # -- a clip cut out of a song must find that song, not the 500 others --
         target = _song(rnd, 1400)
         index.add_song("TARGET", target, "v4")
-        for i in range(500):
-            index.add_song(f"decoy-{i}", _song(rnd), "v4")
+        _add_decoys(index, rnd, 0, 500)
 
         start = 600
         clip = _degrade(target[start:start + 210], rnd)
@@ -85,8 +101,7 @@ def main():
 
         # -- searching must not slow down as the library grows --
         before = index.stats()["songs"]
-        for i in range(500, 1500):
-            index.add_song(f"decoy-{i}", _song(rnd), "v4")
+        _add_decoys(index, rnd, 500, 1500)
         assert index.stats()["songs"] == before + 1000
         again = index.candidates(clip, limit=10)
         assert again[0]["song_id"] == "TARGET"
