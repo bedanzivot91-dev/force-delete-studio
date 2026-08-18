@@ -29,11 +29,6 @@ jobs:
           go-version: "1.24"
 
       - name: Go build all 4 windows_build targets (real windows/amd64, native runner)
-        # $ErrorActionPreference alone does NOT make PowerShell fail the step
-        # on a native command's non-zero exit code (that's a PowerShell
-        # gotcha this workflow got bitten by elsewhere -- see the explicit
-        # $LASTEXITCODE checks below and in the packaging steps), so each
-        # go build is checked explicitly.
         working-directory: windows_build
         run: |
           go vet ./...
@@ -65,25 +60,10 @@ jobs:
         run: python -m pip install --upgrade pip -r requirements-core.txt
 
       - name: Install FFmpeg (real Windows binary via winget, on-runner)
-        continue-on-error: true # best-effort; several tests below depend on real ffmpeg/ffprobe being resolvable
+        continue-on-error: true
         run: winget install --id Gyan.FFmpeg -e --source winget --accept-package-agreements --accept-source-agreements
 
       - name: Make FFmpeg resolvable the same way the shipped app finds it
-        # app/audio_tools.py's ffmpeg_path()/ffprobe_path() check
-        # <repo_root>/tools/ffmpeg/bin/*.exe FIRST (that's where the real
-        # installer/CI's own "Stage real components" step later puts it
-        # for the shipped Program/ folder), and only fall back to PATH.
-        # winget's install location varies by ffmpeg version and isn't
-        # guaranteed to be on PATH within this same job/PowerShell
-        # session, so several tests below (v3_features_test.py,
-        # http_integration_v300.py) that call probe_audio() were failing
-        # here even though the real shipped app never hits this: it
-        # always has tools/ffmpeg/bin/ffmpeg.exe by the time it runs.
-        # Copying winget's binaries into that exact path makes this test
-        # run match real product behavior instead of an artifact of step
-        # ordering. Best-effort: if winget's install didn't work above,
-        # this just finds nothing and later tests fail the same way they
-        # already were, not worse.
         continue-on-error: true
         run: |
           $exe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -94,21 +74,15 @@ jobs:
             if (Test-Path $probe) { Copy-Item $probe tools\ffmpeg\bin\ffprobe.exe }
             Write-Host "Copied FFmpeg from $($exe.FullName) to tools\ffmpeg\bin\"
           } else {
-            Write-Host "No winget-installed ffmpeg.exe found -- ffmpeg-dependent tests below will report that, same as before this step existed."
+            Write-Host "No winget-installed ffmpeg.exe found -- ffmpeg-dependent tests below will report that."
           }
 
       - name: Verify the FFmpeg used by tests actually has Chromaprint
-        # A real user could not recognise their own songs because the shipped
-        # FFmpeg (gyan.dev "essentials") has no Chromaprint muxer, so every
-        # fingerprint silently fell back to a weak loudness-envelope metric
-        # that a re-encoded Shorts clip cannot pass. CI never caught it
-        # because CI's winget FFmpeg DOES have Chromaprint -- so the
-        # song-finder test below was passing on a configuration no user had.
-        # Fail loudly instead of testing a path the product does not ship.
         run: |
           python -c "import sys; sys.path.insert(0,'app'); import audio_tools as t; ok=t.has_chromaprint(); print('ffmpeg:', t.ffmpeg_path()); print('chromaprint muxer present:', ok); sys.exit(0 if ok else 1)"
 
       - name: Import smoke test -- every app/plugins module, for real
+        timeout-minutes: 10
         run: python tests/import_smoke_test.py
 
       - name: py_compile every module
@@ -118,15 +92,136 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "py_compile failed for $_" }
           }
 
-      - name: Run the existing test suite (tests/*.py) -- real results, not curated
-        run: |
-          $failed = 0
-          Get-ChildItem tests\*.py | Where-Object { $_.Name -ne "e2e_test.py" -and $_.Name -ne "ci_song_finder_fixtures.py" } | ForEach-Object {
-            Write-Host "=== $($_.Name) ==="
-            python $_.FullName
-            if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: $($_.Name)"; $failed = 1 } else { Write-Host "PASS: $($_.Name)" }
-          }
-          if ($failed -ne 0) { Write-Host "One or more tests failed -- see log above, this is the real result, not the sandbox-simulated one." }
+      # Each test is its own Actions step. This makes the current test visible
+      # in the GitHub job status and prevents a single hung test from hiding
+      # the whole suite forever.
+      - name: Test 01/32 - audio_analysis_test.py
+        timeout-minutes: 10
+        run: python tests/audio_analysis_test.py
+
+      - name: Test 02/32 - auto_update_test.py
+        timeout-minutes: 10
+        run: python tests/auto_update_test.py
+
+      - name: Test 03/32 - bulk_library_download_test.py
+        timeout-minutes: 10
+        run: python tests/bulk_library_download_test.py
+
+      - name: Test 04/32 - chromaprint_upgrade_test.py
+        timeout-minutes: 10
+        run: python tests/chromaprint_upgrade_test.py
+
+      - name: Test 05/32 - critical_v300.py
+        timeout-minutes: 10
+        run: python tests/critical_v300.py
+
+      - name: Test 06/32 - duplicate_audio_confirm_test.py
+        timeout-minutes: 10
+        run: python tests/duplicate_audio_confirm_test.py
+
+      - name: Test 07/32 - dynamic_library_scale_test.py
+        timeout-minutes: 10
+        run: python tests/dynamic_library_scale_test.py
+
+      - name: Test 08/32 - fingerprint_index_test.py
+        timeout-minutes: 10
+        run: python tests/fingerprint_index_test.py
+
+      - name: Test 09/32 - http_integration_v300.py
+        timeout-minutes: 10
+        run: python tests/http_integration_v300.py
+
+      - name: Test 10/32 - installer_logic_test.py
+        timeout-minutes: 10
+        run: python tests/installer_logic_test.py
+
+      - name: Test 11/32 - original_plus_test.py
+        timeout-minutes: 10
+        run: python tests/original_plus_test.py
+
+      - name: Test 12/32 - panako_install_test.py
+        timeout-minutes: 10
+        run: python tests/panako_install_test.py
+
+      - name: Test 13/32 - phase_alignment_test.py
+        timeout-minutes: 10
+        run: python tests/phase_alignment_test.py
+
+      - name: Test 14/32 - regression_v300.py
+        timeout-minutes: 10
+        run: python tests/regression_v300.py
+
+      - name: Test 15/32 - release_center_test.py
+        timeout-minutes: 10
+        run: python tests/release_center_test.py
+
+      - name: Test 16/32 - remote_only_recognition_test.py
+        timeout-minutes: 10
+        run: python tests/remote_only_recognition_test.py
+
+      - name: Test 17/32 - short_clip_match_test.py
+        timeout-minutes: 10
+        run: python tests/short_clip_match_test.py
+
+      - name: Test 18/32 - short_clip_thresholds_test.py
+        timeout-minutes: 10
+        run: python tests/short_clip_thresholds_test.py
+
+      - name: Test 19/32 - shorts_teaser_test.py
+        timeout-minutes: 10
+        run: python tests/shorts_teaser_test.py
+
+      - name: Test 20/32 - smart_library_test.py
+        timeout-minutes: 10
+        run: python tests/smart_library_test.py
+
+      - name: Test 21/32 - song_finder_remote_source_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_remote_source_test.py
+
+      - name: Test 22/32 - song_finder_shortlist_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_shortlist_test.py
+
+      - name: Test 23/32 - song_finder_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_test.py
+
+      - name: Test 24/32 - static_cache_headers_test.py
+        timeout-minutes: 10
+        run: python tests/static_cache_headers_test.py
+
+      - name: Test 25/32 - subtitle_editor_test.py
+        timeout-minutes: 10
+        run: python tests/subtitle_editor_test.py
+
+      - name: Test 26/32 - tempo_extraction_test.py
+        timeout-minutes: 10
+        run: python tests/tempo_extraction_test.py
+
+      - name: Test 27/32 - v3_features_test.py
+        timeout-minutes: 10
+        run: python tests/v3_features_test.py
+
+      - name: Test 28/32 - version_lab_test.py
+        timeout-minutes: 10
+        run: python tests/version_lab_test.py
+
+      - name: Test 29/32 - watchdog_test.py
+        timeout-minutes: 10
+        run: python tests/watchdog_test.py
+
+      - name: Test 30/32 - youtube_channels_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_channels_test.py
+
+      - name: Test 31/32 - youtube_pipeline_fix_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_pipeline_fix_test.py
+
+      - name: Test 32/32 - youtube_scan_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_scan_test.py
 
       - name: Upload raw build artifacts
         uses: actions/upload-artifact@v4
@@ -136,21 +231,6 @@ jobs:
           if-no-files-found: error
 
       - name: Stage real components (Python/FFmpeg/yt-dlp/Deno) into Program/
-        # Reuses setup.exe's own prepareComponents() via the --stage-components
-        # CLI mode added for exactly this -- one source of truth for URLs/
-        # SHA-256 pins, no separate copy in this script to drift out of sync.
-        # This is the step this project's dev sandbox could never run for
-        # real (python.org/github-releases/gyan.dev are blocked there).
-        #
-        # INSTALIRAJ_PROGRAM.exe is built with -H windowsgui (intentional --
-        # the real installer must not flash a console for end users). That
-        # same flag is why plain invocation + $LASTEXITCODE silently lied in
-        # run #12 of this workflow: PowerShell doesn't reliably attach to a
-        # GUI-subsystem child's exit code / stdout timing the way it does for
-        # console-subsystem programs (go build, python.exe, which is why
-        # those checks elsewhere in this file are fine as plain $LASTEXITCODE
-        # checks). Start-Process -Wait -PassThru waits on the actual OS
-        # process handle regardless of subsystem, which is the reliable fix.
         run: |
           New-Item -ItemType Directory -Force -Path package\Program | Out-Null
           $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
@@ -160,19 +240,6 @@ jobs:
         run: |
           Copy-Item -Recurse -Force app package\Program\app
           Copy-Item -Recurse -Force plugins package\Program\plugins
-          # __pycache__/*.pyc is a pure derived cache CPython regenerates on
-          # its own, keyed to the source .py's mtime -- it must never be
-          # shipped or checksum-verified. The earlier "py_compile every
-          # module" step (and later steps that actually import app code
-          # under the staged embeddable Python) create these locally; a
-          # real user hit "kontrolni zbir nije ispravan za ...
-          # advanced_features.cpython-313.pyc" during install because a
-          # shipped .pyc's embedded source-mtime no longer matched its
-          # sibling .py by the time the installer checked it -- entirely
-          # avoidable by just never packaging bytecode cache in the first
-          # place. Python runs fine straight from .py source and will
-          # (re)build its own cache, on the user's own machine, the first
-          # time the app actually runs post-install.
           Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program\app, package\Program\plugins -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           New-Item -ItemType Directory -Force -Path package\Program\runtime\webview2, package\Program\runtime\vcruntime, package\Program\models, package\Program\licences, package\Program\recovery, package\Program\manifests | Out-Null
           Copy-Item build_out\SunoPesmeStudio.exe "package\Program\Suno Pesme Studio.exe"
@@ -181,12 +248,6 @@ jobs:
           Copy-Item docs\COMPONENTS_MANIFEST.json package\manifests_root_copy.json
 
       - name: Install core Python packages into the staged embeddable interpreter
-        # The official embeddable zip ships WITHOUT pip/ensurepip (that's
-        # intentional upstream, not a mistake here) and its <ver>._pth file
-        # disables site-packages by default -- both need fixing before pip
-        # will work at all: uncomment "import site" in the ._pth, then
-        # bootstrap pip via get-pip.py (the documented way to do this for
-        # an embeddable distribution), then install requirements-core.txt.
         run: |
           $py = "package\Program\python\python.exe"
           $pth = Get-ChildItem "package\Program\python\*._pth" | Select-Object -First 1
@@ -204,24 +265,7 @@ jobs:
           & $py tests\import_smoke_test.py
           if ($LASTEXITCODE -ne 0) { throw "import_smoke_test.py failed under the staged embeddable Python, exit code $LASTEXITCODE" }
 
-      - name: Real end-to-end server startup under the STAGED embeddable Python (the actual gap that let a real user-reported crash through)
-        # This is the one thing that was NEVER actually verified anywhere
-        # in this workflow: spawning app/server.py the exact way
-        # watchdog.py/launcher/main.go do in production, using the real
-        # staged embeddable python.exe. tests/import_smoke_test.py can't
-        # catch this class of bug because it manually does
-        # sys.path.insert(0, str(APP_DIR)) before importing anything --
-        # server.py itself does not (well, did not: see the sys.path fix
-        # in app/server.py's own history). tests/watchdog_test.py, in the
-        # "Run the existing test suite" step above, spawns
-        # sys.executable, which in THAT step is setup-python's regular
-        # interpreter -- not the staged embeddable one -- so it never
-        # exercised the embeddable distribution's <ver>._pth "isolated
-        # path" mode either, where Python does NOT auto-add the running
-        # script's own directory to sys.path (the real interpreter
-        # behavior that caused ModuleNotFoundError: No module named 'cdp'
-        # on an actual user's Windows machine -- confirmed against their
-        # own server-konzola.log, not guessed).
+      - name: Real end-to-end server startup under the STAGED embeddable Python
         run: |
           $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) "package\e2e-data\data")
           $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\e2e-data\downloads")
@@ -240,7 +284,7 @@ jobs:
           }
           if (-not $ok) {
             if (-not $proc.HasExited) { $proc.Kill() }
-            throw "The staged server.py never responded to /api/health when spawned the real production way (staged pythonw.exe, no manual sys.path workaround). This is the exact class of bug a real user hit."
+            throw "The staged server.py never responded to /api/health when spawned the real production way."
           }
           try { Invoke-RestMethod -Uri "http://127.0.0.1:18888/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
           Start-Sleep -Seconds 1
@@ -248,18 +292,6 @@ jobs:
           Write-Host "Staged server.py started for real under the staged embeddable Python and responded to /api/health."
 
       - name: Real song-finder end-to-end test with real FFmpeg/chromaprint (Pronalazac mojih pesama -- no token, no internet)
-        # This sandbox has no FFmpeg, so tests/song_finder_test.py can only
-        # verify the pure classify_match()/rank_song_candidates() threshold
-        # logic and system_preflight()'s severity handling -- it cannot
-        # prove that a real Shorts-style clip cut from a real song is
-        # actually detected against that song's real chromaprint/spectral
-        # fingerprint, or that an unrelated song correctly reports
-        # not-found instead of a false positive. This step is that real
-        # proof: it builds two distinct synthetic "songs", indexes one of
-        # them through the real staged FFmpeg (already downloaded by the
-        # "Stage real components" step above, at package\Program\tools\
-        # ffmpeg\bin), cuts three real Shorts-length clips from it with
-        # that same ffmpeg.exe, and drives the actual HTTP API end to end.
         run: |
           $ffmpeg = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"
           if (-not (Test-Path $ffmpeg)) { throw "Staged FFmpeg not found at $ffmpeg -- song-finder e2e cannot run without the real component the shipped app uses." }
@@ -269,20 +301,12 @@ jobs:
           python tests\ci_song_finder_fixtures.py "package\Program\app" $fixturesDir $dataDir
           if ($LASTEXITCODE -ne 0) { throw "ci_song_finder_fixtures.py failed" }
 
-          # Two positive clips (15s and 60s, cut from different points of the
-          # INDEXED song) and one negative clip (cut from a DIFFERENT,
-          # unindexed song) -- guards against false positives, not just
-          # false negatives, per the "no falsely confirmed matches" requirement.
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 20 -t 15 "$fixturesDir\clip_positive_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 15s positive clip" }
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 5 -t 60 "$fixturesDir\clip_positive_60s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 60s positive clip" }
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_b.wav" -ss 10 -t 15 "$fixturesDir\clip_negative_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the negative clip" }
-
-          # Distorted variants of the SAME positive window (section 2.4 of
-          # the spec: speed changes, fades, noise, loudness normalization)
-          # -- the local matcher must still find these, not just pristine cuts.
           & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=1.03" "$fixturesDir\clip_speed_up_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the sped-up (1.03x) clip" }
           & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=0.97" "$fixturesDir\clip_slow_down_15s.wav"
@@ -324,7 +348,7 @@ jobs:
             if (-not $done) { throw "song-finder indexing task never finished" }
 
             $statusResp = Invoke-RestMethod -Uri "$base/api/song-finder/status" -TimeoutSec 10
-            if ($statusResp.songs_indexed -lt 1) { throw "song-finder status reports 0 indexed songs after indexing -- the real chromaprint/ffmpeg pipeline did not produce a usable fingerprint" }
+            if ($statusResp.songs_indexed -lt 1) { throw "song-finder status reports 0 indexed songs after indexing" }
 
             foreach ($case in @(
               @{ name = "15s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_15s.wav"; expectFound = $true },
@@ -341,13 +365,13 @@ jobs:
               $r = Invoke-RestMethod -Uri "$base/api/song-finder/analyze-file" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
               Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.primary.confidence) audio_score=$($r.result.primary.audio_score)"
               if ($r.result.found -ne $case.expectFound) {
-                throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found) (real local matcher, no token, no internet)"
+                throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found)"
               }
               if ($case.expectFound -and $r.result.primary.song_id -ne "ci-song-finder-a") {
                 throw "song-finder matched the wrong song for $($case.name): got $($r.result.primary.song_id)"
               }
             }
-            Write-Host "Real song-finder end-to-end check passed: correct local, offline, no-token match/no-match against real FFmpeg+chromaprint output."
+            Write-Host "Real song-finder end-to-end check passed."
           } finally {
             try { Invoke-RestMethod -Uri "$base/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
             Start-Sleep -Seconds 1
@@ -356,12 +380,6 @@ jobs:
 
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |
-          # The staged embeddable Python actually imported app code in the
-          # steps above (import-smoke-test, server startup, song-finder
-          # e2e), which can silently rewrite __pycache__/*.pyc if CPython's
-          # mtime-based cache check finds anything stale -- strip it again
-          # right before the manifest is built, so nothing checksum-tracked
-          # can go stale between here and when the installer verifies it.
           Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           $lines = Get-ChildItem -Recurse -File package\Program | ForEach-Object {
             $rel = $_.FullName.Substring((Resolve-Path package).Path.Length + 1) -replace '\\','/'
@@ -372,13 +390,10 @@ jobs:
           (Get-Content package\MANIFEST_SHA256.txt).Count
 
       - name: Self-test the launcher against the real staged package
-        # Same -H windowsgui subsystem caveat as the stage-components step
-        # above -- Start-Process -Wait -PassThru, not plain invocation +
-        # $LASTEXITCODE.
         working-directory: package
         run: |
           $proc = Start-Process -FilePath "Program\Suno Pesme Studio.exe" -ArgumentList @("--self-test") -Wait -NoNewWindow -PassThru
-          if ($proc.ExitCode -ne 0) { throw "launcher --self-test failed with exit code $($proc.ExitCode) -- the staged Program/ folder is missing required files, see selfTest()/missingFiles() in launcher/main.go" }
+          if ($proc.ExitCode -ne 0) { throw "launcher --self-test failed with exit code $($proc.ExitCode)" }
 
       - name: Assemble final release folder and ZIP
         run: |
@@ -448,14 +463,7 @@ jobs:
           Assert-ProgramManifest (Join-Path $zipProbe $rel)
           Write-Host "The ZIP itself was expanded and verified successfully."
 
-
       - name: Publish release + update manifest (this is what auto-update reads)
-        # Automatic updates need two public, stable things: a downloadable
-        # package and a manifest describing it. Workflow artifacts are neither
-        # (they expire and need auth), so publish a GitHub Release asset and
-        # commit docs/updates.json pointing at it. app/server.py ships
-        # DEFAULT_UPDATE_MANIFEST_URL aimed at that file, so a user receives
-        # fixes without configuring anything.
         if: success() && github.ref == 'refs/heads/claude/suno-pesme-studio-full-build-ljk5m7'
         shell: bash
         env:
@@ -490,13 +498,6 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # This build takes ~1.5h, so the branch has usually moved on by the
-          # time we get here and a plain push is rejected as non-fast-forward.
-          # That is exactly what killed run 219: everything built and every
-          # test passed, but this step failed and took the package upload down
-          # with it. docs/updates.json is generated, so there is nothing to
-          # merge -- rebuild it on top of whatever the branch now is and retry.
           cp docs/updates.json "${RUNNER_TEMP}/updates.json"
           pushed=""
           for attempt in 1 2 3 4 5; do
@@ -519,9 +520,6 @@ jobs:
           fi
 
       - name: Upload full offline package
-        # Runs even if publishing the release failed. A green build that
-        # produced a real package must still hand that package over -- losing
-        # the user's download because a git push raced is not acceptable.
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
