@@ -26,7 +26,15 @@ def main() -> int:
     style = ROOT / "app" / "web" / "style.css"
     index = (ROOT / "app" / "web" / "index.html").read_text(encoding="utf-8")
     js = (ROOT / "app" / "web" / "app.js").read_text(encoding="utf-8")
-    server = (ROOT / "app" / "server.py").read_text(encoding="utf-8")
+    # server.py is now the production compatibility/extension wrapper while
+    # the mature original implementation lives byte-for-byte in server_core.py.
+    # Feature-presence audits must therefore inspect the complete server source,
+    # not mistake the intentional file split for removed functionality.
+    server = (
+        (ROOT / "app" / "server.py").read_text(encoding="utf-8")
+        + "\n"
+        + (ROOT / "app" / "server_core.py").read_text(encoding="utf-8")
+    )
 
     # Whole-file equality is deliberately NOT what this checks: style.css
     # legitimately grows via additions (new full-redesign themes, an
