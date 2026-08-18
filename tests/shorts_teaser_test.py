@@ -78,7 +78,10 @@ def main():
     assert TEASER_MIN_DURATION == 30.0 and TEASER_MAX_DURATION == 50.0
     checks.append('teaser duration constants match the requested 30-50s range')
 
-    print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
+    # Keep CI output ASCII-safe. Windows hosted runners can expose a legacy
+    # cp1252 stdout even though the source/tests are UTF-8; ensure_ascii=True
+    # changes only the JSON rendering, never any assertion or application data.
+    print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=True, indent=2))
 
 
 if __name__ == '__main__':
