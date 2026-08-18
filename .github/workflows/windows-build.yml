@@ -1,13 +1,5 @@
 name: Windows build and test (real windows-latest runner)
 
-# This is the actual verification the build sandbox this project is
-# developed in cannot perform: no Windows OS, and outbound network to
-# python.org / github release downloads / gyan.dev is blocked there. This
-# workflow runs on a genuine Windows Server runner with full internet
-# access, so every step here either really passes or really fails --
-# nothing in this file is allowed to report success without having run
-# the thing it claims to have run.
-
 on:
   push:
     branches: [main, "claude/**"]
@@ -92,133 +84,99 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "py_compile failed for $_" }
           }
 
-      # Each test is its own Actions step. This makes the current test visible
-      # in the GitHub job status and prevents a single hung test from hiding
-      # the whole suite forever.
       - name: Test 01/32 - audio_analysis_test.py
         timeout-minutes: 10
         run: python tests/audio_analysis_test.py
-
       - name: Test 02/32 - auto_update_test.py
         timeout-minutes: 10
         run: python tests/auto_update_test.py
-
       - name: Test 03/32 - bulk_library_download_test.py
         timeout-minutes: 10
         run: python tests/bulk_library_download_test.py
-
       - name: Test 04/32 - chromaprint_upgrade_test.py
         timeout-minutes: 10
         run: python tests/chromaprint_upgrade_test.py
-
       - name: Test 05/32 - critical_v300.py
         timeout-minutes: 10
         run: python tests/critical_v300.py
-
       - name: Test 06/32 - duplicate_audio_confirm_test.py
         timeout-minutes: 10
         run: python tests/duplicate_audio_confirm_test.py
-
       - name: Test 07/32 - dynamic_library_scale_test.py
         timeout-minutes: 10
         run: python tests/dynamic_library_scale_test.py
-
       - name: Test 08/32 - fingerprint_index_test.py
         timeout-minutes: 10
         run: python tests/fingerprint_index_test.py
-
       - name: Test 09/32 - http_integration_v300.py
         timeout-minutes: 10
         run: python tests/http_integration_v300.py
-
       - name: Test 10/32 - installer_logic_test.py
         timeout-minutes: 10
         run: python tests/installer_logic_test.py
-
       - name: Test 11/32 - original_plus_test.py
         timeout-minutes: 10
         run: python tests/original_plus_test.py
-
       - name: Test 12/32 - panako_install_test.py
         timeout-minutes: 10
         run: python tests/panako_install_test.py
-
       - name: Test 13/32 - phase_alignment_test.py
         timeout-minutes: 10
         run: python tests/phase_alignment_test.py
-
       - name: Test 14/32 - regression_v300.py
         timeout-minutes: 10
         run: python tests/regression_v300.py
-
       - name: Test 15/32 - release_center_test.py
         timeout-minutes: 10
         run: python tests/release_center_test.py
-
       - name: Test 16/32 - remote_only_recognition_test.py
         timeout-minutes: 10
         run: python tests/remote_only_recognition_test.py
-
       - name: Test 17/32 - short_clip_match_test.py
         timeout-minutes: 10
         run: python tests/short_clip_match_test.py
-
       - name: Test 18/32 - short_clip_thresholds_test.py
         timeout-minutes: 10
         run: python tests/short_clip_thresholds_test.py
-
       - name: Test 19/32 - shorts_teaser_test.py
         timeout-minutes: 10
         run: python tests/shorts_teaser_test.py
-
       - name: Test 20/32 - smart_library_test.py
         timeout-minutes: 10
         run: python tests/smart_library_test.py
-
       - name: Test 21/32 - song_finder_remote_source_test.py
         timeout-minutes: 10
         run: python tests/song_finder_remote_source_test.py
-
       - name: Test 22/32 - song_finder_shortlist_test.py
         timeout-minutes: 10
         run: python tests/song_finder_shortlist_test.py
-
       - name: Test 23/32 - song_finder_test.py
         timeout-minutes: 10
         run: python tests/song_finder_test.py
-
       - name: Test 24/32 - static_cache_headers_test.py
         timeout-minutes: 10
         run: python tests/static_cache_headers_test.py
-
       - name: Test 25/32 - subtitle_editor_test.py
         timeout-minutes: 10
         run: python tests/subtitle_editor_test.py
-
       - name: Test 26/32 - tempo_extraction_test.py
         timeout-minutes: 10
         run: python tests/tempo_extraction_test.py
-
       - name: Test 27/32 - v3_features_test.py
         timeout-minutes: 10
         run: python tests/v3_features_test.py
-
       - name: Test 28/32 - version_lab_test.py
         timeout-minutes: 10
         run: python tests/version_lab_test.py
-
       - name: Test 29/32 - watchdog_test.py
         timeout-minutes: 10
         run: python tests/watchdog_test.py
-
       - name: Test 30/32 - youtube_channels_test.py
         timeout-minutes: 10
         run: python tests/youtube_channels_test.py
-
       - name: Test 31/32 - youtube_pipeline_fix_test.py
         timeout-minutes: 10
         run: python tests/youtube_pipeline_fix_test.py
-
       - name: Test 32/32 - youtube_scan_test.py
         timeout-minutes: 10
         run: python tests/youtube_scan_test.py
@@ -295,12 +253,10 @@ jobs:
         run: |
           $ffmpeg = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"
           if (-not (Test-Path $ffmpeg)) { throw "Staged FFmpeg not found at $ffmpeg -- song-finder e2e cannot run without the real component the shipped app uses." }
-
           $fixturesDir = "package\songfinder-e2e\fixtures"
           $dataDir = "package\songfinder-e2e\data"
           python tests\ci_song_finder_fixtures.py "package\Program\app" $fixturesDir $dataDir
           if ($LASTEXITCODE -ne 0) { throw "ci_song_finder_fixtures.py failed" }
-
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 20 -t 15 "$fixturesDir\clip_positive_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 15s positive clip" }
           & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 5 -t 60 "$fixturesDir\clip_positive_60s.wav"
@@ -317,7 +273,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the loudness-normalized clip" }
           & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -f lavfi -t 15 -i "anoisesrc=color=white:amplitude=0.06" -filter_complex "[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.25" "$fixturesDir\clip_noisy_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the background-noise clip" }
-
           $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) $dataDir)
           $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\downloads")
           $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\exports")
@@ -335,7 +290,6 @@ jobs:
             if (-not $proc.HasExited) { $proc.Kill() }
             throw "song-finder e2e server never became healthy"
           }
-
           try {
             $indexResp = Invoke-RestMethod -Uri "$base/api/song-finder/index" -Method Post -Body (@{force=$true} | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 30
             $taskId = $indexResp.task.id
@@ -346,10 +300,8 @@ jobs:
               if ($task.task -and $task.task.id -eq $taskId -and $task.task.status -ne "running") { $done = $true; break }
             }
             if (-not $done) { throw "song-finder indexing task never finished" }
-
             $statusResp = Invoke-RestMethod -Uri "$base/api/song-finder/status" -TimeoutSec 10
             if ($statusResp.songs_indexed -lt 1) { throw "song-finder status reports 0 indexed songs after indexing" }
-
             foreach ($case in @(
               @{ name = "15s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_15s.wav"; expectFound = $true },
               @{ name = "60s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_60s.wav"; expectFound = $true },
@@ -364,12 +316,8 @@ jobs:
               $body = (@{ source_path = $full } | ConvertTo-Json)
               $r = Invoke-RestMethod -Uri "$base/api/song-finder/analyze-file" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
               Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.primary.confidence) audio_score=$($r.result.primary.audio_score)"
-              if ($r.result.found -ne $case.expectFound) {
-                throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found)"
-              }
-              if ($case.expectFound -and $r.result.primary.song_id -ne "ci-song-finder-a") {
-                throw "song-finder matched the wrong song for $($case.name): got $($r.result.primary.song_id)"
-              }
+              if ($r.result.found -ne $case.expectFound) { throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found)" }
+              if ($case.expectFound -and $r.result.primary.song_id -ne "ci-song-finder-a") { throw "song-finder matched the wrong song for $($case.name): got $($r.result.primary.song_id)" }
             }
             Write-Host "Real song-finder end-to-end check passed."
           } finally {
@@ -416,47 +364,33 @@ jobs:
         run: |
           function Assert-ProgramManifest($packageRoot) {
             $manifest = Join-Path $packageRoot "MANIFEST_SHA256.txt"
-            if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
-              throw "MANIFEST_SHA256.txt is missing from $packageRoot"
-            }
+            if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw "MANIFEST_SHA256.txt is missing from $packageRoot" }
             $seen = 0
             $failures = New-Object System.Collections.Generic.List[string]
             foreach ($line in Get-Content -LiteralPath $manifest) {
               $trimmed = $line.Trim()
               if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) { continue }
               $parts = $trimmed -split "  ", 2
-              if ($parts.Count -ne 2) {
-                [void]$failures.Add("Invalid manifest line: $trimmed")
-                continue
-              }
+              if ($parts.Count -ne 2) { [void]$failures.Add("Invalid manifest line: $trimmed"); continue }
               $expected = $parts[0].Trim().ToLowerInvariant()
               $relative = $parts[1].Trim().Replace("/", [System.IO.Path]::DirectorySeparatorChar)
               $file = Join-Path $packageRoot $relative
-              if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
-                [void]$failures.Add("Missing file: $relative")
-                continue
-              }
+              if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { [void]$failures.Add("Missing file: $relative"); continue }
               $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-              if ($actual -ne $expected) {
-                [void]$failures.Add("Hash mismatch: $relative expected=$expected actual=$actual")
-              }
+              if ($actual -ne $expected) { [void]$failures.Add("Hash mismatch: $relative expected=$expected actual=$actual") }
               $seen++
             }
             $programDir = Join-Path $packageRoot "Program"
             $programCount = @(Get-ChildItem -LiteralPath $programDir -Recurse -File).Count
-            if ($seen -lt 3 -or $seen -ne $programCount) {
-              [void]$failures.Add("Manifest file count $seen does not match Program file count $programCount")
-            }
+            if ($seen -lt 3 -or $seen -ne $programCount) { [void]$failures.Add("Manifest file count $seen does not match Program file count $programCount") }
             if ($failures.Count -gt 0) {
               $failures | ForEach-Object { Write-Host $_ }
               throw "Final package manifest verification failed for $packageRoot"
             }
             Write-Host "Verified $seen Program files at $packageRoot"
           }
-
           $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
           Assert-ProgramManifest ((Resolve-Path $rel).Path)
-
           $zipProbe = Join-Path $env:RUNNER_TEMP ("suno-zip-probe-" + $env:GITHUB_RUN_ID)
           if (Test-Path -LiteralPath $zipProbe) { Remove-Item -LiteralPath $zipProbe -Recurse -Force }
           Expand-Archive -LiteralPath "$rel.zip" -DestinationPath $zipProbe -Force
@@ -464,24 +398,20 @@ jobs:
           Write-Host "The ZIP itself was expanded and verified successfully."
 
       - name: Publish release + update manifest (this is what auto-update reads)
-        if: success() && github.ref == 'refs/heads/claude/suno-pesme-studio-full-build-ljk5m7'
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'claude/suno-pesme-studio-full-build-ljk5m7'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           ZIP="Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
+          TARGET_BRANCH="${GITHUB_HEAD_REF}"
           BASE_VERSION=$(python -c "import re,io;print(re.search(r'APP_VERSION = \"([^\"]+)\"',io.open('app/server.py',encoding='utf-8').read()).group(1))")
           VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION}"
-          SHA=$(python -c "import hashlib,sys;h=hashlib.sha256();f=open('$ZIP','rb');[h.update(c) for c in iter(lambda:f.read(1<<20),b'')];print(h.hexdigest())")
+          SHA=$(python -c "import hashlib;h=hashlib.sha256();f=open('$ZIP','rb');[h.update(c) for c in iter(lambda:f.read(1<<20),b'')];print(h.hexdigest())")
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP}"
-
-          gh release create "$TAG" "$ZIP" \
-            --title "Suno Pesme Studio ${VERSION}" \
-            --notes "Automatski build sa ${GITHUB_SHA}." \
-            --latest || gh release upload "$TAG" "$ZIP" --clobber
-
+          gh release create "$TAG" "$ZIP" --title "Suno Pesme Studio ${VERSION}" --notes "Automatski verifikovan Windows build sa ${GITHUB_SHA}." --latest || gh release upload "$TAG" "$ZIP" --clobber
           python - "$VERSION" "$URL" "$SHA" <<'PYEOF'
           import json, pathlib, sys
           version, url, sha = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -495,13 +425,12 @@ jobs:
           }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
           print("wrote", out)
           PYEOF
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           cp docs/updates.json "${RUNNER_TEMP}/updates.json"
           pushed=""
           for attempt in 1 2 3 4 5; do
-            git fetch origin "${GITHUB_REF_NAME}"
+            git fetch origin "${TARGET_BRANCH}"
             git reset --hard FETCH_HEAD
             mkdir -p docs
             cp "${RUNNER_TEMP}/updates.json" docs/updates.json
@@ -510,7 +439,7 @@ jobs:
               echo "manifest unchanged"; pushed="yes"; break
             fi
             git commit -m "Publish update manifest for ${VERSION} [skip ci]"
-            if git push origin HEAD:"${GITHUB_REF_NAME}"; then pushed="yes"; break; fi
+            if git push origin HEAD:"${TARGET_BRANCH}"; then pushed="yes"; break; fi
             echo "push rejected (branch moved), retrying (${attempt}/5)"
             sleep $((attempt * 5))
           done
