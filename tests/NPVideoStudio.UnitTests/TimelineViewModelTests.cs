@@ -39,9 +39,10 @@ public class TimelineViewModelTests
 
         clipItem.TextContent = "Ispravljen tekst";
 
-        // The clip row is rebuilt after every edit (RefreshFromSession), so re-read it via Tracks/Clips
-        // rather than trusting the stale clipItem instance - exactly what the real WorkspaceView does.
+        // Typing must keep the same row/TextBox alive. Rebuilding here used to destroy keyboard focus
+        // after every character, so a user could not type a complete correction.
         var refreshedClipItem = timeline.Tracks[0].Clips[0];
+        Assert.Same(clipItem, refreshedClipItem);
         Assert.Equal("Ispravljen tekst", refreshedClipItem.TextContent);
         Assert.True(refreshedClipItem.IsSelected);
 

@@ -67,12 +67,11 @@ def _find_vocals(root: str) -> str | None:
 
 
 def _separate_vocals(source: str, work_dir: str) -> str:
-    """Use Demucs' supported two-stem mode. If separation fails, keep the original audio usable."""
+    """Use Demucs' two-stem mode. Never silently feed the full music mix to song ASR."""
     try:
         __import__("demucs")
     except ImportError:
-        emit({"type": "Warning", "message": "Demucs nije instaliran; prepoznajem originalni miks bez izdvajanja vokala."})
-        return source
+        raise RuntimeError("Demucs nije instaliran; bez izdvojenog vokala rezultat pesme nije pouzdan.")
 
     emit({"type": "Progress", "progressPercent": 5, "message": "Izdvajam pevanje od instrumentalne muzike (Demucs)..."})
     completed = subprocess.run(
@@ -90,8 +89,17 @@ def _separate_vocals(source: str, work_dir: str) -> str:
         return vocals
 
     detail = completed.stderr.strip().splitlines()[-1] if completed.stderr.strip() else "nepoznata greška"
-    emit({"type": "Warning", "message": f"Demucs nije uspeo ({detail}); nastavljam sa originalnim miksom."})
-    return source
+    raise RuntimeError(f"Demucs nije uspeo da izdvoji vokal ({detail}). Prepoznavanje je zaustavljeno da program ne bi upisao izmišljene reči.")
+
+
+def _usable_word(text: str, probability: float) -> bool:
+    """Reject music markers, common boilerplate and very uncertain tokens."""
+    normalized = text.strip().lower().strip(".,!?;:-_()[]{}")
+    blocked = {
+        "muzika", "music", "applause", "aplauz", "instrumental", "instrumentalno",
+        "hvala na gledanju", "subscribe", "titlovi", "subtitles"
+    }
+    return bool(normalized) and normalized not in blocked and probability >= 0.35
 
 
 def run_transcription(request: dict, job_kind: str, profile: str) -> int:
@@ -140,24 +148,32 @@ def run_transcription(request: dict, job_kind: str, profile: str) -> int:
                 word_timestamps=True,
                 # Speech VAD often removes sustained sung vowels. Demucs has already reduced the
                 # accompaniment, so preserving the complete vocal is the safer choice for lyrics.
-                vad_filter=False,
-                condition_on_previous_text=True,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 300},
+                condition_on_previous_text=False,
+                compression_ratio_threshold=2.2,
+                log_prob_threshold=-0.8,
+                no_speech_threshold=0.55,
+                hallucination_silence_threshold=1.5,
                 initial_prompt=verified or "Srpska pesma. Prepiši tačno otpevane stihove sa dijakriticima č ć š ž đ.",
             )
 
             words = []
             raw_parts = []
             for segment in segments:
+                if getattr(segment, "no_speech_prob", 0) > 0.55 or getattr(segment, "avg_logprob", 0) < -0.8:
+                    continue
                 raw_parts.append(segment.text.strip())
                 for word in segment.words or []:
                     text = word.word.strip()
-                    if not text or word.start is None or word.end is None:
+                    probability = float(word.probability or 0)
+                    if not _usable_word(text, probability) or word.start is None or word.end is None:
                         continue
                     words.append({
                         "text": text,
                         "start": float(word.start),
                         "end": max(float(word.end), float(word.start) + 0.05),
-                        "confidence": float(word.probability or 0),
+                        "confidence": probability,
                     })
 
             emit({"type": "Progress", "progressPercent": 95, "message": "Grupišem prepoznate reči u stihove..."})

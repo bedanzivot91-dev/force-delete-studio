@@ -38,7 +38,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// video clips, never on caption/text/audio/image-overlay tracks.</summary>
     public bool IsVideoClip { get; }
 
-    public string Label { get; }
+    private readonly string _mediaLabel;
+    public string Label => IsTextClip ? TextContent : _mediaLabel;
     public double StartSeconds => Clip.TimelineStartSeconds;
     public double DurationSeconds => Clip.TimelineDurationSeconds;
 
@@ -177,6 +178,16 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
             if (Clip.TextContent is null || Clip.TextContent == value) return;
             _onTextContentChanged?.Invoke(Clip.Id, value);
         }
+    }
+
+    /// <summary>
+    /// Refreshes only the edited text. Rebuilding the complete timeline after every key press destroys
+    /// the focused TextBox, which made continuous typing impossible.
+    /// </summary>
+    public void NotifyTextContentChanged()
+    {
+        OnPropertyChanged(nameof(TextContent));
+        OnPropertyChanged(nameof(Label));
     }
 
     /// <summary>These four are real, working per-clip text style controls - unlike the 24 "Stilovi
@@ -397,7 +408,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         IsOverlayClip = isOverlayClip;
         Clip = clip;
         TrackId = trackId;
-        Label = label;
+        _mediaLabel = label;
         IsVideoClip = isVideoClip;
         SplitAtPlayheadCommand = splitAtPlayheadCommand;
         DeleteCommand = deleteCommand;

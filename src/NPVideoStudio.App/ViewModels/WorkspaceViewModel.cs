@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Layout;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.AI;
@@ -156,6 +158,33 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private double _playerAspectRatio = 16.0 / 9.0;
 
+    public string PreviewCaptionText => Timeline.SelectedClip is { IsTextClip: true } clip ? clip.TextContent : string.Empty;
+    public bool IsPreviewCaptionVisible => !string.IsNullOrWhiteSpace(PreviewCaptionText);
+    public double PreviewCaptionFontSize => Timeline.SelectedClip is { IsTextClip: true } clip
+        ? Math.Clamp(clip.FontSizePx * 0.75, 12, 96)
+        : 27;
+    public IBrush PreviewCaptionBrush
+    {
+        get
+        {
+            var color = Timeline.SelectedClip is { IsTextClip: true } clip ? clip.TextColor : "#FFFFFF";
+            try { return Brush.Parse(color); }
+            catch { return Brushes.White; }
+        }
+    }
+    public VerticalAlignment PreviewCaptionVerticalAlignment => Timeline.SelectedClip?.TextPosition switch
+    {
+        CaptionTextPosition.Top => VerticalAlignment.Top,
+        CaptionTextPosition.Middle => VerticalAlignment.Center,
+        _ => VerticalAlignment.Bottom
+    };
+    public HorizontalAlignment PreviewCaptionHorizontalAlignment => Timeline.SelectedClip?.HorizontalAlign switch
+    {
+        TextHorizontalAlign.Left => HorizontalAlignment.Left,
+        TextHorizontalAlign.Right => HorizontalAlignment.Right,
+        _ => HorizontalAlignment.Center
+    };
+
     /// <summary>How far back from the playhead the "render just a window" quick preview starts, and how
     /// wide that window is - see <see cref="RenderRealPreviewAroundPlayheadAsync"/>.</summary>
     private const double RangePreviewLeadInSeconds = 2;
@@ -194,13 +223,28 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             {
                 UpdatePlayerAspectRatio(Timeline.SelectedMediaAsset?.Asset);
             }
+            if (e.PropertyName is nameof(TimelineViewModel.SelectedClip) or nameof(TimelineViewModel.SelectedClipId))
+            {
+                RaiseCaptionPreviewChanged();
+            }
         };
         Timeline.TimelineChanged += () =>
         {
             Player.Retarget(Timeline.TotalDurationSeconds);
             RefreshPreviewFrame(Player.CurrentTimeSeconds);
+            RaiseCaptionPreviewChanged();
         };
         Player.TimeChanged += RefreshPreviewFrame;
+    }
+
+    private void RaiseCaptionPreviewChanged()
+    {
+        OnPropertyChanged(nameof(PreviewCaptionText));
+        OnPropertyChanged(nameof(IsPreviewCaptionVisible));
+        OnPropertyChanged(nameof(PreviewCaptionFontSize));
+        OnPropertyChanged(nameof(PreviewCaptionBrush));
+        OnPropertyChanged(nameof(PreviewCaptionVerticalAlignment));
+        OnPropertyChanged(nameof(PreviewCaptionHorizontalAlignment));
     }
 
     private void RefreshPreviewFrame(double playheadSeconds)

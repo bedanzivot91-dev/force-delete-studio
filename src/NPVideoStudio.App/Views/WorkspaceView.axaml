@@ -120,6 +120,15 @@
                     BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
               <Grid>
                 <views:VideoSurface Name="PlayerSurface" StaticImage="{Binding Player.CurrentFrameBitmap}" />
+                <Border IsVisible="{Binding IsPreviewCaptionVisible}"
+                        VerticalAlignment="{Binding PreviewCaptionVerticalAlignment}"
+                        HorizontalAlignment="{Binding PreviewCaptionHorizontalAlignment}"
+                        Background="#99000000" CornerRadius="6" Padding="12,6" Margin="28"
+                        IsHitTestVisible="False">
+                  <TextBlock Text="{Binding PreviewCaptionText}" FontSize="{Binding PreviewCaptionFontSize}"
+                             Foreground="{Binding PreviewCaptionBrush}" FontWeight="SemiBold"
+                             TextWrapping="Wrap" TextAlignment="Center" MaxWidth="900" />
+                </Border>
                 <TextBlock Text="{Binding Player.PreviewStatusMessage}"
                            IsVisible="{Binding Player.CurrentFrameBitmap, Converter={x:Static conv:ObjectConverters.IsNull}}"
                            Foreground="White" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"

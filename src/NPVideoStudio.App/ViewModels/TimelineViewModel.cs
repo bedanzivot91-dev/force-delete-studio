@@ -318,7 +318,8 @@ public sealed partial class TimelineViewModel : ViewModelBase
         void OnTextContentChanged(string clipId, string newText)
         {
             _session.SetTextContent(clipId, newText);
-            RefreshFromSession();
+            Tracks.SelectMany(t => t.Clips).FirstOrDefault(c => c.Clip.Id == clipId)?.NotifyTextContentChanged();
+            TimelineChanged?.Invoke();
         }
         void OnAdvancedStyleChanged(string clipId, TextAdvancedStyle style)
         {

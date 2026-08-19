@@ -239,6 +239,11 @@ public class WorkspaceViewModelTests
             var clip = Assert.Single(captions.Clips);
             Assert.Equal("Ovo je pesma.", clip.TextContent);
             Assert.True(clip.IsSelected);
+            Assert.True(workspace.IsPreviewCaptionVisible);
+            Assert.Equal("Ovo je pesma.", workspace.PreviewCaptionText);
+
+            clip.TextContent = "Ispravljen stih pesme";
+            Assert.Equal("Ispravljen stih pesme", workspace.PreviewCaptionText);
         }
         finally
         {
