@@ -60,7 +60,7 @@ def main() -> int:
     )
     for token in ("app-shell", "sidebar", "nav-item", "view-library", "view-import", "view-tools", "view-production"):
         check(f"original UI retained: {token}", token in index)
-    check("dedicated song finder view", 'id="view-recognition"' in index and "Pronalazač pesme" in index)
+    check("dedicated song finder view", 'id="view-recognition"' in index and "Pronalazač mojih pesama" in index)
     check("no visible Shazam name", "shazam" not in (index + js).lower())
     check("remembered folders UI", "watchedFoldersList" in index and "rescanWatchedFolders" in js)
     check("recognition history UI", "musicRecognitionHistory" in index and "loadMusicRecognitionHistory" in js)
