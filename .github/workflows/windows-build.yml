@@ -188,14 +188,13 @@ jobs:
           path: build_out/*.exe
           if-no-files-found: error
 
-      - name: Stage real components (Python/FFmpeg/yt-dlp/Deno) into Program/
+      - name: Stage current runtime components into Program/
         run: |
           New-Item -ItemType Directory -Force -Path package\Program | Out-Null
           $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
           if ($proc.ExitCode -ne 0) { throw "--stage-components failed with exit code $($proc.ExitCode)" }
 
-          # setup/main.go still has a legacy essentials FFmpeg fallback. The release must
-          # contain the Chromaprint-capable full FFmpeg that was already verified above.
+          # The final release must contain only the Chromaprint-capable FFmpeg.
           $verifiedFFmpeg = "tools\ffmpeg\bin\ffmpeg.exe"
           $verifiedFFprobe = "tools\ffmpeg\bin\ffprobe.exe"
           $packageFFDir = "package\Program\tools\ffmpeg\bin"
@@ -207,20 +206,28 @@ jobs:
           Copy-Item -Force $verifiedFFprobe (Join-Path $packageFFDir "ffprobe.exe")
           $muxers = & (Join-Path $packageFFDir "ffmpeg.exe") -hide_banner -muxers 2>&1 | Out-String
           if ($LASTEXITCODE -ne 0 -or $muxers -notmatch "chromaprint") {
-            throw "Final Program/ FFmpeg does not contain Chromaprint; refusing to package an essentials build."
+            throw "Final Program/ FFmpeg does not contain Chromaprint."
           }
-          Write-Host "Final Program/ now contains the verified Chromaprint-capable FFmpeg."
 
-      - name: Assemble Program/ folder structure (section 7 of the spec)
+          # Fully-offline WebView2 support: one current Microsoft Evergreen Standalone installer.
+          $webview = "package\Program\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          if (-not (Test-Path $webview -PathType Leaf) -or (Get-Item $webview).Length -lt 50MB) {
+            throw "WebView2 Evergreen Standalone x64 installer is missing or incomplete."
+          }
+          $sig = Get-AuthenticodeSignature -FilePath $webview
+          if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Microsoft") {
+            throw "WebView2 installer does not have a valid Microsoft Authenticode signature. Status=$($sig.Status) Subject=$($sig.SignerCertificate.Subject)"
+          }
+          Write-Host "Current FFmpeg/Chromaprint and Microsoft WebView2 offline installer verified."
+
+      - name: Assemble Program/ folder structure
         run: |
           Copy-Item -Recurse -Force app package\Program\app
           Copy-Item -Recurse -Force plugins package\Program\plugins
           Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program\app, package\Program\plugins -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-          New-Item -ItemType Directory -Force -Path package\Program\runtime\webview2, package\Program\runtime\vcruntime, package\Program\models, package\Program\licences, package\Program\recovery, package\Program\manifests | Out-Null
           Copy-Item build_out\SunoPesmeStudio.exe "package\Program\Suno Pesme Studio.exe"
           Copy-Item build_out\Deinstaliraj_Suno_Pesme_Studio.exe "package\Program\Deinstaliraj Suno Pesme Studio.exe"
           Copy-Item build_out\INSTALACIJA_NAPREDAK.exe package\Program\
-          Copy-Item docs\COMPONENTS_MANIFEST.json package\manifests_root_copy.json
 
       - name: Install core Python packages into the staged embeddable interpreter
         run: |
@@ -234,17 +241,30 @@ jobs:
           & $py -m pip install --no-warn-script-location -r requirements-core.txt
           if ($LASTEXITCODE -ne 0) { throw "pip install into embeddable Python failed" }
 
-      - name: Real import-smoke-test using the STAGED embeddable Python (not setup-python's)
+      - name: Real import-smoke-test using the STAGED embeddable Python
         run: |
+          $root = Join-Path (Get-Location) "package\import-smoke-data"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
           $py = "package\Program\python\python.exe"
           & $py tests\import_smoke_test.py
           if ($LASTEXITCODE -ne 0) { throw "import_smoke_test.py failed under the staged embeddable Python, exit code $LASTEXITCODE" }
 
       - name: Real end-to-end server startup under the STAGED embeddable Python
         run: |
-          $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) "package\e2e-data\data")
-          $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\e2e-data\downloads")
-          $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\e2e-data\exports")
+          $root = Join-Path (Get-Location) "package\e2e-data"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
           $env:SUNO_STUDIO_PORT = "18888"
           $env:SUNO_AUTO_OPEN = "0"
           $env:PYTHONUTF8 = "1"
@@ -266,7 +286,7 @@ jobs:
           if (-not $proc.HasExited) { $proc.Kill() }
           Write-Host "Staged server.py started for real under the staged embeddable Python and responded to /api/health."
 
-      - name: Real song-finder end-to-end test with real FFmpeg/chromaprint (Pronalazac mojih pesama -- no token, no internet)
+      - name: Real song-finder end-to-end test with real FFmpeg/chromaprint
         run: |
           $ffmpeg = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"
           if (-not (Test-Path $ffmpeg)) { throw "Staged FFmpeg not found at $ffmpeg -- song-finder e2e cannot run without the real component the shipped app uses." }
@@ -290,9 +310,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the loudness-normalized clip" }
           & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -f lavfi -t 15 -i "anoisesrc=color=white:amplitude=0.06" -filter_complex "[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.25" "$fixturesDir\clip_noisy_15s.wav"
           if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the background-noise clip" }
-          $env:SUNO_STUDIO_DATA_DIR = (Join-Path (Get-Location) $dataDir)
-          $env:SUNO_STUDIO_DOWNLOAD_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\downloads")
-          $env:SUNO_STUDIO_EXPORT_DIR = (Join-Path (Get-Location) "package\songfinder-e2e\exports")
+          $root = Join-Path (Get-Location) "package\songfinder-e2e"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
           $env:SUNO_STUDIO_PORT = "18889"
           $env:SUNO_AUTO_OPEN = "0"
           $env:PYTHONUTF8 = "1"
@@ -343,6 +368,40 @@ jobs:
             if (-not $proc.HasExited) { $proc.Kill() }
           }
 
+      - name: Audit Program for obsolete or duplicate packaged content
+        run: |
+          $forbidden = @(
+            "package\Program\runtime",
+            "package\Program\models",
+            "package\Program\licences",
+            "package\Program\manifests",
+            "package\Program\recovery",
+            "package\Program\Biblioteka_pesama",
+            "package\Program\OBRAĐENO NA YOUTUBE",
+            "package\Program\Pronalazac_pesme",
+            "package\Program\plugins\README.txt"
+          )
+          foreach ($path in $forbidden) {
+            if (Test-Path -LiteralPath $path) { throw "Obsolete/legacy content leaked into final Program/: $path" }
+          }
+          $checks = @(
+            @{ pattern = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"; name = "ffmpeg.exe" },
+            @{ pattern = "package\Program\tools\ffmpeg\bin\ffprobe.exe"; name = "ffprobe.exe" },
+            @{ pattern = "package\Program\tools\yt-dlp\yt-dlp.exe"; name = "yt-dlp.exe" },
+            @{ pattern = "package\Program\tools\deno\deno.exe"; name = "deno.exe" },
+            @{ pattern = "package\Program\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; name = "WebView2 Standalone" }
+          )
+          foreach ($check in $checks) {
+            $items = @(Get-Item -LiteralPath $check.pattern -ErrorAction SilentlyContinue)
+            if ($items.Count -ne 1) { throw "Expected exactly one current $($check.name), found $($items.Count)" }
+          }
+          $oldNames = @(Get-ChildItem package\Program -Recurse -File | Where-Object { $_.Name -match "essentials_build|ffmpeg-release-essentials|old|legacy|\.bak$|\.old$" })
+          if ($oldNames.Count -gt 0) {
+            $oldNames | ForEach-Object { Write-Host $_.FullName }
+            throw "Obsolete-version files detected in Program/."
+          }
+          Write-Host "Program audit passed: current components only, no known legacy placeholders or duplicate versions."
+
       - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
         run: |
           Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
@@ -367,10 +426,7 @@ jobs:
           Move-Item package\Program "$rel\Program"
           Move-Item package\MANIFEST_SHA256.txt "$rel\MANIFEST_SHA256.txt"
           Copy-Item build_out\INSTALIRAJ_PROGRAM.exe "$rel\INSTALIRAJ_PROGRAM.exe"
-          Copy-Item docs\COMPONENTS_MANIFEST.json "$rel\COMPONENTS_MANIFEST.json"
-          Copy-Item docs\GAP_ANALYSIS.md "$rel\GAP_ANALYSIS.md"
           Copy-Item windows_build\setup\LICENSE.txt "$rel\LICENSE.txt"
-          Copy-Item windows_build\BUILD_VERIFICATION.md "$rel\BUILD_VERIFICATION.md"
           Get-ChildItem -Recurse -File $rel | ForEach-Object {
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.FullName.Substring((Resolve-Path .).Path.Length + 1).Replace('\','/')
           } | Set-Content -Encoding ascii "$rel\SHA256SUMS.txt"
@@ -404,7 +460,13 @@ jobs:
               $failures | ForEach-Object { Write-Host $_ }
               throw "Final package manifest verification failed for $packageRoot"
             }
-            Write-Host "Verified $seen Program files at $packageRoot"
+            $allowed = @("Program", "MANIFEST_SHA256.txt", "INSTALIRAJ_PROGRAM.exe", "LICENSE.txt", "SHA256SUMS.txt")
+            $unexpected = @(Get-ChildItem -LiteralPath $packageRoot | Where-Object { $allowed -notcontains $_.Name })
+            if ($unexpected.Count -gt 0) {
+              $unexpected | ForEach-Object { Write-Host "Unexpected release-root item: $($_.Name)" }
+              throw "Final release contains obsolete/unexpected root content."
+            }
+            Write-Host "Verified $seen Program files and clean release root at $packageRoot"
           }
           $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
           Assert-ProgramManifest ((Resolve-Path $rel).Path)
