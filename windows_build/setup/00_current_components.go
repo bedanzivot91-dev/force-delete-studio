@@ -19,7 +19,6 @@ const (
 	currentDenoVersion = "2.9.5"
 	currentDenoURL     = "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip"
 	currentDenoSHAURL  = currentDenoURL + ".sha256sum"
-	currentDenoAsset   = "deno-x86_64-pc-windows-msvc.zip"
 )
 
 // A release build starts with an empty Program/ staging directory. Put the
@@ -110,7 +109,10 @@ func stageCurrentDeno(stage string, log func(string)) error {
 	if err := downloadFile(currentDenoSHAURL, shaPath, log); err != nil {
 		return fmt.Errorf("Deno %s checksum: %w", currentDenoVersion, err)
 	}
-	expected, err := checksumFromFile(shaPath, currentDenoAsset)
+	// This URL is the official checksum sidecar for this exact asset, so the
+	// first valid SHA-256 in it belongs to currentDenoURL even when GitHub's
+	// sidecar format omits the filename.
+	expected, err := checksumFromFile(shaPath, "")
 	if err != nil {
 		return fmt.Errorf("Deno %s checksum parsing: %w", currentDenoVersion, err)
 	}
@@ -129,6 +131,6 @@ func stageCurrentDeno(stage string, log func(string)) error {
 	if got := commandOutput(denoExe, "--version"); !strings.HasPrefix(got, "deno "+currentDenoVersion) {
 		return fmt.Errorf("Deno verzija nije %s: %s", currentDenoVersion, got)
 	}
-	log("Deno " + currentDenoVersion + " je proveren zvaničnim SHA-256 checksumom i postavljen kao jedina Deno verzija.")
+	log("Deno " + currentDenoVersion + " je proveren zvaničnim per-asset SHA-256 checksumom i postavljen kao jedina Deno verzija.")
 	return nil
 }
