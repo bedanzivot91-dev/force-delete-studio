@@ -811,7 +811,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         var videoFilePath = ResolvePrimaryVideoFilePath();
         if (videoFilePath is null)
         {
-            CaptionsStatusMessage = "Dodajte video na video traku pre prepoznavanja pesme.";
+            CaptionsStatusMessage = "Dodajte MP3 pesmu ili video pre sinhronizacije teksta.";
             return;
         }
 
@@ -1016,17 +1016,21 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private string? ResolvePrimaryVideoFilePath()
     {
         var clip = Timeline.CurrentTracks
-            .Where(t => t.Kind == TimelineTrackKind.Video)
+            .Where(t => t.Kind is TimelineTrackKind.Video or TimelineTrackKind.Audio)
             .SelectMany(t => t.Clips)
             .OrderBy(c => c.TimelineStartSeconds)
             .FirstOrDefault(c => c.MediaAssetId is not null);
 
-        if (clip is null)
+        if (clip is not null)
         {
-            return null;
+            return Project.MediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId)?.FilePath;
         }
 
-        return Project.MediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId)?.FilePath;
+        // Known-lyrics synchronization must also work when the user imported a standalone MP3 but has
+        // not yet created an audio track. Prefer the explicit media selection, then the first real
+        // audio/video asset in the library.
+        return Timeline.SelectedMediaAsset?.Asset.FilePath
+            ?? Project.MediaLibrary.FirstOrDefault(a => a.HasAudioStream || a.HasVideoStream)?.FilePath;
     }
 
     /// <summary>

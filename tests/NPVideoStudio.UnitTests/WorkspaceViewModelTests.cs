@@ -281,6 +281,34 @@ public class WorkspaceViewModelTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task VerifiedLyricsSynchronization_AcceptsStandaloneMp3WithoutVideoTrack()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var asset = new MediaAsset
+            {
+                FilePath = path, Kind = MediaKind.Audio, HasAudioStream = true,
+                Duration = TimeSpan.FromSeconds(225)
+            };
+            var worker = new ReadySongAiWorker();
+            var project = new Project { Name = "Precrtan", MediaLibrary = { asset } };
+            using var workspace = CreateWorkspace(project, aiWorkerClient: worker);
+            workspace.VerifiedLyricsText = "Tvoje ime više ne izgovaram";
+
+            await workspace.SyncVerifiedLyricsCommand.ExecuteAsync(null);
+
+            Assert.NotNull(worker.LastRequest);
+            Assert.Equal(Path.GetFullPath(path), worker.LastRequest.AudioFilePath);
+            Assert.Equal(AiWorkerJobKind.KnownSongAlignment, worker.LastRequest.JobKind);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void KnownLyricLines_AreKeptAsSeparateCaptionLines()
     {
