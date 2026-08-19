@@ -268,6 +268,22 @@ public static class FfmpegFilterGraphBuilder
         };
     }
 
+    /// <summary>
+    /// Mixes every standalone Audio-kind track over the video track's own sound, and returns the label of
+    /// the mixed result. Returns <paramref name="videoTrackAudioLabel"/> unchanged when there is nothing to
+    /// mix, so a project without a music track produces exactly the graph it did before.
+    ///
+    /// This closes what was the single most damaging gap in the whole app for its actual purpose: the
+    /// built-in "Muzički spot" template creates an Audio track, the UI has a "+ Audio traka" button, the
+    /// user could drop their song on it - and the exported video simply had no music, with no error. For an
+    /// app whose whole job is making videos from songs, silently dropping the song is as bad as crashing.
+    ///
+    /// Each clip is delayed to its own timeline position with <c>adelay</c> (so a chorus placed at 0:45
+    /// lands at 0:45, not at the start), gets its own volume/fades, is scaled by its track's volume, and
+    /// respects mute/hide/solo. <c>amix</c> uses <c>duration=first</c> deliberately: the first input is the
+    /// video's own audio, so the finished file's length follows the picture and a song longer than the
+    /// video is cut off at the end rather than extending the export past its last frame.
+    /// </summary>
     private static string AppendAudioTracks(
         Timeline timeline,
         IReadOnlyList<MediaAsset> mediaLibrary,
@@ -280,8 +296,11 @@ public static class FfmpegFilterGraphBuilder
             .Where(t => t.Kind == TimelineTrackKind.Audio && !t.IsHidden && !t.IsMuted)
             .ToList();
 
+        // Solo on any audio track means "only the soloed ones", the standard behaviour in every mixer.
         if (audioTracks.Any(t => t.IsSolo))
+        {
             audioTracks = audioTracks.Where(t => t.IsSolo).ToList();
+        }
 
         var mixLabels = new List<string> { videoTrackAudioLabel };
         var clipIndex = 0;
@@ -292,40 +311,79 @@ public static class FfmpegFilterGraphBuilder
             {
                 var asset = mediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId);
                 if (asset is null)
-                    throw new InvalidOperationException($"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+                {
+                    throw new InvalidOperationException(
+                        $"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+                }
 
                 var inputIndex = inputs.Count;
                 inputs.Add(asset.FilePath);
+
                 var label = $"[amus{clipIndex}]";
                 var duration = clip.TimelineDurationSeconds;
                 var volume = clip.IsMuted ? 0 : clip.Volume * track.Volume;
                 var delayMs = (int)Math.Round(Math.Max(0, mapToRenderedTime(clip.TimelineStartSeconds)) * 1000);
 
                 var chain = new StringBuilder();
-                chain.Append(FormattableString.Invariant($"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
+                chain.Append(FormattableString.Invariant(
+                    $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
                 chain.Append(FormattableString.Invariant($",volume={volume}"));
+
                 if (clip.FadeInSeconds > 0)
+                {
                     chain.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                }
+
                 if (clip.FadeOutSeconds > 0)
                 {
                     var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
                     chain.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
                 }
+
                 if (delayMs > 0)
+                {
+                    // all=1 applies the delay to every channel - without it, adelay silently delays only
+                    // the first channel and the music arrives lopsided across the stereo field.
                     chain.Append(FormattableString.Invariant($",adelay={delayMs}:all=1"));
+                }
+
                 chain.Append(label);
                 filterLines.Add(chain.ToString());
+
                 mixLabels.Add(label);
                 clipIndex++;
             }
         }
 
-        if (mixLabels.Count == 1) return videoTrackAudioLabel;
+        if (mixLabels.Count == 1)
+        {
+            return videoTrackAudioLabel;
+        }
+
         const string mixedLabel = "[amixed]";
-        filterLines.Add(FormattableString.Invariant($"{string.Concat(mixLabels)}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0:normalize=0{mixedLabel}"));
+        filterLines.Add(FormattableString.Invariant(
+            $"{string.Concat(mixLabels)}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0:normalize=0{mixedLabel}"));
+
         return mixedLabel;
     }
 
+    /// <summary>
+    /// Cuts a new, standalone <see cref="Timeline"/> containing only the clips that overlap
+    /// [<paramref name="rangeStartSeconds"/>, <paramref name="rangeEndSeconds"/>), each re-timed relative
+    /// to the range's own start - so <see cref="Build"/> can render just that window instead of the whole
+    /// project. Real, researched motivation (see PHASE_STATUS.md): even a dedicated open-source non-linear
+    /// editor on the same stack this app uses (FramePFX, github.com/AngryCarrot789/FramePFX, C#/Avalonia)
+    /// documents live full-timeline compositing as a genuinely hard, still-unsolved performance problem for
+    /// them (40ms to decode a single 4K frame, undergoing a full rewrite because of it) - so instead of
+    /// chasing true live compositing, this makes the existing real "render then play" pipeline
+    /// (<see cref="RenderService"/>, real ffmpeg, real audio) fast enough to feel interactive by rendering
+    /// a short window around the playhead instead of the entire timeline every time.
+    ///
+    /// A clip whose start gets cut off by the range boundary has its <see cref="TimelineClip.TransitionInType"/>
+    /// reset to <see cref="ClipTransitionType.None"/> - a transition into a clip that no longer has its
+    /// predecessor in this reduced timeline has nothing left to transition from, so keeping it set would
+    /// either crash or produce a nonsensical partial transition.
+    /// </summary>
     public static Timeline ExtractRangeTimeline(Timeline timeline, double rangeStartSeconds, double rangeEndSeconds)
     {
         var result = new Timeline();
@@ -347,7 +405,9 @@ public static class FfmpegFilterGraphBuilder
                 var clipStart = clip.TimelineStartSeconds;
                 var clipEnd = clip.TimelineEndSeconds;
                 if (clipEnd <= rangeStartSeconds || clipStart >= rangeEndSeconds)
-                    continue;
+                {
+                    continue; // no overlap with the requested window at all
+                }
 
                 var overlapStart = Math.Max(clipStart, rangeStartSeconds);
                 var overlapEnd = Math.Min(clipEnd, rangeEndSeconds);
@@ -359,16 +419,25 @@ public static class FfmpegFilterGraphBuilder
                 newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds + trimmedFromStart;
                 newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds - trimmedFromEnd;
                 if (trimmedFromStart > 0)
+                {
                     newClip.TransitionInType = ClipTransitionType.None;
+                }
+
                 newTrack.Clips.Add(newClip);
             }
 
             if (newTrack.Clips.Count > 0)
+            {
                 result.Tracks.Add(newTrack);
+            }
         }
+
         return result;
     }
 
+    /// <summary>Every <see cref="TimelineClip"/> field, listed explicitly on purpose - the same real bug
+    /// (an implicit field list silently falling behind the type over time, see
+    /// <c>TimelineEditSession.Clone</c>) is exactly what this guards against here too.</summary>
     private static TimelineClip CloneClipForRange(TimelineClip clip) => new()
     {
         Id = clip.Id,
@@ -410,6 +479,26 @@ public static class FfmpegFilterGraphBuilder
         SpeedMultiplier = clip.SpeedMultiplier
     };
 
+    /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
+    /// very first segment - nothing to join yet, so it just becomes the running output - gap fillers, and
+    /// any clip that doesn't have a transition into it). Returns the new running (video, audio) labels and
+    /// output duration so far.</summary>
+    /// <summary>
+    /// Lays every overlay clip over the already-built base video, in track order (z-order), and returns
+    /// the label of the composited result. Returns <paramref name="baseVideoLabel"/> untouched when there
+    /// is nothing to overlay, so a single-track project produces the exact same filter graph as before -
+    /// this feature costs nothing when unused.
+    ///
+    /// Each overlay is: scaled to its own <see cref="TimelineClip.ScalePercent"/> of the frame width
+    /// (height follows the source aspect ratio, never stretched), given its
+    /// <see cref="TimelineClip.Opacity"/>, and switched on only for its own time range via ffmpeg's
+    /// <c>enable='between(t,...)'</c> - the overlay input keeps running underneath, but is simply not
+    /// drawn outside its window, which is what makes a sticker appear and disappear on cue.
+    ///
+    /// Positions are computed from the clip's CENTER (see <see cref="TimelineClip.PositionXPercent"/>),
+    /// because that is what a user dragging a sticker actually means by "put it here" - a top-left anchor
+    /// would make a large overlay jump away from the cursor.
+    /// </summary>
     private static string AppendOverlayLayers(
         Timeline timeline,
         TimelineTrack baseVideoTrack,
@@ -423,46 +512,67 @@ public static class FfmpegFilterGraphBuilder
     {
         var overlayClips = timeline.Tracks
             .Where(t => !t.IsHidden)
-            .Where(t => (t.Kind == TimelineTrackKind.Video && !ReferenceEquals(t, baseVideoTrack)) || t.Kind == TimelineTrackKind.ImageOverlay)
+            .Where(t => (t.Kind == TimelineTrackKind.Video && !ReferenceEquals(t, baseVideoTrack))
+                        || t.Kind == TimelineTrackKind.ImageOverlay)
             .SelectMany(t => t.Clips)
             .Where(c => !string.IsNullOrEmpty(c.MediaAssetId))
             .OrderBy(c => c.TimelineStartSeconds)
             .ToList();
 
-        if (overlayClips.Count == 0) return baseVideoLabel;
+        if (overlayClips.Count == 0)
+        {
+            return baseVideoLabel;
+        }
+
         var currentLabel = baseVideoLabel;
 
         for (var i = 0; i < overlayClips.Count; i++)
         {
             var clip = overlayClips[i];
+
             var asset = mediaLibrary.FirstOrDefault(a => a.Id == clip.MediaAssetId);
             if (asset is null)
-                throw new InvalidOperationException($"Sloj referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+            {
+                throw new InvalidOperationException(
+                    $"Sloj referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+            }
 
             var inputIndex = inputs.Count;
             inputs.Add(asset.FilePath);
+
             var scale = Math.Clamp(clip.ScalePercent, 1, 1000) / 100.0;
             var overlayWidth = Math.Max(1, (int)Math.Round(targetWidth * scale));
             var opacity = Math.Clamp(clip.Opacity, 0, 1);
 
             var preparedLabel = $"[ovl{i}]";
             var prepared = new StringBuilder();
-            prepared.Append(FormattableString.Invariant($"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            prepared.Append(FormattableString.Invariant(
+                $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            // -1 keeps the source aspect ratio; the overlay is sized by width only.
             prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
             prepared.Append(BuildEffectFilters(clip));
+            // colorchannelmixer needs an alpha channel to write into, hence format=rgba first.
             prepared.Append(FormattableString.Invariant($",format=rgba,colorchannelmixer=aa={opacity}"));
             prepared.Append(preparedLabel);
             filterLines.Add(prepared.ToString());
 
+            // Centre-anchored: shift left/up by half the overlay's own rendered size. main_w/overlay_w are
+            // ffmpeg's own variables for the base and overlay sizes, so this stays correct even though the
+            // overlay's height is only known to ffmpeg (scale=-1 above).
             var centreX = FormattableString.Invariant($"(main_w*{clip.PositionXPercent / 100.0})-(overlay_w/2)");
             var centreY = FormattableString.Invariant($"(main_h*{clip.PositionYPercent / 100.0})-(overlay_h/2)");
+
             var start = mapToRenderedTime(clip.TimelineStartSeconds);
             var end = mapToRenderedTime(clip.TimelineEndSeconds);
+
             var outLabel = i == overlayClips.Count - 1 ? "[vlayered]" : $"[vlay{i}]";
-            filterLines.Add(FormattableString.Invariant($"{currentLabel}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})'{outLabel}"));
+            filterLines.Add(FormattableString.Invariant(
+                $"{currentLabel}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})'{outLabel}"));
+
             currentLabel = outLabel;
         }
+
         return currentLabel;
     }
 
@@ -471,7 +581,9 @@ public static class FfmpegFilterGraphBuilder
         string nextVideoLabel, string nextAudioLabel, double nextDuration, double runningDuration, ref int joinIndex)
     {
         if (currentVideoLabel is null || currentAudioLabel is null)
+        {
             return (nextVideoLabel, nextAudioLabel, nextDuration);
+        }
 
         var joinedVideoLabel = $"[vjoin{joinIndex}]";
         var joinedAudioLabel = $"[ajoin{joinIndex}]";
@@ -481,9 +593,21 @@ public static class FfmpegFilterGraphBuilder
         return (joinedVideoLabel, joinedAudioLabel, runningDuration + nextDuration);
     }
 
+    /// <summary>
+    /// The real ffmpeg filters behind a clip's picture effects, as a string ready to append to that clip's
+    /// own filter chain (empty when the clip is untouched, so an unedited project's graph is unchanged).
+    ///
+    /// Order matters and is deliberate: the named look goes on first, then any manual brightness/contrast/
+    /// saturation, so a user who picks "Crno-belo" and then nudges brightness gets a brighter black-and-
+    /// white picture - not a grayscale filter silently undoing their colour adjustment.
+    ///
+    /// Filters chosen from ffmpeg's own documented set (eq/hue/gblur/vignette/unsharp/negate/hflip); the
+    /// sepia matrix is the standard colorchannelmixer one.
+    /// </summary>
     public static string BuildEffectFilters(TimelineClip clip)
     {
         var parts = new List<string>();
+
         var named = clip.Effect switch
         {
             ClipVideoEffect.Grayscale => "hue=s=0",
@@ -495,20 +619,43 @@ public static class FfmpegFilterGraphBuilder
             ClipVideoEffect.Mirror => "hflip",
             _ => null
         };
-        if (named is not null) parts.Add(named);
 
+        if (named is not null)
+        {
+            parts.Add(named);
+        }
+
+        // Only emit `eq` when something actually differs from neutral - an always-on eq would add a real
+        // decode/encode cost to every clip in every project for no visible change.
         var brightness = Math.Clamp(clip.Brightness, -1, 1);
         var contrast = Math.Clamp(clip.Contrast, 0, 3);
         var saturation = Math.Clamp(clip.Saturation, 0, 3);
+
         if (Math.Abs(brightness) > 1e-6 || Math.Abs(contrast - 1) > 1e-6 || Math.Abs(saturation - 1) > 1e-6)
-            parts.Add(FormattableString.Invariant($"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}"));
+        {
+            parts.Add(FormattableString.Invariant(
+                $"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}"));
+        }
+
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
     }
 
+    /// <summary>
+    /// The <c>setpts</c> filter that changes a clip's playback speed, or empty at normal speed.
+    /// Deliberately separate from <see cref="BuildEffectFilters"/> because speed must be applied
+    /// immediately after <c>setpts=PTS-STARTPTS</c> (which resets the timestamps it operates on) and
+    /// before anything that depends on the clip's duration.
+    /// </summary>
     public static string BuildSpeedFilter(TimelineClip clip)
     {
         var speed = Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
-        return Math.Abs(speed - 1) < 1e-6 ? string.Empty : FormattableString.Invariant($",setpts=PTS/{speed}");
+        if (Math.Abs(speed - 1) < 1e-6)
+        {
+            return string.Empty;
+        }
+
+        // Higher speed = shorter presentation timestamps, hence dividing by the multiplier.
+        return FormattableString.Invariant($",setpts=PTS/{speed}");
     }
 
     private static string TransitionName(ClipTransitionType type) => type switch
@@ -531,17 +678,37 @@ public static class FfmpegFilterGraphBuilder
         _ => text
     };
 
+    /// <summary>
+    /// Real fade-in/fade-out for a Caption/Text clip's own text, via drawtext's `alpha` option - which
+    /// (per FFmpeg's own filter docs) accepts a per-frame expression, not just a fixed 0.0-1.0 value, the
+    /// same way `x`/`y` already do above. Ramps from 0 to 1 over the clip's FadeInSeconds at the start of
+    /// its enable window, and from 1 to 0 over its FadeOutSeconds at the end - clamped so overlapping
+    /// fade-in/fade-out windows on a very short clip never produce a value outside 0..1.
+    /// </summary>
     private static string BuildTextAlphaExpression(TimelineClip clip, double renderedStart, double renderedEnd)
     {
         var fadeIn = Math.Max(0, clip.FadeInSeconds);
         var fadeOut = Math.Max(0, clip.FadeOutSeconds);
         var fadeInEnd = renderedStart + fadeIn;
         var fadeOutStart = renderedEnd - fadeOut;
-        var fadeInExpr = fadeIn > 0 ? FormattableString.Invariant($"min(1,max(0,(t-{renderedStart})/{fadeIn}))") : "1";
-        var fadeOutExpr = fadeOut > 0 ? FormattableString.Invariant($"min(1,max(0,({renderedEnd}-t)/{fadeOut}))") : "1";
-        return FormattableString.Invariant($"if(lt(t,{fadeInEnd}),{fadeInExpr},if(gt(t,{fadeOutStart}),{fadeOutExpr},1))");
+
+        var fadeInExpr = fadeIn > 0
+            ? FormattableString.Invariant($"min(1,max(0,(t-{renderedStart})/{fadeIn}))")
+            : "1";
+        var fadeOutExpr = fadeOut > 0
+            ? FormattableString.Invariant($"min(1,max(0,({renderedEnd}-t)/{fadeOut}))")
+            : "1";
+
+        return FormattableString.Invariant(
+            $"if(lt(t,{fadeInEnd}),{fadeInExpr},if(gt(t,{fadeOutStart}),{fadeOutExpr},1))");
     }
 
+    /// <summary>
+    /// Escapes text for ffmpeg's drawtext `text=` option, empirically verified (not assumed) against a
+    /// real ffmpeg 6.1.1 run: backslash and colon must both be escaped even when the whole value is
+    /// wrapped in single quotes - an unescaped colon silently truncates everything before it, and an
+    /// unescaped comma without the surrounding quotes breaks the entire filter graph outright.
+    /// </summary>
     public static string EscapeDrawtext(string text) =>
         text.Replace("\\", "\\\\").Replace(":", "\\:").Replace("'", "\\'");
 }
