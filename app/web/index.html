@@ -11,17 +11,22 @@
     <aside class="sidebar">
       <div class="brand"><div class="brand-mark">♫</div><div><strong>Suno Pesme</strong><span>Studio</span></div></div>
       <nav id="nav">
+        <div class="nav-group-title">MOJE PESME</div>
         <button class="nav-item active" data-view="library"><span>▦</span> Biblioteka</button>
         <button class="nav-item" data-view="folders"><span>▰</span> Folderi</button>
-        <button class="nav-item" data-view="audio"><span>✂</span> Audio obrada</button>
-        <button class="nav-item" data-view="download"><span>⇩</span> Preuzimanje</button>
-        <button class="nav-item" data-view="import"><span>＋</span> Uvoz</button>
-        <button class="nav-item" data-view="recognition"><span>⌕</span> Pronalazač pesme</button>
         <button class="nav-item" data-view="smart"><span>⚑</span> Pametna biblioteka</button>
         <button class="nav-item" data-view="versions"><span>⇄</span> Version Lab</button>
+        <div class="nav-group-title">SUNO</div>
+        <button class="nav-item" data-view="import"><span>＋</span> Povezivanje i uvoz</button>
+        <button class="nav-item" data-view="download"><span>⇩</span> Preuzimanje</button>
+        <div class="nav-group-title">AUDIO</div>
+        <button class="nav-item" data-view="recognition"><span>⌕</span> Pronalazač mojih pesama</button>
+        <button class="nav-item" data-view="audio"><span>✂</span> Audio obrada</button>
+        <div class="nav-group-title">YOUTUBE</div>
+        <button class="nav-item nav-primary" data-view="tools"><span>▶</span> YouTube centar</button>
         <button class="nav-item" data-view="release"><span>▣</span> Release Center</button>
-        <button class="nav-item" data-view="tools"><span>✦</span> Pametni alati</button>
         <button class="nav-item" data-view="production"><span>⚡</span> Produkcija v3</button>
+        <div class="nav-group-title">SISTEM</div>
         <button class="nav-item" data-view="stats"><span>◔</span> Statistika</button>
         <button class="nav-item" data-view="logs"><span>≡</span> Dnevnik</button>
         <button class="nav-item" data-view="settings"><span>⚙</span> Podešavanja</button>
@@ -222,7 +227,14 @@
       </section>
 
       <section id="view-tools" class="view">
-        <div class="tools-hero panel"><div><h2>Pametni alati za biblioteku</h2><p class="muted">Masovne radnje, izveštaji, brzi klipovi, backup i organizacija. Sve radnje rade samo nad izabranim pesmama, osim kada piše „cela biblioteka“.</p></div><div class="tool-status"><strong id="toolsSelectedCount">0</strong><span>izabranih pesama</span></div></div>
+        <div class="tools-hero panel"><div><h2>YouTube i Suno kontrolni centar</h2><p class="muted">Kanali, pravo audio-prepoznavanje, pronađene pesme, detaljna statistika, pokrivenost i održavanje — razdvojeno u jasne radne celine.</p></div><div class="tool-status"><strong id="toolsSelectedCount">0</strong><span>izabranih pesama</span></div></div>
+        <div class="panel tools-tabs" role="tablist" aria-label="Celine YouTube centra">
+          <button class="tools-tab active" data-tools-tab="channels">1. Kanali i skeniranje</button>
+          <button class="tools-tab" data-tools-tab="results">2. Pronađene pesme</button>
+          <button class="tools-tab" data-tools-tab="coverage">3. Pokrivenost i statistika</button>
+          <button class="tools-tab" data-tools-tab="library-tools">4. Masovni alati</button>
+          <button class="tools-tab" data-tools-tab="system">5. Održavanje</button>
+        </div>
         <div class="panel youtube-command-center">
           <div class="section-title"><div><h2>YouTube kanali, datumi objava i zaštita pesama</h2><p class="muted">Dodaj dva ili više svojih kanala, proveri sve javne objave, poveži ih sa Suno pesmama i pronađi moguće objave na tuđim kanalima.</p></div><div id="youtubeSummaryBadges" class="youtube-summary-badges"></div></div>
           <div class="youtube-oauth-connect">
@@ -265,7 +277,7 @@
           </details>
           <div id="youtubeChannelsList" class="youtube-channels-list"></div>
           <div class="youtube-action-grid">
-            <div class="youtube-action-card"><h3>Proveri moje kanale</h3><p>Čita njihove Uploads plejliste, pronalazi tvoje pesme i automatski upisuje datum objave i YouTube link.</p><label>Najviše paketa po kanalu<input id="youtubeChannelScanPages" type="number" min="1" max="100" value="20"></label><label>Režim<select id="youtubeChannelScanMode"><option value="new" selected>Brza provera novih videa</option><option value="full">Kompletna provera celog kanala</option></select></label><button id="scanOwnedYoutubeBtn" class="btn success full">PROVERI SVE MOJE KANALE</button></div>
+            <div class="youtube-action-card"><h3>Pronađi moje pesme na kanalima</h3><p>Čita videe i Shorts, preuzima njihov zvuk i poredi ga sa audio-otiscima Suno biblioteke. Ne oslanja se samo na naslov videa.</p><label>Najviše paketa po kanalu (50 videa po paketu)<input id="youtubeChannelScanPages" type="number" min="1" max="100" value="30"></label><label>Režim<select id="youtubeChannelScanMode"><option value="new" selected>Samo novi i još neprovereni videi</option><option value="full">Kompletna audio provera celog kanala</option></select></label><button id="scanOwnedYoutubeBtn" class="btn success full">PRONAĐI PESME NA SVIM MOJIM KANALIMA</button><p class="muted">Prva kompletna provera velikog kanala traje duže. Sledeće provere preskaču već analizirane videe.</p></div>
             <div class="youtube-action-card"><h3>Pretraži ceo YouTube</h3><p>Koristi više varijanti naslova, autora i prvog prepoznatljivog stiha. Radi preko Google/YouTube API-ja, a kada API nije dostupan automatski prelazi na ugrađeni yt-dlp + Deno režim.</p><div class="two-inputs"><label>Najviše pesama<input id="youtubeGlobalMaxSongs" type="number" min="1" max="500" value="50"></label><label>Minimalna sličnost %<input id="youtubeMatchThreshold" type="number" min="35" max="100" value="62"></label></div><div class="two-inputs"><label>Varijante upita po pesmi<input id="youtubeQueryVariants" type="number" min="1" max="5" value="3"></label><label>Rezultata po upitu<input id="youtubeResultsPerQuery" type="number" min="5" max="50" value="20"></label></div><label>Stranice prvog upita<select id="youtubeSearchPages"><option value="1" selected>1 — štedi kvotu</option><option value="2">2 — dublja pretraga</option></select></label><label class="check-label"><input id="youtubeIncludeOwnedGlobal" type="checkbox" checked> Uključi i moje YouTube kanale u rezultate</label><label class="check-label"><input id="youtubeSearchSelectedOnly" type="checkbox" checked> Pretraži samo izabrane pesme; ako nijedna nije izabrana, koristi prve pesme iz biblioteke</label><label class="check-label"><input id="youtubeAutoConfirmAudio" type="checkbox"> Automatski audio-potvrdi najbolje kandidate (troši vreme i internet po videu)</label><label>Najviše automatskih audio potvrda po pretrazi<input id="youtubeAutoConfirmBudget" type="number" min="0" max="20" value="5"></label><button id="scanGlobalYoutubeBtn" class="btn danger full">PRETRAŽI CEO YOUTUBE</button><p class="muted">Naslov je uvek samo kandidat. Bez audio potvrde rezultat ostaje označen „SAMO NASLOV“ dok ga ručno ili automatski ne potvrdiš.</p></div>
             <div class="youtube-action-card legal-card"><h3>Kontakt i uklanjanje</h3><p>Program pravi dokazni paket, poruku za kontakt i otvara zvanične YouTube alate. Ne šalje pravnu prijavu bez tvoje konačne provere i klika.</p><div class="button-stack"><button id="openCopyrightMatchBtn" class="btn secondary">Otvori YouTube Copyright Match</button><button id="openCopyrightHelpBtn" class="btn ghost">Otvori zvanični zahtev za uklanjanje</button></div><p class="warning-text">Pre slanja proveri vlasništvo, licencu, dozvolu i mogući fair use. Lažna prijava može imati pravne posledice.</p></div>
           </div>
@@ -280,7 +292,7 @@
               </div>
               <div class="youtube-settings-box">
                 <h3>Obim analize</h3>
-                <div class="two-inputs"><label>Najviše videa po kanalu<input id="youtubeAudioMaxVideos" type="number" min="1" max="500" value="100"></label><label>Broj Suno kandidata<input id="youtubeAudioCandidateLimit" type="number" min="4" max="40" value="16"></label></div>
+                <div class="two-inputs"><label>Najviše videa po kanalu<input id="youtubeAudioMaxVideos" type="number" min="1" max="5000" value="1500"></label><label>Broj Suno kandidata<input id="youtubeAudioCandidateLimit" type="number" min="4" max="40" value="20"></label></div>
                 <label>Režim provere<select id="youtubeAudioScanMode"><option value="new" selected>Samo novi / još neanalizirani videi</option><option value="uncertain">Ponovi nepouzdane i neuspešne</option><option value="all">Ponovo proveri sve videe</option></select></label>
                 <div class="two-inputs"><label>Najviše pesama u jednom videu<input id="youtubeAudioMaxSongsPerVideo" type="number" min="1" max="20" value="6"></label><label>Keš zadrži dana<input id="youtubeAudioCacheDays" type="number" min="1" max="365" value="30"></label></div>
                 <label class="check-label"><input id="youtubeAudioSelectedOnly" type="checkbox"> Analiziraj samo Suno pesme izabrane u Biblioteci</label>

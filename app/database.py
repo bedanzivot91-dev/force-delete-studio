@@ -1847,7 +1847,7 @@ class LibraryDB:
         with self._connect() as conn:
             row = conn.execute(
                 """SELECT m.*,v.title video_title,v.channel_id,v.channel_title,v.published_at,v.url video_url,
-                          v.thumbnail_url,v.duration video_duration,v.view_count,v.is_owned_channel,
+                          v.thumbnail_url,v.duration video_duration,v.view_count,v.like_count,v.comment_count,v.privacy_status,v.is_owned_channel,
                           s.title song_title,s.duration song_duration,s.youtube_url original_url,
                           s.youtube_published_at original_published_at,s.source_url,s.local_audio,s.local_wav,s.audio_url
                    FROM youtube_matches m JOIN youtube_videos v ON v.video_id=m.video_id JOIN songs s ON s.id=m.song_id
@@ -1865,7 +1865,7 @@ class LibraryDB:
             where.append("v.channel_id=?")
             params.append(str(channel_id))
         sql = f"""SELECT m.*,v.title video_title,v.channel_id,v.channel_title,v.published_at,v.url video_url,
-                         v.thumbnail_url,v.duration video_duration,v.view_count,
+                         v.thumbnail_url,v.duration video_duration,v.view_count,v.like_count,v.comment_count,v.privacy_status,
                          s.title song_title,s.duration song_duration,s.source_url,s.youtube_url original_url,
                          s.youtube_published_at original_published_at
                   FROM youtube_matches m JOIN youtube_videos v ON v.video_id=m.video_id JOIN songs s ON s.id=m.song_id
@@ -2245,4 +2245,3 @@ class LibraryDB:
                 "UPDATE recognized_tracks SET library_song_id=?, manual_override_at=CURRENT_TIMESTAMP WHERE id=?",
                 (str(song_id), int(recognition_id)),
             )
-

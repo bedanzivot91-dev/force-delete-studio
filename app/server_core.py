@@ -1389,7 +1389,25 @@ def _analyse_video_against_songs(
         DB.update_youtube_video_audio_cache(video_id, str(youtube_audio), _sha256(youtube_audio))
     video_signature = _signature_for_source("youtube", video_id, youtube_audio, task, str(video.get("title") or video_id), force=force)
 
+    # A Shorts title often has no relation to the song title.  The previous
+    # implementation selected only title/duration candidates and therefore
+    # never compared the real song at all when a quote/teaser title was used.
+    # Ask the audio index first, then keep metadata candidates as a useful
+    # supplement for libraries that have not been fully indexed yet.
+    audio_shortlist, used_audio_index = _song_finder_shortlist(video_signature, songs)
     candidates = _metadata_candidates_for_video(video, songs, owned_ids, candidate_limit, deep)
+    candidate_ids = {str(song.get("id") or "") for song, _ in candidates}
+    audio_limit = max(candidate_limit, SONG_FINDER_SHORTLIST)
+    for song in audio_shortlist[:audio_limit]:
+        song_id = str(song.get("id") or "")
+        if song_id and song_id not in candidate_ids:
+            candidates.append((song, match_song_to_video(song, video, owned_ids)))
+            candidate_ids.add(song_id)
+    if used_audio_index:
+        task.log(
+            f"„{video.get('title')}“: audio indeks je izabrao {min(len(audio_shortlist), audio_limit)} "
+            "kandidata nezavisno od YouTube naslova."
+        )
     analysed: list[dict[str, Any]] = []
     skipped = 0
     for song, metadata_match in candidates:
@@ -1511,8 +1529,22 @@ def analyze_owned_youtube_audio(task: TaskState, options: dict[str, Any]) -> Non
         raise RuntimeError("Suno biblioteka je prazna ili nema izabranih pesama.")
     ensure_ffmpeg(lambda m, p: task.log(m, "info") if p in (0, 100) else None)
     ensure_ytdlp(lambda m, p: task.log(m, "info") if p in (0, 100) else None)
+    # Never start a channel scan with a knowingly incomplete reference index.
+    # That was the most confusing failure mode: the UI said "scan complete"
+    # although many Suno originals had never been eligible for comparison.
+    index_status = song_finder_status()
+    if int(index_status.get("songs_not_indexed") or 0) > 0:
+        task.log(
+            f"Audio indeks nije kompletan: nedostaje {index_status.get('songs_not_indexed')} otisaka. "
+            "Automatski ga dopunjujem pre YouTube provere.",
+            "warning",
+        )
+        song_finder_index_task(task, {"force": False, "finish_task": False})
     max_pages = max(1, min(int(options.get("max_pages") or 10), 100))
-    max_videos = max(1, min(int(options.get("max_videos_per_channel") or 100), 500))
+    # A channel may contain well over 500 uploads (the user's main channel has
+    # 1,300+).  The old hard cap silently ignored the older majority even when
+    # the UI requested a complete scan.
+    max_videos = max(1, min(int(options.get("max_videos_per_channel") or 100), 5000))
     owned_ids = {str(c.get("channel_id") or "") for c in channels}
     all_videos: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -1528,6 +1560,8 @@ def analyze_owned_youtube_audio(task: TaskState, options: dict[str, Any]) -> Non
         except Exception as exc:
             task.log(f"Kanal „{channel.get('title')}“ nije pročitan: {exc}", "error")
             continue
+        latest = max((str(v.get("published_at") or "") for v in videos), default="")
+        DB.update_youtube_channel_scan(str(channel.get("channel_id") or ""), latest, len(videos))
         for video in videos:
             video_id = str(video.get("video_id") or "")
             if video_id and video_id not in seen and float(video.get("duration") or 0) >= 12:
@@ -2848,7 +2882,11 @@ def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
             items.append((song, str(source), is_remote))
     task.total = len(items)
     if not items and all_songs:
-        task.finish(f"Nijedna od {len(all_songs)} pesama nema lokalni fajl niti Suno link, zato nema šta da se indeksira.")
+        message = f"Nijedna od {len(all_songs)} pesama nema lokalni fajl niti Suno link, zato nema šta da se indeksira."
+        if bool(options.get("finish_task", True)):
+            task.finish(message)
+        else:
+            task.log(message, "warning")
         return
 
     ok = 0
@@ -2926,12 +2964,16 @@ def song_finder_index_task(task: TaskState, options: dict[str, Any]) -> None:
     DB.set_setting("song_finder_last_index_at", now_iso())
     no_source = len(all_songs) - len(items)
     remote_count = sum(1 for _, _, is_remote in items if is_remote)
-    task.finish(
+    summary = (
         f"Indeksiranje završeno: {ok} obrađeno"
         + (f" ({remote_count} direktno sa Suno servera, bez trajnog čuvanja fajla)" if remote_count else "")
         + f", {failed} neuspešno, {no_source} pesama nema lokalni fajl niti Suno link."
         + (f" Brzi indeks: {indexed_rows} otisaka." if indexed_rows else "")
     )
+    if bool(options.get("finish_task", True)):
+        task.finish(summary)
+    else:
+        task.log(summary, "success" if failed == 0 else "warning")
 
 
 # A clip played back even slightly faster/slower is common (Shorts/reels
@@ -3184,6 +3226,19 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
     for item in candidates:
         item["tempo_hint"] = 1.0
     ranked = song_finder.rank_song_candidates(candidates)
+
+    # The fast index is deliberately approximate.  Re-encoding, background
+    # speech or a very short excerpt can keep the correct song outside its
+    # top-N shortlist.  Returning "not found" at that point is a false
+    # negative.  On a miss, fall back once to the complete cached fingerprint
+    # library.  It is slower only for difficult clips, but correctness matters
+    # more than speed here.
+    if used_index and not ranked and len(shortlist) < len(songs):
+        full_candidates, full_checked = _song_finder_candidates(upload_variants, songs)
+        candidates.extend(full_candidates)
+        checked += full_checked
+        ranked = song_finder.rank_song_candidates(candidates)
+        used_index = False
 
     # The tempo search exists to rescue a clip that matched nothing, by
     # re-extracting it at compensating speeds. A clip shorter than

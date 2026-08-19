@@ -3,7 +3,7 @@
 const state = {
   songs: [], selected: new Set(), currentSong: null, status: null, collections: [],
   activeView: 'library', taskId: null, searchTimer: null, completedTasks: new Set(),
-  libraryTotal: 0, searchUserEdited: false, searchGuardTimer: null,
+  libraryTotal: 0, searchUserEdited: false, searchGuardTimer: null, lastSyncUiRefresh: 0,
   waveformPeaks: null, waveformSongId: null, previewEnd: null, autoCheckTimer: null,
   queue: [], queueIndex: -1, repeat: false, connectionPoll: null,
   youtubeChannels: [], youtubeMatches: [], youtubeCalendar: [], youtubeSummary: null,
@@ -90,7 +90,7 @@ const viewText = {
   smart: ['Pametna biblioteka', 'Pravila po poljima pesme (I/ILI), živ pregled trenutne biblioteke i sačuvane pametne kolekcije.'],
   versions: ['Version Lab', 'Poredi više Suno verzija iste pesme, oceni ih i označi glavnu (master) verziju.'],
   release: ['Release Center', 'Zbirni pregled spremnosti za objavu i jedan klik za organizovan izvozni folder po pesmi.'],
-  tools: ['Pametni alati', 'YouTube ↔ Suno audio prepoznavanje, kompletnost objave, kanali, datumi i zaštita pesama.'],
+  tools: ['YouTube i Suno kontrolni centar', 'Kanali, audio-prepoznavanje pesama, objave, statistika i zaštita na jednom organizovanom mestu.'],
   production: ['Produkcija v3', 'Lyric video, Shorts, YouTube objava, integritet, zaštita i rollback.'],
   stats: ['Statistika biblioteke', 'Broj pesama, trajanje, modeli i preuzimanja.'],
   logs: ['Dnevnik rada', 'Uspešne radnje, upozorenja i greške.'],
@@ -111,6 +111,16 @@ function showView(name) {
   if (name === 'import') loadWatchedFolders();
   if (name === 'production') { loadV3Status(); loadSecurityStatus(); updateSelectionUi(); }
   if (name === 'settings') { checkLibraryHealth(false, true); renderThemes(); loadStorageSummary(); checkThemeContrast(); }
+}
+
+function setToolsTab(name) {
+  const view=$('view-tools'); if(!view)return;
+  const allowed=['channels','results','coverage','library-tools','system'];
+  const tab=allowed.includes(name)?name:'channels';
+  view.dataset.toolsTab=tab;
+  qsa('.tools-tab',view).forEach(b=>{const active=b.dataset.toolsTab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',active?'true':'false');});
+  try{localStorage.setItem('suno-tools-tab',tab);}catch(_){ }
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function selectedIds() { return [...state.selected]; }
@@ -248,6 +258,13 @@ function renderTask(task) {
   $('taskTitle').textContent = task.title || 'Obrada'; $('taskMessage').textContent = task.message || ''; $('taskProgress').style.width = `${Number(task.percent || 0)}%`; $('taskCurrent').textContent = task.current || ''; $('taskCount').textContent = task.total ? `${task.done || 0} / ${task.total}` : ''; $('cancelTaskBtn').classList.toggle('hidden', task.status !== 'running');
   if ($('pauseTaskBtn')) { $('pauseTaskBtn').classList.toggle('hidden', task.status !== 'running'); $('pauseTaskBtn').textContent = task.paused ? 'Nastavi' : 'Pauziraj'; $('pauseTaskBtn').dataset.paused = task.paused ? '1' : ''; }
   $('taskLogs').innerHTML = (task.logs || []).slice(-120).map((r) => `<div class="${escapeHtml(r.level)}">[${escapeHtml(r.time)}] ${escapeHtml(r.message)}</div>`).join('');
+  // Show records while Suno is still syncing.  Previously the database was
+  // being filled correctly but the screen stayed at "0 ukupno" until the
+  // final package, which made a successful long sync look broken.
+  if (task.status === 'running' && task.type === 'sync' && Date.now() - state.lastSyncUiRefresh > 2000) {
+    state.lastSyncUiRefresh = Date.now();
+    loadSongs(false).catch(() => {});
+  }
   if (task.status !== 'running' && !state.completedTasks.has(task.id)) {
     state.completedTasks.add(task.id); if (state.taskId === task.id) state.taskId = null; const toastKind=task.status==='done'?'success':(task.status==='partial'||task.status==='cancelled'?'warning':'error'); toast(task.message || 'Završeno.', toastKind, 15000);
     Promise.all([loadSongs(), loadCollections(), loadStats(), loadLogs(), loadAudioToolsStatus()]).then(async () => { if (state.currentSong) await openSong(state.currentSong.id, false); if (task.type === 'sync' && task.status === 'done') showView('library'); if (['youtube_owned','youtube_global','youtube_audio_owned','youtube_audio_one'].includes(task.type)) await loadYoutubeCenter(); if(['import_folder','rescan_watched_folders'].includes(task.type)) await loadWatchedFolders(); if(task.type==='song_finder_index'){await loadSongFinderStatus();} if(task.type==='song_finder_batch'){await loadSongFinderResults();} });
@@ -1091,6 +1108,20 @@ function audioSegmentMap(row){
   const bars=segments.map((x,i)=>{const left=Math.max(0,Math.min(100,Number(x.source_start||0)/duration*100)),width=Math.max(.7,Math.min(100-left,(Number(x.source_end||0)-Number(x.source_start||0))/duration*100));return `<i class="segment-hit" style="left:${left}%;width:${width}%" title="Segment ${i+1}: ${formatDuration(x.source_start)}–${formatDuration(x.source_end)}"></i>`;}).join('');
   return `<div class="audio-segment-map" title="Zelene zone su potvrđeni delovi Suno originala"><span></span>${bars}</div>`;
 }
+function youtubePerformanceNotes(row){
+  const views=Number(row.view_count||0),likes=Number(row.like_count||0),comments=Number(row.comment_count||0);
+  const likeRate=views?likes/views*100:0,commentRate=views?comments/views*100:0;
+  const good=[],improve=[];
+  if(Number(row.audio_score||0)>=75)good.push('audio je pouzdano povezan sa originalom');
+  if(Number(row.coverage_percent||0)>=80)good.push('objavljen je skoro ceo original');
+  else if(Number(row.coverage_percent||0)>0)improve.push('objavljen je samo deo pesme');
+  if(views&&likeRate>=3)good.push(`dobar odnos lajkova (${likeRate.toFixed(2)}%)`);
+  else if(views&&likes)improve.push(`slabiji odnos lajkova (${likeRate.toFixed(2)}%)`);
+  if(views&&commentRate>=0.2)good.push(`publika komentariše (${commentRate.toFixed(2)}%)`);
+  else if(views)improve.push(`malo komentara (${commentRate.toFixed(2)}%)`);
+  if(Number(row.video_duration||0)<=70)good.push('Shorts format');
+  return `<details class="youtube-performance-details"><summary>Detaljna statistika i procena</summary><p><strong>Objavljeno:</strong> ${formatDate(row.published_at)} · <strong>Pregledi:</strong> ${youtubeNumber(views)} · <strong>Lajkovi:</strong> ${youtubeNumber(likes)} · <strong>Komentari:</strong> ${youtubeNumber(comments)}</p><p><strong>Dobro:</strong> ${escapeHtml(good.join(' · ')||'nema dovoljno podataka za pozitivan zaključak')}</p><p><strong>Treba proveriti/poboljšati:</strong> ${escapeHtml(improve.join(' · ')||'nema očiglednog problema u dostupnim podacima')}</p><p class="muted">Procena se zasniva na YouTube statistici i audio-analizi. Vizuelni kvalitet kadrova, montaže i thumbnaila zahteva posebnu video-analizu.</p></details>`;
+}
 
 function renderYoutubeAudioResults(){
   const box=$('youtubeAudioResultsList');if(!box)return;
@@ -1113,6 +1144,7 @@ function renderYoutubeAudioResults(){
         ${audioSegmentMap(r)}
         <p class="audio-version-line"><strong>${escapeHtml(r.version_type||'nepoznata verzija')}</strong> · ${Number(r.segment_count||0)} segment(a)${Number(r.video_song_count||0)>1?` · ${Number(r.video_song_count)} pesme u videu`:''}</p>
         ${r.recommendation?`<p class="audio-recommendation">${escapeHtml(r.recommendation)}</p>`:''}
+        ${youtubePerformanceNotes(r)}
       </div>
       <div class="youtube-audio-actions"><button class="btn primary small youtube-audio-play-video">Otvori video</button><button class="btn secondary small youtube-audio-open-suno">Otvori Suno</button><button class="btn secondary small youtube-audio-recheck">Ponovo analiziraj</button><button class="btn ghost small youtube-audio-change-original">Promeni original</button></div>
     </article>`;
@@ -1173,7 +1205,10 @@ async function cleanupYoutubeAudioCache(){if(!confirm('Obrisati stari lokalni Yo
 
 async function saveYoutubeSettings(clear=false){try{const body={copyright_owner_name:$('copyrightOwnerNameInput').value.trim(),cookies_browser:$('youtubeCookiesBrowser')?.value||'none'};if(clear)body.api_key='';else if($('youtubeApiKeyInput').value.trim())body.api_key=$('youtubeApiKeyInput').value.trim();const d=await api('/api/youtube/settings',{method:'POST',body});$('youtubeApiKeyInput').value='';toast(d.message,'success');await loadStatus();await loadYoutubeCenter();}catch(e){toast(e.message,'error',9000);}}
 async function addYoutubeChannel(){const reference=$('youtubeChannelInput').value.trim();if(!reference)return toast('Upiši kanal, @handle ili channel ID.','error');try{const d=await api('/api/youtube/channel/add',{method:'POST',body:{reference,is_owned:$('youtubeChannelOwned').checked},timeoutMs:60000});$('youtubeChannelInput').value='';toast(d.message,'success');loadYoutubeCenter();}catch(e){toast(e.message,'error',12000);}}
-async function scanOwnedYoutube(){try{await startBackground('/api/youtube/scan-owned',{max_pages:Number($('youtubeChannelScanPages').value||20),threshold:68,include_private_unlisted:$('youtubeIncludePrivate')?.checked!==false,scan_mode:$('youtubeChannelScanMode')?.value||'new'});$('taskPanel').classList.remove('hidden');$('taskPanel').scrollIntoView({behavior:'smooth'});}catch(e){toast(e.message,'error',12000);}}
+async function scanOwnedYoutube(){
+  const pages=Number($('youtubeChannelScanPages').value||20),scanMode=$('youtubeChannelScanMode')?.value||'new';
+  try{await startBackground('/api/youtube/audio-analyze-owned',{max_pages:pages,max_videos_per_channel:Math.min(5000,pages*50),candidate_limit:20,deep:false,reuse_cache:true,force:false,scan_mode:scanMode,detect_multiple:true,max_songs_per_video:6,cache_days:30,cache_gb:10});$('taskPanel').classList.remove('hidden');$('taskPanel').scrollIntoView({behavior:'smooth'});toast('Kompletna provera kanala je pokrenuta: čitanje videa i pravo audio prepoznavanje.','success',10000);}catch(e){toast(e.message,'error',12000);}
+}
 async function scanGlobalYoutube(){const ids=$('youtubeSearchSelectedOnly').checked?selectedIds():[];if($('youtubeSearchSelectedOnly').checked&&!ids.length)toast('Nijedna pesma nije izabrana — program će koristiti prve pesme iz biblioteke.','info');try{await startBackground('/api/youtube/scan-global',{ids,max_songs:Number($('youtubeGlobalMaxSongs').value||50),threshold:Number($('youtubeMatchThreshold').value||62),results_per_song:Number($('youtubeResultsPerQuery')?.value||20),query_variants:Number($('youtubeQueryVariants')?.value||3),max_pages:Number($('youtubeSearchPages')?.value||1),include_owned_channels:Boolean($('youtubeIncludeOwnedGlobal')?.checked),api_call_budget:80,auto_confirm_budget:$('youtubeAutoConfirmAudio')?.checked?Number($('youtubeAutoConfirmBudget')?.value||5):0});$('taskPanel').classList.remove('hidden');$('taskPanel').scrollIntoView({behavior:'smooth'});}catch(e){toast(e.message,'error',15000);}}
 async function openExternal(url){try{await api('/api/youtube/open-url',{method:'POST',body:{url}});}catch(e){toast(e.message,'error');}}
 async function openWebSearch(songId){try{const d=await api(`/api/youtube/search-links?song_id=${encodeURIComponent(songId)}`);toolOutput(`<h3>Ručna internet pretraga</h3><p class="muted">Otvori više izvora. Rezultati pretraživača su samo tragovi za ručnu proveru.</p><div class="button-row"><button id="openYoutubeSearchDynamic" class="btn primary">YouTube</button><button id="openGoogleSearchDynamic" class="btn secondary">Google</button><button id="openBingSearchDynamic" class="btn ghost">Bing</button></div>`);$('openYoutubeSearchDynamic').addEventListener('click',()=>openExternal(d.youtube));$('openGoogleSearchDynamic').addEventListener('click',()=>openExternal(d.google));$('openBingSearchDynamic').addEventListener('click',()=>openExternal(d.bing));$('toolsOutput').scrollIntoView({behavior:'smooth'});}catch(e){toast(e.message,'error');}}
@@ -1416,6 +1451,8 @@ function bindEvents() {
   $('securityUnlockBtn').addEventListener('click',unlockSecurity); $('securityUnlockPin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockSecurity();}); $('v3SecuritySetBtn').addEventListener('click',setSecurityPin); $('v3SecurityLockBtn').addEventListener('click',lockSecurity); $('v3SecurityDisableBtn').addEventListener('click',disableSecurityPin); $('v3OpenMaintenanceBtn').addEventListener('click',openV3Maintenance); $('v3OpenSnapshotsBtn').addEventListener('click',openV3Snapshots); $('v3StorageCleanupBtn').addEventListener('click',cleanupV3Storage);
   $('v3RefreshStatusBtn').addEventListener('click',loadV3Status); $('v3PreflightBtn').addEventListener('click',runV3Preflight); $('v3IntegrityBtn').addEventListener('click',runV3Integrity); $('v3DuplicatesBtn').addEventListener('click',loadV3Duplicates); $('v3AudioConfirmDuplicatesBtn')?.addEventListener('click',loadV3AudioConfirmDuplicates); $('v3ChooseOrganizeTargetBtn').addEventListener('click',()=>chooseV3Folder('v3OrganizeTarget')); $('v3OrganizeBtn').addEventListener('click',runV3Organize); $('v3SuggestShortsBtn').addEventListener('click',loadV3ShortSuggestions); $('v3RenderShortsBtn').addEventListener('click',runV3Shorts); $('v3ChooseBackgroundBtn').addEventListener('click',()=>chooseV3File('v3LyricBackground')); $('v3LyricVideoBtn').addEventListener('click',runV3Lyric); $('v3ChooseYoutubeVideoBtn').addEventListener('click',()=>chooseV3File('v3YoutubeVideoPath')); $('v3ChooseYoutubeThumbnailBtn').addEventListener('click',()=>chooseV3File('v3YoutubeThumbnailPath')); $('v3YoutubePackageBtn').addEventListener('click',createV3YoutubePackage); $('v3YoutubeUploadBtn').addEventListener('click',runV3YoutubeUpload); $('v3ProofBtn').addEventListener('click',createV3Proof); $('v3PanakoIndexBtn').addEventListener('click',runV3Panako); $('choosePanakoJarBtn')?.addEventListener('click',choosePanakoJar); $('installPanakoBtn')?.addEventListener('click',installPanako); $('v3SnapshotBtn').addEventListener('click',runV3Snapshot); $('v3SaveWatchBtn').addEventListener('click',saveV3Watch); $('v3ClearOutputBtn').addEventListener('click',()=>v3Show('Izaberi pesmu u Biblioteci, zatim pokreni željenu radnju.','Produkcija v3'));
   $('nav').addEventListener('click', (e) => { const item = e.target.closest('[data-view]'); if (item) showView(item.dataset.view); }); qsa('[data-go]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.go)));
+  $('view-tools')?.addEventListener('click',(e)=>{const tab=e.target.closest('[data-tools-tab]');if(tab)setToolsTab(tab.dataset.toolsTab);});
+  setToolsTab(localStorage.getItem('suno-tools-tab')||'channels');
   $('connectBtn').addEventListener('click', () => state.status?.connected ? showView('import') : connectStart()); $('openSunoLoginBtn').addEventListener('click', connectStart); $('checkSunoBtn').addEventListener('click', () => connectCheck(true)); $('testServerBtn').addEventListener('click', testLocalServer); $('connectManualTokenBtn').addEventListener('click', connectManualToken); $('checkNewBtn').addEventListener('click', checkNewSongs); $('checkNewImportBtn').addEventListener('click', checkNewSongs); $('toolCheckNewBtn').addEventListener('click', checkNewSongs); $('syncBtn').addEventListener('click', startSync); $('startSyncBtn').addEventListener('click', startSync); $('importUrlsBtn').addEventListener('click', importUrls); $('importFolderBtn').addEventListener('click', importFolder); $('chooseLocalFolderBtn').addEventListener('click', () => chooseFolder('localFolderInput')); $('rescanWatchedFoldersBtn')?.addEventListener('click',rescanWatchedFolders); $('refreshWatchedFoldersBtn')?.addEventListener('click',loadWatchedFolders); $('watchedFoldersList')?.addEventListener('click',(e)=>{const t=e.target.closest('.watched-toggle');if(t)updateWatchedFolder(t.dataset.path,{enabled:t.dataset.enabled==='1'});const r=e.target.closest('.watched-remove');if(r&&confirm('Ukloniti folder iz praćenja? Pesme koje su već u Biblioteci ostaju sačuvane.'))updateWatchedFolder(r.dataset.path,{remove:true});});
   $('searchInput').addEventListener('input', () => { clearTimeout(state.searchTimer); state.searchTimer = setTimeout(reloadSongsFirstPage, 250); }); ['filterSelect', 'sortSelect', 'collectionFilter'].forEach((id) => $(id).addEventListener('change', reloadSongsFirstPage)); $('refreshSongsBtn').addEventListener('click', () => loadSongs(false)); $('applyAdvancedFiltersBtn').addEventListener('click', reloadSongsFirstPage); $('clearAdvancedFiltersBtn').addEventListener('click', clearAdvancedFilters); $('prevPageBtn').addEventListener('click',()=>{if(state.page>0){state.page-=1;loadSongs(false);}}); $('nextPageBtn').addEventListener('click',()=>{if((state.page+1)*state.pageSize<state.totalFiltered){state.page+=1;loadSongs(false);}}); $('pageSizeSelect').addEventListener('change',()=>{state.pageSize=Number($('pageSizeSelect').value||100);reloadSongsFirstPage();});
   $('emptyLibraryAction').addEventListener('click',(e)=>{if(e.currentTarget.dataset.clearLibrary==='1'){e.preventDefault();clearAllLibraryFilters();}});
