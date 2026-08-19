@@ -89,7 +89,12 @@ func stageChromaprintFFmpeg(stage string, log func(string)) error {
 		return fmt.Errorf("BtbN full FFmpeg integritet: %w", err)
 	}
 
-	_ = os.RemoveAll(filepath.Join(stage, "tools", "ffmpeg"))
+	// Non-destructive upgrade: preserve the existing FFmpeg folder and every
+	// auxiliary file in it. Only ffmpeg.exe and ffprobe.exe are replaced by the
+	// verified Chromaprint-capable binaries from the full build.
+	if err := os.MkdirAll(ffDir, 0755); err != nil {
+		return err
+	}
 	if err := extractNamedFromZip(zipPath, ffDir, map[string]string{
 		"ffmpeg.exe":  "ffmpeg.exe",
 		"ffprobe.exe": "ffprobe.exe",
@@ -102,6 +107,6 @@ func stageChromaprintFFmpeg(stage string, log func(string)) error {
 	if err := ffmpegHasChromaprintBinary(ffmpegExe); err != nil {
 		return err
 	}
-	log("BtbN full FFmpeg je SHA-256 proveren i Chromaprint muxer je potvrđen.")
+	log("BtbN full FFmpeg je SHA-256 proveren i Chromaprint muxer je potvrđen; postojeći FFmpeg folder nije obrisan.")
 	return nil
 }
