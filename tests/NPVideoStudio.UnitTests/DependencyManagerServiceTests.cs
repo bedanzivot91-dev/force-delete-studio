@@ -117,14 +117,15 @@ public class DependencyManagerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperAndDemucs_ReportsInstalled()
+    public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperDemucsAndLyricAlign_ReportsInstalled()
     {
         _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
         {
             WorkerReachable = true,
             PythonVersion = "3.12.0",
             FasterWhisperAvailable = true,
-            DemucsAvailable = true
+            DemucsAvailable = true,
+            LyricAlignAvailable = true
         };
 
         var results = await _service.GetDependenciesAsync();
