@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 )
@@ -20,6 +21,8 @@ const (
 	currentDenoURL     = "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip"
 	currentDenoSHAURL  = currentDenoURL + ".sha256sum"
 )
+
+var strictSHA256Token = regexp.MustCompile(`(?i)\b[0-9a-f]{64}\b`)
 
 // A release build starts with an empty Program/ staging directory. Put the
 // current runtime versions there first, before the older compatibility code in
@@ -48,6 +51,30 @@ func commandOutput(path string, args ...string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// checksumFromPerAssetSidecar accepts only unambiguous SHA-256 data. The Deno
+// URL points to the checksum sidecar for one exact release asset; the textual
+// wrapper around the digest may change, so we do not assume the digest is the
+// first whitespace-delimited field. Exactly one distinct 64-hex SHA-256 token
+// must be present or staging fails closed.
+func checksumFromPerAssetSidecar(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	matches := strictSHA256Token.FindAllString(string(b), -1)
+	unique := map[string]struct{}{}
+	for _, match := range matches {
+		unique[strings.ToLower(match)] = struct{}{}
+	}
+	if len(unique) != 1 {
+		return "", fmt.Errorf("očekivan je tačno jedan jedinstveni SHA-256 u %s, pronađeno %d", filepath.Base(path), len(unique))
+	}
+	for hash := range unique {
+		return hash, nil
+	}
+	return "", fmt.Errorf("SHA-256 nije pronađen u %s", filepath.Base(path))
 }
 
 func stageCurrentPython(stage string, log func(string)) error {
@@ -109,10 +136,7 @@ func stageCurrentDeno(stage string, log func(string)) error {
 	if err := downloadFile(currentDenoSHAURL, shaPath, log); err != nil {
 		return fmt.Errorf("Deno %s checksum: %w", currentDenoVersion, err)
 	}
-	// This URL is the official checksum sidecar for this exact asset, so the
-	// first valid SHA-256 in it belongs to currentDenoURL even when GitHub's
-	// sidecar format omits the filename.
-	expected, err := checksumFromFile(shaPath, "")
+	expected, err := checksumFromPerAssetSidecar(shaPath)
 	if err != nil {
 		return fmt.Errorf("Deno %s checksum parsing: %w", currentDenoVersion, err)
 	}
