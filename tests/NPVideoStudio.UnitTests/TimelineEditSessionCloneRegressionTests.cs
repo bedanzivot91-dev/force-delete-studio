@@ -1,5 +1,6 @@
 using NPVideoStudio.AI;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Media;
 using Xunit;
 
 namespace NPVideoStudio.UnitTests;
@@ -31,6 +32,24 @@ public sealed class TimelineEditSessionCloneRegressionTests
         var afterRedo = session.Tracks.Single().Clips.Single();
         Assert.True(afterRedo.IsMuted);
         AssertPictureState(afterRedo);
+    }
+
+    [Fact]
+    public void ExtractRangeTimeline_PreservesLayerPlacementAndPictureEffects()
+    {
+        var clip = CreateStyledClip();
+        var timeline = new Timeline
+        {
+            Tracks = new List<TimelineTrack> { CreateTrack(clip) }
+        };
+
+        var previewRange = FfmpegFilterGraphBuilder.ExtractRangeTimeline(timeline, 4, 7);
+
+        var rangedClip = previewRange.Tracks.Single().Clips.Single();
+        Assert.Equal(0, rangedClip.TimelineStartSeconds, 6);
+        Assert.Equal(2, rangedClip.SourceTrimInSeconds, 6);
+        Assert.Equal(5, rangedClip.SourceTrimOutSeconds, 6);
+        AssertPictureState(rangedClip);
     }
 
     private static TimelineClip CreateStyledClip() => new()
