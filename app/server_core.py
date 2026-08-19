@@ -58,8 +58,8 @@ from suno_compat import validate_fixture
 from youtube_tools import (YouTubeAPIError, resolve_channel, list_channel_videos, search_videos, build_search_queries, match_song_to_video, contact_message, google_search_url, bing_search_url, youtube_search_url)
 from youtube_oauth import YouTubeOAuthError, YouTubeOAuthManager
 from platform_intelligence import (
-    analyze_comments, fetch_comments, quota_estimate, review_priority,
-    suno_snapshot_diff, visual_video_analysis, youtube_analytics, youtube_retention,
+    analyze_comments, build_review_queue, build_song_report, fetch_comments, quota_estimate, review_priority,
+    suno_snapshot_diff, visual_video_analysis, youtube_analytics, youtube_analytics_suite, youtube_retention,
 )
 from audio_match import (
     AudioMatchCancelled, AudioMatchError, ALGORITHM_VERSION as AUDIO_MATCH_VERSION,
@@ -894,7 +894,7 @@ def platform_monitor_task(task: TaskState, options: dict[str, Any]) -> None:
     profile_id = str(options.get("profile_id") or "")
     token = get_youtube_access_token(profile_id, required=True)
     task.log("Čitam zbirnu YouTube analitiku za poslednjih 28 dana...")
-    report = youtube_analytics(token)
+    report = youtube_analytics_suite(token)
     report["checked_at"] = now_iso()
     DB.set_setting("youtube_intelligence_last", json.dumps(report, ensure_ascii=False))
     current = DB.export_rows()
@@ -904,7 +904,7 @@ def platform_monitor_task(task: TaskState, options: dict[str, Any]) -> None:
     DB.set_setting("suno_snapshot_last_diff", json.dumps(snapshot, ensure_ascii=False))
     DB.set_setting("suno_snapshot_json", json.dumps(current, ensure_ascii=False))
     task.set_progress(1, 1, "YouTube i Suno stanje")
-    task.log(f"Završeno: {int((report.get('totals') or {}).get('views') or 0)} pregleda; novih Suno zapisa {len(snapshot['new'])}.", "success")
+    task.log(f"Završena proverena YouTube analitika; novih Suno zapisa {len(snapshot['new'])}.", "success")
 
 
 def save_oauth_channels(channels: list[dict[str, Any]], prune_profiles: bool = True) -> list[dict[str, Any]]:
@@ -5152,6 +5152,27 @@ class Handler(BaseHTTPRequestHandler):
                     "oauth": YOUTUBE_OAUTH.status(),
                 })
                 return
+            if path == "/api/platform-intelligence/review-queue":
+                recognitions = DB.list_recognitions(limit=2000)
+                audio_rows = DB.list_youtube_audio_analyses(limit=10000)
+                rows = build_review_queue(recognitions, audio_rows)
+                self._send_json({"ok": True, "rows": rows, "count": len(rows), "source": "Sačuvani lokalni otisci i YouTube audio analize"})
+                return
+            if path == "/api/platform-intelligence/song-report":
+                song_id = str((query.get("song_id") or [""])[0]).strip()
+                video_id = str((query.get("video_id") or [""])[0]).strip()
+                song = DB.get_song(song_id)
+                if not song:
+                    raise RuntimeError("Pesma nije pronađena.")
+                candidates = [x for x in DB.list_youtube_audio_analyses(limit=10000) if str(x.get("song_id") or "") == song_id]
+                match = next((x for x in candidates if str(x.get("video_id") or "") == video_id), None) if video_id else (candidates[0] if candidates else None)
+                analytics = _setting_json("youtube_intelligence_last", {})
+                comments = _setting_json("youtube_comments_last", {})
+                visual = _setting_json("youtube_visual_last", {})
+                if match and str(analytics.get("video_id") or "") != str(match.get("video_id") or ""): analytics = None
+                if match and str(comments.get("video_id") or "") != str(match.get("video_id") or ""): comments = None
+                self._send_json({"ok": True, "report": build_song_report(song, match, analytics, comments, visual)})
+                return
             if path in ("/api/youtube/channels", "/api/youtube/connected-channels"):
                 self._send_json(_connected_channels_payload())
                 return
@@ -5777,6 +5798,13 @@ class Handler(BaseHTTPRequestHandler):
                 DB.set_setting("youtube_intelligence_last", json.dumps(report, ensure_ascii=False))
                 self._send_json({"ok": True, "report": report, "message": "YouTube analitika je učitana."})
                 return
+            if path == "/api/youtube/analytics-suite/run":
+                token = get_youtube_access_token(str(body.get("profile_id") or ""), required=True)
+                report = youtube_analytics_suite(token, str(body.get("start_date") or ""), str(body.get("end_date") or ""), str(body.get("video_id") or "").strip())
+                report["checked_at"] = now_iso()
+                DB.set_setting("youtube_intelligence_last", json.dumps(report, ensure_ascii=False))
+                self._send_json({"ok": True, "report": report, "message": "Detaljni YouTube Analytics izveštaji su učitani; nedostupne stavke su posebno označene."})
+                return
             if path == "/api/youtube/comments/analyze":
                 video_id = str(body.get("video_id") or "").strip()
                 if not video_id:
@@ -5786,6 +5814,18 @@ class Handler(BaseHTTPRequestHandler):
                 result = {"video_id": video_id, "analysis": analyze_comments(rows), "comments": rows, "checked_at": now_iso()}
                 DB.set_setting("youtube_comments_last", json.dumps(result, ensure_ascii=False))
                 self._send_json({"ok": True, "result": result, "message": f"Analizirano komentara: {len(rows)}."})
+                return
+            if path == "/api/youtube/comments/export":
+                saved = _setting_json("youtube_comments_last", {})
+                rows = saved.get("comments") if isinstance(saved, dict) and isinstance(saved.get("comments"), list) else []
+                if not rows: raise RuntimeError("Prvo učitaj i analiziraj komentare za video.")
+                target = EXPORT_DIR / f"YouTube-komentari-{sanitize_filename(str(saved.get('video_id') or 'video'), 40)}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("w", encoding="utf-8-sig", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=["id", "author", "text", "likes", "replies", "published_at"])
+                    writer.writeheader()
+                    for row in rows: writer.writerow({k: row.get(k, "") for k in writer.fieldnames})
+                self._send_json({"ok": True, "path": str(target), "download_url": "/api/export/download?path=" + urllib.parse.quote(str(target)), "count": len(rows), "message": "Izvezeni su stvarni komentari koje je vratio YouTube API."})
                 return
             if path == "/api/youtube/video/visual-analyze":
                 selected = str(body.get("path") or "").strip()
@@ -5815,6 +5855,24 @@ class Handler(BaseHTTPRequestHandler):
                 options = {"profile_id": str(body.get("profile_id") or "")}
                 saved = DB.upsert_schedule("platform_intelligence", "YouTube analitika i Suno kontrola", minutes, enabled, options)
                 self._send_json({"ok": True, "schedule": saved, "message": "Automatska analitika je sačuvana."})
+                return
+            if path == "/api/platform-intelligence/report/export":
+                song_id = str(body.get("song_id") or "").strip()
+                video_id = str(body.get("video_id") or "").strip()
+                song = DB.get_song(song_id)
+                if not song: raise RuntimeError("Izaberi postojeću pesmu.")
+                candidates = [x for x in DB.list_youtube_audio_analyses(limit=10000) if str(x.get("song_id") or "") == song_id]
+                match = next((x for x in candidates if str(x.get("video_id") or "") == video_id), None) if video_id else (candidates[0] if candidates else None)
+                analytics = _setting_json("youtube_intelligence_last", {})
+                comments = _setting_json("youtube_comments_last", {})
+                visual = _setting_json("youtube_visual_last", {})
+                if match and str(analytics.get("video_id") or "") != str(match.get("video_id") or ""): analytics = None
+                if match and str(comments.get("video_id") or "") != str(match.get("video_id") or ""): comments = None
+                report = build_song_report(song, match, analytics, comments, visual)
+                target = EXPORT_DIR / f"Izvestaj-{sanitize_filename(str(song.get('title') or song_id), 80)}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+                self._send_json({"ok": True, "path": str(target), "download_url": "/api/export/download?path=" + urllib.parse.quote(str(target)), "report": report, "message": "Izveštaj je izvezen bez dopunjavanja nedostajućih podataka."})
                 return
             if path == "/api/youtube/oauth/start":
                 auth = YOUTUBE_OAUTH.start_authorization(str(body.get("email") or "").strip())

@@ -23,6 +23,17 @@ def main() -> None:
     assert report["totals"]["views"] == 300
     assert report["totals"]["averageViewPercentage"] == 60
 
+    with patch.object(pi, "_analytics_report", side_effect=[
+        {"available": True, "rows": [{"views": 10}], "source": "YouTube Analytics API"},
+        RuntimeError("not allowed"), RuntimeError("not allowed"), RuntimeError("not allowed"),
+        RuntimeError("not allowed"), RuntimeError("not allowed"), RuntimeError("not allowed"),
+    ]):
+        suite = pi.youtube_analytics_suite("token", "2026-08-01", "2026-08-02")
+    assert suite["reports"]["daily"]["available"] is True
+    assert suite["reports"]["traffic_sources"]["available"] is False
+    assert suite["reports"]["traffic_sources"]["rows"] == []
+    assert suite["estimated"] is False
+
     comments = [
         {"text": "Prelepo, bravo!", "likes": 10, "replies": 2},
         {"text": "Zašto je zvuk tako tiho?", "likes": 3, "replies": 1},
@@ -30,6 +41,7 @@ def main() -> None:
     analysis = pi.analyze_comments(comments)
     assert analysis["count"] == 2 and analysis["positive"] == 1 and analysis["negative"] == 1
     assert analysis["questions"] == 1
+    assert analysis["estimated"] is True and "heuristička" in analysis["warning"]
 
     diff = pi.suno_snapshot_diff(
         [{"id": "a", "title": "Staro"}, {"id": "b", "title": "Nestalo"}],
@@ -38,6 +50,7 @@ def main() -> None:
     assert [x["id"] for x in diff["new"]] == ["c"]
     assert [x["id"] for x in diff["missing"]] == ["b"]
     assert diff["changed"][0]["fields"] == ["title"]
+    assert diff["changed"][0]["before"]["title"] == "Staro"
 
     assert pi.quota_estimate(2, 3, 1)["estimated_total"] == 14
     assert pi.review_priority({"confidence": 60, "matched_seconds": 20})["priority"] == "high"
@@ -56,6 +69,23 @@ def main() -> None:
 
     assert "yt-analytics.readonly" in youtube_oauth.AUTH_SCOPE
     assert "https://www.googleapis.com/auth/yt-analytics.readonly" in youtube_oauth.REQUIRED_YOUTUBE_SCOPES
+
+    queue = pi.build_review_queue(
+        [{"id": 1, "found": 0, "original_filename": "short.mp4", "result": {}}],
+        [{"id": 2, "song_title": "Pesma", "completeness_status": "short_clip", "audio_score": 75}],
+    )
+    assert len(queue) == 2 and {x["kind"] for x in queue} == {"local_clip", "youtube_match"}
+    truth = pi.build_song_report({"id": "s1", "title": "Pesma"})
+    assert truth["analytics"]["available"] is False
+    assert "ne zamenjuje" in truth["truth_policy"]
+
+    server = (ROOT / "app" / "server_core.py").read_text(encoding="utf-8")
+    html = (ROOT / "app" / "web" / "index.html").read_text(encoding="utf-8")
+    javascript = (ROOT / "app" / "web" / "app.js").read_text(encoding="utf-8")
+    for route in ("/api/youtube/analytics-suite/run", "/api/platform-intelligence/review-queue", "/api/platform-intelligence/song-report", "/api/youtube/comments/export"):
+        assert route in server and route in javascript
+    for button in ("runYoutubeAnalyticsBtn", "loadIntelligenceReviewQueueBtn", "loadIntelligenceSongReportBtn", "exportYoutubeCommentsBtn", "loadSunoSongHistoryBtn"):
+        assert f'id="{button}"' in html and button in javascript
     print("platform intelligence tests: OK")
 
 
