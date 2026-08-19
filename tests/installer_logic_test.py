@@ -42,7 +42,7 @@ ok('Python 3.13.15 archive is SHA-256 pinned', 'd1f04d990aee1253d8569e8e5104e30f
 ok('current Deno is 2.9.5', 'currentDenoVersion = "2.9.5"' in setup_all)
 ok('Deno x64 Windows asset is explicit', 'deno-x86_64-pc-windows-msvc.zip' in setup_all)
 ok('Deno uses official per-asset sha256sum', 'currentDenoSHAURL  = currentDenoURL + ".sha256sum"' in setup_all)
-ok('Deno checksum file is parsed', 'checksumFromFile(shaPath, currentDenoAsset)' in setup_all)
+ok('Deno per-asset checksum is parsed without requiring a repeated filename', 'checksumFromFile(shaPath, "")' in setup_all)
 ok('Deno downloaded ZIP is SHA-256 verified', 'verifyFileSHA(zipPath, expected)' in setup_all)
 ok('Chromaprint-capable BtbN full FFmpeg is staged', 'ffmpeg-master-latest-win64-gpl.zip' in setup_all)
 ok('FFmpeg is rejected when Chromaprint is absent', 'ffmpegHasChromaprintBinary' in setup_all and 'nema Chromaprint muxer' in setup_all)
