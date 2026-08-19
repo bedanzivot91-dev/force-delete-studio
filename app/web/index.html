@@ -233,6 +233,18 @@
           <button class="tools-tab" data-tools-tab="coverage">3. Pokrivenost i statistika</button>
           <button class="tools-tab" data-tools-tab="library-tools">4. Masovni alati</button>
           <button class="tools-tab" data-tools-tab="system">5. Održavanje</button>
+          <button class="tools-tab" data-tools-tab="intelligence">6. Analitika i kvalitet</button>
+        </div>
+        <div class="panel platform-intelligence-panel">
+          <div class="section-title"><div><h2>YouTube analitika, komentari i kontrola Suno arhive</h2><p class="muted">Jedna radna celina za privatnu Analytics statistiku, zadržavanje publike, komentare, tehničku proveru spota i promene u Suno biblioteci.</p></div><button id="refreshIntelligenceBtn" class="btn secondary small">Osveži stanje</button></div>
+          <div class="advanced-feature-grid">
+            <div class="advanced-card"><h3>Pregledi i zadržavanje</h3><label>Video ID (prazno = ceo kanal)<input id="intelligenceVideoId" placeholder="npr. dQw4w9WgXcQ"></label><div class="two-inputs"><label>Od<input id="intelligenceStartDate" type="date"></label><label>Do<input id="intelligenceEndDate" type="date"></label></div><button id="runYoutubeAnalyticsBtn" class="btn primary full">Učitaj YouTube analitiku</button></div>
+            <div class="advanced-card"><h3>Šta publika piše</h3><label>Video ID<input id="commentsVideoId" placeholder="YouTube video ID"></label><label>Broj strana komentara<input id="commentsPages" type="number" min="1" max="20" value="3"></label><button id="analyzeYoutubeCommentsBtn" class="btn primary full">Analiziraj komentare</button></div>
+            <div class="advanced-card"><h3>Tehnička provera spota</h3><p>Otkriva crne delove, duge zamrznute scene, zamućenje, trajanje i pogrešan format.</p><div class="folder-path-row"><input id="visualVideoPath" placeholder="Izaberi MP4/MKV/MOV/WEBM"><button id="chooseVisualVideoBtn" class="btn ghost small">Izaberi</button></div><button id="analyzeVisualVideoBtn" class="btn primary full">Proveri spot</button></div>
+            <div class="advanced-card"><h3>Suno arhiva</h3><p>Poredi sadašnju biblioteku sa prethodnim snimkom i prijavljuje nove, nestale i promenjene pesme.</p><button id="compareSunoSnapshotBtn" class="btn secondary full">Proveri promene arhive</button></div>
+            <div class="advanced-card"><h3>Automatska kontrola</h3><label>Interval<select id="intelligenceScheduleMinutes"><option value="0">Isključeno</option><option value="360">6 sati</option><option value="720" selected>12 sati</option><option value="1440">24 sata</option></select></label><button id="saveIntelligenceScheduleBtn" class="btn success full">Sačuvaj automatsku kontrolu</button><p id="intelligenceQuota" class="muted"></p></div>
+          </div>
+          <div id="intelligenceOutput" class="tools-output">Pokreni željenu proveru. Rezultat ostaje sačuvan i posle restarta.</div>
         </div>
         <div class="panel youtube-command-center">
           <div class="section-title"><div><h2>YouTube kanali, datumi objava i zaštita pesama</h2><p class="muted">Dodaj dva ili više svojih kanala, proveri sve javne objave, poveži ih sa Suno pesmama i pronađi moguće objave na tuđim kanalima.</p></div><div id="youtubeSummaryBadges" class="youtube-summary-badges"></div></div>

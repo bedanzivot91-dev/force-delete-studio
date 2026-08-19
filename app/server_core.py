@@ -57,6 +57,10 @@ from suno_client import SunoAPIError, SunoClient, extract_items, format_lrc, for
 from suno_compat import validate_fixture
 from youtube_tools import (YouTubeAPIError, resolve_channel, list_channel_videos, search_videos, build_search_queries, match_song_to_video, contact_message, google_search_url, bing_search_url, youtube_search_url)
 from youtube_oauth import YouTubeOAuthError, YouTubeOAuthManager
+from platform_intelligence import (
+    analyze_comments, fetch_comments, quota_estimate, review_priority,
+    suno_snapshot_diff, visual_video_analysis, youtube_analytics, youtube_retention,
+)
 from audio_match import (
     AudioMatchCancelled, AudioMatchError, ALGORITHM_VERSION as AUDIO_MATCH_VERSION,
     analyze_audio_pair, closest_duration_candidates, compare_signatures, cleanup_youtube_audio_cache,
@@ -876,6 +880,31 @@ def youtube_credentials(profile_id: str = "") -> tuple[str, str]:
     """Vrati (api_key, access_token), sa OAuth vezom kao prvim izborom."""
     access_token = get_youtube_access_token(profile_id, required=False)
     return ("" if access_token else get_youtube_api_key(), access_token)
+
+
+def _setting_json(key: str, fallback: Any) -> Any:
+    try:
+        return json.loads(DB.get_setting(key, "") or "")
+    except Exception:
+        return fallback
+
+
+def platform_monitor_task(task: TaskState, options: dict[str, Any]) -> None:
+    """Small, quota-safe health pass used by the persistent scheduler."""
+    profile_id = str(options.get("profile_id") or "")
+    token = get_youtube_access_token(profile_id, required=True)
+    task.log("Čitam zbirnu YouTube analitiku za poslednjih 28 dana...")
+    report = youtube_analytics(token)
+    report["checked_at"] = now_iso()
+    DB.set_setting("youtube_intelligence_last", json.dumps(report, ensure_ascii=False))
+    current = DB.export_rows()
+    previous = _setting_json("suno_snapshot_json", [])
+    snapshot = suno_snapshot_diff(previous if isinstance(previous, list) else [], current)
+    snapshot["checked_at"] = now_iso()
+    DB.set_setting("suno_snapshot_last_diff", json.dumps(snapshot, ensure_ascii=False))
+    DB.set_setting("suno_snapshot_json", json.dumps(current, ensure_ascii=False))
+    task.set_progress(1, 1, "YouTube i Suno stanje")
+    task.log(f"Završeno: {int((report.get('totals') or {}).get('views') or 0)} pregleda; novih Suno zapisa {len(snapshot['new'])}.", "success")
 
 
 def save_oauth_channels(channels: list[dict[str, Any]], prune_profiles: bool = True) -> list[dict[str, Any]]:
@@ -3290,6 +3319,10 @@ def song_finder_analyze(path: Path) -> dict[str, Any]:
         "used_fingerprint_index": used_index,
         "songs_shortlisted": len(shortlist),
     }
+    result["review"] = review_priority({
+        "confidence": float(primary.get("confidence") or song_finder.confidence_percent(primary) or 0) if primary else 0,
+        "matched_seconds": float(primary.get("matched_seconds") or primary.get("covered_seconds") or 0) if primary else 0,
+    })
     record = DB.add_recognition({
         "original_filename": path.name, "input_path": str(path), "prepared_audio_path": "",
         "library_song_id": str(primary.get("song_id") or "") if primary else "",
@@ -4570,6 +4603,8 @@ def scheduler_loop() -> None:
                     start_task("youtube_global", "Kontinuirana YouTube provera", lambda t, o=options: scan_global_youtube(t, o), persistent_payload=options)
                 elif task_type == "v3_integrity":
                     start_task("v3_integrity", "Automatska kontrola integriteta", lambda t, o=options: v3_integrity_task(t, o), persistent_payload=options)
+                elif task_type == "platform_intelligence":
+                    start_task("platform_intelligence", "YouTube analitika i Suno kontrola", lambda t, o=options: platform_monitor_task(t, o), persistent_payload=options)
                 DB.mark_schedule_run(int(schedule.get("id") or 0))
                 break
         except Exception as exc:
@@ -5103,6 +5138,19 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/youtube/oauth/status":
                 self._send_json({"ok": True, "oauth": YOUTUBE_OAUTH.status(), "channels": DB.list_youtube_channels()})
+                return
+            if path == "/api/platform-intelligence/status":
+                channels = DB.list_youtube_channels()
+                self._send_json({
+                    "ok": True,
+                    "analytics": _setting_json("youtube_intelligence_last", {}),
+                    "comments": _setting_json("youtube_comments_last", {}),
+                    "visual": _setting_json("youtube_visual_last", {}),
+                    "suno_snapshot": _setting_json("suno_snapshot_last_diff", {}),
+                    "quota": quota_estimate(len(channels), 2, 1),
+                    "schedule": next((x for x in DB.list_schedules() if x.get("task_type") == "platform_intelligence"), None),
+                    "oauth": YOUTUBE_OAUTH.status(),
+                })
                 return
             if path in ("/api/youtube/channels", "/api/youtube/connected-channels"):
                 self._send_json(_connected_channels_payload())
@@ -5718,6 +5766,55 @@ class Handler(BaseHTTPRequestHandler):
                 summary = YOUTUBE_OAUTH.import_client_config(selected)
                 message = "Google OAuth JSON je automatski pronađen u Downloads folderu. Sada izaberi svoj mejl." if auto_found else "Google prijava je pripremljena. Sada klikni „Poveži YouTube — izaberi svoj mejl“."
                 self._send_json({"ok": True, "oauth": YOUTUBE_OAUTH.status(), "summary": summary, "auto_found": auto_found, "message": message})
+                return
+            if path == "/api/youtube/analytics/run":
+                token = get_youtube_access_token(str(body.get("profile_id") or ""), required=True)
+                video_id = str(body.get("video_id") or "").strip()
+                report = youtube_analytics(token, str(body.get("start_date") or ""), str(body.get("end_date") or ""), video_id)
+                if video_id:
+                    report["retention"] = youtube_retention(token, video_id)
+                report["checked_at"] = now_iso()
+                DB.set_setting("youtube_intelligence_last", json.dumps(report, ensure_ascii=False))
+                self._send_json({"ok": True, "report": report, "message": "YouTube analitika je učitana."})
+                return
+            if path == "/api/youtube/comments/analyze":
+                video_id = str(body.get("video_id") or "").strip()
+                if not video_id:
+                    raise RuntimeError("Unesi YouTube video ID.")
+                token = get_youtube_access_token(str(body.get("profile_id") or ""), required=True)
+                rows = fetch_comments(token, video_id, int(body.get("max_pages") or 3))
+                result = {"video_id": video_id, "analysis": analyze_comments(rows), "comments": rows, "checked_at": now_iso()}
+                DB.set_setting("youtube_comments_last", json.dumps(result, ensure_ascii=False))
+                self._send_json({"ok": True, "result": result, "message": f"Analizirano komentara: {len(rows)}."})
+                return
+            if path == "/api/youtube/video/visual-analyze":
+                selected = str(body.get("path") or "").strip()
+                if not selected:
+                    selected = choose_file_dialog(str(Path.home()), "Video fajlovi (*.mp4;*.mkv;*.mov;*.webm)|*.mp4;*.mkv;*.mov;*.webm|Svi fajlovi (*.*)|*.*")
+                target = Path(selected).expanduser().resolve() if selected else None
+                if not target or not target.is_file():
+                    raise RuntimeError("Video fajl nije izabran ili više ne postoji.")
+                ensure_ffmpeg()
+                result = visual_video_analysis(target, str(ffmpeg_path()), str(ffprobe_path()))
+                result["checked_at"] = now_iso()
+                DB.set_setting("youtube_visual_last", json.dumps(result, ensure_ascii=False))
+                self._send_json({"ok": True, "result": result, "message": "Vizuelna tehnička analiza videa je završena."})
+                return
+            if path == "/api/suno/snapshot/compare":
+                current = DB.export_rows()
+                previous = _setting_json("suno_snapshot_json", [])
+                result = suno_snapshot_diff(previous if isinstance(previous, list) else [], current)
+                result["checked_at"] = now_iso()
+                DB.set_setting("suno_snapshot_last_diff", json.dumps(result, ensure_ascii=False))
+                DB.set_setting("suno_snapshot_json", json.dumps(current, ensure_ascii=False))
+                self._send_json({"ok": True, "result": result, "message": f"Suno arhiva: novih {len(result['new'])}, nestalih {len(result['missing'])}, promenjenih {len(result['changed'])}."})
+                return
+            if path == "/api/platform-intelligence/schedule":
+                minutes = max(60, int(body.get("interval_minutes") or 720))
+                enabled = bool(body.get("enabled", True))
+                options = {"profile_id": str(body.get("profile_id") or "")}
+                saved = DB.upsert_schedule("platform_intelligence", "YouTube analitika i Suno kontrola", minutes, enabled, options)
+                self._send_json({"ok": True, "schedule": saved, "message": "Automatska analitika je sačuvana."})
                 return
             if path == "/api/youtube/oauth/start":
                 auth = YOUTUBE_OAUTH.start_authorization(str(body.get("email") or "").strip())

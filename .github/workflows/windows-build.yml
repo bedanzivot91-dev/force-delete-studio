@@ -88,102 +88,105 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "py_compile failed for $_" }
           }
 
-      - name: Test 01/32 - audio_analysis_test.py
+      - name: Test 01/33 - audio_analysis_test.py
         timeout-minutes: 10
         run: python tests/audio_analysis_test.py
-      - name: Test 02/32 - auto_update_test.py
+      - name: Test 02/33 - auto_update_test.py
         timeout-minutes: 10
         run: python tests/auto_update_test.py
-      - name: Test 03/32 - bulk_library_download_test.py
+      - name: Test 03/33 - bulk_library_download_test.py
         timeout-minutes: 10
         run: python tests/bulk_library_download_test.py
-      - name: Test 04/32 - chromaprint_upgrade_test.py
+      - name: Test 04/33 - chromaprint_upgrade_test.py
         timeout-minutes: 10
         run: python tests/chromaprint_upgrade_test.py
-      - name: Test 05/32 - critical_v300.py
+      - name: Test 05/33 - critical_v300.py
         timeout-minutes: 10
         run: python tests/critical_v300.py
-      - name: Test 06/32 - duplicate_audio_confirm_test.py
+      - name: Test 06/33 - duplicate_audio_confirm_test.py
         timeout-minutes: 10
         run: python tests/duplicate_audio_confirm_test.py
-      - name: Test 07/32 - dynamic_library_scale_test.py
+      - name: Test 07/33 - dynamic_library_scale_test.py
         timeout-minutes: 10
         run: python tests/dynamic_library_scale_test.py
-      - name: Test 08/32 - fingerprint_index_test.py
+      - name: Test 08/33 - fingerprint_index_test.py
         timeout-minutes: 10
         run: python tests/fingerprint_index_test.py
-      - name: Test 09/32 - http_integration_v300.py
+      - name: Test 09/33 - http_integration_v300.py
         timeout-minutes: 10
         run: python tests/http_integration_v300.py
-      - name: Test 10/32 - installer_logic_test.py
+      - name: Test 10/33 - installer_logic_test.py
         timeout-minutes: 10
         run: python tests/installer_logic_test.py
-      - name: Test 11/32 - original_plus_test.py
+      - name: Test 11/33 - original_plus_test.py
         timeout-minutes: 10
         run: python tests/original_plus_test.py
-      - name: Test 12/32 - panako_install_test.py
+      - name: Test 12/33 - panako_install_test.py
         timeout-minutes: 10
         run: python tests/panako_install_test.py
-      - name: Test 13/32 - phase_alignment_test.py
+      - name: Test 13/33 - phase_alignment_test.py
         timeout-minutes: 10
         run: python tests/phase_alignment_test.py
-      - name: Test 14/32 - regression_v300.py
+      - name: Test 14/33 - regression_v300.py
         timeout-minutes: 10
         run: python tests/regression_v300.py
-      - name: Test 15/32 - release_center_test.py
+      - name: Test 15/33 - release_center_test.py
         timeout-minutes: 10
         run: python tests/release_center_test.py
-      - name: Test 16/32 - remote_only_recognition_test.py
+      - name: Test 16/33 - remote_only_recognition_test.py
         timeout-minutes: 10
         run: python tests/remote_only_recognition_test.py
-      - name: Test 17/32 - short_clip_match_test.py
+      - name: Test 17/33 - short_clip_match_test.py
         timeout-minutes: 10
         run: python tests/short_clip_match_test.py
-      - name: Test 18/32 - short_clip_thresholds_test.py
+      - name: Test 18/33 - short_clip_thresholds_test.py
         timeout-minutes: 10
         run: python tests/short_clip_thresholds_test.py
-      - name: Test 19/32 - shorts_teaser_test.py
+      - name: Test 19/33 - shorts_teaser_test.py
         timeout-minutes: 10
         run: python tests/shorts_teaser_test.py
-      - name: Test 20/32 - smart_library_test.py
+      - name: Test 20/33 - smart_library_test.py
         timeout-minutes: 10
         run: python tests/smart_library_test.py
-      - name: Test 21/32 - song_finder_remote_source_test.py
+      - name: Test 21/33 - song_finder_remote_source_test.py
         timeout-minutes: 10
         run: python tests/song_finder_remote_source_test.py
-      - name: Test 22/32 - song_finder_shortlist_test.py
+      - name: Test 22/33 - song_finder_shortlist_test.py
         timeout-minutes: 10
         run: python tests/song_finder_shortlist_test.py
-      - name: Test 23/32 - song_finder_test.py
+      - name: Test 23/33 - song_finder_test.py
         timeout-minutes: 10
         run: python tests/song_finder_test.py
-      - name: Test 24/32 - static_cache_headers_test.py
+      - name: Test 24/33 - static_cache_headers_test.py
         timeout-minutes: 10
         run: python tests/static_cache_headers_test.py
-      - name: Test 25/32 - subtitle_editor_test.py
+      - name: Test 25/33 - subtitle_editor_test.py
         timeout-minutes: 10
         run: python tests/subtitle_editor_test.py
-      - name: Test 26/32 - tempo_extraction_test.py
+      - name: Test 26/33 - tempo_extraction_test.py
         timeout-minutes: 10
         run: python tests/tempo_extraction_test.py
-      - name: Test 27/32 - v3_features_test.py
+      - name: Test 27/33 - v3_features_test.py
         timeout-minutes: 10
         run: python tests/v3_features_test.py
-      - name: Test 28/32 - version_lab_test.py
+      - name: Test 28/33 - version_lab_test.py
         timeout-minutes: 10
         run: python tests/version_lab_test.py
-      - name: Test 29/32 - watchdog_test.py
+      - name: Test 29/33 - watchdog_test.py
         timeout-minutes: 10
         run: python tests/watchdog_test.py
-      - name: Test 30/32 - youtube_channels_test.py
+      - name: Test 30/33 - youtube_channels_test.py
         timeout-minutes: 10
         run: python tests/youtube_channels_test.py
-      - name: Test 31/32 - youtube_pipeline_fix_test.py
+      - name: Test 31/33 - youtube_pipeline_fix_test.py
         timeout-minutes: 10
         run: python tests/youtube_pipeline_fix_test.py
-      - name: Test 32/32 - youtube_scan_test.py
+      - name: Test 32/33 - youtube_scan_test.py
         timeout-minutes: 10
         run: python tests/youtube_scan_test.py
+      - name: Test 33/33 - platform_intelligence_test.py
+        timeout-minutes: 10
+        run: python tests/platform_intelligence_test.py
 
       - name: Upload raw build artifacts
         uses: actions/upload-artifact@v4

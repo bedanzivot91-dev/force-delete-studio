@@ -1284,22 +1284,12 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	pythonDir := filepath.Join(stage, "python")
 	if !fileReady(filepath.Join(pythonDir, "python.exe"), 100000) || !fileReady(filepath.Join(pythonDir, "pythonw.exe"), 100000) {
 		log("Python nije pronađen u paketu/prethodnoj instalaciji; preuzimam zvanični embeddable paket")
-		// 3.13.14 first, not 3.14.6: this session actually ran every module
-		// in app/ and plugins/ under python3.13 (py_compile + real imports,
-		// see docs/PYTHON_IMPORT_REPORT.json) and confirmed it works: the
-		// shipped .pyc cache in the delivered package was cpython-313, and
-		// the AI extras (ctranslate2, onnxruntime native wheels) have not
-		// been confirmed compatible with 3.14 by anyone in this project.
-		// 3.14.6 is kept as a fallback, not the primary target.
+		// Use the same single pinned runtime as the current component stage.
+		// Keeping obsolete fallback versions here made a clean build capable
+		// of silently installing a different Python than the one CI tested.
 		pythonZip := filepath.Join(cache, "python.zip")
-		urls := []string{
-			"https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip",
-			"https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip",
-		}
-		hashes := []string{
-			"90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907",
-			"df901e84a896ff1ee720ad03377e0c8d8c2244fda79808aeeaff6316df1cb75c",
-		}
+		urls := []string{currentPythonURL}
+		hashes := []string{currentPythonSHA256}
 		if err := downloadVerified(urls, hashes, pythonZip, log); err != nil {
 			return fmt.Errorf("Python: %w", err)
 		}
@@ -1313,27 +1303,8 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	ffmpegExe := filepath.Join(ffDir, "ffmpeg.exe")
 	ffprobeExe := filepath.Join(ffDir, "ffprobe.exe")
 	if !fileReady(ffmpegExe, 1000000) || !fileReady(ffprobeExe, 1000000) {
-		log("FFmpeg nije pronađen; pokušavam zvanično preporučeni Gyan build i GitHub BtbN rezervni izvor")
-		ffZip := filepath.Join(cache, "ffmpeg.zip")
-		if err := downloadVerified([]string{
-			"https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip",
-			"https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
-		}, []string{
-			"db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec",
-			"db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec",
-		}, ffZip, log); err != nil {
-			log("Gyan izvor nije uspeo; pokušavam BtbN GitHub build: " + err.Error())
-			if e2 := downloadAny([]string{
-				"https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-				"https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip",
-			}, ffZip, log); e2 != nil {
-				return fmt.Errorf("FFmpeg: Gyan: %v; BtbN: %v", err, e2)
-			}
-		}
-		_ = os.RemoveAll(filepath.Join(stage, "tools", "ffmpeg"))
-		if err := extractNamedFromZip(ffZip, ffDir, map[string]string{"ffmpeg.exe": "ffmpeg.exe", "ffprobe.exe": "ffprobe.exe"}); err != nil {
-			return fmt.Errorf("FFmpeg raspakivanje: %w", err)
-		}
+		log("FFmpeg nije pronađen; preuzimam provereni BtbN full GPL paket sa Chromaprintom")
+		if err := stageChromaprintFFmpeg(stage, log); err != nil { return fmt.Errorf("FFmpeg: %w", err) }
 	}
 
 	ytdlp := filepath.Join(stage, "tools", "yt-dlp", "yt-dlp.exe")
@@ -1356,21 +1327,8 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	denoDir := filepath.Join(stage, "tools", "deno")
 	denoExe := filepath.Join(denoDir, "deno.exe")
 	if !fileReady(denoExe, 1000000) {
-		log("Deno nije pronađen; preuzimam zvanični Windows ZIP")
-		denoZip := filepath.Join(cache, "deno.zip")
-		if err := downloadVerified([]string{
-			"https://github.com/denoland/deno/releases/download/v2.8.1/deno-x86_64-pc-windows-msvc.zip",
-			"https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip",
-		}, []string{
-			"5fb5bac71f609fb91ec8960fb290885aadc27eeb22f07a8eca0c3db6be38b11a",
-			"",
-		}, denoZip, log); err != nil {
-			return fmt.Errorf("Deno: %w", err)
-		}
-		_ = os.RemoveAll(denoDir)
-		if err := extractNamedFromZip(denoZip, denoDir, map[string]string{"deno.exe": "deno.exe"}); err != nil {
-			return fmt.Errorf("Deno raspakivanje: %w", err)
-		}
+		log("Deno nije pronađen; preuzimam aktuelni paket sa zvaničnom SHA-256 proverom")
+		if err := stageCurrentDeno(stage, log); err != nil { return fmt.Errorf("Deno: %w", err) }
 	}
 
 	checks := []struct {

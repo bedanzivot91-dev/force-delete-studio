@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 
-AUTH_SCOPE = "openid email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"
-REQUIRED_YOUTUBE_SCOPES = {"https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/youtube.force-ssl"}
+AUTH_SCOPE = "openid email https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/yt-analytics.readonly"
+REQUIRED_YOUTUBE_SCOPES = {"https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/youtube.force-ssl", "https://www.googleapis.com/auth/yt-analytics.readonly"}
 YOUTUBE_API = "https://www.googleapis.com/youtube/v3"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 DEFAULT_AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
