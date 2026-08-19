@@ -211,13 +211,13 @@
               <TextBox Text="{Binding TextContent}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
               <TextBlock Text="Font" Classes="subtle" />
               <ComboBox ItemsSource="{Binding AvailableFontChoices}" SelectedItem="{Binding FontChoice}" />
-              <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+              <Grid ColumnDefinitions="*,*">
                 <StackPanel Spacing="4"><TextBlock Text="Veličina" Classes="subtle"/><NumericUpDown Value="{Binding FontSizePx}" Minimum="8" Maximum="300"/></StackPanel>
-                <StackPanel Grid.Column="1" Spacing="4"><TextBlock Text="Boja" Classes="subtle"/><TextBox Text="{Binding TextColor}"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Boja" Classes="subtle"/><TextBox Text="{Binding TextColor}"/></StackPanel>
               </Grid>
-              <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+              <Grid ColumnDefinitions="*,*">
                 <StackPanel Spacing="4"><TextBlock Text="Položaj" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}"/></StackPanel>
-                <StackPanel Grid.Column="1" Spacing="4"><TextBlock Text="Poravnanje" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Poravnanje" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}"/></StackPanel>
               </Grid>
               <WrapPanel><CheckBox Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Margin="0,0,10,0"/><CheckBox Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Margin="0,0,10,0"/><CheckBox Content="Kontura" IsChecked="{Binding HasOutline}"/><CheckBox Content="Senka" IsChecked="{Binding HasShadow}" Margin="10,0,0,0"/><CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" Margin="10,0,0,0"/></WrapPanel>
               <Button Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" />
