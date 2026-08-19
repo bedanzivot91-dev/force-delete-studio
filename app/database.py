@@ -10,8 +10,8 @@ from typing import Any, Iterable
 
 
 BUILTIN_COLLECTIONS = (
-    ("odrađene-duže-pesme", "Odrađene duže pesme", "#7c3aed"),
-    ("objavljene-na-kanalu", "Objavljena pesma na kanalu", "#16a34a"),
+    ("odrađene-duže-pesme", "Spremne duže pesme", "#7c3aed"),
+    ("objavljene-na-kanalu", "Objavljene pesme", "#16a34a"),
     ("youtube-pronađene-objave", "YouTube pronađene objave", "#2563eb"),
     ("moguće-neovlašćene-objave", "Moguće neovlašćene objave", "#dc2626"),
     ("youtube-kompletno-objavljene", "YouTube — kompletno objavljene", "#059669"),

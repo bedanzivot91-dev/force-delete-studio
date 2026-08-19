@@ -3348,12 +3348,16 @@ def choose_folder_dialog(initial: str = "") -> str:
     if os.name == "nt":
         safe_initial = str(initial or get_download_dir()).replace("'", "''")
         script = (
-            "Add-Type -AssemblyName System.Windows.Forms; "
+            "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "
+            "$o=New-Object System.Windows.Forms.Form; $o.TopMost=$true; $o.ShowInTaskbar=$false; "
+            "$o.StartPosition='Manual'; $o.Location=New-Object System.Drawing.Point(-32000,-32000); "
+            "$o.Size=New-Object System.Drawing.Size(1,1); $o.Opacity=0; $o.Show(); "
             "$d=New-Object System.Windows.Forms.FolderBrowserDialog; "
             "$d.Description='Izaberi folder za Suno pesme'; "
             f"$d.SelectedPath='{safe_initial}'; "
-            "if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){"
-            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.SelectedPath}"
+            "try { if($d.ShowDialog($o) -eq [System.Windows.Forms.DialogResult]::OK){"
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.SelectedPath} } "
+            "finally { $d.Dispose(); $o.Close(); $o.Dispose() }"
         )
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
@@ -3376,11 +3380,15 @@ def choose_file_dialog(initial: str = "", filter_text: str = "Backup ZIP (*.zip)
         safe_initial = str(initial or EXPORT_DIR).replace("'", "''")
         safe_filter = str(filter_text).replace("'", "''")
         script = (
-            "Add-Type -AssemblyName System.Windows.Forms; "
+            "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "
+            "$o=New-Object System.Windows.Forms.Form; $o.TopMost=$true; $o.ShowInTaskbar=$false; "
+            "$o.StartPosition='Manual'; $o.Location=New-Object System.Drawing.Point(-32000,-32000); "
+            "$o.Size=New-Object System.Drawing.Size(1,1); $o.Opacity=0; $o.Show(); "
             "$d=New-Object System.Windows.Forms.OpenFileDialog; "
-            f"$d.InitialDirectory='{safe_initial}'; $d.Filter='{safe_filter}'; "
-            "if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){"
-            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.FileName}"
+            f"$d.InitialDirectory='{safe_initial}'; $d.Filter='{safe_filter}'; $d.RestoreDirectory=$true; "
+            "try { if($d.ShowDialog($o) -eq [System.Windows.Forms.DialogResult]::OK){"
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Write-Output $d.FileName} } "
+            "finally { $d.Dispose(); $o.Close(); $o.Dispose() }"
         )
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
@@ -3400,11 +3408,15 @@ def choose_files_dialog(initial: str = "", filter_text: str = "Svi fajlovi (*.*)
         safe_initial = str(initial or EXPORT_DIR).replace("'", "''")
         safe_filter = str(filter_text).replace("'", "''")
         script = (
-            "Add-Type -AssemblyName System.Windows.Forms; "
+            "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "
+            "$o=New-Object System.Windows.Forms.Form; $o.TopMost=$true; $o.ShowInTaskbar=$false; "
+            "$o.StartPosition='Manual'; $o.Location=New-Object System.Drawing.Point(-32000,-32000); "
+            "$o.Size=New-Object System.Drawing.Size(1,1); $o.Opacity=0; $o.Show(); "
             "$d=New-Object System.Windows.Forms.OpenFileDialog; "
-            f"$d.InitialDirectory='{safe_initial}'; $d.Filter='{safe_filter}'; $d.Multiselect=$true; "
-            "if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){"
-            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $d.FileNames | ForEach-Object { Write-Output $_ }}"
+            f"$d.InitialDirectory='{safe_initial}'; $d.Filter='{safe_filter}'; $d.Multiselect=$true; $d.RestoreDirectory=$true; "
+            "try { if($d.ShowDialog($o) -eq [System.Windows.Forms.DialogResult]::OK){"
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $d.FileNames | ForEach-Object { Write-Output $_ }} } "
+            "finally { $d.Dispose(); $o.Close(); $o.Dispose() }"
         )
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],

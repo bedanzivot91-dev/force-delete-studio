@@ -82,16 +82,16 @@ function downloadFromUrl(url) { const a = document.createElement('a'); a.href = 
 
 const viewText = {
   library: ['Moja Suno biblioteka', 'Sve pesme, tekstovi i fajlovi na jednom mestu.'],
-  folders: ['Folderi i statusi', 'Organizuj duže verzije, objavljene pesme i svoje projekte.'],
+  folders: ['Kolekcije pesama', 'Organizuj spremne, objavljene i druge grupe pesama.'],
   audio: ['Audio obrada', 'Skraćivanje, fade, normalizacija, konverzija i MP3 alati.'],
   download: ['Preuzimanje pesama', 'Izaberi folder, format i prateće fajlove.'],
-  import: ['Povezivanje i uvoz', 'Uvezi ceo nalog, Workspaces, linkove ili lokalne fajlove.'],
+  import: ['Dodaj i sinhronizuj', 'Poveži Suno, uvezi nalog, linkove, folder ili lokalne fajlove.'],
   recognition: ['Pronalazač pesme', 'Pronađi naziv pesme iz Shortsa ili audio/video isečka i trajno sačuvaj istoriju.'],
   smart: ['Pametna biblioteka', 'Pravila po poljima pesme (I/ILI), živ pregled trenutne biblioteke i sačuvane pametne kolekcije.'],
-  versions: ['Version Lab', 'Poredi više Suno verzija iste pesme, oceni ih i označi glavnu (master) verziju.'],
-  release: ['Release Center', 'Zbirni pregled spremnosti za objavu i jedan klik za organizovan izvozni folder po pesmi.'],
+  versions: ['Verzije pesme', 'Poredi više Suno verzija iste pesme, oceni ih i označi glavnu verziju.'],
+  release: ['Priprema za objavu', 'Proveri da li pesma ima sve potrebno i napravi organizovan izvozni paket.'],
   tools: ['YouTube i Suno kontrolni centar', 'Kanali, audio-prepoznavanje pesama, objave, statistika i zaštita na jednom organizovanom mestu.'],
-  production: ['Produkcija v3', 'Lyric video, Shorts, YouTube objava, integritet, zaštita i rollback.'],
+  production: ['Video i objava', 'Napravi lyric video ili Shorts, pripremi YouTube objavu i zaštiti fajlove.'],
   stats: ['Statistika biblioteke', 'Broj pesama, trajanje, modeli i preuzimanja.'],
   logs: ['Dnevnik rada', 'Uspešne radnje, upozorenja i greške.'],
   settings: ['Podešavanja i backup', 'Folderi, audio alati, izvoz i rezervna kopija.'],
@@ -198,21 +198,26 @@ function reloadSongsFirstPage() { return loadSongs(true); }
 async function loadCollections() {
   try {
     const data = await api('/api/collections'); state.collections = data.collections || [];
+    const visibleCollections = state.collections.filter((c) => !String(c.slug || '').startsWith('youtube-') && c.slug !== 'moguće-neovlašćene-objave');
     const fill = (id, firstText) => {
       const el = $(id); if (!el) return; const previous = el.value;
-      el.innerHTML = `<option value="">${escapeHtml(firstText)}</option>` + state.collections.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${c.song_count || 0})</option>`).join('');
+      el.innerHTML = `<option value="">${escapeHtml(firstText)}</option>` + visibleCollections.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${c.song_count || 0})</option>`).join('');
       if ([...el.options].some((o) => o.value === previous)) el.value = previous;
     };
     const collectionFilter = $('collectionFilter'); const previousFilter = collectionFilter.value;
-    collectionFilter.innerHTML = '<option value="0">Svi folderi</option>' + state.collections.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${c.song_count || 0})</option>`).join('');
+    collectionFilter.innerHTML = '<option value="0">Sve kolekcije</option>' + visibleCollections.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${c.song_count || 0})</option>`).join('');
     if ([...collectionFilter.options].some((o) => o.value === previousFilter)) collectionFilter.value = previousFilter;
     fill('bulkCollectionSelect', 'Dodaj u folder...'); fill('folderBulkTarget', 'Izaberi folder'); fill('downloadCollectionSubfolder', 'Bez posebnog podfoldera');
-    renderFolders(); if (state.currentSong) renderModalCollections(state.currentSong);
+    renderFolders(visibleCollections); if (state.currentSong) renderModalCollections(state.currentSong);
   } catch (error) { toast(error.message, 'error'); }
 }
-function renderFolders() {
+function isVisibleCollection(collection) {
+  const slug = String(collection?.slug || '');
+  return !slug.startsWith('youtube-') && slug !== 'moguće-neovlašćene-objave';
+}
+function renderFolders(collections = state.collections) {
   if (!$('foldersGrid')) return;
-  $('foldersGrid').innerHTML = state.collections.map((c) => `<article class="folder-card panel" style="--folder-color:${escapeHtml(c.color || '#7c3aed')}"><div class="folder-icon">▰</div><div><h3>${escapeHtml(c.name)}</h3><p>${c.song_count || 0} pesama</p><div class="button-row"><button class="btn primary small open-folder-collection" data-id="${c.id}">Otvori</button>${c.is_system ? '<span class="system-label">Ugrađeni</span>' : `<button class="btn danger small delete-folder" data-id="${c.id}">Obriši</button>`}</div></div></article>`).join('') || '<p class="muted">Nema foldera.</p>';
+  $('foldersGrid').innerHTML = collections.map((c) => `<article class="folder-card panel" style="--folder-color:${escapeHtml(c.color || '#7c3aed')}"><div class="folder-icon">▰</div><div><h3>${escapeHtml(c.name)}</h3><p>${c.song_count || 0} pesama</p><div class="button-row"><button class="btn primary small open-folder-collection" data-id="${c.id}">Otvori</button>${c.is_system ? '<span class="system-label">Ugrađena</span>' : `<button class="btn danger small delete-folder" data-id="${c.id}">Obriši</button>`}</div></div></article>`).join('') || '<p class="muted">Nema kolekcija.</p>';
   qsa('.open-folder-collection', $('foldersGrid')).forEach((b) => b.addEventListener('click', () => { $('collectionFilter').value = b.dataset.id; showView('library'); loadSongs(); }));
   qsa('.delete-folder', $('foldersGrid')).forEach((b) => b.addEventListener('click', async () => { if (!confirm('Obrisati ovaj folder? Pesme neće biti obrisane.')) return; try { await api('/api/collection/delete', { method: 'POST', body: { collection_id: Number(b.dataset.id) } }); await loadCollections(); } catch (e) { toast(e.message, 'error'); } }));
 }
@@ -388,7 +393,7 @@ async function openSong(id, showModal = true) {
 }
 function switchModalTab(name) { qsa('[data-modal-tab]').forEach((el) => el.classList.toggle('active', el.dataset.modalTab === name)); qsa('.modal-tab').forEach((el) => el.classList.toggle('active', el.id === `modalTab-${name}`)); if (name === 'audio' && state.currentSong) { loadWaveform(state.currentSong); loadAudioInfo(state.currentSong); } if (name === 'timing' && state.currentSong) loadSubtitleCues(); if (name === 'history' && state.currentSong) loadSongHistory(); }
 function renderModalCollections(song) {
-  const selected = new Set((song.collections || []).map((c) => Number(c.id))); $('modalCollections').innerHTML = state.collections.map((c) => `<label class="collection-check" style="--folder-color:${escapeHtml(c.color || '#7c3aed')}"><input type="checkbox" value="${c.id}" ${selected.has(Number(c.id)) ? 'checked' : ''}><span>▰ ${escapeHtml(c.name)}</span></label>`).join('');
+  const selected = new Set((song.collections || []).map((c) => Number(c.id))); $('modalCollections').innerHTML = state.collections.filter(isVisibleCollection).map((c) => `<label class="collection-check" style="--folder-color:${escapeHtml(c.color || '#7c3aed')}"><input type="checkbox" value="${c.id}" ${selected.has(Number(c.id)) ? 'checked' : ''}><span>▰ ${escapeHtml(c.name)}</span></label>`).join('');
 }
 function renderFiles(song) {
   const fields = [['MP3', song.local_audio], ['WAV', song.local_wav], ['MP4', song.local_video], ['Omot', song.local_cover], ['TXT', song.local_lyrics], ['LRC', song.local_lrc], ['SRT', song.local_srt]].filter(([, p]) => p);
@@ -1449,7 +1454,7 @@ async function cleanupV3Storage(){if(!confirm('Obrisati stari YouTube/waveform k
 
 function bindEvents() {
   $('securityUnlockBtn').addEventListener('click',unlockSecurity); $('securityUnlockPin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockSecurity();}); $('v3SecuritySetBtn').addEventListener('click',setSecurityPin); $('v3SecurityLockBtn').addEventListener('click',lockSecurity); $('v3SecurityDisableBtn').addEventListener('click',disableSecurityPin); $('v3OpenMaintenanceBtn').addEventListener('click',openV3Maintenance); $('v3OpenSnapshotsBtn').addEventListener('click',openV3Snapshots); $('v3StorageCleanupBtn').addEventListener('click',cleanupV3Storage);
-  $('v3RefreshStatusBtn').addEventListener('click',loadV3Status); $('v3PreflightBtn').addEventListener('click',runV3Preflight); $('v3IntegrityBtn').addEventListener('click',runV3Integrity); $('v3DuplicatesBtn').addEventListener('click',loadV3Duplicates); $('v3AudioConfirmDuplicatesBtn')?.addEventListener('click',loadV3AudioConfirmDuplicates); $('v3ChooseOrganizeTargetBtn').addEventListener('click',()=>chooseV3Folder('v3OrganizeTarget')); $('v3OrganizeBtn').addEventListener('click',runV3Organize); $('v3SuggestShortsBtn').addEventListener('click',loadV3ShortSuggestions); $('v3RenderShortsBtn').addEventListener('click',runV3Shorts); $('v3ChooseBackgroundBtn').addEventListener('click',()=>chooseV3File('v3LyricBackground')); $('v3LyricVideoBtn').addEventListener('click',runV3Lyric); $('v3ChooseYoutubeVideoBtn').addEventListener('click',()=>chooseV3File('v3YoutubeVideoPath')); $('v3ChooseYoutubeThumbnailBtn').addEventListener('click',()=>chooseV3File('v3YoutubeThumbnailPath')); $('v3YoutubePackageBtn').addEventListener('click',createV3YoutubePackage); $('v3YoutubeUploadBtn').addEventListener('click',runV3YoutubeUpload); $('v3ProofBtn').addEventListener('click',createV3Proof); $('v3PanakoIndexBtn').addEventListener('click',runV3Panako); $('choosePanakoJarBtn')?.addEventListener('click',choosePanakoJar); $('installPanakoBtn')?.addEventListener('click',installPanako); $('v3SnapshotBtn').addEventListener('click',runV3Snapshot); $('v3SaveWatchBtn').addEventListener('click',saveV3Watch); $('v3ClearOutputBtn').addEventListener('click',()=>v3Show('Izaberi pesmu u Biblioteci, zatim pokreni željenu radnju.','Produkcija v3'));
+  $('v3RefreshStatusBtn').addEventListener('click',loadV3Status); $('v3PreflightBtn').addEventListener('click',runV3Preflight); $('v3IntegrityBtn').addEventListener('click',runV3Integrity); $('v3DuplicatesBtn').addEventListener('click',loadV3Duplicates); $('v3AudioConfirmDuplicatesBtn')?.addEventListener('click',loadV3AudioConfirmDuplicates); $('v3ChooseOrganizeTargetBtn').addEventListener('click',()=>chooseV3Folder('v3OrganizeTarget')); $('v3OrganizeBtn').addEventListener('click',runV3Organize); $('v3SuggestShortsBtn').addEventListener('click',loadV3ShortSuggestions); $('v3RenderShortsBtn').addEventListener('click',runV3Shorts); $('v3ChooseBackgroundBtn').addEventListener('click',()=>chooseV3File('v3LyricBackground')); $('v3LyricVideoBtn').addEventListener('click',runV3Lyric); $('v3ChooseYoutubeVideoBtn').addEventListener('click',()=>chooseV3File('v3YoutubeVideoPath')); $('v3ChooseYoutubeThumbnailBtn').addEventListener('click',()=>chooseV3File('v3YoutubeThumbnailPath')); $('v3YoutubePackageBtn').addEventListener('click',createV3YoutubePackage); $('v3YoutubeUploadBtn').addEventListener('click',runV3YoutubeUpload); $('v3ProofBtn').addEventListener('click',createV3Proof); $('v3PanakoIndexBtn').addEventListener('click',runV3Panako); $('choosePanakoJarBtn')?.addEventListener('click',choosePanakoJar); $('installPanakoBtn')?.addEventListener('click',installPanako); $('v3SnapshotBtn').addEventListener('click',runV3Snapshot); $('v3SaveWatchBtn').addEventListener('click',saveV3Watch); $('v3ClearOutputBtn').addEventListener('click',()=>v3Show('Izaberi pesmu u Biblioteci, zatim pokreni željenu radnju.','Video i objava'));
   $('nav').addEventListener('click', (e) => { const item = e.target.closest('[data-view]'); if (item) showView(item.dataset.view); }); qsa('[data-go]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.go)));
   $('view-tools')?.addEventListener('click',(e)=>{const tab=e.target.closest('[data-tools-tab]');if(tab)setToolsTab(tab.dataset.toolsTab);});
   setToolsTab(localStorage.getItem('suno-tools-tab')||'channels');
