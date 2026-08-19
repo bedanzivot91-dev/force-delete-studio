@@ -42,16 +42,16 @@ Write-Output 'Ažuriram instalacioni sistem...'
 & $managedPython -m pip install --disable-pip-version-check --upgrade pip setuptools wheel
 if ($LASTEXITCODE -ne 0) { throw 'Ažuriranje pip sistema nije uspelo.' }
 Write-Output 'Instaliram faster-whisper za tačno prepoznavanje...'
-& $managedPython -m pip install --disable-pip-version-check faster-whisper
+& $managedPython -m pip install --disable-pip-version-check --upgrade faster-whisper
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija faster-whisper paketa nije uspela.' }
 Write-Output 'Instaliram Demucs za izdvajanje vokala iz pesme...'
-& $managedPython -m pip install --disable-pip-version-check demucs
+& $managedPython -m pip install --disable-pip-version-check --upgrade demucs
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija Demucs paketa nije uspela.' }
 Write-Output 'Instaliram poravnanje poznatog teksta pesme...'
-& $managedPython -m pip install --disable-pip-version-check lyric-align
+& $managedPython -m pip install --disable-pip-version-check --upgrade "lyric-align[asr,separate]"
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija lyric-align paketa nije uspela.' }
 Write-Output 'Proveravam AI instalaciju...'
-& $managedPython -c "import faster_whisper, demucs, lyric_align; print('AI za pesme je spreman.')"
+& $managedPython -c "import importlib.metadata as m; import faster_whisper, demucs, lyric_align; print('AI za pesme je spreman. lyric-align ' + m.version('lyric-align'))"
 if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa nije uspela.' }
 
 Write-Output 'Preuzimam model large-v3 za stihove (ovo je veliko i radi se samo prvi put)...'

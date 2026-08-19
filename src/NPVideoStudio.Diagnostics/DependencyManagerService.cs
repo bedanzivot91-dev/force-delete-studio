@@ -110,12 +110,14 @@ public sealed class DependencyManagerService : IDependencyManagerService
         // screen green while the actual song workflow still could not do what it promised.
         var installed = capabilities.WorkerReachable &&
                         capabilities.FasterWhisperAvailable &&
-                        capabilities.DemucsAvailable;
+                        capabilities.DemucsAvailable &&
+                        capabilities.LyricAlignAvailable;
 
         var details = capabilities.WorkerReachable
             ? $"faster-whisper: {(capabilities.FasterWhisperAvailable ? "da" : "ne")}, " +
               $"WhisperX: {(capabilities.WhisperXAvailable ? "da" : "ne")}, " +
-              $"Demucs: {(capabilities.DemucsAvailable ? "da" : "ne")}" +
+              $"Demucs: {(capabilities.DemucsAvailable ? "da" : "ne")}, " +
+              $"lyric-align: {(capabilities.LyricAlignAvailable ? "da" : "ne")}" +
               (capabilities.PythonVersion is null ? "" : $" (Python {capabilities.PythonVersion})")
             : capabilities.Error ?? "AI worker nije dostupan.";
 
@@ -124,7 +126,7 @@ public sealed class DependencyManagerService : IDependencyManagerService
             Name = "AI radnik (napredna obrada govora)",
             Status = installed ? DependencyStatus.Installed : DependencyStatus.NotInstalled,
             Version = capabilities.PythonVersion,
-            WhyItMatters = "Za automatsko prepoznavanje stihova moraju raditi i faster-whisper i Demucs. WhisperX je opcion za napredno poravnanje.",
+            WhyItMatters = "Za pesme moraju raditi faster-whisper, Demucs i lyric-align. WhisperX je opcion za napredno poravnanje.",
             TechnicalDetails = details
         };
     }

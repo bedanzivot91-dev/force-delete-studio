@@ -54,6 +54,19 @@
             <TextBlock Text="Čuvanje logova (dana)" Classes="subtle" />
             <NumericUpDown Value="{Binding LogRetentionDays}" Minimum="1" Maximum="365" Width="170" HorizontalAlignment="Left" />
           </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Ažuriranje ugrađenih alata" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding AvailableToolUpdatePolicies}" SelectedItem="{Binding ToolUpdatePolicy}">
+              <ComboBox.ItemTemplate><DataTemplate x:DataType="x:Object"><TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="Automatski = program u pozadini ažurira svoj AI paket kada istekne interval. Samo obavesti = vi pokrećete ažuriranje na ekranu Alati i modeli. Ručno = nema automatske provere." Classes="subtle" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Interval provere alata (dana)" Classes="subtle" />
+            <NumericUpDown Value="{Binding ToolUpdateIntervalDays}" Minimum="1" Maximum="90" Width="170" HorizontalAlignment="Left" />
+          </StackPanel>
         </StackPanel>
       </Border>
 

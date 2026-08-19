@@ -122,6 +122,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
         var fasterWhisper = false;
         var whisperX = false;
         var demucs = false;
+        var lyricAlign = false;
         var errorMessage = (string?)null;
 
         try
@@ -153,6 +154,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
                     case "demucs":
                         demucs = evt.EngineAvailable == true;
                         break;
+                    case "lyric_align":
+                        lyricAlign = evt.EngineAvailable == true;
+                        break;
                 }
             }
         }
@@ -179,7 +183,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             PythonVersion = pythonVersion,
             FasterWhisperAvailable = fasterWhisper,
             WhisperXAvailable = whisperX,
-            DemucsAvailable = demucs
+            DemucsAvailable = demucs,
+            LyricAlignAvailable = lyricAlign
         };
     }
 

@@ -57,6 +57,7 @@ def run_capability_check() -> int:
     check_engine("faster_whisper", "faster_whisper")
     check_engine("whisperx", "whisperx")
     check_engine("demucs", "demucs")
+    check_engine("lyric_align", "lyric_align")
     emit({"type": "Done"})
     return 0
 

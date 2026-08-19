@@ -54,13 +54,13 @@
       </StackPanel>
     </Border>
 
-    <Grid Name="EditingGrid" RowDefinitions="*">
+    <Grid Name="EditingGrid" RowDefinitions="3*,Auto,2*">
 
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
-      <Grid Name="PlayerLibraryGrid" Grid.Row="0" RowDefinitions="1*,Auto,2*"
-            ColumnDefinitions="3*,Auto,2*" Margin="0,0,0,0">
-      <Border Name="PlayerPanel" Grid.Column="0" Grid.RowSpan="3" Classes="panel" Margin="20,0,0,20" Padding="16">
+      <Grid Name="PlayerLibraryGrid" Grid.Row="0" RowDefinitions="*"
+            ColumnDefinitions="2*,Auto,4*,Auto,2*" Margin="0,0,0,0">
+      <Border Name="PlayerPanel" Grid.Column="2" Classes="panel" Margin="0,0,0,10" Padding="16">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
             <WrapPanel.Styles>
@@ -157,9 +157,9 @@
         </DockPanel>
       </Border>
 
-        <GridSplitter Grid.Column="1" Grid.RowSpan="3" Width="10" Background="Transparent"
+        <GridSplitter Grid.Column="1" Width="10" Background="Transparent"
                       ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu plejera" />
-      <Border Name="MediaLibraryPanel" Grid.Column="2" Grid.Row="0" Margin="0,0,20,0" Classes="panel" Padding="0">
+      <Border Name="MediaLibraryPanel" Grid.Column="0" Margin="20,0,0,10" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
             <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
@@ -191,6 +191,51 @@
         </DockPanel>
       </Border>
 
+      <GridSplitter Grid.Column="3" Width="10" Background="Transparent"
+                    ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu inspektora" />
+
+      <!-- CapCut-like inspector: selected clip properties stay on the right while the timeline remains
+           a wide visual lane below. Editing a caption no longer expands a card inside the timeline. -->
+      <Border Name="InspectorPanel" Grid.Column="4" Margin="0,0,20,10" Classes="panel" Padding="14"
+              DataContext="{Binding Timeline.SelectedClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="12">
+            <TextBlock Text="Inspektor" FontWeight="SemiBold" />
+            <TextBlock Text="Izaberite klip na timeline-u" Classes="subtle" TextWrapping="Wrap"
+                       IsVisible="{Binding Converter={x:Static conv:ObjectConverters.IsNull}}" />
+            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding TimingLabel}" Classes="subtle" />
+
+            <StackPanel Spacing="8" IsVisible="{Binding IsTextClip}">
+              <TextBlock Text="TEKST" Classes="eyebrow" />
+              <TextBox Text="{Binding TextContent}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
+              <TextBlock Text="Font" Classes="subtle" />
+              <ComboBox ItemsSource="{Binding AvailableFontChoices}" SelectedItem="{Binding FontChoice}" />
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <StackPanel Spacing="4"><TextBlock Text="Veličina" Classes="subtle"/><NumericUpDown Value="{Binding FontSizePx}" Minimum="8" Maximum="300"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4"><TextBlock Text="Boja" Classes="subtle"/><TextBox Text="{Binding TextColor}"/></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <StackPanel Spacing="4"><TextBlock Text="Položaj" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4"><TextBlock Text="Poravnanje" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}"/></StackPanel>
+              </Grid>
+              <WrapPanel><CheckBox Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Margin="0,0,10,0"/><CheckBox Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Margin="0,0,10,0"/><CheckBox Content="Kontura" IsChecked="{Binding HasOutline}"/><CheckBox Content="Senka" IsChecked="{Binding HasShadow}" Margin="10,0,0,0"/><CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" Margin="10,0,0,0"/></WrapPanel>
+              <Button Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" />
+            </StackPanel>
+
+            <StackPanel Spacing="8" IsVisible="{Binding !IsTextClip}">
+              <TextBlock Text="VIDEO / SLIKA" Classes="eyebrow" />
+              <TextBlock Text="Efekat" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}"/>
+              <TextBlock Text="Osvetljenje" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Brightness}"/>
+              <TextBlock Text="Kontrast" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Contrast}"/>
+              <TextBlock Text="Zasićenost" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Saturation}"/>
+              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+      </Grid>
+
       <!--
         ONE player. There used to be four things on this screen that the user reasonably read as
         separate players: an ffmpeg still-frame panel, a second "pravi plejer" panel with its own
@@ -204,11 +249,11 @@
         resizable by the splitter below it.
       -->
       <!-- Media biblioteka i timeline su zajedno desno. Hvataljka menja koliko visine dobija svaki. -->
-      <GridSplitter Name="TimelineSplitter" Grid.Column="2" Grid.Row="1" Height="10"
-                    Margin="0,0,20,0" HorizontalAlignment="Stretch" Background="Transparent"
-                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate media biblioteku ili timeline" />
+      <GridSplitter Name="TimelineSplitter" Grid.Row="1" Height="10"
+                    Margin="20,0" HorizontalAlignment="Stretch" Background="Transparent"
+                    ResizeDirection="Rows" ToolTip.Tip="Prevucite da povećate plejer ili timeline" />
 
-      <Border Name="TimelinePanel" Grid.Column="2" Grid.Row="2" Classes="panel" Margin="0,0,20,20"
+      <Border Name="TimelinePanel" Grid.Row="2" Classes="panel" Margin="20,0,20,20"
               Padding="12" MinHeight="160" DataContext="{Binding Timeline}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
@@ -310,7 +355,7 @@
                       <ItemsControl ItemsSource="{Binding Clips}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
-                            <Border Classes="panel" Padding="8" Margin="0,4,0,0" IsVisible="{Binding IsSelected}">
+                            <Border Classes="panel" Padding="8" Margin="0,4,0,0" IsVisible="False">
                               <StackPanel Spacing="6">
                                 <Grid ColumnDefinitions="*,Auto">
                                   <StackPanel Spacing="2">
@@ -426,7 +471,6 @@
           </ScrollViewer>
         </DockPanel>
       </Border>
-      </Grid>
     </Grid>
   </DockPanel>
 </UserControl>

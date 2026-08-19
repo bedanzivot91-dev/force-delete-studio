@@ -14,6 +14,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly ILogger _logger;
 
     public IReadOnlyList<AppTheme> AvailableThemes { get; } = Enum.GetValues<AppTheme>();
+    public IReadOnlyList<ToolUpdatePolicy> AvailableToolUpdatePolicies { get; } = Enum.GetValues<ToolUpdatePolicy>();
 
     [ObservableProperty]
     private AppTheme _theme;
@@ -43,6 +44,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private int _logRetentionDays;
 
     [ObservableProperty]
+    private ToolUpdatePolicy _toolUpdatePolicy;
+
+    [ObservableProperty]
+    private int _toolUpdateIntervalDays;
+
+    [ObservableProperty]
     private string? _statusMessage;
 
     public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
@@ -67,6 +74,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _autoSaveEnabled = current.AutoSaveEnabled;
         _autoSaveIntervalSeconds = current.AutoSaveIntervalSeconds;
         _logRetentionDays = current.LogRetentionDays;
+        _toolUpdatePolicy = current.ToolUpdatePolicy;
+        _toolUpdateIntervalDays = current.ToolUpdateIntervalDays;
     }
 
     [RelayCommand]
@@ -132,6 +141,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         current.AutoSaveEnabled = AutoSaveEnabled;
         current.AutoSaveIntervalSeconds = Math.Max(10, AutoSaveIntervalSeconds);
         current.LogRetentionDays = Math.Max(1, LogRetentionDays);
+        current.ToolUpdatePolicy = ToolUpdatePolicy;
+        current.ToolUpdateIntervalDays = Math.Clamp(ToolUpdateIntervalDays, 1, 90);
 
         await _settingsService.SaveAsync();
         ThemeChanged?.Invoke(Theme);
@@ -153,6 +164,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         AutoSaveEnabled = current.AutoSaveEnabled;
         AutoSaveIntervalSeconds = current.AutoSaveIntervalSeconds;
         LogRetentionDays = current.LogRetentionDays;
+        ToolUpdatePolicy = current.ToolUpdatePolicy;
+        ToolUpdateIntervalDays = current.ToolUpdateIntervalDays;
         ThemeChanged?.Invoke(Theme);
         StatusMessage = "Podešavanja su vraćena na podrazumevane vrednosti.";
     }

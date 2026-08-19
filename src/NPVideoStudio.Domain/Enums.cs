@@ -62,6 +62,14 @@ public enum AppTheme
     OceanGlass
 }
 
+/// <summary>Controls updates of app-owned command-line/AI tools. Never changes Windows or user media.</summary>
+public enum ToolUpdatePolicy
+{
+    NotifyOnly,
+    Automatic,
+    Manual
+}
+
 /// <summary>File formats the caption editor can import/export (spec Phase 6). Ass has no importer yet - see CaptionFormatConverter's doc comment.</summary>
 public enum CaptionFileFormat
 {

@@ -63,6 +63,17 @@
         </StackPanel>
       </Border>
 
+      <Border Classes="panel" Padding="20">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Instalacija i ažuriranje AI alata" FontWeight="SemiBold" />
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Instalira ili ažurira zasebno okruženje programa: faster-whisper, Demucs i kompletan lyric-align paket. Stvarna instalacija se proverava pokretanjem svakog modula." />
+          <Button Classes="cta" Content="INSTALIRAJ / AŽURIRAJ SVE AI ALATE" Command="{Binding InstallSongAiCommand}"
+                  IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
+          <TextBlock Text="{Binding ModelStatusMessage}" Classes="subtle" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
       <Border Classes="panel" Padding="20" IsVisible="{Binding HasDownloadableWhisperModel}"
               Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
         <StackPanel Spacing="10">

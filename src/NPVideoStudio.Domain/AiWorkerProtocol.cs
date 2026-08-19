@@ -104,5 +104,6 @@ public sealed class AiWorkerCapabilities
     public bool FasterWhisperAvailable { get; init; }
     public bool WhisperXAvailable { get; init; }
     public bool DemucsAvailable { get; init; }
+    public bool LyricAlignAvailable { get; init; }
     public string? Error { get; init; }
 }

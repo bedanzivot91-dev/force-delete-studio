@@ -34,6 +34,7 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
 
     public bool HasDownloadableWhisperModel => Dependencies.Any(d => d.CanDownload);
     public bool HasMissingSongAi => Dependencies.Any(d => d.Name.StartsWith("AI radnik") && !d.IsInstalled);
+    public bool CanInstallOrUpdateSongAi => !IsDownloadingModel;
 
     public DependencyManagerViewModel(IDependencyManagerService service, ILogger logger)
     {
@@ -41,7 +42,12 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
         _logger = logger.ForContext("SourceContext", nameof(DependencyManagerViewModel));
     }
 
-    partial void OnIsDownloadingModelChanged(bool value) => CancelDownloadCommand.NotifyCanExecuteChanged();
+    partial void OnIsDownloadingModelChanged(bool value)
+    {
+        CancelDownloadCommand.NotifyCanExecuteChanged();
+        InstallSongAiCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanInstallOrUpdateSongAi));
+    }
 
     public Task InitializeAsync() => RefreshAsync();
 
@@ -110,7 +116,7 @@ public sealed partial class DependencyManagerViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(IsDownloadingModel))]
     private void CancelDownload() => _downloadCts?.Cancel();
 
-    [RelayCommand(CanExecute = nameof(HasMissingSongAi))]
+    [RelayCommand(CanExecute = nameof(CanInstallOrUpdateSongAi))]
     private async Task InstallSongAiAsync()
     {
         _downloadCts = new CancellationTokenSource();

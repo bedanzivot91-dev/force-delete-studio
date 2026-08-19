@@ -39,6 +39,7 @@ if (jobKind == "CapabilityCheck")
     Emit("""{"type":"CapabilityCheck","engine":"faster_whisper","engineAvailable":true}""");
     Emit("""{"type":"CapabilityCheck","engine":"whisperx","engineAvailable":false}""");
     Emit("""{"type":"CapabilityCheck","engine":"demucs","engineAvailable":false}""");
+    Emit("""{"type":"CapabilityCheck","engine":"lyric_align","engineAvailable":true}""");
     Emit("""{"type":"Done"}""");
     return 0;
 }

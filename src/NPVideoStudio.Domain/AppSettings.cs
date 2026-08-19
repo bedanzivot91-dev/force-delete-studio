@@ -17,6 +17,9 @@ public sealed class AppSettings
     public string? YtDlpPath { get; set; }
 
     public int LogRetentionDays { get; set; } = 30;
+    public ToolUpdatePolicy ToolUpdatePolicy { get; set; } = ToolUpdatePolicy.NotifyOnly;
+    public int ToolUpdateIntervalDays { get; set; } = 7;
+    public DateTimeOffset? LastToolUpdateUtc { get; set; }
 
     public static string DefaultProjectsFolder()
     {

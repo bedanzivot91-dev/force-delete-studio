@@ -124,6 +124,15 @@ public partial class App : Avalonia.Application
             };
 
             _ = mainWindowViewModel.InitializeAsync();
+
+            // Optional and user-controlled. Default is NotifyOnly, so a large Python/model download is
+            // never started merely because the application opened. Automatic mode updates only the
+            // app-owned AI environment and records success; a failed attempt remains due for retry.
+            if (settingsService.Current.ToolUpdatePolicy == ToolUpdatePolicy.Automatic &&
+                IsToolUpdateDue(settingsService.Current))
+            {
+                _ = UpdateToolsInBackgroundAsync(settingsService);
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -168,5 +177,26 @@ public partial class App : Avalonia.Application
         // Only major.minor.build - the SDK-generated 4th component (revision) isn't meaningful here
         // and would make this drift from installer/NPVideoStudio.iss's three-part MyAppVersion.
         return version is null ? "0.1.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+    }
+
+    private static bool IsToolUpdateDue(AppSettings settings) =>
+        settings.LastToolUpdateUtc is null ||
+        DateTimeOffset.UtcNow - settings.LastToolUpdateUtc.Value >=
+        TimeSpan.FromDays(Math.Clamp(settings.ToolUpdateIntervalDays, 1, 90));
+
+    private async Task UpdateToolsInBackgroundAsync(ISettingsService settingsService)
+    {
+        try
+        {
+            _logger?.Information("Automatsko ažuriranje AI alata je pokrenuto");
+            await _services!.GetRequiredService<IDependencyManagerService>().InstallSongAiAsync();
+            settingsService.Current.LastToolUpdateUtc = DateTimeOffset.UtcNow;
+            await settingsService.SaveAsync();
+            _logger?.Information("Automatsko ažuriranje AI alata je završeno");
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error(ex, "Automatsko ažuriranje AI alata nije uspelo");
+        }
     }
 }

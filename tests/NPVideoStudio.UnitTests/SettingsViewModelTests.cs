@@ -36,6 +36,8 @@ public class SettingsViewModelTests : IDisposable
         _viewModel.FfprobePath = "/custom/ffprobe";
         _viewModel.YtDlpPath = "/custom/yt-dlp";
         _viewModel.AutoSaveIntervalSeconds = 120;
+        _viewModel.ToolUpdatePolicy = ToolUpdatePolicy.Automatic;
+        _viewModel.ToolUpdateIntervalDays = 14;
 
         await _viewModel.SaveCommand.ExecuteAsync(null);
 
@@ -44,6 +46,8 @@ public class SettingsViewModelTests : IDisposable
         Assert.Equal("/custom/ffprobe", _settingsService.Current.FfprobePath);
         Assert.Equal("/custom/yt-dlp", _settingsService.Current.YtDlpPath);
         Assert.Equal(120, _settingsService.Current.AutoSaveIntervalSeconds);
+        Assert.Equal(ToolUpdatePolicy.Automatic, _settingsService.Current.ToolUpdatePolicy);
+        Assert.Equal(14, _settingsService.Current.ToolUpdateIntervalDays);
         Assert.Equal("Podešavanja su sačuvana.", _viewModel.StatusMessage);
 
         // Reload from disk into a fresh service instance to prove it was actually written, not just
@@ -52,6 +56,7 @@ public class SettingsViewModelTests : IDisposable
         await reloaded.LoadAsync();
         Assert.Equal("/custom/ffmpeg", reloaded.Current.FfmpegPath);
         Assert.Equal("/custom/yt-dlp", reloaded.Current.YtDlpPath);
+        Assert.Equal(ToolUpdatePolicy.Automatic, reloaded.Current.ToolUpdatePolicy);
     }
 
     [Fact]

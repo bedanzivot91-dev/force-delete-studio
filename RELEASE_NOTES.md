@@ -6,6 +6,15 @@ tehnički detalj svake faze (šta je testirano, koji su stvarni poznati nedostac
 automatizovanim testovima koji stvarno pokreću ffmpeg/ffprobe/yt-dlp/Tesseract/Whisper, i sve je potvrđeno
 na pravom Windows CI runner-u (`windows-latest`), ne samo u razvojnom Linux okruženju.
 
+## CapCut raspored i kontrolisana ažuriranja AI alata
+
+- Radna površina sada ima media panel levo, veliki plejer u sredini, inspektor desno i širok timeline
+  dole; paneli imaju hvataljke za promenu veličine.
+- Izabrani tekst/video se uređuje u desnom inspektoru, bez otvaranja velikih kartica u timeline-u.
+- `lyric-align` je obavezan i posebno proveravan deo AI paketa, uz faster-whisper i Demucs.
+- Dodati su ručno instaliranje/ažuriranje svih AI alata i režimi Samo obavesti, Automatski i Ručno sa
+  podesivim intervalom. Automatski režim je dobrovoljan, nije podrazumevano uključen.
+
 ## Faza 0 — Revizija
 
 Početna, poštena revizija postojećeg koda pre bilo kakve nove funkcionalnosti - utvrđeno tačno stanje
