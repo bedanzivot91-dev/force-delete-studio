@@ -20,6 +20,10 @@ jobs:
         with:
           go-version: "1.24"
 
+      - name: Normalize installer source to current component paths
+        shell: powershell
+        run: .\windows_build\normalize_setup_components.ps1
+
       - name: Go build all 4 windows_build targets (real windows/amd64, native runner)
         working-directory: windows_build
         run: |
@@ -194,7 +198,6 @@ jobs:
           $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
           if ($proc.ExitCode -ne 0) { throw "--stage-components failed with exit code $($proc.ExitCode)" }
 
-          # The final release must contain only the Chromaprint-capable FFmpeg.
           $verifiedFFmpeg = "tools\ffmpeg\bin\ffmpeg.exe"
           $verifiedFFprobe = "tools\ffmpeg\bin\ffprobe.exe"
           $packageFFDir = "package\Program\tools\ffmpeg\bin"
@@ -209,7 +212,6 @@ jobs:
             throw "Final Program/ FFmpeg does not contain Chromaprint."
           }
 
-          # Fully-offline WebView2 support: one current Microsoft Evergreen Standalone installer.
           $webview = "package\Program\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
           if (-not (Test-Path $webview -PathType Leaf) -or (Get-Item $webview).Length -lt 50MB) {
             throw "WebView2 Evergreen Standalone x64 installer is missing or incomplete."
