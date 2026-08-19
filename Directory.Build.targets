@@ -1,0 +1,31 @@
+<Project>
+  <!--
+    LibVLCSharp publishes native VLC payloads for more than one Windows architecture.
+    NP Video Studio's release is explicitly win-x64, so keeping win-arm64 inside PublishDir
+    only inflates the installer/portable archive and can never be loaded by the x64 process.
+
+    This target runs after every win-x64 publish and removes that foreign native payload at
+    the MSBuild level, before scripts/build-release.ps1 copies PublishDir into the portable
+    folder or feeds it to Inno Setup. It is intentionally a no-op when the directory is absent.
+  -->
+  <Target Name="NPVideoStudioPruneForeignLibVlcAssets"
+          AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PropertyGroup>
+      <NPVideoStudioForeignLibVlcDir>$(PublishDir)libvlc\win-arm64</NPVideoStudioForeignLibVlcDir>
+    </PropertyGroup>
+
+    <ItemGroup Condition="Exists('$(NPVideoStudioForeignLibVlcDir)')">
+      <NPVideoStudioForeignLibVlcFiles Include="$(NPVideoStudioForeignLibVlcDir)\**\*" />
+    </ItemGroup>
+
+    <Delete Files="@(NPVideoStudioForeignLibVlcFiles)"
+            Condition="'@(NPVideoStudioForeignLibVlcFiles)' != ''" />
+    <RemoveDir Directories="$(NPVideoStudioForeignLibVlcDir)"
+               Condition="Exists('$(NPVideoStudioForeignLibVlcDir)')" />
+
+    <Message Text="NP Video Studio: removed unused LibVLC win-arm64 payload from win-x64 publish."
+             Importance="high"
+             Condition="!Exists('$(NPVideoStudioForeignLibVlcDir)')" />
+  </Target>
+</Project>
