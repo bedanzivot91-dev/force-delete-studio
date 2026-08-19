@@ -194,6 +194,23 @@ jobs:
           $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
           if ($proc.ExitCode -ne 0) { throw "--stage-components failed with exit code $($proc.ExitCode)" }
 
+          # setup/main.go still has a legacy essentials FFmpeg fallback. The release must
+          # contain the Chromaprint-capable full FFmpeg that was already verified above.
+          $verifiedFFmpeg = "tools\ffmpeg\bin\ffmpeg.exe"
+          $verifiedFFprobe = "tools\ffmpeg\bin\ffprobe.exe"
+          $packageFFDir = "package\Program\tools\ffmpeg\bin"
+          if (-not (Test-Path $verifiedFFmpeg) -or -not (Test-Path $verifiedFFprobe)) {
+            throw "Verified full FFmpeg/ffprobe are missing before packaging."
+          }
+          New-Item -ItemType Directory -Force -Path $packageFFDir | Out-Null
+          Copy-Item -Force $verifiedFFmpeg (Join-Path $packageFFDir "ffmpeg.exe")
+          Copy-Item -Force $verifiedFFprobe (Join-Path $packageFFDir "ffprobe.exe")
+          $muxers = & (Join-Path $packageFFDir "ffmpeg.exe") -hide_banner -muxers 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or $muxers -notmatch "chromaprint") {
+            throw "Final Program/ FFmpeg does not contain Chromaprint; refusing to package an essentials build."
+          }
+          Write-Host "Final Program/ now contains the verified Chromaprint-capable FFmpeg."
+
       - name: Assemble Program/ folder structure (section 7 of the spec)
         run: |
           Copy-Item -Recurse -Force app package\Program\app
