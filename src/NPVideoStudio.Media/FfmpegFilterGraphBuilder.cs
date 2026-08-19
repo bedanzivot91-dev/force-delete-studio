@@ -467,7 +467,16 @@ public static class FfmpegFilterGraphBuilder
         TransitionInType = clip.TransitionInType,
         TransitionInDurationSeconds = clip.TransitionInDurationSeconds,
         IsMuted = clip.IsMuted,
-        Volume = clip.Volume
+        Volume = clip.Volume,
+        ScalePercent = clip.ScalePercent,
+        PositionXPercent = clip.PositionXPercent,
+        PositionYPercent = clip.PositionYPercent,
+        Opacity = clip.Opacity,
+        Effect = clip.Effect,
+        Brightness = clip.Brightness,
+        Contrast = clip.Contrast,
+        Saturation = clip.Saturation,
+        SpeedMultiplier = clip.SpeedMultiplier
     };
 
     /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
