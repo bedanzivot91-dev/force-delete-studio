@@ -7,7 +7,7 @@ function Replace-One([string]$name, [string]$pattern, [string]$replacement) {
     $rx = [regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
     $matches = $rx.Matches($script:text)
     if ($matches.Count -ne 1) {
-        throw "$name: expected exactly one legacy block, found $($matches.Count)"
+        throw "${name}: expected exactly one legacy block, found $($matches.Count)"
     }
     $script:text = $rx.Replace($script:text, $replacement, 1)
     Write-Host "Normalized: $name"
