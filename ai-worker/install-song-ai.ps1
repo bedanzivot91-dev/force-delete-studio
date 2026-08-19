@@ -47,8 +47,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Instalacija faster-whisper paketa nije uspela.
 Write-Output 'Instaliram Demucs za izdvajanje vokala iz pesme...'
 & $managedPython -m pip install --disable-pip-version-check demucs
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija Demucs paketa nije uspela.' }
+Write-Output 'Instaliram poravnanje poznatog teksta pesme...'
+& $managedPython -m pip install --disable-pip-version-check lyric-align
+if ($LASTEXITCODE -ne 0) { throw 'Instalacija lyric-align paketa nije uspela.' }
 Write-Output 'Proveravam AI instalaciju...'
-& $managedPython -c "import faster_whisper, demucs; print('AI za pesme je spreman.')"
+& $managedPython -c "import faster_whisper, demucs, lyric_align; print('AI za pesme je spreman.')"
 if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa nije uspela.' }
 
 Write-Output 'Preuzimam model large-v3 za stihove (ovo je veliko i radi se samo prvi put)...'

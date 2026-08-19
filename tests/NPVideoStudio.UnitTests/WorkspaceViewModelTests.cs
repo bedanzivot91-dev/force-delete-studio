@@ -54,6 +54,7 @@ public sealed class FakeFramePreviewService : IFramePreviewService
 
 public sealed class ReadySongAiWorker : IAiWorkerClient
 {
+    public AiWorkerRequest? LastRequest { get; private set; }
     public Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new AiWorkerCapabilities
         {
@@ -66,6 +67,7 @@ public sealed class ReadySongAiWorker : IAiWorkerClient
     public async IAsyncEnumerable<AiWorkerEvent> RunAsync(
         AiWorkerRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        LastRequest = request;
         yield return new AiWorkerEvent
         {
             Type = AiWorkerEventType.Result,
@@ -249,6 +251,48 @@ public class WorkspaceViewModelTests
         {
             File.Delete(asset.FilePath);
         }
+    }
+
+    [AvaloniaFact]
+    public async Task VerifiedLyricsButton_SendsKnownLyricsAlignmentInsteadOfGuessingTheWords()
+    {
+        var asset = new MediaAsset
+        {
+            FilePath = Path.GetTempFileName(), Duration = TimeSpan.FromSeconds(225), HasVideoStream = true
+        };
+        try
+        {
+            var worker = new ReadySongAiWorker();
+            var project = new Project { Name = "Precrtan", MediaLibrary = { asset } };
+            using var workspace = CreateWorkspace(project, aiWorkerClient: worker);
+            workspace.MediaLibrary.Add(new MediaAssetViewModel(asset));
+            workspace.Timeline.AutoPlaceFirstImportOnEmptyTimeline(asset);
+            workspace.VerifiedLyricsText = "Tvoje ime više ne izgovaram\nNe zato što sam te preboleo";
+
+            await workspace.SyncVerifiedLyricsCommand.ExecuteAsync(null);
+
+            Assert.NotNull(worker.LastRequest);
+            Assert.Equal(AiWorkerJobKind.KnownSongAlignment, worker.LastRequest.JobKind);
+            Assert.Equal(workspace.VerifiedLyricsText, worker.LastRequest.VerifiedLyrics);
+        }
+        finally
+        {
+            File.Delete(asset.FilePath);
+        }
+    }
+
+    [Fact]
+    public void KnownLyricLines_AreKeptAsSeparateCaptionLines()
+    {
+        var lines = WorkspaceViewModel.GroupSongWordsIntoCaptionLines(new[]
+        {
+            new AiWorkerWord { Text = "Tvoje ime više ne izgovaram", Start = TimeSpan.FromSeconds(5), End = TimeSpan.FromSeconds(8) },
+            new AiWorkerWord { Text = "ne zato što sam te preboleo", Start = TimeSpan.FromSeconds(8.1), End = TimeSpan.FromSeconds(11) }
+        });
+
+        Assert.Equal(2, lines.Count);
+        Assert.Equal("Tvoje ime više ne izgovaram", lines[0].Text);
+        Assert.Equal("ne zato što sam te preboleo", lines[1].Text);
     }
 
     [AvaloniaFact]

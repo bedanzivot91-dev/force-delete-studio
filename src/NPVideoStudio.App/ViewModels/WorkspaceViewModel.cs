@@ -141,6 +141,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _captionsStatusMessage;
 
+    [ObservableProperty]
+    private string _verifiedLyricsText = string.Empty;
+
+    [ObservableProperty]
+    private string? _verifiedLyricsFileName;
+
+    private static readonly (string Name, string[] Extensions) LyricsFilter =
+        ("Tekst pesme", new[] { "txt", "rtf" });
+
     /// <summary>Bindable mirror of <c>Project.Format</c>'s summary text - <see cref="Project"/> and
     /// <see cref="Domain.ProjectFormat"/> are plain (non-observable) domain classes, so mutating
     /// <c>Project.Format.Width</c> etc. in place (see <see cref="TryAdjustProjectFormatToMatch"/>) doesn't
@@ -747,6 +756,38 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private Task GenerateCaptionsForVideoAsync() =>
         _aiWorkerClient is null ? GenerateCaptionsCoreAsync(wordLevel: false) : GenerateSongLyricsAsync();
 
+    [RelayCommand]
+    private async Task LoadVerifiedLyricsAsync()
+    {
+        var files = await _storageService.PickFilesAsync(
+            "Izaberite tačan tekst pesme", new[] { LyricsFilter }, allowMultiple: false);
+        if (files.Count == 0) return;
+
+        try
+        {
+            VerifiedLyricsText = await LyricsDocumentReader.ReadAsync(files[0]);
+            VerifiedLyricsFileName = Path.GetFileName(files[0]);
+            CaptionsStatusMessage = string.IsNullOrWhiteSpace(VerifiedLyricsText)
+                ? "Izabrani fajl ne sadrži čitljiv tekst."
+                : $"Učitan je provereni tekst: {VerifiedLyricsFileName}. Kliknite „SINHRONIZUJ TAČAN TEKST“.";
+        }
+        catch (Exception ex)
+        {
+            CaptionsStatusMessage = $"Tekst pesme nije moguće učitati: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SyncVerifiedLyricsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(VerifiedLyricsText))
+        {
+            CaptionsStatusMessage = "Prvo učitajte .txt/.rtf fajl ili nalepite kompletan tekst pesme.";
+            return;
+        }
+        await GenerateSongLyricsAsync();
+    }
+
     /// <summary>
     /// "Automatski dodaj karaoke titlove (reč po reč)" - same pipeline as the line-level command above,
     /// but each transcribed WORD becomes its own short-lived clip on the caption track (via
@@ -802,10 +843,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             string? workerError = null;
             await foreach (var evt in _aiWorkerClient.RunAsync(new AiWorkerRequest
             {
-                JobKind = AiWorkerJobKind.UnknownSongTranscription,
                 Profile = AiProcessingProfile.MostAccurate,
                 AudioFilePath = Path.GetFullPath(videoFilePath),
-                LanguageHint = "sr"
+                LanguageHint = "sr",
+                JobKind = string.IsNullOrWhiteSpace(VerifiedLyricsText)
+                    ? AiWorkerJobKind.UnknownSongTranscription
+                    : AiWorkerJobKind.KnownSongAlignment,
+                VerifiedLyrics = string.IsNullOrWhiteSpace(VerifiedLyricsText) ? null : VerifiedLyricsText
             }, cancellationToken))
             {
                 if (!string.IsNullOrWhiteSpace(evt.Message) && evt.Type is AiWorkerEventType.Progress or AiWorkerEventType.Warning)
@@ -831,7 +875,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             Timeline.AddGeneratedCaptions(lines);
             CaptionsStatusMessage = lines.Count == 0
                 ? "AI nije pouzdano prepoznao nijedan stih. Pokušajte sa čistijim zvukom ili unesite provereni tekst ručno."
-                : $"Dodato {lines.Count} stihova iz pesme. Kliknite stih na traci za font, veličinu, boju i položaj.";
+                : string.IsNullOrWhiteSpace(VerifiedLyricsText)
+                    ? $"Dodato {lines.Count} prepoznatih stihova. Obavezno ih proverite."
+                    : $"Sinhronizovano je {lines.Count} redova vašeg tačnog teksta. Kliknite red za ispravku vremena ili izgleda.";
         }
         catch (OperationCanceledException)
         {
@@ -867,6 +913,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         foreach (var word in words.Where(w => !string.IsNullOrWhiteSpace(w.Text)).OrderBy(w => w.Start))
         {
+            // Known-lyrics alignment returns one already verified lyric LINE per item. Do not merge up
+            // to six of those lines as if they were individual Whisper words.
+            if (word.Text.Trim().Contains(' '))
+            {
+                Flush();
+                result.Add(new TranscribedCaptionSegment(
+                    word.Start,
+                    word.End > word.Start ? word.End : word.Start + TimeSpan.FromMilliseconds(250),
+                    word.Text.Trim()));
+                continue;
+            }
             if (line.Count > 0 && (word.Start - line[^1].End > TimeSpan.FromMilliseconds(850) || line.Count >= maximumWordsPerLine))
             {
                 Flush();

@@ -7,3 +7,4 @@
 # green status. The two packages below are both required and diagnostics verifies both imports.
 faster-whisper
 demucs
+lyric-align

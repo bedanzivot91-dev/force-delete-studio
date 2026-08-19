@@ -148,7 +148,9 @@ def run_transcription(request: dict, job_kind: str, profile: str) -> int:
                 word_timestamps=True,
                 # Speech VAD often removes sustained sung vowels. Demucs has already reduced the
                 # accompaniment, so preserving the complete vocal is the safer choice for lyrics.
-                vad_filter=True,
+                # Slow sung vowels are frequently cut as silence by VAD. With known lyrics we can
+                # safely keep the full separated vocal and use fuzzy matching to locate each line.
+                vad_filter=not bool(verified),
                 vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 300},
                 condition_on_previous_text=False,
                 compression_ratio_threshold=2.2,
@@ -160,14 +162,17 @@ def run_transcription(request: dict, job_kind: str, profile: str) -> int:
 
             words = []
             raw_parts = []
+            aligner_segments = []
             for segment in segments:
-                if getattr(segment, "no_speech_prob", 0) > 0.55 or getattr(segment, "avg_logprob", 0) < -0.8:
+                if not verified and (getattr(segment, "no_speech_prob", 0) > 0.55 or getattr(segment, "avg_logprob", 0) < -0.8):
                     continue
                 raw_parts.append(segment.text.strip())
+                segment_words = []
                 for word in segment.words or []:
                     text = word.word.strip()
                     probability = float(word.probability or 0)
-                    if not _usable_word(text, probability) or word.start is None or word.end is None:
+                    if ((not verified and not _usable_word(text, probability)) or not text or
+                            word.start is None or word.end is None):
                         continue
                     words.append({
                         "text": text,
@@ -175,10 +180,49 @@ def run_transcription(request: dict, job_kind: str, profile: str) -> int:
                         "end": max(float(word.end), float(word.start) + 0.05),
                         "confidence": probability,
                     })
+                    segment_words.append({"word": text, "start": float(word.start), "end": float(word.end)})
+                aligner_segments.append({
+                    "start": float(segment.start), "end": float(segment.end),
+                    "text": segment.text.strip(), "words": segment_words
+                })
+
+            if verified:
+                try:
+                    from lyric_align import Segment, align, interpolate_gaps
+                except ImportError as ex:
+                    raise RuntimeError(
+                        "lyric-align nije instaliran. Ponovo pokrenite instalaciju AI alata u Podešavanjima."
+                    ) from ex
+
+                lyric_lines = [
+                    line.strip() for line in verified.splitlines()
+                    if line.strip() and not line.strip().startswith("[")
+                ]
+                if lyric_lines and lyric_lines[0].isupper() and len(lyric_lines[0].split()) <= 4:
+                    lyric_lines = lyric_lines[1:]
+                aligned = align(
+                    [Segment.from_dict(item) for item in aligner_segments],
+                    lyric_lines, pairing="auto", karaoke=False
+                )
+                aligned = interpolate_gaps(aligned)
+                placed = [item for item in aligned if item.start is not None and item.end is not None]
+                if len(placed) < max(1, int(len(lyric_lines) * 0.6)):
+                    raise RuntimeError(
+                        f"Pouzdano je vremenski postavljeno samo {len(placed)}/{len(lyric_lines)} redova. "
+                        "Vokal nije dovoljno čist za automatsko poravnanje."
+                    )
+                words = [{
+                    "text": item.line,
+                    "start": float(item.start),
+                    "end": max(float(item.end), float(item.start) + 0.25),
+                    "confidence": float(item.score if item.matched else 0.25),
+                } for item in placed]
+                raw_parts = lyric_lines
 
             emit({"type": "Progress", "progressPercent": 95, "message": "Grupišem prepoznate reči u stihove..."})
             emit({"type": "Result", "words": words, "rawText": " ".join(raw_parts).strip()})
-            emit({"type": "Done", "message": f"Prepoznato {len(words)} reči; jezik {info.language}."})
+            result_name = "redova proverenog teksta" if verified else "reči"
+            emit({"type": "Done", "message": f"Postavljeno {len(words)} {result_name}; jezik {info.language}."})
             return 0
     except Exception as ex:
         emit({"type": "Error", "message": f"Prepoznavanje stihova nije uspelo: {ex}"})
