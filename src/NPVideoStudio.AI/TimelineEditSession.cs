@@ -3,8 +3,15 @@ using NPVideoStudio.Domain;
 namespace NPVideoStudio.AI;
 
 /// <summary>
-/// Pure, testable editing operations over a timeline's tracks/clips with whole-state undo/redo snapshots.
-/// Holds no persistence/UI state; callers own loading and saving the Domain.Timeline.
+/// Pure, testable editing operations over a timeline's tracks/clips, with full undo/redo (spec Phase 8:
+/// split/trim-in/trim-out/move/delete/duplicate/mute/volume/fade/lock/hide/solo/undo/redo). Same whole-
+/// state-snapshot undo/redo approach as <see cref="CaptionEditSession"/>, for the same reason: simple to
+/// reason about correctly, no hand-written inverse needed per operation. Holds no persistence/UI state -
+/// callers own building the initial track list from (and writing the result back to) <see cref="Domain.Timeline"/>.
+///
+/// Deliberately does not enforce "clips on a track never overlap" - real editors commonly allow
+/// overlapping layers (especially on caption/text/image-overlay tracks), so this doesn't guess at a
+/// constraint the spec never actually states.
 /// </summary>
 public sealed class TimelineEditSession
 {
@@ -25,7 +32,11 @@ public sealed class TimelineEditSession
 
     public void Undo()
     {
-        if (!CanUndo) return;
+        if (!CanUndo)
+        {
+            return;
+        }
+
         _redoStack.Add(CloneTracks(_tracks));
         _tracks = _undoStack[^1];
         _undoStack.RemoveAt(_undoStack.Count - 1);
@@ -33,7 +44,11 @@ public sealed class TimelineEditSession
 
     public void Redo()
     {
-        if (!CanRedo) return;
+        if (!CanRedo)
+        {
+            return;
+        }
+
         _undoStack.Add(CloneTracks(_tracks));
         _tracks = _redoStack[^1];
         _redoStack.RemoveAt(_redoStack.Count - 1);
@@ -47,14 +62,23 @@ public sealed class TimelineEditSession
 
     public void RemoveTrack(string trackId)
     {
-        if (FindTrack(trackId) is null) return;
+        if (FindTrack(trackId) is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         _tracks.RemoveAll(t => t.Id == trackId);
     }
 
     public void AddClip(string trackId, TimelineClip clip)
     {
-        if (FindTrack(trackId) is null) return;
+        var track = FindTrack(trackId);
+        if (track is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         FindTrack(trackId)!.Clips.Add(clip);
     }
@@ -62,17 +86,25 @@ public sealed class TimelineEditSession
     public void DeleteClips(IEnumerable<string> clipIds)
     {
         var idSet = clipIds.ToHashSet();
-        if (!_tracks.Any(t => t.Clips.Any(c => idSet.Contains(c.Id)))) return;
+        if (!_tracks.Any(t => t.Clips.Any(c => idSet.Contains(c.Id))))
+        {
+            return;
+        }
 
         SaveSnapshot();
         foreach (var track in _tracks)
+        {
             track.Clips.RemoveAll(c => idSet.Contains(c.Id));
+        }
     }
 
     public void DuplicateClip(string clipId)
     {
         var (track, clip) = FindClipWithTrack(clipId);
-        if (track is null || clip is null) return;
+        if (track is null || clip is null)
+        {
+            return;
+        }
 
         SaveSnapshot();
         var (liveTrack, liveClip) = FindClipWithTrack(clipId);
@@ -82,13 +114,20 @@ public sealed class TimelineEditSession
         liveTrack!.Clips.Add(duplicate);
     }
 
+    /// <summary>Moves a clip to a new timeline position, optionally onto a different track.</summary>
     public void MoveClip(string clipId, double newTimelineStartSeconds, string? newTrackId = null)
     {
         var (track, clip) = FindClipWithTrack(clipId);
-        if (track is null || clip is null) return;
+        if (track is null || clip is null)
+        {
+            return;
+        }
 
         var targetTrack = newTrackId is null ? track : FindTrack(newTrackId);
-        if (targetTrack is null) return;
+        if (targetTrack is null)
+        {
+            return;
+        }
 
         SaveSnapshot();
         var (liveTrack, liveClip) = FindClipWithTrack(clipId);
@@ -101,14 +140,20 @@ public sealed class TimelineEditSession
         }
     }
 
+    /// <summary>Splits one clip into two at an absolute timeline position - the spec's "split" operation.</summary>
     public void SplitClip(string clipId, double atTimelineSeconds)
     {
         var (track, clip) = FindClipWithTrack(clipId);
-        if (track is null || clip is null) return;
+        if (track is null || clip is null)
+        {
+            return;
+        }
 
         if (atTimelineSeconds <= clip.TimelineStartSeconds + MinClipDurationSeconds ||
             atTimelineSeconds >= clip.TimelineEndSeconds - MinClipDurationSeconds)
-            return;
+        {
+            return; // Split point too close to either edge to leave two valid clips.
+        }
 
         var offsetIntoClip = atTimelineSeconds - clip.TimelineStartSeconds;
         var splitSourcePoint = clip.SourceTrimInSeconds + offsetIntoClip;
@@ -119,21 +164,28 @@ public sealed class TimelineEditSession
         second.Id = Guid.NewGuid().ToString("N");
         second.SourceTrimInSeconds = splitSourcePoint;
         second.TimelineStartSeconds = atTimelineSeconds;
-        second.FadeInSeconds = 0;
+        second.FadeInSeconds = 0; // The new leading edge is a fresh cut, not the original fade-in point.
 
         liveClip!.SourceTrimOutSeconds = splitSourcePoint;
-        liveClip.FadeOutSeconds = 0;
+        liveClip.FadeOutSeconds = 0; // Same reasoning for the original clip's new trailing edge.
+
         liveTrack!.Clips.Add(second);
     }
 
     public void TrimIn(string clipId, double newSourceTrimInSeconds)
     {
         var (_, clip) = FindClipWithTrack(clipId);
-        if (clip is null) return;
+        if (clip is null)
+        {
+            return;
+        }
 
         var clamped = Math.Clamp(newSourceTrimInSeconds, 0, clip.SourceTrimOutSeconds - MinClipDurationSeconds);
         var delta = clamped - clip.SourceTrimInSeconds;
-        if (Math.Abs(delta) < 1e-9) return;
+        if (Math.Abs(delta) < 1e-9)
+        {
+            return;
+        }
 
         SaveSnapshot();
         var (_, liveClip) = FindClipWithTrack(clipId);
@@ -144,10 +196,16 @@ public sealed class TimelineEditSession
     public void TrimOut(string clipId, double newSourceTrimOutSeconds)
     {
         var (_, clip) = FindClipWithTrack(clipId);
-        if (clip is null) return;
+        if (clip is null)
+        {
+            return;
+        }
 
         var clamped = Math.Max(newSourceTrimOutSeconds, clip.SourceTrimInSeconds + MinClipDurationSeconds);
-        if (Math.Abs(clamped - clip.SourceTrimOutSeconds) < 1e-9) return;
+        if (Math.Abs(clamped - clip.SourceTrimOutSeconds) < 1e-9)
+        {
+            return;
+        }
 
         SaveSnapshot();
         FindClipWithTrack(clipId).Clip!.SourceTrimOutSeconds = clamped;
@@ -155,33 +213,66 @@ public sealed class TimelineEditSession
 
     public void SetFade(string clipId, double fadeInSeconds, double fadeOutSeconds)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
-        var liveClip = FindClipWithTrack(clipId).Clip!;
-        liveClip.FadeInSeconds = Math.Max(0, fadeInSeconds);
+        var (_, liveClip) = FindClipWithTrack(clipId);
+        liveClip!.FadeInSeconds = Math.Max(0, fadeInSeconds);
         liveClip.FadeOutSeconds = Math.Max(0, fadeOutSeconds);
     }
 
+    /// <summary>Lets the user correct a Caption/Text clip's own words - most importantly, what
+    /// auto-generated speech-to-text captions actually got right or wrong, since Whisper is never
+    /// guaranteed accurate (especially on singing/music) and there was previously no way to fix a
+    /// misheard word short of deleting the whole clip and retyping it from scratch on a Text track.</summary>
     public void SetTextContent(string clipId, string textContent)
     {
         var (_, clip) = FindClipWithTrack(clipId);
-        if (clip?.TextContent is null) return;
+        if (clip is null || clip.TextContent is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         FindClipWithTrack(clipId).Clip!.TextContent = textContent;
     }
 
     public void SetTransition(string clipId, ClipTransitionType type, double durationSeconds)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.TransitionInType = type;
         liveClip.TransitionInDurationSeconds = Math.Max(0.05, durationSeconds);
     }
 
+    /// <summary>
+    /// Sets where an overlay clip sits over the video underneath it - its size, its centre position and
+    /// how see-through it is (the CapCut-style picture-in-picture / sticker / logo placement rendered by
+    /// <c>FfmpegFilterGraphBuilder.AppendOverlayLayers</c>). Goes through the session, like every other
+    /// edit here, so one undo takes the whole placement change back.
+    ///
+    /// Values are clamped to what the renderer can actually honour rather than trusted: a scale of 0 or a
+    /// negative opacity would produce a filter graph ffmpeg rejects outright, failing the whole export for
+    /// what is really just a slider dragged to its end.
+    /// </summary>
     public void SetLayerPlacement(string clipId, double scalePercent, double positionXPercent, double positionYPercent, double opacity)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.ScalePercent = Math.Clamp(scalePercent, 1, 1000);
@@ -190,9 +281,20 @@ public sealed class TimelineEditSession
         liveClip.Opacity = Math.Clamp(opacity, 0, 1);
     }
 
+    /// <summary>
+    /// Sets a clip's picture look and playback speed (rendered by
+    /// <c>FfmpegFilterGraphBuilder.BuildEffectFilters</c>/<c>BuildSpeedFilter</c>). Values are clamped to
+    /// what ffmpeg accepts rather than trusted, so a slider dragged to its end can't produce a filter
+    /// graph that fails the whole export.
+    /// </summary>
     public void SetClipEffects(string clipId, ClipVideoEffect effect, double brightness, double contrast, double saturation, double speed)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.Effect = effect;
@@ -205,7 +307,11 @@ public sealed class TimelineEditSession
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);
-        if (clip is null || clip.IsMuted == muted) return;
+        if (clip is null || clip.IsMuted == muted)
+        {
+            return;
+        }
+
         SaveSnapshot();
         FindClipWithTrack(clipId).Clip!.IsMuted = muted;
     }
@@ -214,14 +320,23 @@ public sealed class TimelineEditSession
     {
         var (_, clip) = FindClipWithTrack(clipId);
         var clamped = Math.Clamp(volume, 0, 2.0);
-        if (clip is null || Math.Abs(clip.Volume - clamped) < 1e-9) return;
+        if (clip is null || Math.Abs(clip.Volume - clamped) < 1e-9)
+        {
+            return;
+        }
+
         SaveSnapshot();
         FindClipWithTrack(clipId).Clip!.Volume = clamped;
     }
 
     public void SetTextStyle(string clipId, CaptionFontChoice fontChoice, int fontSizePx, string textColor, CaptionTextPosition position)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.FontChoice = fontChoice;
@@ -230,9 +345,16 @@ public sealed class TimelineEditSession
         liveClip.TextPosition = position;
     }
 
+    /// <summary>The extra text style knobs beyond font/size/color/position - outline, shadow, background
+    /// on/off/color/opacity, horizontal alignment, bold/italic, case transform, line spacing.</summary>
     public void SetTextAdvancedStyle(string clipId, TextAdvancedStyle style)
     {
-        if (FindClipWithTrack(clipId).Clip is null) return;
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.TextOutlineColor = style.OutlineColor;
@@ -249,17 +371,30 @@ public sealed class TimelineEditSession
         liveClip.LineSpacingPx = Math.Max(0, style.LineSpacingPx);
     }
 
+    /// <summary>
+    /// "Primeni na sve titlove na ovoj traci" - copies every text style field (font/size/color/position
+    /// plus everything <see cref="SetTextAdvancedStyle"/> covers) from one clip onto every other Caption/
+    /// Text clip on the same track, so styling a batch of auto-generated captions doesn't mean re-clicking
+    /// the same font/size/color/outline/etc. on every single clip by hand. Never touches
+    /// <see cref="TimelineClip.TextContent"/> itself - only the styling around it.
+    /// </summary>
     public void ApplyTextStyleToAllClipsOnTrack(string trackId, string sourceClipId)
     {
         var track = FindTrack(trackId);
         var source = track?.Clips.FirstOrDefault(c => c.Id == sourceClipId);
-        if (track is null || source?.TextContent is null) return;
+        if (track is null || source is null || source.TextContent is null)
+        {
+            return;
+        }
 
         var targets = track.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null).ToList();
-        if (targets.Count == 0) return;
+        if (targets.Count == 0)
+        {
+            return;
+        }
 
         SaveSnapshot();
-        foreach (var target in FindTrack(trackId)!.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null))
+        foreach (var target in track.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null))
         {
             target.FontChoice = source.FontChoice;
             target.FontSizePx = source.FontSizePx;
@@ -289,11 +424,16 @@ public sealed class TimelineEditSession
     {
         var track = FindTrack(trackId);
         var clamped = Math.Clamp(volume, 0, 2.0);
-        if (track is null || Math.Abs(track.Volume - clamped) < 1e-9) return;
+        if (track is null || Math.Abs(track.Volume - clamped) < 1e-9)
+        {
+            return;
+        }
+
         SaveSnapshot();
         FindTrack(trackId)!.Volume = clamped;
     }
 
+    /// <summary>Returns the nearest value in <paramref name="candidates"/> within <paramref name="thresholdSeconds"/>, or the original position if nothing is close enough (spec's "snap").</summary>
     public static double SnapToNearest(double seconds, IEnumerable<double> candidates, double thresholdSeconds)
     {
         var best = seconds;
@@ -307,13 +447,18 @@ public sealed class TimelineEditSession
                 best = candidate;
             }
         }
+
         return best;
     }
 
     private void SetTrackFlag(string trackId, Func<TimelineTrack, bool> getter, Action<TimelineTrack, bool> setter, bool value)
     {
         var track = FindTrack(trackId);
-        if (track is null || getter(track) == value) return;
+        if (track is null || getter(track) == value)
+        {
+            return;
+        }
+
         SaveSnapshot();
         setter(FindTrack(trackId)!, value);
     }
@@ -325,8 +470,12 @@ public sealed class TimelineEditSession
         foreach (var track in _tracks)
         {
             var clip = track.Clips.FirstOrDefault(c => c.Id == clipId);
-            if (clip is not null) return (track, clip);
+            if (clip is not null)
+            {
+                return (track, clip);
+            }
         }
+
         return (null, null);
     }
 
@@ -352,9 +501,17 @@ public sealed class TimelineEditSession
     };
 
     /// <summary>
-    /// Deep-copies every persisted TimelineClip field. This list must stay in sync with TimelineClip.
-    /// In particular, layer placement and picture-effect fields MUST be copied: dropping them here resets
-    /// PIP placement/effects/speed when a session is constructed and corrupts undo/redo snapshots.
+    /// Real bug found and fixed while adding <see cref="ApplyTextStyleToAllClipsOnTrack"/>'s test: this
+    /// explicit field list had silently fallen behind <see cref="TimelineClip"/> itself over several past
+    /// sessions - FontChoice/FontSizePx/TextColor/TextPosition/TransitionInType/TransitionInDurationSeconds
+    /// were all missing, meaning every undo snapshot (every <see cref="SaveSnapshot"/> call, i.e. every
+    /// single edit) silently reset a clip's text style and transition back to their type defaults. Existing
+    /// tests never caught this because they all happened to undo from a non-default style back to the
+    /// still-default starting state, where the bug is invisible - a real style-A -> style-B -> undo
+    /// sequence would have incorrectly landed on hardcoded defaults instead of style A. Every field on
+    /// <see cref="TimelineClip"/> is now listed explicitly here on purpose (no reflection/serialization
+    /// shortcut) so a future field addition has to be a deliberate, visible one-line change instead of a
+    /// silent gap like this one.
     /// </summary>
     private static TimelineClip Clone(TimelineClip clip) => new()
     {
