@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using NPVideoStudio.App.ViewModels;
 using NPVideoStudio.Domain;
+using Xunit;
 
 namespace NPVideoStudio.UnitTests;
 
