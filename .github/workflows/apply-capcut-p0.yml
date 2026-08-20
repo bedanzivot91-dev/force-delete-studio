@@ -1,0 +1,46 @@
+name: Apply CapCut P0 transform + chroma patch
+
+on:
+  push:
+    branches:
+      - agent/capcut-p0-transform-chroma
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Apply source patch
+        shell: pwsh
+        run: ./scripts/apply-capcut-p0.ps1
+
+      - name: Restore
+        run: dotnet restore NPVideoStudio.sln
+
+      - name: Build
+        run: dotnet build NPVideoStudio.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test NPVideoStudio.sln -c Release --no-build --logger "trx;LogFileName=capcut-p0.trx"
+
+      - name: Commit validated patch
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "Implement CapCut P0 crop rotate flip reverse freeze and chroma key"
+            git push origin HEAD:${{ github.ref_name }}
+          }
