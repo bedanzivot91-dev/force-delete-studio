@@ -118,6 +118,10 @@ public sealed partial class StartScreenViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Opens a project path supplied by Windows file association / command line using the exact
+    /// same repository, recent-project and ProjectOpened path as the normal Open dialog.</summary>
+    public Task OpenProjectPathAsync(string projectFilePath) => OpenProjectFromPathAsync(projectFilePath);
+
     [RelayCommand]
     private void NewProject() => NewProjectRequested?.Invoke(null);
 
