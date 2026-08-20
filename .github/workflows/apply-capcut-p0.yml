@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - agent/capcut-p0-transform-chroma
+  pull_request:
+    branches:
+      - claude/np-video-studio-desktop-po139q
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,6 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/capcut-p0-transform-chroma
           fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
@@ -35,6 +41,7 @@ jobs:
         run: dotnet test NPVideoStudio.sln -c Release --no-build --logger "trx;LogFileName=capcut-p0.trx"
 
       - name: Commit validated patch
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
@@ -42,5 +49,5 @@ jobs:
           git add src tests
           if (-not (git diff --cached --quiet)) {
             git commit -m "Implement CapCut P0 crop rotate flip reverse freeze and chroma key"
-            git push origin HEAD:${{ github.ref_name }}
+            git push origin HEAD:agent/capcut-p0-transform-chroma
           }
