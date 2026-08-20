@@ -1,0 +1,33 @@
+name: YouTube-Suno reconciliation regression
+
+on:
+  pull_request:
+    paths:
+      - "app/youtube_reconcile_fixes.py"
+      - "app/workspace_backend.py"
+      - "app/web/organized_ui_extension.js"
+      - "app/web/production_workspace_extension.js"
+      - "tests/youtube_reconcile_fix_test.py"
+      - ".github/workflows/youtube-reconcile-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile-regression:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install core dependencies
+        run: python -m pip install --upgrade pip -r requirements-core.txt
+      - name: Compile new runtime modules
+        run: |
+          python -m py_compile app\youtube_reconcile_fixes.py
+          python -m py_compile app\workspace_backend.py
+      - name: Run indexed-song/private-video/UI regression
+        run: python tests\youtube_reconcile_fix_test.py
