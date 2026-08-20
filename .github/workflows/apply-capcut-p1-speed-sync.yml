@@ -6,7 +6,7 @@ on:
       - agent/capcut-p1-speed-sync
   pull_request:
     branches:
-      - agent/capcut-p0-transform-chroma
+      - claude/np-video-studio-desktop-po139q
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
