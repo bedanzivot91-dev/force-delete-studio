@@ -89,10 +89,12 @@ $replacement = $anchor + @'
 '@
 $t = Replace-Once $t $anchor $replacement 'base video embedded audio speed'
 
-$t = Replace-Once $t `
-'                chain.Append(FormattableString.Invariant($",volume={volume}"));' `
-"                chain.Append(BuildAudioSpeedFilter(clip));`r`n                chain.Append(FormattableString.Invariant(`$\",volume={volume}\"));" `
-'standalone audio speed'
+$oldStandaloneVolume = '                chain.Append(FormattableString.Invariant($",volume={volume}"));'
+$newStandaloneVolume = @'
+                chain.Append(BuildAudioSpeedFilter(clip));
+                chain.Append(FormattableString.Invariant($",volume={volume}"));
+'@.TrimEnd("`r", "`n")
+$t = Replace-Once $t $oldStandaloneVolume $newStandaloneVolume 'standalone audio speed'
 
 $oldRange = @'
                 var newClip = CloneClipForRange(clip);
@@ -210,6 +212,18 @@ public sealed class CapCutSpeedSyncTests
     {
         var clip = new TimelineClip { SpeedMultiplier = speed };
         Assert.Equal(expected, FfmpegFilterGraphBuilder.BuildAudioSpeedFilter(clip));
+    }
+
+    [Fact]
+    public void Build_SpeedChangesVideoAudioAndOutputDurationTogether()
+    {
+        var asset = new MediaAsset { Id = "m", FilePath = "/media/m.mp4" };
+        var clip = new TimelineClip { MediaAssetId = asset.Id, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 10, SpeedMultiplier = 2 };
+        var timeline = new Timeline { Tracks = new List<TimelineTrack> { new() { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { clip } } } };
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset });
+        Assert.Equal(5, plan.TotalDurationSeconds, 6);
+        Assert.Contains("setpts=PTS/2", plan.FilterComplexArgument);
+        Assert.Contains("atempo=2", plan.FilterComplexArgument);
     }
 
     [Fact]
