@@ -91,6 +91,10 @@ def check_button_wiring(parser: AuditHtml, js: str, issues: list[str], notes: li
 def check_dom_references(parser: AuditHtml, js: str, issues: list[str], notes: list[str]) -> None:
     dynamic_ids = set(re.findall(r"\.id\s*=\s*['\"]([A-Za-z0-9_-]+)['\"]", js))
     dynamic_ids.update(re.findall(r"id=[\\\"']([A-Za-z0-9_-]+)[\\\"']", js))
+    # bulk_download_extension creates real buttons through one shared helper;
+    # capture the literal first argument rather than falsely reporting those
+    # controls as missing DOM nodes.
+    dynamic_ids.update(re.findall(r"_bulkButton\(\s*['\"]([A-Za-z0-9_-]+)['\"]", js))
     known = set(parser.ids) | dynamic_ids
     refs = set(re.findall(r"\$\(['\"]([A-Za-z0-9_-]+)['\"]\)", js))
     refs.update(re.findall(r"getElementById\(['\"]([A-Za-z0-9_-]+)['\"]\)", js))
@@ -103,7 +107,7 @@ def check_dom_references(parser: AuditHtml, js: str, issues: list[str], notes: l
     missing = [item for item in missing if item not in allow]
     if missing:
         issues.append("JS traži DOM ID koji audit ne nalazi u HTML/dinamičkom UI-ju: " + ", ".join(missing))
-    notes.append(f"DOM reference: provereno {len(refs)} direktnih ID referenci.")
+    notes.append(f"DOM reference: provereno {len(refs)} direktnih ID referenci i {len(dynamic_ids)} dinamičkih ID-jeva.")
 
 
 def check_api_routes(js: str, py: str, issues: list[str], notes: list[str]) -> None:
@@ -146,7 +150,9 @@ def check_information_architecture(issues: list[str], notes: list[str]) -> None:
         issues.append("Stari duplirani lyric-video panel nije sakriven iz Video Studija.")
     if "['library-tools', 'system']" not in ia:
         issues.append("Stari YouTube tabovi za Library/System nisu uklonjeni iz primarnog YouTube toka.")
-    notes.append("Raspored: proverene istorijski razbacane Suno/Audio/Library/System/Video funkcije i YouTube tabovi.")
+    if "count.id = 'recognitionHistoryCount'" not in ia:
+        issues.append("Pronalazač ima kod za broj istorije, ali vidljivi recognitionHistoryCount element nije napravljen.")
+    notes.append("Raspored: proverene istorijski razbacane Suno/Audio/Library/System/Video funkcije, YouTube tabovi i brojač istorije Pronalazača.")
 
 
 def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: list[str]) -> None:
@@ -157,11 +163,24 @@ def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: 
     backend = BACKEND.read_text(encoding="utf-8")
     for token in (
         "document.querySelectorAll('.view').forEach", ".sidebar", ".topbar", ".panel", ".songs-grid",
-        "#productionWorkspace", ".youtube-action-card", ".settings-grid", ".logs-table",
+        "#productionWorkspace", ".youtube-action-card", ".settings-grid",
         "Aurora Studio", "Graphite Pro", "Midnight Signal",
     ):
         if token not in skin:
-            issues.append(f"Moderni skin ne pokriva očekivanu površinu/token: {token}")
+            issues.append(f"Moderni skin ne pokriva očekivanu globalnu površinu/token: {token}")
+
+    # Page-specific components intentionally live in the later surface layer,
+    # not in the global skin. Verify their actual owning layer instead of
+    # duplicating CSS merely to satisfy the test.
+    for token in (
+        "#view-logs .logs-table",
+        "#view-recognition .youtube-action-card",
+        "#view-release .release-row",
+        "#view-smart .smart-rule-row",
+        "#view-versions .version-member",
+    ):
+        if token not in surfaces:
+            issues.append(f"2026 page surface ne pokriva očekivani token: {token}")
 
     # No routed page may rely only on generic old CSS. Each has an explicit rule.
     for view in sorted(parser.views):
@@ -183,8 +202,8 @@ def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: 
         if token not in legibility:
             issues.append(f"Finalni čitljivi font override nedostaje: {token}")
     sizes = [float(x) for x in re.findall(r"font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)px", legibility)]
-    if sizes and min(sizes) < 11.0:
-        issues.append(f"Finalni legibility sloj još sadrži font manji od 11px: minimum {min(sizes)}px")
+    if sizes and min(sizes) < 12.5:
+        issues.append(f"Finalni legibility sloj još sadrži font manji od 12.5px: minimum {min(sizes)}px")
     order = [
         "workflow_cleanup_extension.js", "information_architecture_2026_extension.js",
         "modern_2026_skin_extension.js", "modern_2026_surface_coverage_extension.js",
