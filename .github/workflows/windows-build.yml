@@ -25,6 +25,11 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install FFmpeg
         shell: pwsh
         run: |
@@ -70,8 +75,11 @@ jobs:
       - name: Build (solution)
         run: dotnet build NPVideoStudio.sln -c Release --no-restore
 
-      - name: Run tests
+      - name: Run .NET tests
         run: dotnet test tests/NPVideoStudio.UnitTests/NPVideoStudio.UnitTests.csproj -c Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Run AI worker Python regression tests
+        run: python -m unittest discover -s tests/python -p "test_*.py" -v
 
       - name: Upload test results
         # Diagnostic-only, not a build deliverable - must never fail the whole job on its own. Real CI
