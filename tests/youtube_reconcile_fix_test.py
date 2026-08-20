@@ -115,12 +115,31 @@ def main() -> None:
     assert "oldLyric.classList.add('hidden')" in ui
     checks.append("Video Studio groups editor/publish functions and moves maintenance to Settings")
 
-    # The final served app bundle must include the organization layer, not just
-    # leave the JS file unused on disk.
+    # New editor functionality must really be wired into the shipped bundle:
+    # Suno timing, external LRC/SRT, transcription and export all feed the one
+    # existing timeline instead of opening another scattered editor.
+    studio = (ROOT / "app" / "web" / "studio_functionality_extension.js").read_text(encoding="utf-8")
+    for token in ("POVUCI SUNO TAJMING", "UVEZI LRC / SRT", "TRANSKRIBUJ AUDIO", "/api/subtitles/save", "pwsLoadSong"):
+        assert token in studio, token
+    cleanup = (ROOT / "app" / "web" / "workflow_cleanup_extension.js").read_text(encoding="utf-8")
+    assert "GLAVNI TOK" in cleanup and "SISTEM, DIJAGNOSTIKA I NAPREDNI MODULI" in cleanup
+    checks.append("Video Studio has one practical subtitle timeline flow and system controls are consolidated in Settings")
+
+    # The final served app bundle must include every active layer, not just leave
+    # the files unused on disk.
     backend = (ROOT / "app" / "workspace_backend.py").read_text(encoding="utf-8")
-    assert "organized_ui_extension.js" in backend
-    assert "youtube_reconcile_fixes" in backend
-    checks.append("production server wires both reconciliation backend and organized UI into the shipped app")
+    for token in (
+        "organized_ui_extension.js",
+        "youtube_reconcile_fixes",
+        "unbounded_operations",
+        "selection_fixes",
+        "arbitrary_selection_extension.js",
+        "unbounded_youtube_ui_extension.js",
+        "studio_functionality_extension.js",
+        "workflow_cleanup_extension.js",
+    ):
+        assert token in backend, token
+    checks.append("production server wires reconciliation, unlimited operations, exact selection and consolidated Studio into the shipped app")
 
     print(json.dumps({"ok": True, "passed": len(checks), "checks": checks}, ensure_ascii=False, indent=2))
 
