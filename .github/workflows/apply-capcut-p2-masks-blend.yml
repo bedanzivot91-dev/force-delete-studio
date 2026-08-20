@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - agent/capcut-p2-masks-blend
+  pull_request:
+    branches:
+      - claude/np-video-studio-desktop-po139q
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
 
 permissions:
