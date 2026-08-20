@@ -37,22 +37,28 @@
     body.sps-modern-2026 textarea{line-height:1.55}
     body.sps-modern-2026 input[type=checkbox],body.sps-modern-2026 input[type=radio],body.sps-modern-2026 input[type=color],body.sps-modern-2026 input[type=range]{min-height:0}
 
-    body.sps-modern-2026 .badge,body.sps-modern-2026 .folder-badge,body.sps-modern-2026 .pill,body.sps-modern-2026 .oauth-badge,body.sps-modern-2026 .count-badge{font-size:11.5px}
+    body.sps-modern-2026 .badge,body.sps-modern-2026 .folder-badge,body.sps-modern-2026 .pill,body.sps-modern-2026 .oauth-badge,body.sps-modern-2026 .count-badge,body.sps-modern-2026 .status-pill{font-size:11.5px!important}
+    body.sps-modern-2026 .system-label,body.sps-modern-2026 .youtube-channel-meta i{font-size:11.5px!important}
     body.sps-modern-2026 .song-title{font-size:16px}
     body.sps-modern-2026 .song-meta,body.sps-modern-2026 .song-tags{font-size:12.5px;line-height:1.45}
-    body.sps-modern-2026 .format-card span,body.sps-modern-2026 .toggle-row small,body.sps-modern-2026 .download-footer span{font-size:12.5px}
-    body.sps-modern-2026 .stat-card span,body.sps-modern-2026 .bar-row{font-size:13px}
+    body.sps-modern-2026 .format-card span,body.sps-modern-2026 .toggle-row small,body.sps-modern-2026 .download-footer span,body.sps-modern-2026 .mini-feature span{font-size:12.5px}
+    body.sps-modern-2026 .stat-card span,body.sps-modern-2026 .bar-row{font-size:13px!important}
 
     body.sps-modern-2026 .task-head span,body.sps-modern-2026 .task-meta{font-size:12.5px}
     body.sps-modern-2026 .mini-log,body.sps-modern-2026 .logs-table,body.sps-modern-2026 .log-row,body.sps-modern-2026 .tools-output,body.sps-modern-2026 pre,body.sps-modern-2026 code{font-size:12.5px;line-height:1.55}
     body.sps-modern-2026 .toast{font-size:13.5px;line-height:1.45}
 
     body.sps-modern-2026 .modal-tabs button,body.sps-modern-2026 .text-tools button,body.sps-modern-2026 .quick-clips button{font-size:13px}
-    body.sps-modern-2026 .text-stats,body.sps-modern-2026 .audio-info-box,body.sps-modern-2026 .file-list{font-size:13px}
+    body.sps-modern-2026 .text-stats,body.sps-modern-2026 .text-stats span,body.sps-modern-2026 .audio-info-box,body.sps-modern-2026 .file-list{font-size:13px!important}
+    body.sps-modern-2026 .derived-item span,body.sps-modern-2026 .audio-source-note{font-size:12.5px!important}
 
     body.sps-modern-2026 .tools-tab,body.sps-modern-2026 .youtube-action-card,body.sps-modern-2026 .youtube-settings-box,body.sps-modern-2026 .advanced-card{font-size:14px}
     body.sps-modern-2026 .youtube-action-card p,body.sps-modern-2026 .youtube-settings-box p,body.sps-modern-2026 .advanced-card p{font-size:13.5px}
     body.sps-modern-2026 .youtube-summary-badges,body.sps-modern-2026 .youtube-calendar,body.sps-modern-2026 .youtube-matrix-wrap,body.sps-modern-2026 .youtube-coverage-list,body.sps-modern-2026 .youtube-audio-results-list,body.sps-modern-2026 .youtube-matches-list{font-size:13px}
+    body.sps-modern-2026 .youtube-channel-main span,body.sps-modern-2026 .youtube-audio-card-main p{font-size:13px!important}
+    body.sps-modern-2026 .youtube-complete-badge,body.sps-modern-2026 .confidence,body.sps-modern-2026 .audio-score-grid span,body.sps-modern-2026 .audio-score-grid strong,body.sps-modern-2026 .matched-range{font-size:12.5px!important}
+    body.sps-modern-2026 .matrix-status,body.sps-modern-2026 .matrix-open-video,body.sps-modern-2026 .matrix-open-suno,body.sps-modern-2026 .matrix-search-video{font-size:12px!important}
+    body.sps-modern-2026 .youtube-matrix-table thead th{font-size:13px!important}
 
     body.sps-modern-2026 #productionWorkspace{font-size:14px}
     body.sps-modern-2026 .pws-head h2{font-size:21px}
