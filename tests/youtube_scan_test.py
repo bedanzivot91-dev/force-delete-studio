@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'app'))
 import youtube_tools
 from database import LibraryDB
+import youtube_match_recovery_test
+import modern_2026_shell_test
 
 
 def _playlist_page(video_ids, next_token=""):
@@ -98,6 +100,15 @@ def main():
         assert db.list_youtube_video_ids("UC_b") == {"v3"}
         assert db.list_youtube_video_ids("UC_nonexistent") == set()
         checks.append('DB.list_youtube_video_ids: scoped per channel_id, empty set for unknown channel')
+
+    # These two regressions are deliberately run inside a test that the main
+    # Windows packaging workflow already executes.  Therefore the final offline
+    # ZIP cannot be produced if owned-Shorts recovery or the final 2026 shell
+    # regresses, even if the separate focused workflow were skipped.
+    youtube_match_recovery_test.main()
+    checks.append('owned Shorts recovery regression is a hard gate for the Windows package')
+    modern_2026_shell_test.main()
+    checks.append('final 2026 shell regression is a hard gate for the Windows package')
 
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
