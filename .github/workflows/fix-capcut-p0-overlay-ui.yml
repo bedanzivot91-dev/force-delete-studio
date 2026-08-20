@@ -1,6 +1,9 @@
 name: Fix CapCut P0 overlay/chroma UI
 
 on:
+  push:
+    branches:
+      - agent/capcut-p0-transform-chroma
   pull_request:
     branches:
       - claude/np-video-studio-desktop-po139q
