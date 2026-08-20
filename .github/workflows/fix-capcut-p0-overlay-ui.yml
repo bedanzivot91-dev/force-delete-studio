@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - claude/np-video-studio-desktop-po139q
-    types: [synchronize]
+    types: [synchronize, reopened]
 
 permissions:
   contents: write
