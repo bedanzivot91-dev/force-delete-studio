@@ -4,9 +4,9 @@ from __future__ import annotations
 
 The mature renderer in v3_features already supports text/outline colours and an
 optional waveform, but the old one-button v3 task never forwarded those
-arguments.  The workspace uses the same renderer and same subtitle database;
-this patch exposes options the renderer genuinely implements, installs the
-YouTube/Suno reconciliation fixes, and serves the UI organization extension.
+arguments. The workspace uses the same renderer and subtitle database. This
+bridge also installs the correctness/performance patches and serves the small UI
+extensions as one lexical app.js bundle.
 """
 
 import re
@@ -26,22 +26,20 @@ def _ass_color(value: Any, default: str) -> str:
 
 
 def _install_complete_app_bundle(core: Any) -> None:
-    """Serve all UI extensions as one lexical app.js bundle.
-
-    server.py already appends the download and timeline modules.  This final
-    wrapper is installed after those patches and deliberately assembles the
-    complete bundle itself so every extension runs in the same lexical scope as
-    app.js (state/api/$/showView/etc.).
-    """
+    """Serve all UI extensions as one lexical app.js bundle."""
     handler = core.Handler
-    if getattr(handler, "_workspace_complete_bundle_v2", False):
+    if getattr(handler, "_workspace_complete_bundle_v4", False):
         return
     previous_send_file = handler._send_file
     extensions = (
         ("whole-library download extension", core.WEB_DIR / "bulk_download_extension.js"),
+        ("arbitrary song count selection", core.WEB_DIR / "arbitrary_selection_extension.js"),
         ("production timeline workspace", core.WEB_DIR / "production_workspace_extension.js"),
+        ("practical Studio subtitle workflow", core.WEB_DIR / "studio_functionality_extension.js"),
         ("startup heavy-task guard", core.WEB_DIR / "startup_guard_extension.js"),
         ("organized Studio and YouTube workflow", core.WEB_DIR / "organized_ui_extension.js"),
+        ("user controlled unbounded YouTube scans", core.WEB_DIR / "unbounded_youtube_ui_extension.js"),
+        ("final workflow layout cleanup", core.WEB_DIR / "workflow_cleanup_extension.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
@@ -59,11 +57,11 @@ def _install_complete_app_bundle(core: Any) -> None:
         self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
 
     handler._send_file = send_file
-    handler._workspace_complete_bundle_v2 = True
+    handler._workspace_complete_bundle_v4 = True
 
 
 def apply(core: Any) -> dict[str, Any]:
-    if getattr(core, "_workspace_backend_v3_installed", False):
+    if getattr(core, "_workspace_backend_v4_installed", False):
         return {}
 
     def v3_lyric_video_task(task: Any, options: dict[str, Any]) -> None:
@@ -76,7 +74,7 @@ def apply(core: Any) -> dict[str, Any]:
         cues = core.load_subtitle_cues(song, core.DB)
         if not cues:
             raise RuntimeError(
-                "Pesma nema sačuvane LRC/SRT titlove. Otvori radnu površinu, dodaj ili učitaj titlove i sačuvaj ih pre rendera."
+                "Pesma nema sačuvane LRC/SRT titlove. Otvori Video Studio, povuci Suno tajming ili uvezi/uredi titlove i sačuvaj ih pre rendera."
             )
 
         aspect = str(options.get("aspect") or "16:9")
@@ -138,17 +136,23 @@ def apply(core: Any) -> dict[str, Any]:
             },
         )
         task.set_progress(100, 100, output.name)
-        task.finish(f"Lyric video je napravljen iz radne površine: {output.name}")
+        task.finish(f"Lyric video je napravljen iz Video Studija: {output.name}")
 
     core.v3_lyric_video_task = v3_lyric_video_task
 
-    # Install after runtime_fixes.py so these wrappers see the final optimized
-    # matcher/signature functions rather than the old originals.
+    # Order matters: reconciliation wraps the optimized runtime matcher first;
+    # unbounded operations then use that corrected matcher while removing only
+    # application quantity ceilings. Selection is independent and can be exact
+    # or unlimited without tying itself to the UI page size.
     from youtube_reconcile_fixes import apply as apply_youtube_reconcile
+    from selection_fixes import apply as apply_selection_fixes
+    from unbounded_operations import apply as apply_unbounded_operations
 
     exports: dict[str, Any] = {"v3_lyric_video_task": v3_lyric_video_task}
     exports.update(apply_youtube_reconcile(core))
+    exports.update(apply_selection_fixes(core))
+    exports.update(apply_unbounded_operations(core))
     _install_complete_app_bundle(core)
 
-    core._workspace_backend_v3_installed = True
+    core._workspace_backend_v4_installed = True
     return exports
