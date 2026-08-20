@@ -119,8 +119,20 @@ public partial class App : Avalonia.Application
 
             desktop.ShutdownRequested += (_, _) =>
             {
-                Task.Run(() => _autoSaveService.MarkCleanShutdownAsync()).GetAwaiter().GetResult();
-                _logger.Information("NP Video Studio se zatvara čisto");
+                try
+                {
+                    Task.Run(async () =>
+                    {
+                        await _autoSaveService.TriggerNowAsync();
+                        await _autoSaveService.MarkCleanShutdownAsync();
+                    }).GetAwaiter().GetResult();
+                    _logger.Information("NP Video Studio se zatvara čisto posle poslednjeg autosave-a");
+                }
+                catch (Exception ex)
+                {
+                    // A failed recovery save must not be followed by a false clean-shutdown marker.
+                    _logger.Error(ex, "Poslednji autosave pri gašenju nije uspeo; clean-shutdown marker nije upisan");
+                }
             };
 
             _ = mainWindowViewModel.InitializeAsync();

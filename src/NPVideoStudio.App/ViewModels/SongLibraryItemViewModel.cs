@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.App.ViewModels;
@@ -21,7 +22,23 @@ public sealed class SongLibraryItemViewModel : ViewModelBase
 
     public ICommand ReanalyzeCommand { get; }
     public ICommand DeleteRecordOnlyCommand { get; }
+
+    /// <summary>First destructive click only arms the confirmation UI. It never touches disk.</summary>
     public ICommand DeleteRecordAndFileCommand { get; }
+    public ICommand ConfirmDeleteRecordAndFileCommand { get; }
+    public ICommand CancelDeleteRecordAndFileCommand { get; }
+
+    private bool _isDeleteFileConfirmationVisible;
+    public bool IsDeleteFileConfirmationVisible
+    {
+        get => _isDeleteFileConfirmationVisible;
+        private set
+        {
+            if (_isDeleteFileConfirmationVisible == value) return;
+            _isDeleteFileConfirmationVisible = value;
+            OnPropertyChanged();
+        }
+    }
 
     public SongLibraryItemViewModel(
         SongLibraryEntry entry, ICommand reanalyzeCommand, ICommand deleteRecordOnlyCommand, ICommand deleteRecordAndFileCommand)
@@ -29,7 +46,9 @@ public sealed class SongLibraryItemViewModel : ViewModelBase
         Entry = entry;
         ReanalyzeCommand = reanalyzeCommand;
         DeleteRecordOnlyCommand = deleteRecordOnlyCommand;
-        DeleteRecordAndFileCommand = deleteRecordAndFileCommand;
+        ConfirmDeleteRecordAndFileCommand = deleteRecordAndFileCommand;
+        DeleteRecordAndFileCommand = new RelayCommand(() => IsDeleteFileConfirmationVisible = true);
+        CancelDeleteRecordAndFileCommand = new RelayCommand(() => IsDeleteFileConfirmationVisible = false);
     }
 
     /// <summary>Called after the underlying <see cref="Entry"/> is mutated in place (e.g. re-analyze) so bound labels refresh.</summary>
