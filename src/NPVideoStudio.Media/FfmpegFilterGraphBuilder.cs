@@ -127,7 +127,7 @@ public static class FfmpegFilterGraphBuilder
             if (clip.IsReversed && !clip.IsFreezeFrame)
             {
                 audioFilter.Append(",areverse");
-            }
+            }            audioFilter.Append(BuildAudioSpeedFilter(clip));
             if (clip.FadeInSeconds > 0)
             {
                 audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
@@ -333,6 +333,7 @@ public static class FfmpegFilterGraphBuilder
                 var chain = new StringBuilder();
                 chain.Append(FormattableString.Invariant(
                     $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
+                chain.Append(BuildAudioSpeedFilter(clip));
                 chain.Append(FormattableString.Invariant($",volume={volume}"));
 
                 if (clip.FadeInSeconds > 0)
@@ -422,8 +423,31 @@ public static class FfmpegFilterGraphBuilder
 
                 var newClip = CloneClipForRange(clip);
                 newClip.TimelineStartSeconds = overlapStart - rangeStartSeconds;
-                newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds + trimmedFromStart;
-                newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds - trimmedFromEnd;
+                var sourceRate = clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+                if (clip.IsFreezeFrame)
+                {
+                    var visibleDuration = Math.Max(0.05, overlapEnd - overlapStart);
+                    if (clip.IsReversed)
+                    {
+                        newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds;
+                        newClip.SourceTrimInSeconds = Math.Max(clip.SourceTrimInSeconds, clip.SourceTrimOutSeconds - visibleDuration);
+                    }
+                    else
+                    {
+                        newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds;
+                        newClip.SourceTrimOutSeconds = Math.Min(clip.SourceTrimOutSeconds, clip.SourceTrimInSeconds + visibleDuration);
+                    }
+                }
+                else if (clip.IsReversed)
+                {
+                    newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds + trimmedFromEnd * sourceRate;
+                    newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds - trimmedFromStart * sourceRate;
+                }
+                else
+                {
+                    newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds + trimmedFromStart * sourceRate;
+                    newClip.SourceTrimOutSeconds = clip.SourceTrimOutSeconds - trimmedFromEnd * sourceRate;
+                }
                 if (trimmedFromStart > 0)
                 {
                     newClip.TransitionInType = ClipTransitionType.None;
@@ -728,7 +752,7 @@ public static class FfmpegFilterGraphBuilder
     /// </summary>
     public static string BuildSpeedFilter(TimelineClip clip)
     {
-        var speed = Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+        var speed = clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
         if (Math.Abs(speed - 1) < 1e-6)
         {
             return string.Empty;
@@ -738,6 +762,41 @@ public static class FfmpegFilterGraphBuilder
         return FormattableString.Invariant($",setpts=PTS/{speed}");
     }
 
+    /// <summary>FFmpeg audio-tempo chain matching <see cref="BuildSpeedFilter"/>. Chained 0.5..2.0
+    /// stages work across the full UI range 0.25x..4x without pitch-shifting the audio.</summary>
+    public static string BuildAudioSpeedFilter(TimelineClip clip)
+    {
+        if (clip.IsFreezeFrame)
+        {
+            return string.Empty;
+        }
+
+        var remaining = Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+        if (Math.Abs(remaining - 1) < 1e-6)
+        {
+            return string.Empty;
+        }
+
+        var stages = new List<double>();
+        while (remaining < 0.5 - 1e-9)
+        {
+            stages.Add(0.5);
+            remaining /= 0.5;
+        }
+        while (remaining > 2.0 + 1e-9)
+        {
+            stages.Add(2.0);
+            remaining /= 2.0;
+        }
+        if (Math.Abs(remaining - 1) > 1e-6)
+        {
+            stages.Add(remaining);
+        }
+
+        return stages.Count == 0
+            ? string.Empty
+            : "," + string.Join(",", stages.Select(s => FormattableString.Invariant($"atempo={s}")));
+    }
     private static string TransitionName(ClipTransitionType type) => type switch
     {
         ClipTransitionType.Fade => "fade",

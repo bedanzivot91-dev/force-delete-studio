@@ -47,8 +47,11 @@ public sealed class TimelineEditSessionCloneRegressionTests
 
         var rangedClip = previewRange.Tracks.Single().Clips.Single();
         Assert.Equal(0, rangedClip.TimelineStartSeconds, 6);
-        Assert.Equal(2, rangedClip.SourceTrimInSeconds, 6);
-        Assert.Equal(5, rangedClip.SourceTrimOutSeconds, 6);
+        // The clip runs at 1.5x, so one second on the authored timeline advances 1.5 seconds
+        // through the source media. Range 4..7 therefore maps source 2.5..7.0, not the old
+        // speed-ignorant 2..5 expectation.
+        Assert.Equal(2.5, rangedClip.SourceTrimInSeconds, 6);
+        Assert.Equal(7, rangedClip.SourceTrimOutSeconds, 6);
         AssertPictureState(rangedClip);
     }
 
