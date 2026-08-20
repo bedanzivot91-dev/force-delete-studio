@@ -33,25 +33,28 @@ jobs:
           $deadline = (Get-Date).AddMinutes(55)
           $sourceRun = $null
           while ((Get-Date) -lt $deadline) {
-            $json = gh run list --workflow windows-build.yml --branch $env:HEAD_BRANCH --event pull_request --limit 30 --json databaseId,headSha,status,conclusion,createdAt
-            if ($LASTEXITCODE -ne 0) { throw "gh run list failed" }
-            $runs = @($json | ConvertFrom-Json)
-            $sourceRun = $runs | Where-Object { $_.headSha -eq $env:TARGET_SHA } | Sort-Object createdAt -Descending | Select-Object -First 1
+            $json = gh api "/repos/$env:GITHUB_REPOSITORY/actions/workflows/windows-build.yml/runs?event=pull_request&per_page=50"
+            if ($LASTEXITCODE -ne 0) { throw "gh api workflow runs failed" }
+            $payload = $json | ConvertFrom-Json
+            $sourceRun = @($payload.workflow_runs) |
+              Where-Object { $_.head_sha -eq $env:TARGET_SHA } |
+              Sort-Object created_at -Descending |
+              Select-Object -First 1
             if ($sourceRun) {
-              Write-Host "Windows source run $($sourceRun.databaseId): status=$($sourceRun.status) conclusion=$($sourceRun.conclusion) sha=$($sourceRun.headSha)"
+              Write-Host "Windows source run $($sourceRun.id): status=$($sourceRun.status) conclusion=$($sourceRun.conclusion) sha=$($sourceRun.head_sha)"
               if ($sourceRun.status -eq "completed") {
                 if ($sourceRun.conclusion -ne "success") { throw "The full Windows build for the same commit did not succeed: $($sourceRun.conclusion)" }
                 break
               }
             } else {
-              Write-Host "Full Windows run for $env:TARGET_SHA is not visible yet."
+              Write-Host "Full Windows run for exact head $env:TARGET_SHA is not visible yet."
             }
             Start-Sleep -Seconds 20
           }
           if (-not $sourceRun -or $sourceRun.status -ne "completed" -or $sourceRun.conclusion -ne "success") {
             throw "Timed out waiting for successful Windows build for exact head $env:TARGET_SHA"
           }
-          "SOURCE_RUN_ID=$($sourceRun.databaseId)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SOURCE_RUN_ID=$($sourceRun.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Download the exact full-offline artifact
         shell: powershell
