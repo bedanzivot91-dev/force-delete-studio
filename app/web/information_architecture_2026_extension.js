@@ -37,6 +37,7 @@
     .ia2026-grid{display:grid;grid-template-columns:repeat(2,minmax(300px,1fr));gap:12px;padding:14px}
     .ia2026-grid>.tool-card,.ia2026-grid>.panel{margin:0!important;height:100%}
     .ia2026-empty-source{display:none!important}
+    .ia2026-history-count{display:inline-flex;align-items:center;justify-content:center;min-width:34px;min-height:28px;padding:4px 9px;border:1px solid var(--m-line,rgba(148,163,184,.16));border-radius:999px;background:var(--m-accent-soft,rgba(124,92,255,.16));color:var(--m-text,#f6f9ff);font-weight:800}
     @media(max-width:980px){.ia2026-grid{grid-template-columns:1fr}.ia2026-section>summary{align-items:flex-start;flex-direction:column}.ia2026-section>summary small{text-align:left}}
   `;
   document.head.appendChild(css);
@@ -46,6 +47,25 @@
   const audio = document.getElementById('view-audio');
   const importView = document.getElementById('view-import');
   const settings = document.getElementById('view-settings');
+  const recognition = document.getElementById('view-recognition');
+
+  // app.js has always updated recognitionHistoryCount when status/history loads,
+  // but the historical HTML never created the element. Complete that control
+  // instead of keeping a silent optional reference that can never be visible.
+  if (recognition && !document.getElementById('recognitionHistoryCount')) {
+    const historyHeading = [...recognition.querySelectorAll('.section-title')].find(section =>
+      (section.querySelector('h3')?.textContent || '').trim() === 'Istorija AudD pokušaja'
+    );
+    if (historyHeading) {
+      const count = document.createElement('span');
+      count.id = 'recognitionHistoryCount';
+      count.className = 'ia2026-history-count';
+      count.textContent = String(Array.isArray(state?.recognitionHistory) ? state.recognitionHistory.length : 0);
+      count.title = 'Broj sačuvanih AudD pokušaja';
+      historyHeading.appendChild(count);
+    }
+  }
+
   if (!tools || !library || !audio || !importView || !settings) return;
 
   const toolGrid = tools.querySelector('.tool-grid');
