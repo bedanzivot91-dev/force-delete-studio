@@ -1,0 +1,223 @@
+name: Real installed Windows package regression
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "plugins/**"
+      - "windows_build/**"
+      - "requirements-core.txt"
+      - ".github/workflows/windows-build.yml"
+      - ".github/workflows/real-installed-package-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  real-installed-package:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      PACKAGE_NAME: Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for the full Windows package from the SAME commit
+        shell: powershell
+        run: |
+          $deadline = (Get-Date).AddMinutes(55)
+          $sourceRun = $null
+          while ((Get-Date) -lt $deadline) {
+            $json = gh run list --workflow windows-build.yml --branch $env:HEAD_BRANCH --event pull_request --limit 30 --json databaseId,headSha,status,conclusion,createdAt
+            if ($LASTEXITCODE -ne 0) { throw "gh run list failed" }
+            $runs = @($json | ConvertFrom-Json)
+            $sourceRun = $runs | Where-Object { $_.headSha -eq $env:TARGET_SHA } | Sort-Object createdAt -Descending | Select-Object -First 1
+            if ($sourceRun) {
+              Write-Host "Windows source run $($sourceRun.databaseId): status=$($sourceRun.status) conclusion=$($sourceRun.conclusion) sha=$($sourceRun.headSha)"
+              if ($sourceRun.status -eq "completed") {
+                if ($sourceRun.conclusion -ne "success") { throw "The full Windows build for the same commit did not succeed: $($sourceRun.conclusion)" }
+                break
+              }
+            } else {
+              Write-Host "Full Windows run for $env:TARGET_SHA is not visible yet."
+            }
+            Start-Sleep -Seconds 20
+          }
+          if (-not $sourceRun -or $sourceRun.status -ne "completed" -or $sourceRun.conclusion -ne "success") {
+            throw "Timed out waiting for successful Windows build for exact head $env:TARGET_SHA"
+          }
+          "SOURCE_RUN_ID=$($sourceRun.databaseId)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Download the exact full-offline artifact
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path artifact-download | Out-Null
+          gh run download $env:SOURCE_RUN_ID -n $env:PACKAGE_NAME -D artifact-download
+          if ($LASTEXITCODE -ne 0) { throw "Could not download $env:PACKAGE_NAME from run $env:SOURCE_RUN_ID" }
+          $zip = Get-ChildItem artifact-download -Filter "*.zip" -File | Select-Object -First 1
+          if (-not $zip) { throw "Downloaded artifact does not contain the expected inner ZIP" }
+          $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Exact tested ZIP: $($zip.FullName) SHA256=$hash size=$($zip.Length)"
+          "TESTED_ZIP=$($zip.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TESTED_ZIP_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Expand exact package and validate required payload
+        shell: powershell
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP "sps-real-install-release"
+          if (Test-Path -LiteralPath $probe) { Remove-Item -LiteralPath $probe -Recurse -Force }
+          Expand-Archive -LiteralPath $env:TESTED_ZIP -DestinationPath $probe -Force
+          $release = Join-Path $probe $env:PACKAGE_NAME
+          $required = @(
+            "INSTALIRAJ_PROGRAM.exe",
+            "MANIFEST_SHA256.txt",
+            "Program\Suno Pesme Studio.exe",
+            "Program\Deinstaliraj Suno Pesme Studio.exe",
+            "Program\app\youtube_match_recovery.py",
+            "Program\app\youtube_reconcile_fixes.py",
+            "Program\app\web\modern_2026_shell_extension.js",
+            "Program\app\web\modern_2026_navigation_final.js"
+          )
+          foreach ($rel in $required) {
+            $p = Join-Path $release $rel
+            if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { throw "Exact release is missing $rel" }
+          }
+          "RELEASE_ROOT=$release" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Real clean install 1 - native GUI, backend, Suno wiring, functional status, uninstall
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $cycle = "1"
+          $profile = Join-Path $env:RUNNER_TEMP "sps-real-profile-$cycle"
+          $env:USERPROFILE = $profile
+          $env:APPDATA = Join-Path $profile "AppData\Roaming"
+          $env:LOCALAPPDATA = Join-Path $profile "AppData\Local"
+          New-Item -ItemType Directory -Force -Path $env:APPDATA,$env:LOCALAPPDATA | Out-Null
+          $installRoot = Join-Path $env:RUNNER_TEMP "Suno-Pesme-Studio-real-install-$cycle"
+          $installer = Join-Path $env:RELEASE_ROOT "INSTALIRAJ_PROGRAM.exe"
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("--ci-install", $installRoot) -Wait -PassThru -NoNewWindow
+          if ($install.ExitCode -ne 0) { throw "Real installer cycle $cycle failed with exit code $($install.ExitCode)" }
+          $activeFile = Join-Path $installRoot "AKTIVNA_VERZIJA.txt"
+          if (-not (Test-Path -LiteralPath $activeFile)) { throw "Installer did not create AKTIVNA_VERZIJA.txt" }
+          $versionDir = (Get-Content -LiteralPath $activeFile -Raw).Trim()
+          $app = Join-Path $versionDir "Suno Pesme Studio.exe"
+          $uninstaller = Join-Path $versionDir "Deinstaliraj Suno Pesme Studio.exe"
+          if (-not (Test-Path -LiteralPath $app)) { throw "Installed GUI executable is missing" }
+          if (-not (Test-Path -LiteralPath $uninstaller)) { throw "Installed uninstaller is missing" }
+          if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SunoPesmeStudio")) { throw "Installer did not register uninstall metadata" }
+
+          $gui = Start-Process -FilePath $app -PassThru
+          $healthy = $false
+          $windowReady = $false
+          for ($i=0; $i -lt 180; $i++) {
+            Start-Sleep -Milliseconds 500
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 2
+              if ($health.ok) { $healthy = $true }
+            } catch {}
+            try {
+              $p = Get-Process -Id $gui.Id -ErrorAction Stop
+              $p.Refresh()
+              if ($p.MainWindowHandle -ne 0 -and $p.MainWindowTitle -match "Suno Pesme Studio") { $windowReady = $true }
+            } catch {}
+            if ($healthy -and $windowReady) { break }
+          }
+          if (-not $healthy) { throw "Installed application never exposed a healthy production backend" }
+          if (-not $windowReady) { throw "Installed native WebView2 GUI never produced a responsive main window" }
+
+          $home = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -UseBasicParsing -TimeoutSec 5
+          $bundle = Invoke-WebRequest -Uri "http://127.0.0.1:8765/assets/app.js" -UseBasicParsing -TimeoutSec 10
+          if ($home.Content -notmatch 'id="connectBtn"' -or $home.Content -notmatch 'Poveži Suno') { throw "Installed UI does not expose the Suno connection control" }
+          if ($bundle.Content -notmatch '/api/connect/start') { throw "Installed Suno button is not wired to the real connection endpoint" }
+          if ($bundle.Content -notmatch '2026 WORKSPACE · MATCH RECOVERY') { throw "Installed app.js is missing the final 2026 shell marker" }
+          if ($bundle.Content -notmatch 'YOUTUBE I OBJAVA') { throw "Installed app.js is missing final navigation grouping" }
+          if ($bundle.Content -notmatch 'productionWorkspace') { throw "Installed app.js is missing Video Studio workspace" }
+
+          $status = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/status" -TimeoutSec 5
+          $finder = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/song-finder/status" -TimeoutSec 5
+          if ($null -eq $status -or $null -eq $finder) { throw "Installed functional status endpoints did not answer" }
+
+          $tempUninstaller = Join-Path $env:RUNNER_TEMP "sps-ci-uninstall-$cycle.exe"
+          Copy-Item -LiteralPath $uninstaller -Destination $tempUninstaller -Force
+          $remove = Start-Process -FilePath $tempUninstaller -ArgumentList @("--ci-remove", $installRoot, "true") -Wait -PassThru -NoNewWindow
+          if ($remove.ExitCode -ne 0) { throw "Real uninstall cycle $cycle failed with exit code $($remove.ExitCode)" }
+          if (Test-Path -LiteralPath $installRoot) { throw "Install directory still exists after real uninstall cycle $cycle" }
+          if (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SunoPesmeStudio") { throw "Uninstall registry entry still exists after cycle $cycle" }
+          Remove-Item -LiteralPath $tempUninstaller -Force -ErrorAction SilentlyContinue
+          Write-Host "REAL INSTALL CYCLE 1 PASS: installer -> installed native GUI -> backend -> Suno wiring -> status tools -> uninstall"
+
+      - name: Real clean install 2 - repeat from zero and uninstall again
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $cycle = "2"
+          $profile = Join-Path $env:RUNNER_TEMP "sps-real-profile-$cycle"
+          $env:USERPROFILE = $profile
+          $env:APPDATA = Join-Path $profile "AppData\Roaming"
+          $env:LOCALAPPDATA = Join-Path $profile "AppData\Local"
+          New-Item -ItemType Directory -Force -Path $env:APPDATA,$env:LOCALAPPDATA | Out-Null
+          $installRoot = Join-Path $env:RUNNER_TEMP "Suno-Pesme-Studio-real-install-$cycle"
+          $installer = Join-Path $env:RELEASE_ROOT "INSTALIRAJ_PROGRAM.exe"
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("--ci-install", $installRoot) -Wait -PassThru -NoNewWindow
+          if ($install.ExitCode -ne 0) { throw "Second clean installer failed with exit code $($install.ExitCode)" }
+          $versionDir = (Get-Content -LiteralPath (Join-Path $installRoot "AKTIVNA_VERZIJA.txt") -Raw).Trim()
+          $app = Join-Path $versionDir "Suno Pesme Studio.exe"
+          $uninstaller = Join-Path $versionDir "Deinstaliraj Suno Pesme Studio.exe"
+          $gui = Start-Process -FilePath $app -PassThru
+          $healthy = $false
+          $windowReady = $false
+          for ($i=0; $i -lt 180; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { $h = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 2; if ($h.ok) { $healthy = $true } } catch {}
+            try { $p = Get-Process -Id $gui.Id -ErrorAction Stop; $p.Refresh(); if ($p.MainWindowHandle -ne 0 -and $p.MainWindowTitle -match "Suno Pesme Studio") { $windowReady = $true } } catch {}
+            if ($healthy -and $windowReady) { break }
+          }
+          if (-not $healthy -or -not $windowReady) { throw "Second clean installed application did not reach healthy native GUI state" }
+          $bundle = Invoke-WebRequest -Uri "http://127.0.0.1:8765/assets/app.js" -UseBasicParsing -TimeoutSec 10
+          if ($bundle.Content -notmatch '2026 WORKSPACE · MATCH RECOVERY' -or $bundle.Content -notmatch 'YOUTUBE I OBJAVA') { throw "Second clean install is not serving the final UI bundle" }
+
+          $tempUninstaller = Join-Path $env:RUNNER_TEMP "sps-ci-uninstall-$cycle.exe"
+          Copy-Item -LiteralPath $uninstaller -Destination $tempUninstaller -Force
+          $remove = Start-Process -FilePath $tempUninstaller -ArgumentList @("--ci-remove", $installRoot, "true") -Wait -PassThru -NoNewWindow
+          if ($remove.ExitCode -ne 0) { throw "Second real uninstall failed with exit code $($remove.ExitCode)" }
+          if (Test-Path -LiteralPath $installRoot) { throw "Second install directory still exists after uninstall" }
+          Remove-Item -LiteralPath $tempUninstaller -Force -ErrorAction SilentlyContinue
+          Write-Host "REAL INSTALL CYCLE 2 PASS: second clean install -> native GUI/backend -> final bundle -> uninstall"
+
+      - name: Write real-install evidence
+        shell: powershell
+        run: |
+          @"
+          head_sha=$env:TARGET_SHA
+          source_windows_run=$env:SOURCE_RUN_ID
+          tested_zip_sha256=$env:TESTED_ZIP_SHA256
+          install_cycle_1=PASS
+          native_gui_cycle_1=PASS
+          backend_cycle_1=PASS
+          suno_wiring_cycle_1=PASS
+          functional_status_cycle_1=PASS
+          uninstall_cycle_1=PASS
+          install_cycle_2=PASS
+          native_gui_cycle_2=PASS
+          backend_cycle_2=PASS
+          final_ui_bundle_cycle_2=PASS
+          uninstall_cycle_2=PASS
+          "@ | Set-Content -Encoding ascii real-install-evidence.txt
+          Get-Content real-install-evidence.txt
+
+      - name: Upload the exact ZIP only after both real install cycles pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Suno-Pesme-Studio-v3.3.2-WINDOWS-REAL-INSTALL-VERIFIED
+          path: |
+            ${{ env.TESTED_ZIP }}
+            real-install-evidence.txt
+          if-no-files-found: error
