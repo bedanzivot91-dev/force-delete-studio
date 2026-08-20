@@ -1,12 +1,56 @@
 namespace NPVideoStudio.Domain;
 
-/// <summary>Video codecs the render pipeline can target (spec Phase 9), with automatic fallback to Libx264 if a hardware encoder isn't available/fails.</summary>
+/// <summary>Video codecs the real FFmpeg render pipeline can target. Hardware H.264 encoders automatically
+/// fall back to libx264 when unavailable; software codecs fail honestly instead of silently changing format.</summary>
 public enum VideoCodec
 {
     Libx264,
     H264Nvenc,
     H264Qsv,
-    H264Amf
+    H264Amf,
+    Libx265,
+    LibvpxVp9,
+    LibaomAv1
+}
+
+/// <summary>Container/output choices exposed by the export UI. M4A/MP3/WAV/FLAC are audio-only.</summary>
+public enum ExportFormat
+{
+    Mp4,
+    Mov,
+    WebM,
+    M4a,
+    Mp3,
+    Wav,
+    Flac
+}
+
+public static class ExportFormatInfo
+{
+    public static bool IsAudioOnly(this ExportFormat format) => format is
+        ExportFormat.M4a or ExportFormat.Mp3 or ExportFormat.Wav or ExportFormat.Flac;
+
+    public static string Extension(this ExportFormat format) => format switch
+    {
+        ExportFormat.Mp4 => ".mp4",
+        ExportFormat.Mov => ".mov",
+        ExportFormat.WebM => ".webm",
+        ExportFormat.M4a => ".m4a",
+        ExportFormat.Mp3 => ".mp3",
+        ExportFormat.Wav => ".wav",
+        ExportFormat.Flac => ".flac",
+        _ => ".mp4"
+    };
+
+    public static bool SupportsVideoCodec(this ExportFormat format, VideoCodec codec) => format switch
+    {
+        ExportFormat.Mp4 => codec is VideoCodec.Libx264 or VideoCodec.H264Nvenc or VideoCodec.H264Qsv or
+            VideoCodec.H264Amf or VideoCodec.Libx265 or VideoCodec.LibaomAv1,
+        ExportFormat.Mov => codec is VideoCodec.Libx264 or VideoCodec.H264Nvenc or VideoCodec.H264Qsv or
+            VideoCodec.H264Amf or VideoCodec.Libx265,
+        ExportFormat.WebM => codec is VideoCodec.LibvpxVp9 or VideoCodec.LibaomAv1,
+        _ => false
+    };
 }
 
 public enum RenderJobStatus
@@ -19,11 +63,12 @@ public enum RenderJobStatus
 }
 
 /// <summary>
-/// Render/export settings (spec Phase 9 defaults): MP4/H.264/CRF 18/preset medium/AAC 192kbps, keep
-/// original resolution/fps/rotation, +faststart, keep original audio unless the user changes it.
+/// Persisted settings for one export. Defaults preserve the original reliable MP4/H.264/AAC path while
+/// allowing professional container/codec and audio-only choices through the same render service.
 /// </summary>
 public sealed class RenderSettings
 {
+    public ExportFormat Format { get; set; } = ExportFormat.Mp4;
     public VideoCodec Codec { get; set; } = VideoCodec.Libx264;
     public int Crf { get; set; } = 18;
     public string Preset { get; set; } = "medium";
@@ -32,7 +77,7 @@ public sealed class RenderSettings
     public bool OverwriteConfirmed { get; set; }
 }
 
-/// <summary>One queued/running/finished export job (spec Phase 9: "multiple queued export jobs").</summary>
+/// <summary>One queued/running/finished export job.</summary>
 public sealed class RenderJob
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
