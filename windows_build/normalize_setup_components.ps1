@@ -51,7 +51,7 @@ function Install-CIChromaprintFFmpeg {
     }
     $expected = (($checksumLine -split '\s+')[0]).Trim().ToLowerInvariant()
     if ($expected -notmatch '^[0-9a-f]{64}$') {
-        throw "Invalid BtbN SHA-256 value for $fileName: $expected"
+        throw "Invalid BtbN SHA-256 value for ${fileName}: $expected"
     }
 
     Write-Host 'Downloading BtbN full GPL FFmpeg with Chromaprint...'
