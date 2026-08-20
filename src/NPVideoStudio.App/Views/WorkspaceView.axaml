@@ -247,11 +247,13 @@
                 <ToggleButton Content="Reverse" IsChecked="{Binding IsReversed}" Margin="0,0,8,4"/>
                 <ToggleButton Content="Freeze frame" IsChecked="{Binding IsFreezeFrame}" Margin="0,0,8,4"/>
               </WrapPanel>
-              <TextBlock Text="GREEN SCREEN / CHROMA KEY" Classes="eyebrow" Margin="0,8,0,0" />
-              <ToggleButton Content="Uključi Chroma Key" IsChecked="{Binding ChromaKeyEnabled}"/>
-              <TextBlock Text="Boja (#RRGGBB)" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
-              <TextBlock Text="Sličnost" Classes="subtle"/><Slider Minimum="0.01" Maximum="1" Value="{Binding ChromaKeySimilarity}"/>
-              <TextBlock Text="Feather / blend" Classes="subtle"/><Slider Minimum="0" Maximum="1" Value="{Binding ChromaKeyBlend}"/>
+              <StackPanel Spacing="4" IsVisible="{Binding IsOverlayClip}">
+                <TextBlock Text="GREEN SCREEN / CHROMA KEY" Classes="eyebrow" Margin="0,8,0,0" />
+                <ToggleButton Content="Uključi Chroma Key" IsChecked="{Binding ChromaKeyEnabled}"/>
+                <TextBlock Text="Boja (#RRGGBB)" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
+                <TextBlock Text="Sličnost" Classes="subtle"/><Slider Minimum="0.01" Maximum="1" Value="{Binding ChromaKeySimilarity}"/>
+                <TextBlock Text="Feather / blend" Classes="subtle"/><Slider Minimum="0" Maximum="1" Value="{Binding ChromaKeyBlend}"/>
+              </StackPanel>
             </StackPanel>
           </StackPanel>
         </ScrollViewer>
