@@ -30,6 +30,11 @@ jobs:
         run: |
           python -m py_compile app\youtube_reconcile_fixes.py
           python -m py_compile app\workspace_backend.py
+      - name: Syntax-check Studio UI extensions
+        run: |
+          node --check app\web\production_workspace_extension.js
+          node --check app\web\startup_guard_extension.js
+          node --check app\web\organized_ui_extension.js
       - name: Verify startup no longer auto-starts full fingerprinting
         run: |
           python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); assert 'autoRefreshSongFinderIndex =' in p; assert 'runSongFinderIndex(false)' not in p; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired')"
