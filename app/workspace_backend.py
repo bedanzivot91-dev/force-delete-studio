@@ -140,10 +140,6 @@ def apply(core: Any) -> dict[str, Any]:
 
     core.v3_lyric_video_task = v3_lyric_video_task
 
-    # Order matters: reconciliation wraps the optimized runtime matcher first;
-    # unbounded operations then use that corrected matcher while removing only
-    # application quantity ceilings. Selection is independent and can be exact
-    # or unlimited without tying itself to the UI page size.
     from youtube_reconcile_fixes import apply as apply_youtube_reconcile
     from selection_fixes import apply as apply_selection_fixes
     from unbounded_operations import apply as apply_unbounded_operations
