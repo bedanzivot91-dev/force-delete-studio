@@ -3,6 +3,8 @@ name: YouTube-Suno reconciliation regression
 on:
   pull_request:
     paths:
+      - "app/runtime_fixes.py"
+      - "app/server.py"
       - "app/youtube_reconcile_fixes.py"
       - "app/unbounded_operations.py"
       - "app/selection_fixes.py"
@@ -20,6 +22,7 @@ on:
       - "app/web/modern_2026_compat_extension.js"
       - "app/web/modern_2026_isolation_extension.js"
       - "app/web/modern_2026_legibility_extension.js"
+      - "tests/youtube_pipeline_fix_test.py"
       - "tests/youtube_reconcile_fix_test.py"
       - "tests/unbounded_operations_test.py"
       - "tests/modern_2026_ui_test.py"
@@ -44,6 +47,8 @@ jobs:
         run: python -m pip install --upgrade pip -r requirements-core.txt
       - name: Compile runtime modules
         run: |
+          python -m py_compile app\runtime_fixes.py
+          python -m py_compile app\server.py
           python -m py_compile app\youtube_reconcile_fixes.py
           python -m py_compile app\unbounded_operations.py
           python -m py_compile app\selection_fixes.py
@@ -65,9 +70,11 @@ jobs:
           node --check app\web\modern_2026_legibility_extension.js
       - name: Verify startup no longer auto-starts full fingerprinting
         run: |
-          python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); assert 'autoRefreshSongFinderIndex =' in p; assert 'runSongFinderIndex(false)' not in p; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired')"
+          python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); marker='autoRefreshSongFinderIndex = async function'; assert marker in p; body=p.split(marker,1)[1].split('})();',1)[0]; assert 'runSongFinderIndex(false)' not in body; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired and non-blocking')"
       - name: Verify unlimited and exact-count semantics
         run: python tests\unbounded_operations_test.py
+      - name: Verify YouTube performance/runtime fixes
+        run: python tests\youtube_pipeline_fix_test.py
       - name: Verify modern 2026 UI layout and legibility
         run: python tests\modern_2026_ui_test.py
       - name: Enforce readable typography floor
