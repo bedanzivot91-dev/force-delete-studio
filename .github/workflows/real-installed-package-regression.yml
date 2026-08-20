@@ -218,6 +218,6 @@ jobs:
         with:
           name: Suno-Pesme-Studio-v3.3.2-WINDOWS-REAL-INSTALL-VERIFIED
           path: |
-            ${{ env.TESTED_ZIP }}
+            artifact-download/*.zip
             real-install-evidence.txt
           if-no-files-found: error
