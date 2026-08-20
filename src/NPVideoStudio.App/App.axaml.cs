@@ -135,7 +135,7 @@ public partial class App : Avalonia.Application
                 }
             };
 
-            _ = mainWindowViewModel.InitializeAsync();
+            _ = InitializeMainWindowAsync(mainWindowViewModel, desktop.Args);
 
             // Optional and user-controlled. Default is NotifyOnly, so a large Python/model download is
             // never started merely because the application opened. Automatic mode updates only the
@@ -148,6 +148,38 @@ public partial class App : Avalonia.Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async Task InitializeMainWindowAsync(MainWindowViewModel mainWindowViewModel, string[]? args)
+    {
+        await mainWindowViewModel.InitializeAsync();
+
+        var startupProjectPath = ResolveStartupProjectPath(args);
+        if (startupProjectPath is null)
+        {
+            return;
+        }
+
+        // ShowStartScreenAsync has already wired ProjectOpened to OpenWorkspace. Reuse that exact path
+        // instead of implementing a second file-association-only loader that could drift from normal Open.
+        if (mainWindowViewModel.CurrentPage is StartScreenViewModel startScreen)
+        {
+            await startScreen.OpenProjectPathAsync(startupProjectPath);
+        }
+    }
+
+    /// <summary>Returns the first command-line project path registered by the Windows file association.
+    /// Options and unrelated files are ignored; extension matching is case-insensitive.</summary>
+    public static string? ResolveStartupProjectPath(IEnumerable<string>? args)
+    {
+        if (args is null)
+        {
+            return null;
+        }
+
+        return args.FirstOrDefault(arg =>
+            !string.IsNullOrWhiteSpace(arg) &&
+            string.Equals(Path.GetExtension(arg), ".npvsproject", StringComparison.OrdinalIgnoreCase));
     }
 
     internal Window? MainWindowRef { get; private set; }
