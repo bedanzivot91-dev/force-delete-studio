@@ -13,13 +13,17 @@ function Replace-Once([string]$Text, [string]$Old, [string]$New, [string]$Label)
     return $Text.Substring(0, $i) + $New + $Text.Substring($i + $Old.Length)
 }
 
-# The blend implementation no longer uses maskedmerge. Test the replacement path instead.
+# The blend implementation no longer uses maskedmerge/alphaextract. Test the replacement path instead.
 $path = 'tests/NPVideoStudio.UnitTests/CapCutP2MasksBlendTests.cs'
 $t = Read-Utf8 $path
 $t = Replace-Once $t `
 '        Assert.Contains("maskedmerge", plan.FilterComplexArgument);' `
 '        Assert.Contains("lutrgb=a=255", plan.FilterComplexArgument);' `
 'updated neutral blend graph assertion'
+$t = Replace-Once $t `
+'        Assert.Contains("alphaextract", plan.FilterComplexArgument);' `
+'        Assert.Contains("blend=all_mode=screen", plan.FilterComplexArgument);' `
+'updated blend mode graph assertion'
 Write-Utf8 $path $t
 
 # Project defaults to 1920x1080. The source clips are 320x240 (4:3), so the old pixel (160,120)
