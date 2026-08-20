@@ -5,11 +5,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SHELL = ROOT / "app" / "web" / "modern_2026_shell_extension.js"
+NAV_FINAL = ROOT / "app" / "web" / "modern_2026_navigation_final.js"
 BACKEND = ROOT / "app" / "workspace_backend.py"
 
 
 def main() -> None:
     shell = SHELL.read_text(encoding="utf-8")
+    nav_final = NAV_FINAL.read_text(encoding="utf-8")
     backend = BACKEND.read_text(encoding="utf-8")
 
     assert "sps-shell-2026" in shell
@@ -30,15 +32,25 @@ def main() -> None:
     assert min(sizes) >= 12.5, f"2026 shell contains unreadable font size: {min(sizes)}px"
     assert max(sizes) >= 28.0, "workspace heading is not visually distinct"
 
+    # Final grouping deliberately corrects the last remaining logical scatter:
+    # recognition/song-finder is an audio tool, while release belongs with
+    # YouTube/publication. Existing nav buttons are moved, never cloned.
+    assert "['AUDIO I VIDEO', ['recognition','audio','production']]" in nav_final
+    assert "['YOUTUBE I OBJAVA', ['release','tools']]" in nav_final
+    assert "section.appendChild(button)" in nav_final
+    assert "spsFinalNav2026Marker" in nav_final
+
     legibility_pos = backend.index('modern_2026_legibility_extension.js')
     shell_pos = backend.index('modern_2026_shell_extension.js')
+    nav_pos = backend.index('modern_2026_navigation_final.js')
     assert shell_pos > legibility_pos, "2026 shell must load after every legacy/legibility layer"
+    assert nav_pos > shell_pos, "final logical navigation grouping must run after the shell"
 
     unbounded_pos = backend.index('apply_unbounded_operations(core)')
     recovery_pos = backend.index('apply_youtube_match_recovery(core)')
     assert recovery_pos > unbounded_pos, "YouTube match recovery must wrap the final unbounded scanner"
 
-    print("modern_2026_shell_test: PASS — final shell + readable type + organized navigation")
+    print("modern_2026_shell_test: PASS — final shell + readable type + logically grouped navigation")
 
 
 if __name__ == "__main__":
