@@ -1,0 +1,38 @@
+name: Shorts matching + 2026 shell regression
+
+on:
+  pull_request:
+    paths:
+      - "app/youtube_match_recovery.py"
+      - "app/workspace_backend.py"
+      - "app/web/modern_2026_shell_extension.js"
+      - "tests/youtube_match_recovery_test.py"
+      - "tests/modern_2026_shell_test.py"
+      - ".github/workflows/shorts-ui-recovery-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shorts-ui-recovery:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile recovery runtime
+        run: |
+          python -m py_compile app\youtube_match_recovery.py
+          python -m py_compile app\workspace_backend.py
+      - name: Syntax-check final 2026 shell
+        run: node --check app\web\modern_2026_shell_extension.js
+      - name: Verify owned Shorts recovery
+        run: python tests\youtube_match_recovery_test.py
+      - name: Verify final 2026 shell hierarchy
+        run: python tests\modern_2026_shell_test.py
