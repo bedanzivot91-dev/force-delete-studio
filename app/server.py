@@ -260,6 +260,13 @@ from runtime_fixes import apply as _apply_runtime_fixes
 _RUNTIME_FIX_EXPORTS = _apply_runtime_fixes(_core)
 globals().update(_RUNTIME_FIX_EXPORTS)
 
+# The renderer already had the capabilities below; this bridge makes the new
+# workspace pass its real colour/waveform options into that renderer instead of
+# showing controls that have no effect.
+from workspace_backend import apply as _apply_workspace_backend
+_WORKSPACE_EXPORTS = _apply_workspace_backend(_core)
+globals().update(_WORKSPACE_EXPORTS)
+
 
 def main() -> None:
     return _core.main()
