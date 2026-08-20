@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/capcut-p1-speed-sync
+  workflow_dispatch:
 
 permissions:
   contents: write
