@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,8 +12,11 @@ import youtube_match_recovery
 
 
 class _Task:
-    def __init__(self):
+    def __init__(self, task_type=""):
         self.logs = []
+        self.type = task_type
+        self.status = "running"
+        self.cancel_event = threading.Event()
 
     def log(self, message, level="info"):
         self.logs.append((level, str(message)))
@@ -49,10 +53,16 @@ class _ShortCore:
         self.DB = _DB()
         self.compare_minimums = []
         self.scan_options = []
-        self._youtube_match_recovery_v1_installed = False
+        self.runtime_messages = []
+        self.started_tasks = []
+        self.metadata_pipeline_calls = []
+        self._youtube_match_recovery_v2_installed = False
         self._song_finder_shortlist = lambda sig, songs: (songs[: self.SONG_FINDER_SHORTLIST], True)
         self._analyse_video_against_songs = self._original_analyse
         self.analyze_owned_youtube_audio = self._original_scan
+        self.start_automatic_youtube_pipeline = self._original_auto_pipeline
+        self.STATE_LOCK = threading.RLock()
+        self.ACTIVE_TASK = None
 
     def required_match_seconds(self, duration):
         return max(1.0, min(4.0, float(duration) * 0.60))
@@ -76,18 +86,37 @@ class _ShortCore:
     def _original_scan(self, _task, options):
         self.scan_options.append(dict(options))
 
-    def runtime_log(self, *_args, **_kwargs):
-        pass
+    def _original_auto_pipeline(self, delay_seconds=1.5):
+        self.metadata_pipeline_calls.append(float(delay_seconds))
+
+    def start_task(self, task_type, title, target, persistent_payload=None):
+        self.started_tasks.append({
+            "type": task_type,
+            "title": title,
+            "payload": dict(persistent_payload or {}),
+            "target": target,
+        })
+        return _Task(task_type)
+
+    def runtime_log(self, message, level="info"):
+        self.runtime_messages.append((level, str(message)))
 
 
 class _FallbackCore(_ShortCore):
     def __init__(self):
         super().__init__()
-        self.pass_limits = []
+        self.pass_sizes = []
+        self.fallback_calls = 0
 
     def _original_analyse(self, _task, video, songs, _owned, _options):
-        self.pass_limits.append(int(self.SONG_FINDER_SHORTLIST))
-        if int(self.SONG_FINDER_SHORTLIST) >= len(songs):
+        self.pass_sizes.append((int(self.SONG_FINDER_SHORTLIST), len(songs)))
+        # Normal and expanded passes are deliberately weak. During exhaustive
+        # batch mode SONG_FINDER_SHORTLIST equals the batch size. Make the first
+        # 256-song batch contain the true song so the recovery must STOP there
+        # instead of wasting work on the remaining library.
+        exhaustive_batch = int(self.SONG_FINDER_SHORTLIST) >= len(songs) and len(songs) <= 256 and len(songs) > 20
+        if exhaustive_batch:
+            self.fallback_calls += 1
             return {
                 "song_id": "true-song",
                 "audio_score": 94.0,
@@ -119,32 +148,53 @@ def test_new_mode_retries_old_uncertain_results() -> None:
     youtube_match_recovery.apply(core)
     core.analyze_owned_youtube_audio(_Task(), {"scan_mode": "new", "max_videos_per_channel": 0})
     assert core.scan_options[-1]["scan_mode"] == "uncertain", core.scan_options
+    assert core.scan_options[-1]["max_videos_per_channel"] == 0
 
 
-def test_stubborn_short_falls_back_to_full_library() -> None:
+def test_stubborn_short_uses_batched_full_library_fallback() -> None:
     core = _FallbackCore()
     youtube_match_recovery.apply(core)
-    songs = [{"id": f"song-{i}"} for i in range(300)]
+    songs = [{"id": f"song-{i}"} for i in range(900)]
     result = core._analyse_video_against_songs(
         _Task(),
-        {"video_id": "short-300", "title": "quote title", "duration": 30.0},
+        {"video_id": "short-900", "title": "quote title", "duration": 30.0},
         songs,
         {"UC-owner"},
         {},
     )
-    assert core.pass_limits[0] == 20, core.pass_limits
-    assert any(limit >= 128 for limit in core.pass_limits[1:]), core.pass_limits
-    assert core.pass_limits[-1] >= 300, core.pass_limits
+    assert core.pass_sizes[0][0] == 20, core.pass_sizes
+    assert any(limit >= 128 and size == 900 for limit, size in core.pass_sizes[1:]), core.pass_sizes
+    batch_passes = [(limit, size) for limit, size in core.pass_sizes if size <= 256 and size > 20 and limit >= size]
+    assert batch_passes, core.pass_sizes
+    assert batch_passes[0][1] == 256, batch_passes
+    assert core.fallback_calls == 1, "recovery should stop after first reliable batch instead of scanning all 900 songs"
     assert result["song_id"] == "true-song", result
     assert result["completeness_status"] == "short_clip", result
     assert any("DELETE FROM youtube_matches" in sql for sql, _ in core.DB.sql), core.DB.sql
 
 
+def test_connect_pipeline_schedules_unlimited_shorts_audio_followup() -> None:
+    core = _ShortCore()
+    youtube_match_recovery.apply(core)
+    core.start_automatic_youtube_pipeline(0)
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and not core.started_tasks:
+        time.sleep(0.05)
+    assert core.metadata_pipeline_calls == [0.0], core.metadata_pipeline_calls
+    assert core.started_tasks, "automatic Shorts audio follow-up was not scheduled"
+    started = core.started_tasks[-1]
+    assert started["type"] == "youtube_audio_owned", started
+    assert started["payload"]["shorts_only"] is True, started
+    assert started["payload"]["max_videos_per_channel"] == 0, started
+    assert started["payload"]["scan_mode"] == "new", started
+
+
 def main() -> None:
     test_owned_short_uses_short_minimum_and_is_promoted()
     test_new_mode_retries_old_uncertain_results()
-    test_stubborn_short_falls_back_to_full_library()
-    print("youtube_match_recovery_test: PASS — short minimum + stale retry + exhaustive fallback")
+    test_stubborn_short_uses_batched_full_library_fallback()
+    test_connect_pipeline_schedules_unlimited_shorts_audio_followup()
+    print("youtube_match_recovery_test: PASS — short minimum + stale retry + batched fallback + auto follow-up")
 
 
 if __name__ == "__main__":
