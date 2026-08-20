@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, sys, tempfile
+import json, sys, tempfile, threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'app'))
 import server as server_module
 from database import LibraryDB
+from audio_match import pack_signature
 
 
 def main():
@@ -121,6 +122,91 @@ def main():
         matrix = db4.youtube_publication_matrix()
         assert matrix["rows"][0]["song"].get("source_url") == "https://suno.com/song/s1"
         checks.append("youtube_publication_matrix rows include source_url for the Suno-original button")
+
+    # -- NEW 3.3.2.343 regression: the internal YouTube preflight must NOT
+    # build the complete 3000-song fingerprint index. It only requests an
+    # index with finish_task=False; that path now returns immediately and lets
+    # per-video candidate fingerprints be built on demand. --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-no-full-preindex-") as raw5:
+        db5 = LibraryDB(Path(raw5) / "test.db")
+        for i in range(25):
+            db5.upsert_song({"id": f"r{i}", "title": f"Remote {i}", "audio_url": f"https://cdn.suno.com/r{i}.mp3", "duration": 120})
+        api_calls2 = {"n": 0}
+        class NeverCallClient:
+            def get_clip(self, song_id):
+                api_calls2["n"] += 1
+                raise AssertionError("YouTube preflight must not refresh every Suno song")
+        task = server_module.TaskState("youtube_audio_owned", "yt")
+        with patch.object(server_module, "DB", db5), patch.object(server_module, "get_client", return_value=NeverCallClient()):
+            server_module.song_finder_index_task(task, {"force": False, "finish_task": False})
+        assert api_calls2["n"] == 0, api_calls2
+        assert any("nije uslov" in str(row.get("message") or "") for row in task.logs), task.logs
+        checks.append("YouTube audio preflight no longer launches a full-library fingerprint pass before checking videos")
+
+    # -- Explicit indexing remains complete, but a cached fingerprint whose
+    # temporary Suno URL disappeared is reused without a network refresh. --
+    with tempfile.TemporaryDirectory(prefix="sps-yt-index-resume-") as raw6:
+        db6 = LibraryDB(Path(raw6) / "test.db")
+        db6.upsert_song({"id": "cached-only", "title": "Cached only", "audio_url": "", "duration": 90})
+        signature = {"duration": 90.0, "interval": 0.5, "features": [[1.0]], "chromaprint": [11, 22, 33, 44]}
+        db6.save_audio_fingerprint("suno", "cached-only", server_module.AUDIO_MATCH_VERSION, 90.0, 0.5, pack_signature(signature), "old-url", 0.0, 0)
+        network = {"n": 0}
+        class NoRefreshClient:
+            def get_clip(self, song_id):
+                network["n"] += 1
+                raise AssertionError("cached fingerprint should not need get_clip")
+        task2 = server_module.TaskState("song_finder_index", "index")
+        with patch.object(server_module, "DB", db6), \
+             patch.object(server_module, "get_client", return_value=NoRefreshClient()), \
+             patch.object(server_module, "get_fingerprint_index", return_value=None):
+            server_module.song_finder_index_task(task2, {"force": False, "parallelism": 2})
+        assert network["n"] == 0, network
+        assert task2.status in ("done", "partial"), task2.as_dict()
+        checks.append("explicit re-index reuses a valid cached fingerprint without rediscovering an expired Suno URL")
+
+    # -- Large-library metadata matching must avoid videos x 3000 full fuzzy
+    # comparisons when an exact/contained title is already a strong match. --
+    songs = [{"id": f"s{i}", "title": f"Pesma {i}", "duration": 180.0} for i in range(3000)]
+    video = {"video_id": "abcdefghijk", "title": "Pesma 2222 - Official Video", "duration": 180.0, "channel_id": "UCtest"}
+    calls = {"n": 0}
+    def fake_match(song, video_row, owned):
+        calls["n"] += 1
+        score = 96.0 if song.get("id") == "s2222" else 10.0
+        return {"score": score, "match_type": "owned_publication", "reason": "test"}
+    with patch.object(server_module, "match_song_to_video", side_effect=fake_match):
+        found_song, found_match = server_module._best_song_match(video, songs, {"UCtest"})
+    assert found_song and found_song["id"] == "s2222", (found_song, found_match)
+    assert calls["n"] < 500, f"strong match should not do 3000 expensive comparisons, got {calls['n']}"
+    checks.append(f"strong match in a 3000-song library is found with {calls['n']} expensive comparisons instead of 3000")
+
+    # -- Closing/refreshing the WebView while /api/status is writing must be
+    # treated as a client disconnect, not as a server crash (WinError 10053). --
+    class AbortedWriter:
+        def write(self, payload):
+            raise ConnectionAbortedError(10053, "client closed")
+    handler = object.__new__(server_module.Handler)
+    handler.wfile = AbortedWriter()
+    handler.send_response = lambda *args, **kwargs: None
+    handler.send_header = lambda *args, **kwargs: None
+    handler.end_headers = lambda *args, **kwargs: None
+    server_module.Handler._send_json(handler, {"ok": True, "test": "disconnect"})
+    checks.append("WinError/ConnectionAbortedError while writing localhost JSON is swallowed instead of killing the request thread")
+
+    # -- OAuth automatic follow-up may scan metadata, but it must never start
+    # the old heavy youtube_audio_owned pipeline by itself. --
+    started = []
+    started_event = threading.Event()
+    class DummyTask:
+        status = "running"
+    def fake_start_task(task_type, title, runner, **kwargs):
+        started.append(task_type)
+        started_event.set()
+        return DummyTask()
+    with patch.object(server_module, "ACTIVE_TASK", None), patch.object(server_module, "start_task", side_effect=fake_start_task):
+        server_module.start_automatic_youtube_pipeline(delay_seconds=0)
+        assert started_event.wait(2.0), "automatic metadata scan did not start"
+    assert started == ["youtube_owned"], started
+    checks.append("connecting YouTube starts only the lightweight metadata scan, never an automatic full audio/index job")
 
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
