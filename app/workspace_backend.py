@@ -149,11 +149,16 @@ def apply(core: Any) -> dict[str, Any]:
     from youtube_reconcile_fixes import apply as apply_youtube_reconcile
     from selection_fixes import apply as apply_selection_fixes
     from unbounded_operations import apply as apply_unbounded_operations
+    from youtube_match_recovery import apply as apply_youtube_match_recovery
 
     exports: dict[str, Any] = {"v3_lyric_video_task": v3_lyric_video_task}
     exports.update(apply_youtube_reconcile(core))
     exports.update(apply_selection_fixes(core))
     exports.update(apply_unbounded_operations(core))
+    # Must be last among YouTube backend patches: it wraps the final unbounded
+    # owned-channel analyser and turns its speed-first shortlist into a
+    # speed-first + accuracy-fallback workflow.
+    exports.update(apply_youtube_match_recovery(core))
     _install_complete_app_bundle(core)
 
     core._workspace_backend_v9_installed = True
