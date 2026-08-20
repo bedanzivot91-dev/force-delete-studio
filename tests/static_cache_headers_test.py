@@ -55,6 +55,19 @@ def main():
             # -- index.html served both via "/" and "/index.html" must both be uncached. --
             headers2, _ = req('/index.html')
             check('/index.html also sends no-store Cache-Control', 'no-store' in headers2.get('Cache-Control', ''))
+
+            # -- The production workspace intentionally ships as a small
+            # extension concatenated to the mature app.js at response time.
+            # Test the SERVED bundle, not just the source file, so packaging or
+            # wrapper regressions cannot silently make the editor disappear. --
+            _, app_bundle = req('/assets/app.js')
+            app_text = app_bundle.decode('utf-8')
+            for token in (
+                'productionWorkspace', 'pwsTimeline', 'pwsWaveCanvas',
+                '/api/subtitles/save', '/api/v3/lyric-video',
+                'Prevuci blok = pomeri', 'SAČUVAJ TITLOVE', 'RENDERUJ VIDEO',
+            ):
+                check(f'production workspace served: {token}', token in app_text)
         finally:
             proc.terminate()
             try:
