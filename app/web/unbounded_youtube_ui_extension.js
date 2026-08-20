@@ -45,17 +45,11 @@
       });
     }
 
-    // "Pages x 50" was the hidden source of the old 5k ceiling. The new
-    // streaming backend follows nextPageToken until the channel ends, so this
-    // obsolete quantity control must not keep suggesting that a channel has a
-    // page ceiling.
     const pageInput = $('youtubeChannelScanPages');
     const pageLabel = pageInput?.closest('label');
     if (pageLabel) pageLabel.classList.add('hidden');
   }
 
-  // Replace the two legacy functions BEFORE bindEvents() runs at DOMContent.
-  // Their old source contained Math.min(5000, pages*50) and a default of 100.
   scanOwnedYoutube = async function scanOwnedYoutubeNoAppLimit() {
     const limit = rememberLimit($('youtubeAudioMaxVideos')?.value ?? savedLimit());
     const scanMode = $('youtubeChannelScanMode')?.value || 'new';
@@ -123,9 +117,6 @@
     field.innerHTML = `<span class="muted" style="font-size:11px">VIDEA PO KANALU — 0 = SVI</span><input id="ytReconVideoLimit" type="number" min="0" step="1" value="${savedLimit()}" placeholder="0 = svi, ili 10 / 100 / 5000">`;
     actions.insertBefore(field, oldButton);
 
-    // organized_ui_extension attached its historical 5k listener to this old
-    // node. Replacing the node guarantees only the user-controlled handler can
-    // start a scan.
     const button = oldButton.cloneNode(true);
     button.textContent = 'PROVERI MOJE VIDEOE';
     button.title = '0 proverava sve dostupne videe; pozitivan broj je tvoj limit po kanalu.';
@@ -169,9 +160,6 @@
     actions.appendChild(note);
   }
 
-  // The old center loaded only 5,000 audio rows and 1,000 calendar rows even
-  // after a larger scan. Keep its existing rendering, then replace those two
-  // state slices with complete result sets and rerender only the affected UI.
   const originalLoadYoutubeCenter = loadYoutubeCenter;
   loadYoutubeCenter = async function loadYoutubeCenterUnbounded() {
     await originalLoadYoutubeCenter();
