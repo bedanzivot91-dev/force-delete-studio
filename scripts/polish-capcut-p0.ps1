@@ -33,9 +33,11 @@ UpdateText 'src/NPVideoStudio.App/Views/WorkspaceView.axaml' `
 '            <StackPanel Spacing="8" IsVisible="{Binding IsPictureClip}">' `
 'picture inspector visibility'
 
-UpdateText 'src/NPVideoStudio.App/Views/WorkspaceView.axaml' `
-'              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />' `
-"              <TextBlock Text=\"Brzina\" Classes=\"subtle\"/><NumericUpDown Value=\"{Binding SpeedMultiplier}\" Minimum=\"0.25\" Maximum=\"4\" Increment=\"0.25\"/>`r`n              <TextBlock Text=\"TRANSFORMACIJA\" Classes=\"eyebrow\" Margin=\"0,8,0,0\" />" `
-'workspace formatting'
+$oldSpeedLine = '              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />'
+$newSpeedLines = @'
+              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />
+'@.TrimEnd("`r", "`n")
+UpdateText 'src/NPVideoStudio.App/Views/WorkspaceView.axaml' $oldSpeedLine $newSpeedLines 'workspace formatting'
 
 Write-Host 'CapCut P0 inspector visibility and formatting polished.'
