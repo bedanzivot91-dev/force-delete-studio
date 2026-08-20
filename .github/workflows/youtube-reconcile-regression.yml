@@ -14,8 +14,10 @@ on:
       - "app/web/unbounded_youtube_ui_extension.js"
       - "app/web/studio_functionality_extension.js"
       - "app/web/workflow_cleanup_extension.js"
+      - "app/web/modern_2026_skin_extension.js"
       - "tests/youtube_reconcile_fix_test.py"
       - "tests/unbounded_operations_test.py"
+      - "tests/modern_2026_ui_test.py"
       - ".github/workflows/youtube-reconcile-regression.yml"
   workflow_dispatch:
 
@@ -48,10 +50,13 @@ jobs:
           node --check app\web\unbounded_youtube_ui_extension.js
           node --check app\web\studio_functionality_extension.js
           node --check app\web\workflow_cleanup_extension.js
+          node --check app\web\modern_2026_skin_extension.js
       - name: Verify startup no longer auto-starts full fingerprinting
         run: |
           python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); assert 'autoRefreshSongFinderIndex =' in p; assert 'runSongFinderIndex(false)' not in p; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired')"
       - name: Verify unlimited and exact-count semantics
         run: python tests\unbounded_operations_test.py
+      - name: Verify modern 2026 UI skin
+        run: python tests\modern_2026_ui_test.py
       - name: Run indexed-song/private-video/UI regression
         run: python tests\youtube_reconcile_fix_test.py
