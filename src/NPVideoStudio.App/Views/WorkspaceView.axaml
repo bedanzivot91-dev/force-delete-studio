@@ -229,7 +229,28 @@
               <TextBlock Text="Osvetljenje" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Brightness}"/>
               <TextBlock Text="Kontrast" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Contrast}"/>
               <TextBlock Text="Zasićenost" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Saturation}"/>
-              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />
+              <TextBlock Text="Rotacija (stepeni)" Classes="subtle"/><NumericUpDown Value="{Binding RotationDegrees}" Minimum="-360" Maximum="360" Increment="1"/>
+              <WrapPanel Orientation="Horizontal">
+                <ToggleButton Content="Flip horizontalno" IsChecked="{Binding FlipHorizontal}" Margin="0,0,8,4"/>
+                <ToggleButton Content="Flip vertikalno" IsChecked="{Binding FlipVertical}" Margin="0,0,8,4"/>
+              </WrapPanel>
+              <TextBlock Text="Crop (%) — levo / gore / desno / dole" Classes="subtle"/>
+              <Grid ColumnDefinitions="*,*,*,*">
+                <NumericUpDown Grid.Column="0" Value="{Binding CropLeftPercent}" Minimum="0" Maximum="45" Increment="1"/>
+                <NumericUpDown Grid.Column="1" Value="{Binding CropTopPercent}" Minimum="0" Maximum="45" Increment="1"/>
+                <NumericUpDown Grid.Column="2" Value="{Binding CropRightPercent}" Minimum="0" Maximum="45" Increment="1"/>
+                <NumericUpDown Grid.Column="3" Value="{Binding CropBottomPercent}" Minimum="0" Maximum="45" Increment="1"/>
+              </Grid>
+              <WrapPanel Orientation="Horizontal">
+                <ToggleButton Content="Reverse" IsChecked="{Binding IsReversed}" Margin="0,0,8,4"/>
+                <ToggleButton Content="Freeze frame" IsChecked="{Binding IsFreezeFrame}" Margin="0,0,8,4"/>
+              </WrapPanel>
+              <TextBlock Text="GREEN SCREEN / CHROMA KEY" Classes="eyebrow" Margin="0,8,0,0" />
+              <ToggleButton Content="Uključi Chroma Key" IsChecked="{Binding ChromaKeyEnabled}"/>
+              <TextBlock Text="Boja (#RRGGBB)" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
+              <TextBlock Text="Sličnost" Classes="subtle"/><Slider Minimum="0.01" Maximum="1" Value="{Binding ChromaKeySimilarity}"/>
+              <TextBlock Text="Feather / blend" Classes="subtle"/><Slider Minimum="0" Maximum="1" Value="{Binding ChromaKeyBlend}"/>
             </StackPanel>
           </StackPanel>
         </ScrollViewer>

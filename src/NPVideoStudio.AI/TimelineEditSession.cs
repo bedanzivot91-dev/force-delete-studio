@@ -304,6 +304,30 @@ public sealed class TimelineEditSession
         liveClip.SpeedMultiplier = Math.Clamp(speed, 0.25, 4);
     }
 
+    public void SetClipTransform(string clipId, ClipTransformSettings settings)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.RotationDegrees = Math.Clamp(settings.RotationDegrees, -360, 360);
+        liveClip.FlipHorizontal = settings.FlipHorizontal;
+        liveClip.FlipVertical = settings.FlipVertical;
+        liveClip.CropLeftPercent = Math.Clamp(settings.CropLeftPercent, 0, 45);
+        liveClip.CropTopPercent = Math.Clamp(settings.CropTopPercent, 0, 45);
+        liveClip.CropRightPercent = Math.Clamp(settings.CropRightPercent, 0, 45);
+        liveClip.CropBottomPercent = Math.Clamp(settings.CropBottomPercent, 0, 45);
+        liveClip.IsReversed = settings.IsReversed;
+        liveClip.IsFreezeFrame = settings.IsFreezeFrame;
+        liveClip.ChromaKeyEnabled = settings.ChromaKeyEnabled;
+        liveClip.ChromaKeyColor = string.IsNullOrWhiteSpace(settings.ChromaKeyColor) ? "#00FF00" : settings.ChromaKeyColor;
+        liveClip.ChromaKeySimilarity = Math.Clamp(settings.ChromaKeySimilarity, 0.01, 1.0);
+        liveClip.ChromaKeyBlend = Math.Clamp(settings.ChromaKeyBlend, 0, 1.0);
+    }
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -551,6 +575,19 @@ public sealed class TimelineEditSession
         Brightness = clip.Brightness,
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
-        SpeedMultiplier = clip.SpeedMultiplier
+        SpeedMultiplier = clip.SpeedMultiplier,
+        RotationDegrees = clip.RotationDegrees,
+        FlipHorizontal = clip.FlipHorizontal,
+        FlipVertical = clip.FlipVertical,
+        CropLeftPercent = clip.CropLeftPercent,
+        CropTopPercent = clip.CropTopPercent,
+        CropRightPercent = clip.CropRightPercent,
+        CropBottomPercent = clip.CropBottomPercent,
+        IsReversed = clip.IsReversed,
+        IsFreezeFrame = clip.IsFreezeFrame,
+        ChromaKeyEnabled = clip.ChromaKeyEnabled,
+        ChromaKeyColor = clip.ChromaKeyColor,
+        ChromaKeySimilarity = clip.ChromaKeySimilarity,
+        ChromaKeyBlend = clip.ChromaKeyBlend
     };
 }

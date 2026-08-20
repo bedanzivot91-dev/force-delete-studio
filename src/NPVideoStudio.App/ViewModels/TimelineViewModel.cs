@@ -335,12 +335,16 @@ public sealed partial class TimelineViewModel : ViewModelBase
         {
             _session.SetClipEffects(clipId, effect, brightness, contrast, saturation, speed);
             RefreshFromSession();
+        }        void OnTransformChanged(string clipId, ClipTransformSettings settings)
+        {
+            _session.SetClipTransform(clipId, settings);
+            RefreshFromSession();
         }
 
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
-            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay, OnEffectsChanged)
+            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay, OnEffectsChanged, OnTransformChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

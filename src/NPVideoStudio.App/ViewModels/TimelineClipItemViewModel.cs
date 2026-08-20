@@ -29,7 +29,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     /// <summary>(clipId, effect, brightness, contrast, saturation, speed) - routed through the session so
     /// one undo takes the whole effect change back.</summary>
-    private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
+    private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;    private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
 
     public TimelineClip Clip { get; }
     public string TrackId { get; }
@@ -167,6 +167,80 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set { if (Math.Abs(Clip.SpeedMultiplier - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, Saturation, value); }
     }
 
+    private ClipTransformSettings CurrentTransform() => new(
+        RotationDegrees, FlipHorizontal, FlipVertical,
+        CropLeftPercent, CropTopPercent, CropRightPercent, CropBottomPercent,
+        IsReversed, IsFreezeFrame, ChromaKeyEnabled, ChromaKeyColor,
+        ChromaKeySimilarity, ChromaKeyBlend);
+
+    private void PushTransform(Func<ClipTransformSettings, ClipTransformSettings> mutate) =>
+        _onTransformChanged?.Invoke(Clip.Id, mutate(CurrentTransform()));
+
+    public double RotationDegrees
+    {
+        get => Clip.RotationDegrees;
+        set { if (Math.Abs(Clip.RotationDegrees - value) < 1e-6) return; PushTransform(s => s with { RotationDegrees = value }); }
+    }
+    public bool FlipHorizontal
+    {
+        get => Clip.FlipHorizontal;
+        set { if (Clip.FlipHorizontal == value) return; PushTransform(s => s with { FlipHorizontal = value }); }
+    }
+    public bool FlipVertical
+    {
+        get => Clip.FlipVertical;
+        set { if (Clip.FlipVertical == value) return; PushTransform(s => s with { FlipVertical = value }); }
+    }
+    public double CropLeftPercent
+    {
+        get => Clip.CropLeftPercent;
+        set { if (Math.Abs(Clip.CropLeftPercent - value) < 1e-6) return; PushTransform(s => s with { CropLeftPercent = value }); }
+    }
+    public double CropTopPercent
+    {
+        get => Clip.CropTopPercent;
+        set { if (Math.Abs(Clip.CropTopPercent - value) < 1e-6) return; PushTransform(s => s with { CropTopPercent = value }); }
+    }
+    public double CropRightPercent
+    {
+        get => Clip.CropRightPercent;
+        set { if (Math.Abs(Clip.CropRightPercent - value) < 1e-6) return; PushTransform(s => s with { CropRightPercent = value }); }
+    }
+    public double CropBottomPercent
+    {
+        get => Clip.CropBottomPercent;
+        set { if (Math.Abs(Clip.CropBottomPercent - value) < 1e-6) return; PushTransform(s => s with { CropBottomPercent = value }); }
+    }
+    public bool IsReversed
+    {
+        get => Clip.IsReversed;
+        set { if (Clip.IsReversed == value) return; PushTransform(s => s with { IsReversed = value }); }
+    }
+    public bool IsFreezeFrame
+    {
+        get => Clip.IsFreezeFrame;
+        set { if (Clip.IsFreezeFrame == value) return; PushTransform(s => s with { IsFreezeFrame = value }); }
+    }
+    public bool ChromaKeyEnabled
+    {
+        get => Clip.ChromaKeyEnabled;
+        set { if (Clip.ChromaKeyEnabled == value) return; PushTransform(s => s with { ChromaKeyEnabled = value }); }
+    }
+    public string ChromaKeyColor
+    {
+        get => Clip.ChromaKeyColor;
+        set { if (Clip.ChromaKeyColor == value || string.IsNullOrWhiteSpace(value)) return; PushTransform(s => s with { ChromaKeyColor = value }); }
+    }
+    public double ChromaKeySimilarity
+    {
+        get => Clip.ChromaKeySimilarity;
+        set { if (Math.Abs(Clip.ChromaKeySimilarity - value) < 1e-6) return; PushTransform(s => s with { ChromaKeySimilarity = value }); }
+    }
+    public double ChromaKeyBlend
+    {
+        get => Clip.ChromaKeyBlend;
+        set { if (Math.Abs(Clip.ChromaKeyBlend - value) < 1e-6) return; PushTransform(s => s with { ChromaKeyBlend = value }); }
+    }
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
     /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
     /// scratch as a brand new Text-track clip, with no way to just fix a misheard word in place.</summary>
@@ -401,9 +475,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, TextAdvancedStyle>? onAdvancedStyleChanged = null,
         Action<string, double, double, double, double>? onLayerPlacementChanged = null,
         bool isOverlayClip = false,
-        Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null)
+        Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null,
+        Action<string, ClipTransformSettings>? onTransformChanged = null)
     {
-        _onEffectsChanged = onEffectsChanged;
+        _onEffectsChanged = onEffectsChanged;        _onTransformChanged = onTransformChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
         IsOverlayClip = isOverlayClip;
         Clip = clip;
