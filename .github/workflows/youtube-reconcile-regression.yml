@@ -16,6 +16,7 @@ on:
       - "app/web/workflow_cleanup_extension.js"
       - "app/web/information_architecture_2026_extension.js"
       - "app/web/modern_2026_skin_extension.js"
+      - "app/web/modern_2026_surface_coverage_extension.js"
       - "app/web/modern_2026_compat_extension.js"
       - "app/web/modern_2026_isolation_extension.js"
       - "app/web/modern_2026_legibility_extension.js"
@@ -57,6 +58,7 @@ jobs:
           node --check app\web\workflow_cleanup_extension.js
           node --check app\web\information_architecture_2026_extension.js
           node --check app\web\modern_2026_skin_extension.js
+          node --check app\web\modern_2026_surface_coverage_extension.js
           node --check app\web\modern_2026_compat_extension.js
           node --check app\web\modern_2026_isolation_extension.js
           node --check app\web\modern_2026_legibility_extension.js
