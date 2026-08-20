@@ -1,0 +1,40 @@
+name: Polish CapCut P0 inspector
+
+on:
+  pull_request:
+    branches:
+      - claude/np-video-studio-desktop-po139q
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/capcut-p0-transform-chroma
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Apply polish
+        shell: pwsh
+        run: ./scripts/polish-capcut-p0.ps1
+      - name: Restore
+        run: dotnet restore NPVideoStudio.sln
+      - name: Build
+        run: dotnet build NPVideoStudio.sln -c Release --no-restore
+      - name: Commit polish
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          git commit -m "Hide video controls from audio clips and polish P0 inspector"
+          git fetch origin agent/capcut-p0-transform-chroma
+          git rebase origin/agent/capcut-p0-transform-chroma
+          git push origin HEAD:agent/capcut-p0-transform-chroma
