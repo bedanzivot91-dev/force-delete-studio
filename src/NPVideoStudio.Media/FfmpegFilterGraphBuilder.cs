@@ -102,7 +102,9 @@ public static class FfmpegFilterGraphBuilder
             var videoFilter = new StringBuilder();
             videoFilter.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            videoFilter.Append(BuildTemporalVideoFilters(clip, duration));
             videoFilter.Append(BuildSpeedFilter(clip));
+            videoFilter.Append(BuildTransformFilters(clip));
             videoFilter.Append(FormattableString.Invariant(
                 $",scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"));
             videoFilter.Append(BuildEffectFilters(clip));
@@ -121,7 +123,11 @@ public static class FfmpegFilterGraphBuilder
             var audioFilter = new StringBuilder();
             var volume = clip.IsMuted ? 0 : clip.Volume;
             audioFilter.Append(FormattableString.Invariant(
-                $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS,volume={volume}"));
+                $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS,volume={(clip.IsFreezeFrame ? 0 : volume)}"));
+            if (clip.IsReversed && !clip.IsFreezeFrame)
+            {
+                audioFilter.Append(",areverse");
+            }
             if (clip.FadeInSeconds > 0)
             {
                 audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
@@ -476,7 +482,20 @@ public static class FfmpegFilterGraphBuilder
         Brightness = clip.Brightness,
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
-        SpeedMultiplier = clip.SpeedMultiplier
+        SpeedMultiplier = clip.SpeedMultiplier,
+        RotationDegrees = clip.RotationDegrees,
+        FlipHorizontal = clip.FlipHorizontal,
+        FlipVertical = clip.FlipVertical,
+        CropLeftPercent = clip.CropLeftPercent,
+        CropTopPercent = clip.CropTopPercent,
+        CropRightPercent = clip.CropRightPercent,
+        CropBottomPercent = clip.CropBottomPercent,
+        IsReversed = clip.IsReversed,
+        IsFreezeFrame = clip.IsFreezeFrame,
+        ChromaKeyEnabled = clip.ChromaKeyEnabled,
+        ChromaKeyColor = clip.ChromaKeyColor,
+        ChromaKeySimilarity = clip.ChromaKeySimilarity,
+        ChromaKeyBlend = clip.ChromaKeyBlend
     };
 
     /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
@@ -549,11 +568,15 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
+            prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
+            prepared.Append(BuildTransformFilters(clip));
             prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
             prepared.Append(BuildEffectFilters(clip));
-            // colorchannelmixer needs an alpha channel to write into, hence format=rgba first.
-            prepared.Append(FormattableString.Invariant($",format=rgba,colorchannelmixer=aa={opacity}"));
+            // colorchannelmixer/chromakey need an alpha-capable pixel format.
+            prepared.Append(",format=rgba");
+            prepared.Append(BuildChromaKeyFilter(clip));
+            prepared.Append(FormattableString.Invariant($",colorchannelmixer=aa={opacity}"));
             prepared.Append(preparedLabel);
             filterLines.Add(prepared.ToString());
 
@@ -604,6 +627,63 @@ public static class FfmpegFilterGraphBuilder
     /// Filters chosen from ffmpeg's own documented set (eq/hue/gblur/vignette/unsharp/negate/hflip); the
     /// sepia matrix is the standard colorchannelmixer one.
     /// </summary>
+    public static string BuildTemporalVideoFilters(TimelineClip clip, double durationSeconds)
+    {
+        var parts = new List<string>();
+        if (clip.IsReversed)
+        {
+            parts.Add("reverse");
+        }
+        if (clip.IsFreezeFrame)
+        {
+            var hold = Math.Max(0.01, durationSeconds - 0.04);
+            parts.Add("trim=start=0:end=0.04");
+            parts.Add("setpts=PTS-STARTPTS");
+            parts.Add(FormattableString.Invariant($"tpad=stop_mode=clone:stop_duration={hold}"));
+        }
+        return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
+    }
+
+    public static string BuildTransformFilters(TimelineClip clip)
+    {
+        var parts = new List<string>();
+        var left = Math.Clamp(clip.CropLeftPercent, 0, 45) / 100.0;
+        var top = Math.Clamp(clip.CropTopPercent, 0, 45) / 100.0;
+        var right = Math.Clamp(clip.CropRightPercent, 0, 45) / 100.0;
+        var bottom = Math.Clamp(clip.CropBottomPercent, 0, 45) / 100.0;
+        if (left + top + right + bottom > 1e-8)
+        {
+            var width = Math.Max(0.1, 1 - left - right);
+            var height = Math.Max(0.1, 1 - top - bottom);
+            parts.Add(FormattableString.Invariant($"crop=iw*{width}:ih*{height}:iw*{left}:ih*{top}"));
+        }
+        if (clip.FlipHorizontal) parts.Add("hflip");
+        if (clip.FlipVertical) parts.Add("vflip");
+
+        var rotation = clip.RotationDegrees % 360.0;
+        if (Math.Abs(rotation) > 1e-6)
+        {
+            parts.Add(FormattableString.Invariant(
+                $"rotate={rotation}*PI/180:ow=rotw({rotation}*PI/180):oh=roth({rotation}*PI/180):c=black"));
+        }
+        return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
+    }
+
+    public static string BuildChromaKeyFilter(TimelineClip clip)
+    {
+        if (!clip.ChromaKeyEnabled)
+        {
+            return string.Empty;
+        }
+        var color = string.IsNullOrWhiteSpace(clip.ChromaKeyColor) ? "00FF00" : clip.ChromaKeyColor.Trim().TrimStart('#');
+        if (color.Length != 6 || color.Any(c => !Uri.IsHexDigit(c)))
+        {
+            color = "00FF00";
+        }
+        var similarity = Math.Clamp(clip.ChromaKeySimilarity, 0.01, 1.0);
+        var blend = Math.Clamp(clip.ChromaKeyBlend, 0, 1.0);
+        return FormattableString.Invariant($",chromakey=0x{color}:{similarity}:{blend}");
+    }
     public static string BuildEffectFilters(TimelineClip clip)
     {
         var parts = new List<string>();

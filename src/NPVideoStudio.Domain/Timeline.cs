@@ -74,6 +74,24 @@ public readonly record struct TextAdvancedStyle(
     bool IsItalic,
     TextCaseTransform TextCase,
     int LineSpacingPx);
+/// <summary>
+/// Persisted picture-transform controls shared by base video and overlay/image clips.
+/// Percent values keep projects resolution-independent; all values are rendered by FFmpeg, not UI-only.
+/// </summary>
+public readonly record struct ClipTransformSettings(
+    double RotationDegrees,
+    bool FlipHorizontal,
+    bool FlipVertical,
+    double CropLeftPercent,
+    double CropTopPercent,
+    double CropRightPercent,
+    double CropBottomPercent,
+    bool IsReversed,
+    bool IsFreezeFrame,
+    bool ChromaKeyEnabled,
+    string ChromaKeyColor,
+    double ChromaKeySimilarity,
+    double ChromaKeyBlend);
 
 /// <summary>
 /// A real transition between a Video-track clip and the one right before it, rendered via ffmpeg's own
@@ -234,6 +252,20 @@ public sealed class TimelineClip
 
     /// <summary>Playback speed, 0.25..4. 1 = normal, 0.5 = slow motion, 2 = double speed.</summary>
     public double SpeedMultiplier { get; set; } = 1.0;
+    // --- Transform / temporal / green-screen ----------------------------------------------------
+    public double RotationDegrees { get; set; }
+    public bool FlipHorizontal { get; set; }
+    public bool FlipVertical { get; set; }
+    public double CropLeftPercent { get; set; }
+    public double CropTopPercent { get; set; }
+    public double CropRightPercent { get; set; }
+    public double CropBottomPercent { get; set; }
+    public bool IsReversed { get; set; }
+    public bool IsFreezeFrame { get; set; }
+    public bool ChromaKeyEnabled { get; set; }
+    public string ChromaKeyColor { get; set; } = "#00FF00";
+    public double ChromaKeySimilarity { get; set; } = 0.12;
+    public double ChromaKeyBlend { get; set; } = 0.02;
 }
 
 /// <summary>One track (a lane of non-overlapping clips) in the timeline.</summary>
