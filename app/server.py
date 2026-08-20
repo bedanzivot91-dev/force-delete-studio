@@ -6,8 +6,9 @@ The full application remains in server_core.py.  This thin layer adds the
 large-library download fixes without rewriting the mature server in-place:
 - /api/song-ids can enumerate the complete filtered library in bounded pages;
 - optional one-folder-per-song output for bulk downloads;
-- the browser receives bulk_download_extension.js appended to app.js so the
-  existing UI keeps all of its original code and gains whole-library controls.
+- the browser receives small extension modules appended to app.js so the
+  existing UI keeps all of its original code while gaining whole-library
+  controls and the real production/timeline workspace.
 """
 
 import sys
@@ -211,7 +212,10 @@ globals()["_build_per_song_download_options"] = _build_per_song_download_options
 
 
 _ORIGINAL_SEND_FILE = _core.Handler._send_file
-_BULK_EXTENSION = _core.WEB_DIR / "bulk_download_extension.js"
+_SCRIPT_EXTENSIONS = (
+    ("whole-library download extension", _core.WEB_DIR / "bulk_download_extension.js"),
+    ("production timeline workspace", _core.WEB_DIR / "production_workspace_extension.js"),
+)
 
 
 def _send_file(
@@ -220,21 +224,29 @@ def _send_file(
     download_name: str | None = None,
     no_cache: bool = False,
 ) -> None:
-    """Serve app.js + the extension as ONE script lexical scope.
+    """Serve app.js plus optional extension modules in ONE lexical scope.
 
     app.js intentionally stays byte-for-byte unchanged on disk, preserving the
-    existing UI audits.  Concatenating at response time lets the extension use
-    the established state/api helpers without duplicating the application.
+    mature UI and its existing audits. Concatenating at response time lets the
+    small extensions use established state/api helpers without duplicating the
+    application or creating another frontend runtime.
     """
     try:
         is_app_js = path.resolve() == (_core.WEB_DIR / "app.js").resolve()
     except OSError:
         is_app_js = False
 
-    if is_app_js and _BULK_EXTENSION.is_file():
-        payload = path.read_bytes() + b"\n\n/* whole-library download extension */\n" + _BULK_EXTENSION.read_bytes()
-        self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
-        return
+    if is_app_js:
+        payload = path.read_bytes()
+        appended = False
+        for label, extension in _SCRIPT_EXTENSIONS:
+            if not extension.is_file():
+                continue
+            payload += f"\n\n/* {label} */\n".encode("utf-8") + extension.read_bytes()
+            appended = True
+        if appended:
+            self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
+            return
     return _ORIGINAL_SEND_FILE(self, path, download_name=download_name, no_cache=no_cache)
 
 
