@@ -5,6 +5,7 @@ on:
     paths:
       - "app/youtube_reconcile_fixes.py"
       - "app/workspace_backend.py"
+      - "app/web/startup_guard_extension.js"
       - "app/web/organized_ui_extension.js"
       - "app/web/production_workspace_extension.js"
       - "tests/youtube_reconcile_fix_test.py"
@@ -29,5 +30,8 @@ jobs:
         run: |
           python -m py_compile app\youtube_reconcile_fixes.py
           python -m py_compile app\workspace_backend.py
+      - name: Verify startup no longer auto-starts full fingerprinting
+        run: |
+          python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); assert 'autoRefreshSongFinderIndex =' in p; assert 'runSongFinderIndex(false)' not in p; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired')"
       - name: Run indexed-song/private-video/UI regression
         run: python tests\youtube_reconcile_fix_test.py
