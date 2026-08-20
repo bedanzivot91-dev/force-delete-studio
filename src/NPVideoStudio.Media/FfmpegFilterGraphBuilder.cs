@@ -519,7 +519,16 @@ public static class FfmpegFilterGraphBuilder
         ChromaKeyEnabled = clip.ChromaKeyEnabled,
         ChromaKeyColor = clip.ChromaKeyColor,
         ChromaKeySimilarity = clip.ChromaKeySimilarity,
-        ChromaKeyBlend = clip.ChromaKeyBlend
+        ChromaKeyBlend = clip.ChromaKeyBlend,
+        MaskType = clip.MaskType,
+        MaskCenterXPercent = clip.MaskCenterXPercent,
+        MaskCenterYPercent = clip.MaskCenterYPercent,
+        MaskWidthPercent = clip.MaskWidthPercent,
+        MaskHeightPercent = clip.MaskHeightPercent,
+        MaskFeatherPercent = clip.MaskFeatherPercent,
+        MaskRotationDegrees = clip.MaskRotationDegrees,
+        MaskInvert = clip.MaskInvert,
+        BlendMode = clip.BlendMode
     };
 
     /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
@@ -586,6 +595,8 @@ public static class FfmpegFilterGraphBuilder
             var scale = Math.Clamp(clip.ScalePercent, 1, 1000) / 100.0;
             var overlayWidth = Math.Max(1, (int)Math.Round(targetWidth * scale));
             var opacity = Math.Clamp(clip.Opacity, 0, 1);
+            var start = mapToRenderedTime(clip.TimelineStartSeconds);
+            var end = mapToRenderedTime(clip.TimelineEndSeconds);
 
             var preparedLabel = $"[ovl{i}]";
             var prepared = new StringBuilder();
@@ -597,25 +608,63 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(BuildTransformFilters(clip));
             prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
             prepared.Append(BuildEffectFilters(clip));
-            // colorchannelmixer/chromakey need an alpha-capable pixel format.
+            // colorchannelmixer/chromakey/masks need an alpha-capable pixel format.
             prepared.Append(",format=rgba");
             prepared.Append(BuildChromaKeyFilter(clip));
+            prepared.Append(BuildMaskFilter(clip));
             prepared.Append(FormattableString.Invariant($",colorchannelmixer=aa={opacity}"));
+            // Overlay streams used to stay at t=0 regardless of where the clip lived on the timeline.
+            // That makes a delayed overlay repeat its last decoded frame when enable() finally turns on.
+            // Shift the prepared overlay into the same rendered clock as the base before compositing it.
+            prepared.Append(FormattableString.Invariant($",setpts=PTS+{start}/TB"));
             prepared.Append(preparedLabel);
             filterLines.Add(prepared.ToString());
 
-            // Centre-anchored: shift left/up by half the overlay's own rendered size. main_w/overlay_w are
-            // ffmpeg's own variables for the base and overlay sizes, so this stays correct even though the
-            // overlay's height is only known to ffmpeg (scale=-1 above).
+            // Centre-anchored: shift left/up by half the overlay's own rendered size.
             var centreX = FormattableString.Invariant($"(main_w*{clip.PositionXPercent / 100.0})-(overlay_w/2)");
             var centreY = FormattableString.Invariant($"(main_h*{clip.PositionYPercent / 100.0})-(overlay_h/2)");
 
-            var start = mapToRenderedTime(clip.TimelineStartSeconds);
-            var end = mapToRenderedTime(clip.TimelineEndSeconds);
-
             var outLabel = i == overlayClips.Count - 1 ? "[vlayered]" : $"[vlay{i}]";
-            filterLines.Add(FormattableString.Invariant(
-                $"{currentLabel}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})'{outLabel}"));
+            if (clip.BlendMode == ClipBlendMode.Normal)
+            {
+                filterLines.Add(FormattableString.Invariant(
+                    $"{currentLabel}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})':format=auto{outLabel}"));
+            }
+            else
+            {
+                // Build a transparent full-frame layer, place the masked overlay on it, then blend only
+                // inside that layer's alpha. maskedmerge prevents multiply/screen/etc. from changing the
+                // base outside the overlay's actual visible pixels.
+                var canvasSource = $"[blendcanvassrc{i}]";
+                var canvas = $"[blendcanvas{i}]";
+                var overlayCanvas = $"[blendovlcanvas{i}]";
+                var baseBlend = $"[blendbase{i}]";
+
+                // A blend mode needs a mathematically neutral value outside the visible overlay:
+                //   screen/add/difference -> black (0), multiply -> white (255), overlay -> middle grey (128).
+                // We derive that canvas from the finite base stream, so it has the exact same duration and
+                // cadence and cannot keep framesync alive forever like an unbounded `color` source can.
+                var neutral = clip.BlendMode switch
+                {
+                    ClipBlendMode.Multiply => 255,
+                    ClipBlendMode.Overlay => 128,
+                    _ => 0
+                };
+
+                filterLines.Add($"{currentLabel}format=rgba,split=2{baseBlend}{canvasSource}");
+                filterLines.Add($"{canvasSource}lutrgb=r={neutral}:g={neutral}:b={neutral}{canvas}");
+
+                // preparedLabel already contains chroma/mask/opacity in its alpha channel. Normal overlaying
+                // it over a neutral canvas naturally applies feather/invert/opacity. Outside the mask the
+                // neutral colour remains, which is a no-op for the selected mathematical blend mode.
+                filterLines.Add(FormattableString.Invariant(
+                    $"{canvas}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})':eof_action=pass:format=auto{overlayCanvas}"));
+
+                // blend outputs planar GBR(A). Force it back to packed RGBA before later filters/encoding.
+                // Also restore an opaque alpha plane: `difference` applied through all_mode would otherwise
+                // calculate abs(255-255)=0 for alpha and make the entire composited frame transparent.
+                filterLines.Add($"{baseBlend}{overlayCanvas}blend=all_mode={BlendModeName(clip.BlendMode)}:shortest=1,format=rgba,lutrgb=a=255{outLabel}");
+            }
 
             currentLabel = outLabel;
         }
@@ -693,6 +742,78 @@ public static class FfmpegFilterGraphBuilder
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
     }
 
+    public static string BuildMaskFilter(TimelineClip clip)
+    {
+        if (clip.MaskType == ClipMaskType.None)
+        {
+            return string.Empty;
+        }
+
+        var cx = Math.Clamp(clip.MaskCenterXPercent, 0, 100) / 100.0;
+        var cy = Math.Clamp(clip.MaskCenterYPercent, 0, 100) / 100.0;
+        var width = Math.Clamp(clip.MaskWidthPercent, 1, 100) / 100.0;
+        var height = Math.Clamp(clip.MaskHeightPercent, 1, 100) / 100.0;
+        var feather = Math.Clamp(clip.MaskFeatherPercent, 0, 50) / 100.0;
+        var radians = Math.Clamp(clip.MaskRotationDegrees, -180, 180) * Math.PI / 180.0;
+        var cos = Math.Cos(radians);
+        var sin = Math.Sin(radians);
+
+        var dx = FormattableString.Invariant($"(X-W*{cx})");
+        var dy = FormattableString.Invariant($"(Y-H*{cy})");
+        var rx = FormattableString.Invariant($"(({dx})*{cos}+({dy})*{sin})");
+        var ry = FormattableString.Invariant($"(-({dx})*{sin}+({dy})*{cos})");
+
+        string mask;
+        switch (clip.MaskType)
+        {
+            case ClipMaskType.Rectangle:
+            {
+                var halfW = FormattableString.Invariant($"W*{width / 2.0}");
+                var halfH = FormattableString.Invariant($"H*{height / 2.0}");
+                mask = feather <= 1e-8
+                    ? $"between({rx},-{halfW},{halfW})*between({ry},-{halfH},{halfH})"
+                    : FormattableString.Invariant($"clip(min({halfW}-abs({rx}),{halfH}-abs({ry}))/(min(W,H)*{feather}),0,1)");
+                break;
+            }
+            case ClipMaskType.Circle:
+            {
+                var radius = Math.Min(width, height) / 2.0;
+                var distance = $"sqrt(({dx})^2+({dy})^2)";
+                var radiusExpr = FormattableString.Invariant($"min(W,H)*{radius}");
+                mask = feather <= 1e-8
+                    ? $"lte({distance},{radiusExpr})"
+                    : FormattableString.Invariant($"clip(({radiusExpr}-{distance})/(min(W,H)*{feather}),0,1)");
+                break;
+            }
+            case ClipMaskType.Linear:
+            {
+                var projection = FormattableString.Invariant($"(({dx})*{cos}+({dy})*{sin})");
+                mask = feather <= 1e-8
+                    ? $"gte({projection},0)"
+                    : FormattableString.Invariant($"clip(0.5+({projection})/(min(W,H)*{feather}*2),0,1)");
+                break;
+            }
+            default:
+                return string.Empty;
+        }
+
+        if (clip.MaskInvert)
+        {
+            mask = $"1-({mask})";
+        }
+
+        return $",geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*({mask})'";
+    }
+
+    private static string BlendModeName(ClipBlendMode mode) => mode switch
+    {
+        ClipBlendMode.Multiply => "multiply",
+        ClipBlendMode.Screen => "screen",
+        ClipBlendMode.Overlay => "overlay",
+        ClipBlendMode.Add => "addition",
+        ClipBlendMode.Difference => "difference",
+        _ => "normal"
+    };
     public static string BuildChromaKeyFilter(TimelineClip clip)
     {
         if (!clip.ChromaKeyEnabled)

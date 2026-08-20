@@ -177,6 +177,96 @@ public class RenderServiceTests : IDisposable
         Assert.Contains("SVET", duringSecondCaption);
     }
 
+    private static async Task<(byte R, byte G, byte B)> ReadRgbPixelAsync(string videoPath, int x, int y)
+    {
+        using var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        process.StartInfo.ArgumentList.Add("-v");
+        process.StartInfo.ArgumentList.Add("error");
+        process.StartInfo.ArgumentList.Add("-ss");
+        process.StartInfo.ArgumentList.Add("0.2");
+        process.StartInfo.ArgumentList.Add("-i");
+        process.StartInfo.ArgumentList.Add(videoPath);
+        process.StartInfo.ArgumentList.Add("-vf");
+        process.StartInfo.ArgumentList.Add($"format=rgb24,crop=1:1:{x}:{y}");
+        process.StartInfo.ArgumentList.Add("-frames:v");
+        process.StartInfo.ArgumentList.Add("1");
+        process.StartInfo.ArgumentList.Add("-f");
+        process.StartInfo.ArgumentList.Add("rawvideo");
+        process.StartInfo.ArgumentList.Add("pipe:1");
+
+        process.Start();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        var bytes = new byte[3];
+        var read = 0;
+        while (read < bytes.Length)
+        {
+            var n = await process.StandardOutput.BaseStream.ReadAsync(bytes.AsMemory(read, bytes.Length - read));
+            if (n == 0) break;
+            read += n;
+        }
+        await process.WaitForExitAsync();
+        await stderrTask;
+        Assert.Equal(3, read);
+        return (bytes[0], bytes[1], bytes[2]);
+    }
+
+    [Fact]
+    public async Task RenderAsync_CircleMaskWithScreenBlend_ChangesOnlyMaskedArea()
+    {
+        var basePath = await CreateSolidColorClipAsync("mask-base.mp4", "blue", 1, 440);
+        var overlayPath = await CreateSolidColorClipAsync("mask-overlay.mp4", "red", 1, 660);
+        var baseAsset = new MediaAsset { Id = "base", FilePath = basePath, Duration = TimeSpan.FromSeconds(1) };
+        var overlayAsset = new MediaAsset { Id = "overlay", FilePath = overlayPath, Duration = TimeSpan.FromSeconds(1) };
+        var project = new Project { Name = "Mask blend render", MediaLibrary = { baseAsset, overlayAsset } };
+
+        project.Timeline.Tracks.Add(new TimelineTrack
+        {
+            Kind = TimelineTrackKind.Video,
+            Clips =
+            {
+                new TimelineClip { MediaAssetId = baseAsset.Id, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 1, TimelineStartSeconds = 0 }
+            }
+        });
+        project.Timeline.Tracks.Add(new TimelineTrack
+        {
+            Kind = TimelineTrackKind.Video,
+            Clips =
+            {
+                new TimelineClip
+                {
+                    MediaAssetId = overlayAsset.Id, SourceTrimInSeconds = 0, SourceTrimOutSeconds = 1, TimelineStartSeconds = 0,
+                    ScalePercent = 100, PositionXPercent = 50, PositionYPercent = 50,
+                    MaskType = ClipMaskType.Circle, MaskCenterXPercent = 50, MaskCenterYPercent = 50,
+                    MaskWidthPercent = 60, MaskHeightPercent = 60, MaskFeatherPercent = 5,
+                    BlendMode = ClipBlendMode.Screen
+                }
+            }
+        });
+
+        var job = new RenderJob
+        {
+            ProjectName = project.Name,
+            Settings = new RenderSettings { OutputFilePath = Path.Combine(_tempDir, "mask-blend.mp4"), OverwriteConfirmed = true }
+        };
+        var output = await _service.RenderAsync(project, job);
+
+        var centre = await ReadRgbPixelAsync(output, 960, 540);
+        var outsideMask = await ReadRgbPixelAsync(output, 300, 100);
+        Assert.True(centre.R > 150 && centre.B > 150 && centre.G < 100,
+            $"Screen-blended centre should be magenta-ish, got {centre}.");
+        Assert.True(outsideMask.B > 150 && outsideMask.R < 100 && outsideMask.G < 100,
+            $"Outside circular mask should remain blue, got {outsideMask}.");
+    }
     [Fact]
     public async Task RenderAsync_OutputAlreadyExistsWithoutConfirmation_ThrowsWithoutOverwriting()
     {

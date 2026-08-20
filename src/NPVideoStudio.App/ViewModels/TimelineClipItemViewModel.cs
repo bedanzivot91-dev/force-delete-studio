@@ -31,6 +31,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
+    private readonly Action<string, ClipCompositingSettings>? _onCompositingChanged;
 
     public TimelineClip Clip { get; }
     public string TrackId { get; }
@@ -243,6 +244,62 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     {
         get => Clip.ChromaKeyBlend;
         set { if (Math.Abs(Clip.ChromaKeyBlend - value) < 1e-6) return; PushTransform(s => s with { ChromaKeyBlend = value }); }
+    }
+    public IReadOnlyList<ClipMaskType> AvailableMaskTypes { get; } = Enum.GetValues<ClipMaskType>();
+    public IReadOnlyList<ClipBlendMode> AvailableBlendModes { get; } = Enum.GetValues<ClipBlendMode>();
+
+    private ClipCompositingSettings CurrentCompositing() => new(
+        MaskType, MaskCenterXPercent, MaskCenterYPercent,
+        MaskWidthPercent, MaskHeightPercent, MaskFeatherPercent,
+        MaskRotationDegrees, MaskInvert, BlendMode);
+
+    private void PushCompositing(Func<ClipCompositingSettings, ClipCompositingSettings> mutate) =>
+        _onCompositingChanged?.Invoke(Clip.Id, mutate(CurrentCompositing()));
+
+    public ClipMaskType MaskType
+    {
+        get => Clip.MaskType;
+        set { if (Clip.MaskType == value) return; PushCompositing(s => s with { MaskType = value }); }
+    }
+    public double MaskCenterXPercent
+    {
+        get => Clip.MaskCenterXPercent;
+        set { if (Math.Abs(Clip.MaskCenterXPercent - value) < 1e-6) return; PushCompositing(s => s with { MaskCenterXPercent = value }); }
+    }
+    public double MaskCenterYPercent
+    {
+        get => Clip.MaskCenterYPercent;
+        set { if (Math.Abs(Clip.MaskCenterYPercent - value) < 1e-6) return; PushCompositing(s => s with { MaskCenterYPercent = value }); }
+    }
+    public double MaskWidthPercent
+    {
+        get => Clip.MaskWidthPercent;
+        set { if (Math.Abs(Clip.MaskWidthPercent - value) < 1e-6) return; PushCompositing(s => s with { MaskWidthPercent = value }); }
+    }
+    public double MaskHeightPercent
+    {
+        get => Clip.MaskHeightPercent;
+        set { if (Math.Abs(Clip.MaskHeightPercent - value) < 1e-6) return; PushCompositing(s => s with { MaskHeightPercent = value }); }
+    }
+    public double MaskFeatherPercent
+    {
+        get => Clip.MaskFeatherPercent;
+        set { if (Math.Abs(Clip.MaskFeatherPercent - value) < 1e-6) return; PushCompositing(s => s with { MaskFeatherPercent = value }); }
+    }
+    public double MaskRotationDegrees
+    {
+        get => Clip.MaskRotationDegrees;
+        set { if (Math.Abs(Clip.MaskRotationDegrees - value) < 1e-6) return; PushCompositing(s => s with { MaskRotationDegrees = value }); }
+    }
+    public bool MaskInvert
+    {
+        get => Clip.MaskInvert;
+        set { if (Clip.MaskInvert == value) return; PushCompositing(s => s with { MaskInvert = value }); }
+    }
+    public ClipBlendMode BlendMode
+    {
+        get => Clip.BlendMode;
+        set { if (Clip.BlendMode == value) return; PushCompositing(s => s with { BlendMode = value }); }
     }
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
     /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
@@ -480,10 +537,12 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         bool isOverlayClip = false,
         Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null,
         Action<string, ClipTransformSettings>? onTransformChanged = null,
+        Action<string, ClipCompositingSettings>? onCompositingChanged = null,
         bool isAudioClip = false)
     {
         _onEffectsChanged = onEffectsChanged;
         _onTransformChanged = onTransformChanged;
+        _onCompositingChanged = onCompositingChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
         IsOverlayClip = isOverlayClip;
         Clip = clip;

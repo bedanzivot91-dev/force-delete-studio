@@ -328,6 +328,26 @@ public sealed class TimelineEditSession
         liveClip.ChromaKeySimilarity = Math.Clamp(settings.ChromaKeySimilarity, 0.01, 1.0);
         liveClip.ChromaKeyBlend = Math.Clamp(settings.ChromaKeyBlend, 0, 1.0);
     }
+    public void SetClipCompositing(string clipId, ClipCompositingSettings settings)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.MaskType = settings.MaskType;
+        liveClip.MaskCenterXPercent = Math.Clamp(settings.MaskCenterXPercent, 0, 100);
+        liveClip.MaskCenterYPercent = Math.Clamp(settings.MaskCenterYPercent, 0, 100);
+        liveClip.MaskWidthPercent = Math.Clamp(settings.MaskWidthPercent, 1, 100);
+        liveClip.MaskHeightPercent = Math.Clamp(settings.MaskHeightPercent, 1, 100);
+        liveClip.MaskFeatherPercent = Math.Clamp(settings.MaskFeatherPercent, 0, 50);
+        liveClip.MaskRotationDegrees = Math.Clamp(settings.MaskRotationDegrees, -180, 180);
+        liveClip.MaskInvert = settings.MaskInvert;
+        liveClip.BlendMode = settings.BlendMode;
+    }
     public void SetClipMute(string clipId, bool muted)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -588,6 +608,15 @@ public sealed class TimelineEditSession
         ChromaKeyEnabled = clip.ChromaKeyEnabled,
         ChromaKeyColor = clip.ChromaKeyColor,
         ChromaKeySimilarity = clip.ChromaKeySimilarity,
-        ChromaKeyBlend = clip.ChromaKeyBlend
+        ChromaKeyBlend = clip.ChromaKeyBlend,
+        MaskType = clip.MaskType,
+        MaskCenterXPercent = clip.MaskCenterXPercent,
+        MaskCenterYPercent = clip.MaskCenterYPercent,
+        MaskWidthPercent = clip.MaskWidthPercent,
+        MaskHeightPercent = clip.MaskHeightPercent,
+        MaskFeatherPercent = clip.MaskFeatherPercent,
+        MaskRotationDegrees = clip.MaskRotationDegrees,
+        MaskInvert = clip.MaskInvert,
+        BlendMode = clip.BlendMode
     };
 }
