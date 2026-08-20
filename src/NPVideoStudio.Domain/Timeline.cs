@@ -93,6 +93,37 @@ public readonly record struct ClipTransformSettings(
     double ChromaKeySimilarity,
     double ChromaKeyBlend);
 
+public enum ClipMaskType
+{
+    None,
+    Rectangle,
+    Circle,
+    Linear
+}
+
+public enum ClipBlendMode
+{
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Add,
+    Difference
+}
+
+/// <summary>Persisted overlay compositing controls. Masks are evaluated in the overlay's own rendered
+/// coordinates before placement; blend mode is applied only while compositing the overlay over the base.</summary>
+public readonly record struct ClipCompositingSettings(
+    ClipMaskType MaskType,
+    double MaskCenterXPercent,
+    double MaskCenterYPercent,
+    double MaskWidthPercent,
+    double MaskHeightPercent,
+    double MaskFeatherPercent,
+    double MaskRotationDegrees,
+    bool MaskInvert,
+    ClipBlendMode BlendMode);
+
 /// <summary>
 /// A real transition between a Video-track clip and the one right before it, rendered via ffmpeg's own
 /// <c>xfade</c>/<c>acrossfade</c> filters (each enum name here is exactly the matching <c>xfade</c>
@@ -266,6 +297,17 @@ public sealed class TimelineClip
     public string ChromaKeyColor { get; set; } = "#00FF00";
     public double ChromaKeySimilarity { get; set; } = 0.12;
     public double ChromaKeyBlend { get; set; } = 0.02;
+
+    // --- Overlay mask + blend -------------------------------------------------------------------
+    public ClipMaskType MaskType { get; set; } = ClipMaskType.None;
+    public double MaskCenterXPercent { get; set; } = 50;
+    public double MaskCenterYPercent { get; set; } = 50;
+    public double MaskWidthPercent { get; set; } = 80;
+    public double MaskHeightPercent { get; set; } = 80;
+    public double MaskFeatherPercent { get; set; } = 5;
+    public double MaskRotationDegrees { get; set; }
+    public bool MaskInvert { get; set; }
+    public ClipBlendMode BlendMode { get; set; } = ClipBlendMode.Normal;
 }
 
 /// <summary>One track (a lane of non-overlapping clips) in the timeline.</summary>

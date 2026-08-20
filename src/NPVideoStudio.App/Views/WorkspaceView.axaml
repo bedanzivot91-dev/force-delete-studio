@@ -258,6 +258,23 @@
                 <TextBlock Text="Boja (#RRGGBB)" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
                 <TextBlock Text="Sličnost" Classes="subtle"/><Slider Minimum="0.01" Maximum="1" Value="{Binding ChromaKeySimilarity}"/>
                 <TextBlock Text="Feather / blend" Classes="subtle"/><Slider Minimum="0" Maximum="1" Value="{Binding ChromaKeyBlend}"/>
+
+                <TextBlock Text="MASKA" Classes="eyebrow" Margin="0,10,0,0" />
+                <TextBlock Text="Oblik" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableMaskTypes}" SelectedItem="{Binding MaskType}"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Centar X (%)" Classes="subtle"/><NumericUpDown Value="{Binding MaskCenterXPercent}" Minimum="0" Maximum="100" Increment="1"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Centar Y (%)" Classes="subtle"/><NumericUpDown Value="{Binding MaskCenterYPercent}" Minimum="0" Maximum="100" Increment="1"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Širina (%)" Classes="subtle"/><NumericUpDown Value="{Binding MaskWidthPercent}" Minimum="1" Maximum="100" Increment="1"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Visina (%)" Classes="subtle"/><NumericUpDown Value="{Binding MaskHeightPercent}" Minimum="1" Maximum="100" Increment="1"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Feather maske (%)" Classes="subtle"/><Slider Minimum="0" Maximum="50" Value="{Binding MaskFeatherPercent}"/>
+                <TextBlock Text="Ugao maske (stepeni)" Classes="subtle"/><NumericUpDown Value="{Binding MaskRotationDegrees}" Minimum="-180" Maximum="180" Increment="1"/>
+                <ToggleButton Content="Invertuj masku" IsChecked="{Binding MaskInvert}"/>
+
+                <TextBlock Text="BLEND MODE" Classes="eyebrow" Margin="0,10,0,0" />
+                <ComboBox ItemsSource="{Binding AvailableBlendModes}" SelectedItem="{Binding BlendMode}"/>
               </StackPanel>
             </StackPanel>
           </StackPanel>
