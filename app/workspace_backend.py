@@ -28,7 +28,7 @@ def _ass_color(value: Any, default: str) -> str:
 def _install_complete_app_bundle(core: Any) -> None:
     """Serve all UI extensions as one lexical app.js bundle."""
     handler = core.Handler
-    if getattr(handler, "_workspace_complete_bundle_v4", False):
+    if getattr(handler, "_workspace_complete_bundle_v5", False):
         return
     previous_send_file = handler._send_file
     extensions = (
@@ -40,6 +40,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("organized Studio and YouTube workflow", core.WEB_DIR / "organized_ui_extension.js"),
         ("user controlled unbounded YouTube scans", core.WEB_DIR / "unbounded_youtube_ui_extension.js"),
         ("final workflow layout cleanup", core.WEB_DIR / "workflow_cleanup_extension.js"),
+        ("modern 2026 application skin", core.WEB_DIR / "modern_2026_skin_extension.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
@@ -57,11 +58,11 @@ def _install_complete_app_bundle(core: Any) -> None:
         self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
 
     handler._send_file = send_file
-    handler._workspace_complete_bundle_v4 = True
+    handler._workspace_complete_bundle_v5 = True
 
 
 def apply(core: Any) -> dict[str, Any]:
-    if getattr(core, "_workspace_backend_v4_installed", False):
+    if getattr(core, "_workspace_backend_v5_installed", False):
         return {}
 
     def v3_lyric_video_task(task: Any, options: dict[str, Any]) -> None:
@@ -150,5 +151,5 @@ def apply(core: Any) -> dict[str, Any]:
     exports.update(apply_unbounded_operations(core))
     _install_complete_app_bundle(core)
 
-    core._workspace_backend_v4_installed = True
+    core._workspace_backend_v5_installed = True
     return exports
