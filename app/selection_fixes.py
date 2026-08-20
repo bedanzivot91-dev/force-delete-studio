@@ -89,7 +89,12 @@ def apply(core: Any) -> dict[str, Any]:
 
         return result[:target] if target else result
 
+    # Patch the database method used by /api/song-ids.  Do NOT export this
+    # function as _list_song_ids_unbounded: server.py already owns a separate
+    # whole-library helper with that name whose ``limit`` argument is only the
+    # old UI page size.  Reusing the same export name caused workspace_backend
+    # to overwrite that helper and truncate whole-library selection to 200.
     type(core.DB).list_song_ids = list_song_ids
     core._selection_fixes_v1_installed = True
     core.runtime_log("Izbor pesama: pozitivan broj = tačan broj, 0 = sve; nema internog maksimuma.", "info")
-    return {"_list_song_ids_unbounded": list_song_ids}
+    return {"_list_song_ids_exact_or_all": list_song_ids}
