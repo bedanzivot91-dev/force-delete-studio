@@ -49,6 +49,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public async Task ShowStartScreenAsync()
     {
+        // Periodic autosave can be up to one configured interval old. Do not clear CurrentProject until
+        // the latest live state has had one explicit recovery-save attempt.
+        if (CurrentProject is not null)
+        {
+            await _autoSaveService.TriggerNowAsync();
+        }
+
         CurrentProject = null;
         var vm = _services.GetRequiredService<StartScreenViewModel>();
         vm.ProjectOpened += project => CurrentPage = OpenWorkspace(project);
@@ -67,22 +74,40 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         vm.TemplateGalleryRequested += () => CurrentPage = CreateTemplateGalleryPage();
         vm.QuickVideoRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: false);
         vm.QuickVideoWithCaptionsRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: true);
-        vm.AddTextToVideoRequested += () => CurrentPage = OpenWorkspaceForAddingText();
+        vm.AddTextToVideoRequested += () => _ = OpenWorkspaceForAddingTextAsync();
 
         CurrentPage = vm;
         await vm.InitializeAsync();
     }
 
-    /// <summary>Home-screen "Dodaj tekst u video" shortcut - opens a fresh project's workspace and
-    /// immediately kicks off <see cref="WorkspaceViewModel.StartAddTextToVideoFlowAsync"/> (video picker
-    /// -> import -> Text track + starter clip), instead of leaving the user to first create a project
-    /// and then separately discover the text controls inside it.</summary>
-    private WorkspaceViewModel OpenWorkspaceForAddingText()
+    /// <summary>Home-screen "Dodaj tekst u video" shortcut. Unlike the old in-memory-only path, this
+    /// creates a normal project file first so Save, Recent Projects and AutoSave all work from the first
+    /// edit onward.</summary>
+    private async Task OpenWorkspaceForAddingTextAsync()
     {
-        var project = new Project { Name = "Video sa tekstom" };
-        var workspace = OpenWorkspace(project);
-        _ = workspace.StartAddTextToVideoFlowAsync();
-        return workspace;
+        try
+        {
+            var project = new Project { Name = "Video sa tekstom" };
+            var settings = _services.GetRequiredService<ISettingsService>();
+            var projectRepository = _services.GetRequiredService<IProjectRepository>();
+            var recentProjects = _services.GetRequiredService<IRecentProjectsService>();
+
+            var folderName = $"Video-sa-tekstom-{DateTime.Now:yyyyMMdd-HHmmss}-{project.Id[..6]}";
+            var projectDir = Path.Combine(settings.Current.ProjectsFolder, folderName);
+            var projectFilePath = Path.Combine(projectDir, "Video sa tekstom.npvsproject");
+            Directory.CreateDirectory(projectDir);
+            await projectRepository.SaveAsync(project, projectFilePath);
+            await recentProjects.RegisterOpenedAsync(project);
+
+            var workspace = OpenWorkspace(project);
+            CurrentPage = workspace;
+            await workspace.StartAddTextToVideoFlowAsync();
+        }
+        catch (Exception ex)
+        {
+            _services.GetRequiredService<Serilog.ILogger>().Error(ex, "Pokretanje bezbednog 'Dodaj tekst u video' toka nije uspelo");
+            await ShowStartScreenAsync();
+        }
     }
 
     private DependencyManagerViewModel CreateDependencyManagerPage()
