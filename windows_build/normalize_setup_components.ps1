@@ -1,5 +1,14 @@
 $ErrorActionPreference = 'Stop'
 
+# GitHub's Windows runner can default Python stdout to cp1252.  The application
+# and its Serbian UI are UTF-8, so make every later Python CI step use UTF-8
+# instead of letting a successful test fail while printing characters such as Č.
+if ($env:GITHUB_ACTIONS -eq 'true' -and $env:GITHUB_ENV) {
+    Add-Content -Path $env:GITHUB_ENV -Value 'PYTHONUTF8=1'
+    Add-Content -Path $env:GITHUB_ENV -Value 'PYTHONIOENCODING=utf-8'
+    Write-Host 'Enabled UTF-8 mode for all subsequent Python steps in this Windows job.'
+}
+
 $path = Join-Path $PSScriptRoot 'setup\main.go'
 $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
 
