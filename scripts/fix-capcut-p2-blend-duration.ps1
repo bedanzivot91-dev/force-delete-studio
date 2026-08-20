@@ -38,25 +38,29 @@ $new = @'
                 var canvasSource = $"[blendcanvassrc{i}]";
                 var canvas = $"[blendcanvas{i}]";
                 var overlayCanvas = $"[blendovlcanvas{i}]";
-                var overlayColor = $"[blendovlcolor{i}]";
-                var overlayMaskSource = $"[blendmasksrc{i}]";
-                var mask = $"[blendmask{i}]";
                 var baseBlend = $"[blendbase{i}]";
-                var baseKeep = $"[blendkeep{i}]";
-                var candidate = $"[blendcandidate{i}]";
 
-                // Derive the transparent canvas from the finite base stream itself. Using a raw `color`
-                // source here creates an infinite stream and can keep framesync/maskedmerge alive forever.
-                // Splitting the base gives the canvas exactly the same duration and frame cadence.
-                filterLines.Add($"{currentLabel}format=rgba,split=3{baseBlend}{baseKeep}{canvasSource}");
-                filterLines.Add($"{canvasSource}colorchannelmixer=rr=0:gg=0:bb=0:aa=0{canvas}");
+                // A blend mode needs a mathematically neutral value outside the visible overlay:
+                //   screen/add/difference -> black (0), multiply -> white (255), overlay -> middle grey (128).
+                // We derive that canvas from the finite base stream, so it has the exact same duration and
+                // cadence and cannot keep framesync alive forever like an unbounded `color` source can.
+                var neutral = clip.BlendMode switch
+                {
+                    ClipBlendMode.Multiply => 255,
+                    ClipBlendMode.Overlay => 128,
+                    _ => 0
+                };
+
+                filterLines.Add($"{currentLabel}format=rgba,split=2{baseBlend}{canvasSource}");
+                filterLines.Add($"{canvasSource}lutrgb=r={neutral}:g={neutral}:b={neutral}{canvas}");
+
+                // preparedLabel already contains chroma/mask/opacity in its alpha channel. Normal overlaying
+                // it over a neutral canvas naturally applies feather/invert/opacity. Outside the mask the
+                // neutral colour remains, which is a no-op for the selected mathematical blend mode.
                 filterLines.Add(FormattableString.Invariant(
                     $"{canvas}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})':eof_action=pass:format=auto{overlayCanvas}"));
-                filterLines.Add($"{overlayCanvas}split=2{overlayColor}{overlayMaskSource}");
-                filterLines.Add($"{overlayMaskSource}alphaextract{mask}");
-                filterLines.Add($"{overlayColor}{baseBlend}blend=all_mode={BlendModeName(clip.BlendMode)}:shortest=1{candidate}");
-                filterLines.Add($"{baseKeep}{candidate}{mask}maskedmerge{outLabel}");
+                filterLines.Add($"{baseBlend}{overlayCanvas}blend=all_mode={BlendModeName(clip.BlendMode)}:shortest=1{outLabel}");
 '@
-$t = Replace-Once $t $old $new 'finite blend canvas and mask format'
+$t = Replace-Once $t $old $new 'finite neutral blend canvas'
 Write-Utf8 $path $t
-Write-Host 'P2 finite blend canvas fix applied.'
+Write-Host 'P2 neutral blend canvas fix applied.'
