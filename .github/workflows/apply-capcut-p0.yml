@@ -31,6 +31,10 @@ jobs:
         shell: pwsh
         run: ./scripts/apply-capcut-p0.ps1
 
+      - name: Fix Avalonia-compatible XAML
+        shell: pwsh
+        run: ./scripts/fix-capcut-p0-xaml.ps1
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 
