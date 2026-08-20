@@ -57,6 +57,10 @@ jobs:
         shell: pwsh
         run: ./scripts/apply-capcut-p2-masks-blend.ps1
 
+      - name: Apply finite blend-duration fix
+        shell: pwsh
+        run: ./scripts/fix-capcut-p2-blend-duration.ps1
+
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
       - name: Build
