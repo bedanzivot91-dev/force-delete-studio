@@ -120,9 +120,17 @@ def _install_cached_fingerprint_sources(core: Any) -> dict[str, Any]:
     original_signature = core._signature_for_source
 
     def source_for_match(song: dict[str, Any]) -> Any:
-        source = original_source(song)
-        if source is not None:
-            return source
+        # IMPORTANT: do not call original_source() first. The mature resolver
+        # performs get_clip() when both local_audio and audio_url are missing.
+        # That would make a 3000-song already-indexed library hit Suno again and
+        # defeats the entire point of a persistent fingerprint cache.
+        local = core._existing_audio_path(song)
+        if local is not None:
+            return local
+        remote = str(song.get("audio_url") or "").strip()
+        if remote:
+            return remote
+
         song_id = str(song.get("id") or "")
         if not song_id:
             return None
@@ -130,9 +138,12 @@ def _install_cached_fingerprint_sources(core: Any) -> dict[str, Any]:
         if cached and cached.get("payload"):
             # This is the key correctness fix: "indexed" now really means the
             # YouTube matcher can use the song even when its old Suno CDN URL
-            # is no longer available.
+            # is no longer available. No Suno network request happens here.
             return _CachedFingerprintSource(song_id)
-        return None
+
+        # Only a song that has neither a live source NOR a cached fingerprint
+        # is allowed to fall through to the old get_clip() refresh behavior.
+        return original_source(song)
 
     def signature_for_source(
         source_type: str,
@@ -149,7 +160,7 @@ def _install_cached_fingerprint_sources(core: Any) -> dict[str, Any]:
         cached = core.DB.get_audio_fingerprint("suno", song_id, core.AUDIO_MATCH_VERSION)
         if cached and cached.get("payload"):
             # A true force rebuild should use a live source when one can be
-            # refreshed.  If there is no live source, the existing fingerprint
+            # refreshed. If there is no live source, the existing fingerprint
             # is still much better than falsely declaring an indexed song
             # unmatchable.
             if force:
@@ -167,9 +178,9 @@ def _install_cached_fingerprint_sources(core: Any) -> dict[str, Any]:
             except Exception:
                 pass
 
-        # Cached row is corrupt/stale.  Give the mature source resolver one
-        # final chance to refresh the Suno URL rather than silently returning a
-        # false "not found".
+        # Cached row is corrupt/stale. Give the mature source resolver one final
+        # chance to refresh the Suno URL rather than silently returning a false
+        # "not found".
         song = core.DB.get_song(song_id) or {"id": song_id}
         live = original_source(song)
         if live is None:
@@ -250,11 +261,13 @@ def _install_ytdlp_auth_fallback(core: Any) -> dict[str, Any]:
         cookie_browser: str = "",
     ) -> dict[str, Any]:
         configured = str(cookie_browser or "").strip().lower()
+        first_error: BaseException | None = None
         try:
             return original_inspect(video_url, cancel_check, configured)
-        except BaseException as first:
-            if not _auth_error(first):
+        except BaseException as exc:
+            if not _auth_error(exc):
                 raise
+            first_error = exc
         for browser in _browser_candidates(configured):
             if browser == configured:
                 continue
@@ -266,7 +279,7 @@ def _install_ytdlp_auth_fallback(core: Any) -> dict[str, Any]:
                 if not _auth_error(exc):
                     raise
                 _mark_browser_failed(browser)
-        raise first
+        raise core.AudioMatchError(str(first_error or "YouTube video zahteva prijavu."))
 
     core.download_youtube_audio = download_youtube_audio
     core.inspect_youtube_video = inspect_youtube_video
