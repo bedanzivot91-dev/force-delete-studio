@@ -17,6 +17,7 @@ on:
       - "app/web/information_architecture_2026_extension.js"
       - "app/web/modern_2026_skin_extension.js"
       - "app/web/modern_2026_compat_extension.js"
+      - "app/web/modern_2026_isolation_extension.js"
       - "app/web/modern_2026_legibility_extension.js"
       - "tests/youtube_reconcile_fix_test.py"
       - "tests/unbounded_operations_test.py"
@@ -57,6 +58,7 @@ jobs:
           node --check app\web\information_architecture_2026_extension.js
           node --check app\web\modern_2026_skin_extension.js
           node --check app\web\modern_2026_compat_extension.js
+          node --check app\web\modern_2026_isolation_extension.js
           node --check app\web\modern_2026_legibility_extension.js
       - name: Verify startup no longer auto-starts full fingerprinting
         run: |
