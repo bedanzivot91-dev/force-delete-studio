@@ -223,6 +223,11 @@
               <Button Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" />
             </StackPanel>
 
+            <StackPanel Spacing="8" IsVisible="{Binding IsAudioClip}">
+              <TextBlock Text="AUDIO" Classes="eyebrow" />
+              <TextBlock Text="Brzina" Classes="subtle"/>
+              <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+            </StackPanel>
             <StackPanel Spacing="8" IsVisible="{Binding IsPictureClip}">
               <TextBlock Text="VIDEO / SLIKA" Classes="eyebrow" />
               <TextBlock Text="Efekat" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}"/>

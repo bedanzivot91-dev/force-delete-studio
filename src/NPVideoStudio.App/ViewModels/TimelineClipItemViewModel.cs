@@ -80,6 +80,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// meaningless, since the base layer always fills the frame.</summary>
     public bool IsOverlayClip { get; }
     public bool IsPictureClip => IsVideoClip || IsOverlayClip;
+    public bool IsAudioClip { get; }
 
     private bool _isSelected;
 
@@ -478,7 +479,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, double, double, double, double>? onLayerPlacementChanged = null,
         bool isOverlayClip = false,
         Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null,
-        Action<string, ClipTransformSettings>? onTransformChanged = null)
+        Action<string, ClipTransformSettings>? onTransformChanged = null,
+        bool isAudioClip = false)
     {
         _onEffectsChanged = onEffectsChanged;
         _onTransformChanged = onTransformChanged;
@@ -488,6 +490,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         TrackId = trackId;
         _mediaLabel = label;
         IsVideoClip = isVideoClip;
+        IsAudioClip = isAudioClip;
         SplitAtPlayheadCommand = splitAtPlayheadCommand;
         DeleteCommand = deleteCommand;
         DuplicateCommand = duplicateCommand;

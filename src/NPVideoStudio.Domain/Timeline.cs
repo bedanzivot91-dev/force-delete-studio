@@ -196,7 +196,7 @@ public sealed class TimelineClip
     public double SourceTrimOutSeconds { get; set; }
 
     public double TimelineStartSeconds { get; set; }
-    public double TimelineDurationSeconds => Math.Max(0, SourceTrimOutSeconds - SourceTrimInSeconds);
+    public double TimelineDurationSeconds => Math.Max(0, SourceTrimOutSeconds - SourceTrimInSeconds) / (IsFreezeFrame ? 1.0 : Math.Clamp(SpeedMultiplier, 0.25, 4));
     public double TimelineEndSeconds => TimelineStartSeconds + TimelineDurationSeconds;
 
     public double FadeInSeconds { get; set; }

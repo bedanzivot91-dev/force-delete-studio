@@ -156,7 +156,7 @@ public sealed class TimelineEditSession
         }
 
         var offsetIntoClip = atTimelineSeconds - clip.TimelineStartSeconds;
-        var splitSourcePoint = clip.SourceTrimInSeconds + offsetIntoClip;
+        var splitSourcePoint = clip.SourceTrimInSeconds + offsetIntoClip * (clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4));
 
         SaveSnapshot();
         var (liveTrack, liveClip) = FindClipWithTrack(clipId);
@@ -190,7 +190,7 @@ public sealed class TimelineEditSession
         SaveSnapshot();
         var (_, liveClip) = FindClipWithTrack(clipId);
         liveClip!.SourceTrimInSeconds = clamped;
-        liveClip.TimelineStartSeconds = Math.Max(0, liveClip.TimelineStartSeconds + delta);
+        liveClip.TimelineStartSeconds = Math.Max(0, liveClip.TimelineStartSeconds + delta / (liveClip.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4)));
     }
 
     public void TrimOut(string clipId, double newSourceTrimOutSeconds)
