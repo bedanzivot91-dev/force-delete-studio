@@ -60,11 +60,11 @@ $new = @'
                 filterLines.Add(FormattableString.Invariant(
                     $"{canvas}{preparedLabel}overlay=x='{centreX}':y='{centreY}':enable='between(t,{start},{end})':eof_action=pass:format=auto{overlayCanvas}"));
 
-                // blend outputs planar GBR(A). Force it back to packed RGBA before any later drawtext or
-                // encoder conversion; otherwise FFmpeg's automatic path to yuv420p can reinterpret channels
-                // and turn a correct blue/magenta composition into visibly wrong colours.
-                filterLines.Add($"{baseBlend}{overlayCanvas}blend=all_mode={BlendModeName(clip.BlendMode)}:shortest=1,format=rgba{outLabel}");
+                // blend outputs planar GBR(A). Force it back to packed RGBA before later filters/encoding.
+                // Also restore an opaque alpha plane: `difference` applied through all_mode would otherwise
+                // calculate abs(255-255)=0 for alpha and make the entire composited frame transparent.
+                filterLines.Add($"{baseBlend}{overlayCanvas}blend=all_mode={BlendModeName(clip.BlendMode)}:shortest=1,format=rgba,lutrgb=a=255{outLabel}");
 '@
 $t = Replace-Once $t $old $new 'finite neutral blend canvas'
 Write-Utf8 $path $t
-Write-Host 'P2 neutral blend canvas + RGBA output fix applied.'
+Write-Host 'P2 neutral blend canvas + RGBA/alpha output fix applied.'
