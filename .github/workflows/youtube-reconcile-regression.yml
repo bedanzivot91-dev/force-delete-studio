@@ -4,11 +4,18 @@ on:
   pull_request:
     paths:
       - "app/youtube_reconcile_fixes.py"
+      - "app/unbounded_operations.py"
+      - "app/selection_fixes.py"
       - "app/workspace_backend.py"
       - "app/web/startup_guard_extension.js"
       - "app/web/organized_ui_extension.js"
       - "app/web/production_workspace_extension.js"
+      - "app/web/arbitrary_selection_extension.js"
+      - "app/web/unbounded_youtube_ui_extension.js"
+      - "app/web/studio_functionality_extension.js"
+      - "app/web/workflow_cleanup_extension.js"
       - "tests/youtube_reconcile_fix_test.py"
+      - "tests/unbounded_operations_test.py"
       - ".github/workflows/youtube-reconcile-regression.yml"
   workflow_dispatch:
 
@@ -18,7 +25,7 @@ permissions:
 jobs:
   reconcile-regression:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,17 +33,25 @@ jobs:
           python-version: "3.13"
       - name: Install core dependencies
         run: python -m pip install --upgrade pip -r requirements-core.txt
-      - name: Compile new runtime modules
+      - name: Compile runtime modules
         run: |
           python -m py_compile app\youtube_reconcile_fixes.py
+          python -m py_compile app\unbounded_operations.py
+          python -m py_compile app\selection_fixes.py
           python -m py_compile app\workspace_backend.py
       - name: Syntax-check Studio UI extensions
         run: |
           node --check app\web\production_workspace_extension.js
           node --check app\web\startup_guard_extension.js
           node --check app\web\organized_ui_extension.js
+          node --check app\web\arbitrary_selection_extension.js
+          node --check app\web\unbounded_youtube_ui_extension.js
+          node --check app\web\studio_functionality_extension.js
+          node --check app\web\workflow_cleanup_extension.js
       - name: Verify startup no longer auto-starts full fingerprinting
         run: |
           python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); assert 'autoRefreshSongFinderIndex =' in p; assert 'runSongFinderIndex(false)' not in p; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired')"
+      - name: Verify unlimited and exact-count semantics
+        run: python tests\unbounded_operations_test.py
       - name: Run indexed-song/private-video/UI regression
         run: python tests\youtube_reconcile_fix_test.py
