@@ -89,9 +89,8 @@ def test_user_limit_is_exact_not_clamped() -> None:
 def test_exact_or_all_song_selection() -> None:
     core = FakeSelectionCore(7301)
     selection_fixes.apply(core)
-    assert len(core.DB.list_song_ids(limit=10)) == 10
-    assert len(core.DB.list_song_ids(limit=15)) == 15
-    assert len(core.DB.list_song_ids(limit=5000)) == 5000
+    for requested in (1, 10, 15, 100, 5000, 7001):
+        assert len(core.DB.list_song_ids(limit=requested)) == requested
     assert len(core.DB.list_song_ids(limit=0)) == 7301
 
 
@@ -100,10 +99,13 @@ def test_no_legacy_five_thousand_cap_in_active_unbounded_modules() -> None:
     ui = (ROOT / "app" / "web" / "unbounded_youtube_ui_extension.js").read_text(encoding="utf-8")
     selection = (ROOT / "app" / "web" / "arbitrary_selection_extension.js").read_text(encoding="utf-8")
     assert "min(int(options.get(\"max_videos_per_channel\")" not in backend
-    assert "max_videos_per_channel:5000" not in ui
+    assert "Math.min(5000" not in ui
+    assert "max=\"5000\"" not in ui
     assert "0 = SVI" in ui
     assert "0 = SVE" in selection
     assert "SHORT_CLIP_MIN_MATCH_SECONDS" in backend
+    for value in ("10", "15", "100", "5000"):
+        assert value in selection or value in ui
 
 
 def main() -> None:
