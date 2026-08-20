@@ -98,7 +98,7 @@ def check_dom_references(parser: AuditHtml, js: str, issues: list[str], notes: l
     allow = {
         "modernLegacyThemes", "spsIa2026Marker", "spsModern2026Legibility",
         "spsModern2026Style", "spsModern2026CompatStyle", "spsModern2026IsolationStyle",
-        "spsIa2026Style",
+        "spsModern2026SurfaceCoverage", "spsIa2026Style",
     }
     missing = [item for item in missing if item not in allow]
     if missing:
@@ -149,8 +149,9 @@ def check_information_architecture(issues: list[str], notes: list[str]) -> None:
     notes.append("Raspored: proverene istorijski razbacane Suno/Audio/Library/System/Video funkcije i YouTube tabovi.")
 
 
-def check_modern_ui_and_legibility(issues: list[str], notes: list[str]) -> None:
+def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: list[str]) -> None:
     skin = (WEB / "modern_2026_skin_extension.js").read_text(encoding="utf-8")
+    surfaces = (WEB / "modern_2026_surface_coverage_extension.js").read_text(encoding="utf-8")
     isolation = (WEB / "modern_2026_isolation_extension.js").read_text(encoding="utf-8")
     legibility = (WEB / "modern_2026_legibility_extension.js").read_text(encoding="utf-8")
     backend = BACKEND.read_text(encoding="utf-8")
@@ -161,6 +162,13 @@ def check_modern_ui_and_legibility(issues: list[str], notes: list[str]) -> None:
     ):
         if token not in skin:
             issues.append(f"Moderni skin ne pokriva očekivanu površinu/token: {token}")
+
+    # No routed page may rely only on generic old CSS. Each has an explicit rule.
+    for view in sorted(parser.views):
+        selector = f"#view-{view}"
+        if selector not in surfaces:
+            issues.append(f"Stranica nema eksplicitni 2026 surface stil: {selector}")
+
     for token in (
         "document.body.dataset.theme = 'default'", "MutationObserver", ".brand::after{content:none!important}",
         ".nav-item::before{content:none!important}",
@@ -179,15 +187,16 @@ def check_modern_ui_and_legibility(issues: list[str], notes: list[str]) -> None:
         issues.append(f"Finalni legibility sloj još sadrži font manji od 11px: minimum {min(sizes)}px")
     order = [
         "workflow_cleanup_extension.js", "information_architecture_2026_extension.js",
-        "modern_2026_skin_extension.js", "modern_2026_compat_extension.js",
-        "modern_2026_isolation_extension.js", "modern_2026_legibility_extension.js",
+        "modern_2026_skin_extension.js", "modern_2026_surface_coverage_extension.js",
+        "modern_2026_compat_extension.js", "modern_2026_isolation_extension.js",
+        "modern_2026_legibility_extension.js",
     ]
     positions = [backend.find(name) for name in order]
     if any(pos < 0 for pos in positions) or positions != sorted(positions):
-        issues.append("Finalni UI bundle redosled nije cleanup -> IA -> skin -> compatibility -> isolation -> legibility.")
-    if "_workspace_complete_bundle_v8" not in backend:
-        issues.append("Backend nije prebačen na bundle v8 sa finalnim UI audit slojevima.")
-    notes.append(f"Tipografija: finalni override ima {len(sizes)} eksplicitnih veličina; minimum {min(sizes) if sizes else 'n/a'}px.")
+        issues.append("Finalni UI bundle redosled nije cleanup -> IA -> skin -> surfaces -> compatibility -> isolation -> legibility.")
+    if "_workspace_complete_bundle_v9" not in backend:
+        issues.append("Backend nije prebačen na bundle v9 sa page-by-page UI pokrivenošću.")
+    notes.append(f"Tipografija: finalni override ima {len(sizes)} eksplicitnih veličina; minimum {min(sizes) if sizes else 'n/a'}px. Eksplicitno stilizovano {len(parser.views)} routed stranica.")
 
 
 def main() -> None:
@@ -201,7 +210,7 @@ def main() -> None:
     check_dom_references(parser, js, issues, notes)
     check_api_routes(js, py, issues, notes)
     check_information_architecture(issues, notes)
-    check_modern_ui_and_legibility(issues, notes)
+    check_modern_ui_and_legibility(parser, issues, notes)
 
     print("FULL PROGRAM STATIC AUDIT")
     for note in notes:
