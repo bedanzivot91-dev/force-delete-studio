@@ -47,6 +47,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("modern 2026 legacy-theme isolation", core.WEB_DIR / "modern_2026_isolation_extension.js"),
         ("modern 2026 final legibility pass", core.WEB_DIR / "modern_2026_legibility_extension.js"),
         ("2026 workspace shell and navigation hierarchy", core.WEB_DIR / "modern_2026_shell_extension.js"),
+        ("final 2026 navigation grouping", core.WEB_DIR / "modern_2026_navigation_final.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
