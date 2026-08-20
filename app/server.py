@@ -241,6 +241,13 @@ def _send_file(
 _core.Handler._send_file = _send_file
 globals()["Handler"] = _core.Handler
 
+# Apply the Windows/local-server and large-library YouTube fixes only after the
+# wrapper's own response/download overrides are in place, so the disconnect
+# guard wraps the final production handlers rather than an obsolete version.
+from runtime_fixes import apply as _apply_runtime_fixes
+_RUNTIME_FIX_EXPORTS = _apply_runtime_fixes(_core)
+globals().update(_RUNTIME_FIX_EXPORTS)
+
 
 def main() -> None:
     return _core.main()
