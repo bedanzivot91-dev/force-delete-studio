@@ -103,6 +103,91 @@ def _usable_word(text: str, probability: float) -> bool:
     return bool(normalized) and normalized not in blocked and probability >= 0.35
 
 
+_SECTION_NAMES = {
+    "intro", "verse", "strofa", "pre-chorus", "pre chorus", "pred-refren", "pred refren",
+    "chorus", "refren", "post-chorus", "post chorus", "bridge", "most", "hook", "refrain",
+    "outro", "instrumental", "instrumentalno",
+}
+
+
+def _is_structural_lyrics_tag(line: str) -> bool:
+    """Skip only explicit section labels such as [Verse 2] or [Refren].
+
+    Older code discarded *any* first ALL-CAPS line with four words or fewer because it guessed that
+    the line was a song title. That can delete a perfectly valid lyric such as "JOŠ TE VOLIM". Casing
+    is never metadata. Only an explicit bracketed structural tag is allowed to be omitted.
+    """
+    stripped = line.strip()
+    if len(stripped) < 3 or not (stripped.startswith("[") and stripped.endswith("]")):
+        return False
+    inner = stripped[1:-1].strip().lower()
+    if inner in _SECTION_NAMES:
+        return True
+    # Accept numbered section labels: [Verse 2], [Refren 3], [Bridge 1].
+    parts = inner.rsplit(" ", 1)
+    return len(parts) == 2 and parts[1].isdigit() and parts[0] in _SECTION_NAMES
+
+
+def _verified_lyric_lines(verified: str) -> list[str]:
+    """Return every user-supplied lyric line except explicit structural section labels.
+
+    The exact spelling/casing/diacritics are intentionally preserved. Alignment is allowed to assign
+    timing to these lines; it is never allowed to rewrite or silently drop them.
+    """
+    return [
+        line.strip()
+        for line in verified.splitlines()
+        if line.strip() and not _is_structural_lyrics_tag(line)
+    ]
+
+
+def _lossless_verified_words(aligned, lyric_lines: list[str]) -> list[dict]:
+    """Convert lyric-align output only when every verified lyric line has a real time range.
+
+    A partial alignment is not a successful result. The previous 60% threshold could return a Done
+    event while silently losing almost half of the user's verified lyrics. This helper deliberately
+    fails the whole operation instead. The UI can then keep the original verified text and ask the
+    user to retry/manual-align rather than pretending a partial transcript is complete.
+    """
+    missing: list[tuple[int, str]] = []
+    for index, line in enumerate(lyric_lines):
+        if index >= len(aligned):
+            missing.append((index + 1, line))
+            continue
+        item = aligned[index]
+        if item.start is None or item.end is None:
+            missing.append((index + 1, line))
+
+    if len(aligned) != len(lyric_lines) or missing:
+        missing_indices = {number for number, _ in missing}
+        if len(aligned) < len(lyric_lines):
+            for index in range(len(aligned), len(lyric_lines)):
+                missing_indices.add(index + 1)
+        missing_preview = "; ".join(
+            f"{number}: {lyric_lines[number - 1]}"
+            for number in sorted(missing_indices)[:5]
+        )
+        extra = "" if len(missing_indices) <= 5 else f"; + još {len(missing_indices) - 5}"
+        raise RuntimeError(
+            f"Tačan tekst nije kompletno poravnat: {len(lyric_lines) - len(missing_indices)}/{len(lyric_lines)} redova ima timing. "
+            f"Nedostaju redovi {missing_preview}{extra}. Nijedan red nije obrisan; pokušajte ponovo ili ručno podesite timing."
+        )
+
+    result: list[dict] = []
+    for index, line in enumerate(lyric_lines):
+        item = aligned[index]
+        start = float(item.start)
+        end = max(float(item.end), start + 0.25)
+        result.append({
+            # Preserve the user's exact verified text instead of trusting a library-normalized copy.
+            "text": line,
+            "start": start,
+            "end": end,
+            "confidence": float(item.score if item.matched else 0.25),
+        })
+    return result
+
+
 def run_transcription(request: dict, job_kind: str, profile: str) -> int:
     # Balanced/MostAccurate need faster-whisper at minimum; Demucs/WhisperX are used opportunistically
     # by those profiles for vocals-only ASR / forced alignment where installed. None are bundled or
@@ -195,29 +280,15 @@ def run_transcription(request: dict, job_kind: str, profile: str) -> int:
                         "lyric-align nije instaliran. Ponovo pokrenite instalaciju AI alata u Podešavanjima."
                     ) from ex
 
-                lyric_lines = [
-                    line.strip() for line in verified.splitlines()
-                    if line.strip() and not line.strip().startswith("[")
-                ]
-                if lyric_lines and lyric_lines[0].isupper() and len(lyric_lines[0].split()) <= 4:
-                    lyric_lines = lyric_lines[1:]
+                lyric_lines = _verified_lyric_lines(verified)
+                if not lyric_lines:
+                    raise RuntimeError("Provereni tekst ne sadrži nijedan stih za poravnanje.")
                 aligned = align(
                     [Segment.from_dict(item) for item in aligner_segments],
                     lyric_lines, pairing="auto", karaoke=False
                 )
                 aligned = interpolate_gaps(aligned)
-                placed = [item for item in aligned if item.start is not None and item.end is not None]
-                if len(placed) < max(1, int(len(lyric_lines) * 0.6)):
-                    raise RuntimeError(
-                        f"Pouzdano je vremenski postavljeno samo {len(placed)}/{len(lyric_lines)} redova. "
-                        "Vokal nije dovoljno čist za automatsko poravnanje."
-                    )
-                words = [{
-                    "text": item.line,
-                    "start": float(item.start),
-                    "end": max(float(item.end), float(item.start) + 0.25),
-                    "confidence": float(item.score if item.matched else 0.25),
-                } for item in placed]
+                words = _lossless_verified_words(aligned, lyric_lines)
                 raw_parts = lyric_lines
 
             emit({"type": "Progress", "progressPercent": 95, "message": "Grupišem prepoznate reči u stihove..."})
