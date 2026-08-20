@@ -335,7 +335,9 @@ public sealed partial class TimelineViewModel : ViewModelBase
         {
             _session.SetClipEffects(clipId, effect, brightness, contrast, saturation, speed);
             RefreshFromSession();
-        }        void OnTransformChanged(string clipId, ClipTransformSettings settings)
+        }
+
+        void OnTransformChanged(string clipId, ClipTransformSettings settings)
         {
             _session.SetClipTransform(clipId, settings);
             RefreshFromSession();

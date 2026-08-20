@@ -223,13 +223,14 @@
               <Button Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" />
             </StackPanel>
 
-            <StackPanel Spacing="8" IsVisible="{Binding !IsTextClip}">
+            <StackPanel Spacing="8" IsVisible="{Binding IsPictureClip}">
               <TextBlock Text="VIDEO / SLIKA" Classes="eyebrow" />
               <TextBlock Text="Efekat" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}"/>
               <TextBlock Text="Osvetljenje" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Brightness}"/>
               <TextBlock Text="Kontrast" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Contrast}"/>
               <TextBlock Text="Zasićenost" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Saturation}"/>
-              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />
+              <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />
               <TextBlock Text="Rotacija (stepeni)" Classes="subtle"/><NumericUpDown Value="{Binding RotationDegrees}" Minimum="-360" Maximum="360" Increment="1"/>
               <WrapPanel Orientation="Horizontal">
                 <ToggleButton Content="Flip horizontalno" IsChecked="{Binding FlipHorizontal}" Margin="0,0,8,4"/>

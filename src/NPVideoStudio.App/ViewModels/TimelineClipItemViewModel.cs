@@ -29,7 +29,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     /// <summary>(clipId, effect, brightness, contrast, saturation, speed) - routed through the session so
     /// one undo takes the whole effect change back.</summary>
-    private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;    private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
+    private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
+    private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
 
     public TimelineClip Clip { get; }
     public string TrackId { get; }
@@ -78,6 +79,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// get the size/position/transparency controls - on the background video track those values are
     /// meaningless, since the base layer always fills the frame.</summary>
     public bool IsOverlayClip { get; }
+    public bool IsPictureClip => IsVideoClip || IsOverlayClip;
 
     private bool _isSelected;
 
@@ -478,7 +480,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null,
         Action<string, ClipTransformSettings>? onTransformChanged = null)
     {
-        _onEffectsChanged = onEffectsChanged;        _onTransformChanged = onTransformChanged;
+        _onEffectsChanged = onEffectsChanged;
+        _onTransformChanged = onTransformChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
         IsOverlayClip = isOverlayClip;
         Clip = clip;
