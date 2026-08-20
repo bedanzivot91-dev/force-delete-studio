@@ -30,16 +30,17 @@ def _install_complete_app_bundle(core: Any) -> None:
 
     server.py already appends the download and timeline modules.  This final
     wrapper is installed after those patches and deliberately assembles the
-    complete bundle itself so organized_ui_extension.js is guaranteed to run
-    in the same lexical scope as app.js (state/api/$/showView/etc.).
+    complete bundle itself so every extension runs in the same lexical scope as
+    app.js (state/api/$/showView/etc.).
     """
     handler = core.Handler
-    if getattr(handler, "_workspace_complete_bundle_v1", False):
+    if getattr(handler, "_workspace_complete_bundle_v2", False):
         return
     previous_send_file = handler._send_file
     extensions = (
         ("whole-library download extension", core.WEB_DIR / "bulk_download_extension.js"),
         ("production timeline workspace", core.WEB_DIR / "production_workspace_extension.js"),
+        ("startup heavy-task guard", core.WEB_DIR / "startup_guard_extension.js"),
         ("organized Studio and YouTube workflow", core.WEB_DIR / "organized_ui_extension.js"),
     )
 
@@ -58,11 +59,11 @@ def _install_complete_app_bundle(core: Any) -> None:
         self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
 
     handler._send_file = send_file
-    handler._workspace_complete_bundle_v1 = True
+    handler._workspace_complete_bundle_v2 = True
 
 
 def apply(core: Any) -> dict[str, Any]:
-    if getattr(core, "_workspace_backend_v2_installed", False):
+    if getattr(core, "_workspace_backend_v3_installed", False):
         return {}
 
     def v3_lyric_video_task(task: Any, options: dict[str, Any]) -> None:
@@ -149,5 +150,5 @@ def apply(core: Any) -> dict[str, Any]:
     exports.update(apply_youtube_reconcile(core))
     _install_complete_app_bundle(core)
 
-    core._workspace_backend_v2_installed = True
+    core._workspace_backend_v3_installed = True
     return exports
