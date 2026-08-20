@@ -15,7 +15,101 @@
     return number;
   }
 
+  function savedLimit() {
+    try { return parseVideoLimit(localStorage.getItem('sps-youtube-video-limit') ?? '0'); } catch (_) { return 0; }
+  }
+
+  function rememberLimit(value) {
+    const limit = parseVideoLimit(value);
+    try { localStorage.setItem('sps-youtube-video-limit', String(limit)); } catch (_) {}
+    if ($('ytReconVideoLimit')) $('ytReconVideoLimit').value = String(limit);
+    if ($('youtubeAudioMaxVideos')) $('youtubeAudioMaxVideos').value = String(limit);
+    return limit;
+  }
+
+  function normalizeLegacyControls() {
+    const maxVideos = $('youtubeAudioMaxVideos');
+    if (maxVideos) {
+      maxVideos.removeAttribute('max');
+      maxVideos.min = '0';
+      maxVideos.step = '1';
+      maxVideos.value = String(savedLimit());
+      const label = maxVideos.closest('label');
+      if (label) {
+        for (const node of [...label.childNodes]) {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.textContent = 'Videa po kanalu — 0 = SVI ';
+        }
+      }
+      maxVideos.addEventListener('change', () => {
+        try { rememberLimit(maxVideos.value); } catch (error) { toast(error.message,'error'); }
+      });
+    }
+
+    // "Pages x 50" was the hidden source of the old 5k ceiling. The new
+    // streaming backend follows nextPageToken until the channel ends, so this
+    // obsolete quantity control must not keep suggesting that a channel has a
+    // page ceiling.
+    const pageInput = $('youtubeChannelScanPages');
+    const pageLabel = pageInput?.closest('label');
+    if (pageLabel) pageLabel.classList.add('hidden');
+  }
+
+  // Replace the two legacy functions BEFORE bindEvents() runs at DOMContent.
+  // Their old source contained Math.min(5000, pages*50) and a default of 100.
+  scanOwnedYoutube = async function scanOwnedYoutubeNoAppLimit() {
+    const limit = rememberLimit($('youtubeAudioMaxVideos')?.value ?? savedLimit());
+    const scanMode = $('youtubeChannelScanMode')?.value || 'new';
+    try {
+      await startBackground('/api/youtube/audio-analyze-owned', {
+        max_pages:0,
+        max_videos_per_channel:limit,
+        candidate_limit:20,
+        deep:false,
+        reuse_cache:true,
+        force:false,
+        scan_mode:scanMode === 'full' ? 'all' : scanMode,
+        detect_multiple:true,
+        max_songs_per_video:6,
+        cache_days:30,
+        cache_gb:10,
+      });
+      $('taskPanel').classList.remove('hidden');
+      $('taskPanel').scrollIntoView({behavior:'smooth'});
+      toast(limit===0
+        ? 'Provera kanala je pokrenuta bez brojčanog limita programa — čita do kraja YouTube paginacije.'
+        : `Provera kanala je pokrenuta do ${limit} videa po kanalu, po tvom izboru.`, 'success', 10000);
+    } catch (error) { toast(error.message,'error',15000); }
+  };
+
+  analyzeOwnedYoutubeAudio = async function analyzeOwnedYoutubeAudioNoAppLimit() {
+    const selectedOnly=$('youtubeAudioSelectedOnly')?.checked===true;
+    const ids=selectedOnly?selectedIds():[];
+    if(selectedOnly&&!ids.length)return toast('Izaberi najmanje jednu Suno pesmu u Biblioteci ili isključi opciju „samo izabrane“.','error',9000);
+    let limit;
+    try { limit=rememberLimit($('youtubeAudioMaxVideos')?.value ?? savedLimit()); }
+    catch(error){ return toast(error.message,'error',9000); }
+    try{
+      await startBackground('/api/youtube/audio-analyze-owned',{
+        song_ids:ids,
+        max_videos_per_channel:limit,
+        candidate_limit:Number($('youtubeAudioCandidateLimit')?.value||16),
+        deep:$('youtubeAudioDeep')?.checked===true,
+        reuse_cache:$('youtubeAudioReuseCache')?.checked!==false,
+        force:$('youtubeAudioForce')?.checked===true,
+        max_pages:0,
+        scan_mode:$('youtubeAudioScanMode')?.value||'new',
+        detect_multiple:$('youtubeAudioDetectMultiple')?.checked!==false,
+        max_songs_per_video:Number($('youtubeAudioMaxSongsPerVideo')?.value||6),
+        cache_days:Number($('youtubeAudioCacheDays')?.value||30),
+        cache_gb:10,
+      });
+      $('taskPanel').classList.remove('hidden');$('taskPanel').scrollIntoView({behavior:'smooth'});
+      toast(limit===0?'YouTube ↔ Suno analiza SVIH dostupnih videa je pokrenuta.':`YouTube ↔ Suno analiza do ${limit} videa po kanalu je pokrenuta.`,'success',10000);
+    }catch(error){toast(error.message,'error',15000);}
+  };
+
   function installControl() {
+    normalizeLegacyControls();
     const card = $('youtubeReconcileCard');
     const oldButton = $('ytReconAllVideos');
     if (!card || !oldButton || $('ytReconVideoLimit')) return;
@@ -26,21 +120,24 @@
     field.style.flexDirection = 'column';
     field.style.gap = '4px';
     field.style.minWidth = '215px';
-    field.innerHTML = '<span class="muted" style="font-size:11px">VIDEA PO KANALU — 0 = SVI</span><input id="ytReconVideoLimit" type="number" min="0" step="1" value="0" placeholder="0 = svi, ili 10 / 100 / 5000">';
+    field.innerHTML = `<span class="muted" style="font-size:11px">VIDEA PO KANALU — 0 = SVI</span><input id="ytReconVideoLimit" type="number" min="0" step="1" value="${savedLimit()}" placeholder="0 = svi, ili 10 / 100 / 5000">`;
     actions.insertBefore(field, oldButton);
 
-    // organized_ui_extension attached a hard-coded 5000 listener to the old
-    // node. Replacing the node removes that listener instead of stacking two
-    // scans on one click.
+    // organized_ui_extension attached its historical 5k listener to this old
+    // node. Replacing the node guarantees only the user-controlled handler can
+    // start a scan.
     const button = oldButton.cloneNode(true);
     button.textContent = 'PROVERI MOJE VIDEOE';
     button.title = '0 proverava sve dostupne videe; pozitivan broj je tvoj limit po kanalu.';
     oldButton.replaceWith(button);
 
+    $('ytReconVideoLimit').addEventListener('change',()=>{
+      try{rememberLimit($('ytReconVideoLimit').value);}catch(error){toast(error.message,'error');}
+    });
+
     button.addEventListener('click', async () => {
       try {
-        const limit = parseVideoLimit($('ytReconVideoLimit').value);
-        try { localStorage.setItem('sps-youtube-video-limit', String(limit)); } catch (_) {}
+        const limit = rememberLimit($('ytReconVideoLimit').value);
         const body = {
           max_pages: 0,
           max_videos_per_channel: limit,
@@ -64,11 +161,6 @@
         toast(error.message, 'error', 15000);
       }
     });
-
-    try {
-      const saved = localStorage.getItem('sps-youtube-video-limit');
-      if (saved !== null) $('ytReconVideoLimit').value = String(parseVideoLimit(saved));
-    } catch (_) {}
 
     const note = document.createElement('p');
     note.className = 'fine-print';
@@ -98,7 +190,6 @@
       renderYoutubeAudioResults();
       renderYoutubeCalendar();
     } catch (error) {
-      // The main center remains usable even if a huge result refresh fails.
       if ($('youtubeAudioResultsList')) {
         const warning = document.createElement('div');
         warning.className = 'inline-message warning';
@@ -109,6 +200,7 @@
     installControl();
   };
 
+  normalizeLegacyControls();
   installControl();
-  window.SPSYoutubeVideoLimit = {parseVideoLimit};
+  window.SPSYoutubeVideoLimit = {parseVideoLimit,rememberLimit};
 })();
