@@ -149,18 +149,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "go test failed" }
 
       - id: gofmt
-        name: Report Go formatting
+        name: Enforce Go formatting for every Windows native source
         continue-on-error: true
         working-directory: windows_build
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $unformatted = @(gofmt -l .)
           if ($unformatted.Count -gt 0) {
-            Write-Host "GOFMT REVIEW REQUIRED:"
+            Write-Host "GOFMT FAIL — unformatted Go files:"
             $unformatted | ForEach-Object { Write-Host $_ }
-          } else {
-            Write-Host "GOFMT: all Go files formatted"
+            throw "gofmt failed: $($unformatted.Count) file(s) are not formatted"
           }
+          Write-Host "GOFMT: all Go files formatted"
 
       - name: Upload complete deep audit report
         if: always()
