@@ -348,6 +348,25 @@
                 <NumericUpDown Name="InspectorTransitionDuration" Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>
               </StackPanel>
             </StackPanel>
+
+            <StackPanel Spacing="7" IsVisible="{Binding SupportsKeyframes}">
+              <TextBlock Text="KEYFRAMES / ANIMACIJA" Classes="eyebrow" Margin="0,10,0,0" />
+              <TextBlock Text="{Binding KeyframeSummary}" Classes="subtle" />
+              <TextBlock Text="Svojstvo" Classes="subtle" />
+              <ComboBox ItemsSource="{Binding AvailableKeyframeProperties}" SelectedItem="{Binding SelectedKeyframeProperty}" />
+              <TextBlock Text="{Binding KeyframeValueLabel}" Classes="subtle" />
+              <NumericUpDown Value="{Binding KeyframeValue}"
+                             Minimum="{Binding KeyframeValueMinimum}" Maximum="{Binding KeyframeValueMaximum}"
+                             Increment="{Binding KeyframeValueIncrement}" />
+              <TextBlock Text="Easing do ove tačke" Classes="subtle" />
+              <ComboBox ItemsSource="{Binding AvailableKeyframeEasings}" SelectedItem="{Binding SelectedKeyframeEasing}" />
+              <WrapPanel Orientation="Horizontal">
+                <Button Classes="cta" Content="◆ DODAJ NA PLEJHEDU" Command="{Binding AddKeyframeAtPlayheadCommand}" Margin="0,0,8,4" />
+                <Button Content="Ukloni najbliži" Command="{Binding RemoveKeyframeAtPlayheadCommand}" Margin="0,0,0,4" />
+              </WrapPanel>
+              <TextBlock Text="Za tačan pokret koristi ‘Renderuj deo oko plejhed-a (brzo)’ — finalni export koristi isti FFmpeg keyframe engine."
+                         Classes="subtle" TextWrapping="Wrap" />
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </Border>

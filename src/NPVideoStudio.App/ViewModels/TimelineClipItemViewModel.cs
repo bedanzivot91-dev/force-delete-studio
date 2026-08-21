@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.App.ViewModels;
@@ -32,6 +33,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
     private readonly Action<string, ClipCompositingSettings>? _onCompositingChanged;
+    private readonly Func<double>? _getPlayheadSeconds;
+    private readonly Action<string, ClipKeyframeProperty, double, double, ClipKeyframeEasing>? _onKeyframeUpsert;
+    private readonly Action<string, ClipKeyframeProperty, double>? _onKeyframeRemove;
 
     public TimelineClip Clip { get; }
     public string TrackId { get; }
@@ -82,6 +86,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public bool IsOverlayClip { get; }
     public bool IsPictureClip => IsVideoClip || IsOverlayClip;
     public bool IsAudioClip { get; }
+    public bool SupportsKeyframes => IsPictureClip || IsTextClip;
 
     private bool _isSelected;
 
@@ -301,6 +306,141 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         get => Clip.BlendMode;
         set { if (Clip.BlendMode == value) return; PushCompositing(s => s with { BlendMode = value }); }
     }
+    private static readonly ClipKeyframeProperty[] PictureKeyframeProperties = Enum.GetValues<ClipKeyframeProperty>();
+    private static readonly ClipKeyframeProperty[] TextKeyframeProperties =
+    {
+        ClipKeyframeProperty.PositionX,
+        ClipKeyframeProperty.PositionY,
+        ClipKeyframeProperty.Scale,
+        ClipKeyframeProperty.Opacity
+    };
+
+    public IReadOnlyList<ClipKeyframeProperty> AvailableKeyframeProperties =>
+        IsTextClip ? TextKeyframeProperties : PictureKeyframeProperties;
+    public IReadOnlyList<ClipKeyframeEasing> AvailableKeyframeEasings { get; } = Enum.GetValues<ClipKeyframeEasing>();
+
+    private ClipKeyframeProperty _selectedKeyframeProperty = ClipKeyframeProperty.PositionX;
+    public ClipKeyframeProperty SelectedKeyframeProperty
+    {
+        get => _selectedKeyframeProperty;
+        set
+        {
+            if (_selectedKeyframeProperty == value) return;
+            _selectedKeyframeProperty = value;
+            OnPropertyChanged();
+            _keyframeValue = CurrentKeyframeValue(value);
+            OnPropertyChanged(nameof(KeyframeValue));
+            OnPropertyChanged(nameof(KeyframeValueLabel));
+            OnPropertyChanged(nameof(KeyframeValueMinimum));
+            OnPropertyChanged(nameof(KeyframeValueMaximum));
+            OnPropertyChanged(nameof(KeyframeValueIncrement));
+        }
+    }
+
+    private ClipKeyframeEasing _selectedKeyframeEasing = ClipKeyframeEasing.EaseInOut;
+    public ClipKeyframeEasing SelectedKeyframeEasing
+    {
+        get => _selectedKeyframeEasing;
+        set { if (_selectedKeyframeEasing == value) return; _selectedKeyframeEasing = value; OnPropertyChanged(); }
+    }
+
+    private double _keyframeValue = 50;
+    public double KeyframeValue
+    {
+        get => _keyframeValue;
+        set
+        {
+            var clamped = ClipKeyframeEvaluator.ClampValue(SelectedKeyframeProperty, value);
+            if (Math.Abs(_keyframeValue - clamped) < 1e-9) return;
+            _keyframeValue = clamped;
+            OnPropertyChanged();
+        }
+    }
+
+    public string KeyframeValueLabel => SelectedKeyframeProperty switch
+    {
+        ClipKeyframeProperty.PositionX => "X pozicija (%)",
+        ClipKeyframeProperty.PositionY => "Y pozicija (%)",
+        ClipKeyframeProperty.Scale => "Veličina (%)",
+        ClipKeyframeProperty.Rotation => "Rotacija (°)",
+        ClipKeyframeProperty.Opacity => "Providnost (0-1)",
+        _ => "Vrednost"
+    };
+    public double KeyframeValueMinimum => SelectedKeyframeProperty switch
+    {
+        ClipKeyframeProperty.PositionX or ClipKeyframeProperty.PositionY => -200,
+        ClipKeyframeProperty.Scale => 1,
+        ClipKeyframeProperty.Rotation => -3600,
+        ClipKeyframeProperty.Opacity => 0,
+        _ => -10000
+    };
+    public double KeyframeValueMaximum => SelectedKeyframeProperty switch
+    {
+        ClipKeyframeProperty.PositionX or ClipKeyframeProperty.PositionY => 300,
+        ClipKeyframeProperty.Scale => 1000,
+        ClipKeyframeProperty.Rotation => 3600,
+        ClipKeyframeProperty.Opacity => 1,
+        _ => 10000
+    };
+    public double KeyframeValueIncrement => SelectedKeyframeProperty == ClipKeyframeProperty.Opacity ? 0.05 : 1;
+    public string KeyframeSummary => Clip.Keyframes.Count == 0
+        ? "Nema keyframe-ova"
+        : $"{Clip.Keyframes.Count} keyframe tačaka";
+
+    public ICommand AddKeyframeAtPlayheadCommand { get; }
+    public ICommand RemoveKeyframeAtPlayheadCommand { get; }
+
+    private double CurrentKeyframeValue(ClipKeyframeProperty property)
+    {
+        if (IsTextClip)
+        {
+            return property switch
+            {
+                ClipKeyframeProperty.PositionX => HorizontalAlign switch
+                {
+                    TextHorizontalAlign.Left => 10,
+                    TextHorizontalAlign.Right => 90,
+                    _ => 50
+                },
+                ClipKeyframeProperty.PositionY => TextPosition switch
+                {
+                    CaptionTextPosition.Top => 10,
+                    CaptionTextPosition.Middle => 50,
+                    _ => 85
+                },
+                ClipKeyframeProperty.Scale => 100,
+                ClipKeyframeProperty.Opacity => 1,
+                _ => 0
+            };
+        }
+
+        return ClipKeyframeEvaluator.StaticValue(Clip, property);
+    }
+
+    private void AddKeyframeAtPlayhead()
+    {
+        if (_getPlayheadSeconds is null || _onKeyframeUpsert is null)
+        {
+            return;
+        }
+
+        var local = Math.Clamp(_getPlayheadSeconds() - Clip.TimelineStartSeconds, 0, Clip.TimelineDurationSeconds);
+        _onKeyframeUpsert(Clip.Id, SelectedKeyframeProperty, local, KeyframeValue, SelectedKeyframeEasing);
+        OnPropertyChanged(nameof(KeyframeSummary));
+    }
+
+    private void RemoveKeyframeAtPlayhead()
+    {
+        if (_getPlayheadSeconds is null || _onKeyframeRemove is null)
+        {
+            return;
+        }
+
+        var local = Math.Clamp(_getPlayheadSeconds() - Clip.TimelineStartSeconds, 0, Clip.TimelineDurationSeconds);
+        _onKeyframeRemove(Clip.Id, SelectedKeyframeProperty, local);
+        OnPropertyChanged(nameof(KeyframeSummary));
+    }
+
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
     /// heard": before this, an auto-generated caption's text could only be deleted and retyped from
     /// scratch as a brand new Text-track clip, with no way to just fix a misheard word in place.</summary>
@@ -538,12 +678,18 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, ClipVideoEffect, double, double, double, double>? onEffectsChanged = null,
         Action<string, ClipTransformSettings>? onTransformChanged = null,
         Action<string, ClipCompositingSettings>? onCompositingChanged = null,
-        bool isAudioClip = false)
+        bool isAudioClip = false,
+        Func<double>? getPlayheadSeconds = null,
+        Action<string, ClipKeyframeProperty, double, double, ClipKeyframeEasing>? onKeyframeUpsert = null,
+        Action<string, ClipKeyframeProperty, double>? onKeyframeRemove = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onTransformChanged = onTransformChanged;
         _onCompositingChanged = onCompositingChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
+        _getPlayheadSeconds = getPlayheadSeconds;
+        _onKeyframeUpsert = onKeyframeUpsert;
+        _onKeyframeRemove = onKeyframeRemove;
         IsOverlayClip = isOverlayClip;
         Clip = clip;
         TrackId = trackId;
@@ -563,6 +709,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         _onTransitionChanged = onTransitionChanged;
         _onTextContentChanged = onTextContentChanged;
         _onAdvancedStyleChanged = onAdvancedStyleChanged;
+        _keyframeValue = CurrentKeyframeValue(_selectedKeyframeProperty);
+        AddKeyframeAtPlayheadCommand = new RelayCommand(AddKeyframeAtPlayhead);
+        RemoveKeyframeAtPlayheadCommand = new RelayCommand(RemoveKeyframeAtPlayhead);
     }
 
     private static string FormatTime(double seconds)

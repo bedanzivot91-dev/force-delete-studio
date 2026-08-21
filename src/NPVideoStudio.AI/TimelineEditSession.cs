@@ -162,6 +162,7 @@ public sealed class TimelineEditSession
         var (liveTrack, liveClip) = FindClipWithTrack(clipId);
         var second = Clone(liveClip!);
         second.Id = Guid.NewGuid().ToString("N");
+        SplitKeyframesAt(liveClip!, second, offsetIntoClip);
         second.SourceTrimInSeconds = splitSourcePoint;
         second.TimelineStartSeconds = atTimelineSeconds;
         second.FadeInSeconds = 0; // The new leading edge is a fresh cut, not the original fade-in point.
@@ -189,8 +190,10 @@ public sealed class TimelineEditSession
 
         SaveSnapshot();
         var (_, liveClip) = FindClipWithTrack(clipId);
-        liveClip!.SourceTrimInSeconds = clamped;
-        liveClip.TimelineStartSeconds = Math.Max(0, liveClip.TimelineStartSeconds + delta / (liveClip.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4)));
+        var timelineDelta = delta / (liveClip!.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4));
+        TrimKeyframesAtStart(liveClip, timelineDelta);
+        liveClip.SourceTrimInSeconds = clamped;
+        liveClip.TimelineStartSeconds = Math.Max(0, liveClip.TimelineStartSeconds + timelineDelta);
     }
 
     public void TrimOut(string clipId, double newSourceTrimOutSeconds)
@@ -208,7 +211,11 @@ public sealed class TimelineEditSession
         }
 
         SaveSnapshot();
-        FindClipWithTrack(clipId).Clip!.SourceTrimOutSeconds = clamped;
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        var speed = liveClip.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4);
+        var newDuration = Math.Max(0, clamped - liveClip.SourceTrimInSeconds) / speed;
+        TrimKeyframesAtEnd(liveClip, newDuration);
+        liveClip.SourceTrimOutSeconds = clamped;
     }
 
     public void SetFade(string clipId, double fadeInSeconds, double fadeOutSeconds)
@@ -281,6 +288,97 @@ public sealed class TimelineEditSession
         liveClip.Opacity = Math.Clamp(opacity, 0, 1);
     }
 
+    /// <summary>Adds or replaces one keyframe at a clip-local time. This is a normal session edit:
+    /// it is persisted, undoable and never mutates the caller's pre-snapshot object first.</summary>
+    public void UpsertKeyframe(
+        string clipId,
+        ClipKeyframeProperty property,
+        double localTimeSeconds,
+        double value,
+        ClipKeyframeEasing easing)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        var time = Math.Clamp(localTimeSeconds, 0, Math.Max(0, clip.TimelineDurationSeconds));
+        var clampedValue = ClipKeyframeEvaluator.ClampValue(property, value);
+        var existing = clip.Keyframes.FirstOrDefault(k =>
+            k.Property == property && Math.Abs(k.TimeSeconds - time) <= 0.001);
+
+        if (existing is not null &&
+            Math.Abs(existing.Value - clampedValue) <= 1e-9 &&
+            existing.Easing == easing)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        var liveExisting = liveClip.Keyframes.FirstOrDefault(k =>
+            k.Property == property && Math.Abs(k.TimeSeconds - time) <= 0.001);
+        if (liveExisting is null)
+        {
+            liveClip.Keyframes.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = time,
+                Value = clampedValue,
+                Easing = easing
+            });
+        }
+        else
+        {
+            liveExisting.TimeSeconds = time;
+            liveExisting.Value = clampedValue;
+            liveExisting.Easing = easing;
+        }
+
+        liveClip.Keyframes = liveClip.Keyframes
+            .OrderBy(k => k.Property)
+            .ThenBy(k => k.TimeSeconds)
+            .ToList();
+    }
+
+    public void RemoveKeyframe(
+        string clipId,
+        ClipKeyframeProperty property,
+        double localTimeSeconds,
+        double toleranceSeconds = 0.08)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null)
+        {
+            return;
+        }
+
+        var nearest = clip.Keyframes
+            .Where(k => k.Property == property)
+            .OrderBy(k => Math.Abs(k.TimeSeconds - localTimeSeconds))
+            .FirstOrDefault();
+        if (nearest is null || Math.Abs(nearest.TimeSeconds - localTimeSeconds) > Math.Max(0.001, toleranceSeconds))
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        FindClipWithTrack(clipId).Clip!.Keyframes.RemoveAll(k => k.Id == nearest.Id);
+    }
+
+    public void RemoveAllKeyframes(string clipId)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.Keyframes.Count == 0)
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        FindClipWithTrack(clipId).Clip!.Keyframes.Clear();
+    }
+
     /// <summary>
     /// Sets a clip's picture look and playback speed (rendered by
     /// <c>FfmpegFilterGraphBuilder.BuildEffectFilters</c>/<c>BuildSpeedFilter</c>). Values are clamped to
@@ -297,11 +395,13 @@ public sealed class TimelineEditSession
 
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
+        var previousTimelineDuration = liveClip.TimelineDurationSeconds;
         liveClip.Effect = effect;
         liveClip.Brightness = Math.Clamp(brightness, -1, 1);
         liveClip.Contrast = Math.Clamp(contrast, 0, 3);
         liveClip.Saturation = Math.Clamp(saturation, 0, 3);
         liveClip.SpeedMultiplier = Math.Clamp(speed, 0.25, 4);
+        RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
     }
 
     public void SetClipTransform(string clipId, ClipTransformSettings settings)
@@ -458,6 +558,152 @@ public sealed class TimelineEditSession
             target.LineSpacingPx = source.LineSpacingPx;
         }
     }
+
+    private static void SplitKeyframesAt(TimelineClip first, TimelineClip second, double splitSeconds)
+    {
+        if (first.Keyframes.Count == 0)
+        {
+            return;
+        }
+
+        var original = first.Keyframes.Select(CloneKeyframe).ToList();
+        var left = original.Where(k => k.TimeSeconds < splitSeconds - 0.001).Select(CloneKeyframe).ToList();
+        var right = original.Where(k => k.TimeSeconds > splitSeconds + 0.001).Select(k =>
+        {
+            var clone = CloneKeyframe(k);
+            clone.TimeSeconds -= splitSeconds;
+            return clone;
+        }).ToList();
+
+        foreach (var property in original.Select(k => k.Property).Distinct())
+        {
+            var fallback = ClipKeyframeEvaluator.StaticValue(first, property);
+            var boundary = ClipKeyframeEvaluator.Evaluate(original, property, splitSeconds, fallback);
+            var easingIntoBoundary = original
+                .Where(k => k.Property == property && k.TimeSeconds >= splitSeconds)
+                .OrderBy(k => k.TimeSeconds)
+                .Select(k => k.Easing)
+                .FirstOrDefault();
+
+            left.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = splitSeconds,
+                Value = boundary,
+                Easing = easingIntoBoundary
+            });
+            right.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = 0,
+                Value = boundary,
+                Easing = ClipKeyframeEasing.Linear
+            });
+        }
+
+        first.Keyframes = left.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+        second.Keyframes = right.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+    }
+
+    private static void TrimKeyframesAtStart(TimelineClip clip, double timelineDelta)
+    {
+        if (clip.Keyframes.Count == 0 || Math.Abs(timelineDelta) <= 1e-9)
+        {
+            return;
+        }
+
+        if (timelineDelta < 0)
+        {
+            foreach (var keyframe in clip.Keyframes)
+            {
+                keyframe.TimeSeconds -= timelineDelta;
+            }
+            return;
+        }
+
+        var original = clip.Keyframes.Select(CloneKeyframe).ToList();
+        var shifted = original.Where(k => k.TimeSeconds > timelineDelta + 0.001).Select(k =>
+        {
+            var clone = CloneKeyframe(k);
+            clone.TimeSeconds -= timelineDelta;
+            return clone;
+        }).ToList();
+
+        foreach (var property in original.Select(k => k.Property).Distinct())
+        {
+            shifted.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = 0,
+                Value = ClipKeyframeEvaluator.Evaluate(original, property, timelineDelta, ClipKeyframeEvaluator.StaticValue(clip, property)),
+                Easing = ClipKeyframeEasing.Linear
+            });
+        }
+
+        clip.Keyframes = shifted.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+    }
+
+    private static void TrimKeyframesAtEnd(TimelineClip clip, double newDuration)
+    {
+        if (clip.Keyframes.Count == 0)
+        {
+            return;
+        }
+
+        var original = clip.Keyframes.Select(CloneKeyframe).ToList();
+        var kept = original.Where(k => k.TimeSeconds < newDuration - 0.001).Select(CloneKeyframe).ToList();
+        foreach (var property in original.Select(k => k.Property).Distinct())
+        {
+            kept.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = newDuration,
+                Value = ClipKeyframeEvaluator.Evaluate(original, property, newDuration, ClipKeyframeEvaluator.StaticValue(clip, property)),
+                Easing = original.Where(k => k.Property == property && k.TimeSeconds >= newDuration)
+                    .OrderBy(k => k.TimeSeconds)
+                    .Select(k => k.Easing)
+                    .FirstOrDefault()
+            });
+        }
+
+        clip.Keyframes = kept.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+    }
+
+    private static void RescaleKeyframesForDurationChange(TimelineClip clip, double previousDuration)
+    {
+        var duration = Math.Max(0, clip.TimelineDurationSeconds);
+        if (clip.Keyframes.Count == 0)
+        {
+            return;
+        }
+
+        if (previousDuration <= 1e-9)
+        {
+            foreach (var keyframe in clip.Keyframes)
+            {
+                keyframe.TimeSeconds = Math.Clamp(keyframe.TimeSeconds, 0, duration);
+            }
+        }
+        else
+        {
+            var timeScale = duration / previousDuration;
+            foreach (var keyframe in clip.Keyframes)
+            {
+                keyframe.TimeSeconds = Math.Clamp(keyframe.TimeSeconds * timeScale, 0, duration);
+            }
+        }
+
+        clip.Keyframes = clip.Keyframes.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+    }
+
+    private static ClipKeyframe CloneKeyframe(ClipKeyframe keyframe) => new()
+    {
+        Id = keyframe.Id,
+        Property = keyframe.Property,
+        TimeSeconds = keyframe.TimeSeconds,
+        Value = keyframe.Value,
+        Easing = keyframe.Easing
+    };
 
     public void SetTrackLocked(string trackId, bool locked) => SetTrackFlag(trackId, t => t.IsLocked, (t, v) => t.IsLocked = v, locked);
     public void SetTrackHidden(string trackId, bool hidden) => SetTrackFlag(trackId, t => t.IsHidden, (t, v) => t.IsHidden = v, hidden);
@@ -617,6 +863,7 @@ public sealed class TimelineEditSession
         MaskFeatherPercent = clip.MaskFeatherPercent,
         MaskRotationDegrees = clip.MaskRotationDegrees,
         MaskInvert = clip.MaskInvert,
-        BlendMode = clip.BlendMode
+        BlendMode = clip.BlendMode,
+        Keyframes = clip.Keyframes.Select(CloneKeyframe).ToList()
     };
 }
