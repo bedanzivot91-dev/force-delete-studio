@@ -7,7 +7,7 @@
   <DockPanel>
     <Border DockPanel.Dock="Top" Classes="surface" Padding="24,16" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="Izvoz videa" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <TextBlock Text="Izvoz" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
         <Button Grid.Column="1" Classes="ghost" Content="← Nazad na projekat" Command="{Binding BackCommand}" />
       </Grid>
     </Border>
@@ -19,13 +19,27 @@
             <TextBlock Text="Podešavanja izvoza" FontWeight="SemiBold" />
 
             <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Format:" VerticalAlignment="Center" Width="140" />
+              <ComboBox Name="ExportFormatComboBox"
+                        ItemsSource="{Binding FormatOptions}"
+                        SelectedItem="{Binding SelectedFormatOption}"
+                        Width="320">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ExportFormatOption">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="Izlazni fajl:" VerticalAlignment="Center" Width="140" />
               <TextBox Text="{Binding OutputFilePath}" Width="440" />
               <Button Classes="ghost" Content="Izaberi fajl" Command="{Binding PickOutputFileCommand}" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="Kodek:" VerticalAlignment="Center" Width="140" />
+            <StackPanel Name="ExportVideoCodecPanel" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoExport}">
+              <TextBlock Text="Video kodek:" VerticalAlignment="Center" Width="140" />
               <ComboBox ItemsSource="{Binding CodecOptions}" SelectedItem="{Binding SelectedCodecOption}" Width="320">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:CodecOption">
@@ -35,9 +49,9 @@
               </ComboBox>
             </StackPanel>
 
-            <!-- Picking a platform fills in the values that platform actually recommends, instead of the
-                 user guessing at CRF and bitrate. "Bez presetа" leaves their own settings alone. -->
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <!-- Platform preset is meaningful only for video delivery. Audio-only export deliberately
+                 hides it so the UI cannot imply that TikTok/YouTube changes an MP3/WAV container. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoExport}">
               <TextBlock Text="Za koju mrežu:" VerticalAlignment="Center" Width="140" />
               <ComboBox ItemsSource="{Binding AvailablePlatformPresets}" SelectedItem="{Binding SelectedPlatformPreset}" Width="240">
                 <ComboBox.ItemTemplate>
@@ -48,20 +62,25 @@
               </ComboBox>
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoExport}">
               <TextBlock Text="Preset (brzina/kvalitet):" VerticalAlignment="Center" Width="140" />
               <ComboBox ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding Preset}" Width="200" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsVideoExport}">
               <TextBlock Text="CRF (kvalitet):" VerticalAlignment="Center" Width="140" />
               <NumericUpDown Value="{Binding Crf}" Minimum="0" Maximum="51" Width="160" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsLossyAudioExport}">
               <TextBlock Text="Audio bitrate (kbps):" VerticalAlignment="Center" Width="140" />
               <NumericUpDown Value="{Binding AudioBitrateKbps}" Minimum="64" Maximum="320" Increment="32" Width="160" />
             </StackPanel>
+
+            <Border Classes="panel" Padding="10" IsVisible="{Binding !IsVideoExport}">
+              <TextBlock Text="Audio-only režim: video slika se ne upisuje u izlaz. Timeline audio, jačina, mute, fade i miks ostaju deo izvoza."
+                         Classes="subtle" TextWrapping="Wrap" />
+            </Border>
 
             <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
               <TextBlock Text="{Binding StatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="500" />

@@ -6,10 +6,8 @@ using NPVideoStudio.Domain;
 namespace NPVideoStudio.Media;
 
 /// <summary>
-/// Real ffmpeg-based render pipeline (spec Phase 9): builds the filter graph via
-/// <see cref="FfmpegFilterGraphBuilder"/>, runs ffmpeg with real progress reporting (`-progress pipe:1`),
-/// automatic codec fallback to libx264, and atomic temp-file-then-rename output - same "never leave a
-/// half-written file looking valid" rule as every other real generation path in this codebase.
+/// Real ffmpeg-based render pipeline. One graph is shared by preview/export; this service owns container,
+/// codec, progress, cancellation, hardware fallback and atomic temp-file replacement.
 /// </summary>
 public sealed class RenderService : IRenderService
 {
@@ -23,6 +21,7 @@ public sealed class RenderService : IRenderService
     public async Task<string> RenderAsync(Project project, RenderJob job, CancellationToken cancellationToken = default)
     {
         var settings = job.Settings;
+        ValidateSettings(settings);
 
         if (File.Exists(settings.OutputFilePath) && !settings.OverwriteConfirmed)
         {
@@ -88,8 +87,6 @@ public sealed class RenderService : IRenderService
         }
         finally
         {
-            // Best-effort: a cleanup failure here (e.g. a not-yet-released Windows file handle) must
-            // never replace/mask whatever exception is already propagating out of the try block above.
             try
             {
                 if (File.Exists(tempPath))
@@ -101,15 +98,34 @@ public sealed class RenderService : IRenderService
         }
     }
 
+    private static void ValidateSettings(RenderSettings settings)
+    {
+        var expectedExtension = settings.Format.Extension();
+        var actualExtension = Path.GetExtension(settings.OutputFilePath);
+        if (!string.Equals(actualExtension, expectedExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Format {settings.Format} zahteva izlazni fajl sa ekstenzijom {expectedExtension}. " +
+                $"Izabrana putanja ima „{actualExtension}“.");
+        }
+
+        if (!settings.Format.IsAudioOnly() && !settings.Format.SupportsVideoCodec(settings.Codec))
+        {
+            throw new InvalidOperationException(
+                $"Kodek {settings.Codec} nije kompatibilan sa formatom {settings.Format}.");
+        }
+    }
+
     private async Task<(int ExitCode, string StdErr)> RunWithFallbackAsync(
         FfmpegRenderPlan plan, RenderJob job, string tempPath, CancellationToken cancellationToken)
     {
-        var (exitCode, stdErr) = await RunOnceAsync(plan, job.Settings.Codec, job, tempPath, cancellationToken).ConfigureAwait(false);
+        var requestedCodec = job.Settings.Codec;
+        var (exitCode, stdErr) = await RunOnceAsync(plan, requestedCodec, job, tempPath, cancellationToken).ConfigureAwait(false);
 
-        if (exitCode != 0 && job.Settings.Codec != VideoCodec.Libx264 && !cancellationToken.IsCancellationRequested)
+        var hardwareH264 = requestedCodec is VideoCodec.H264Nvenc or VideoCodec.H264Qsv or VideoCodec.H264Amf;
+        if (exitCode != 0 && hardwareH264 && job.Settings.Format.SupportsVideoCodec(VideoCodec.Libx264) &&
+            !cancellationToken.IsCancellationRequested)
         {
-            // Automatic fallback (spec): a hardware encoder that isn't present/working falls back to
-            // the software encoder rather than failing the whole export.
             (exitCode, stdErr) = await RunOnceAsync(plan, VideoCodec.Libx264, job, tempPath, cancellationToken).ConfigureAwait(false);
         }
 
@@ -120,9 +136,6 @@ public sealed class RenderService : IRenderService
         FfmpegRenderPlan plan, VideoCodec codec, RenderJob job, string tempPath, CancellationToken cancellationToken)
     {
         using var process = new Process { StartInfo = BuildStartInfo(plan, codec, job.Settings, tempPath) };
-
-        // Logged in full (no secrets - every argument is a local file path or a plain encoding
-        // setting), overwritten if the automatic hardware-encoder fallback below runs a second attempt.
         job.FfmpegCommandLogged = $"{_ffmpegPath} {string.Join(' ', process.StartInfo.ArgumentList)}";
 
         try
@@ -132,7 +145,7 @@ public sealed class RenderService : IRenderService
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
         {
             throw new InvalidOperationException(
-                "ffmpeg nije pronađen. Pokrenite scripts/check-dependencies.ps1 ili ga instalirajte i dodajte u PATH.", ex);
+                "ffmpeg nije pronađen. Pokrenite Dijagnostiku i proverite FFmpeg putanju.", ex);
         }
 
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -159,13 +172,9 @@ public sealed class RenderService : IRenderService
                 try
                 {
                     process.Kill(entireProcessTree: true);
-                    // Kill() only requests termination - without waiting for the real exit, the temp
-                    // output file's handle can still be open when the caller's cleanup tries to delete
-                    // it right after (a real race hit on Windows CI, not reproducible on Linux since
-                    // POSIX allows deleting a file still held open by another process).
                     await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-                catch { /* best-effort on cancellation */ }
+                catch { }
             }
         }
 
@@ -180,7 +189,6 @@ public sealed class RenderService : IRenderService
             return;
         }
 
-        // ffmpeg's `-progress pipe:1` emits plain key=value lines; out_time_ms is the one we need.
         const string key = "out_time_ms=";
         if (!line.StartsWith(key, StringComparison.Ordinal))
         {
@@ -189,7 +197,6 @@ public sealed class RenderService : IRenderService
 
         if (long.TryParse(line.AsSpan(key.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var microseconds))
         {
-            // Despite the "_ms" name, ffmpeg's progress output is actually in microseconds.
             var elapsedSeconds = microseconds / 1_000_000.0;
             job.ProgressPercent = Math.Clamp(elapsedSeconds / totalDurationSeconds * 100.0, 0, 100);
         }
@@ -214,31 +221,45 @@ public sealed class RenderService : IRenderService
         }
 
         startInfo.ArgumentList.Add("-filter_complex");
-        startInfo.ArgumentList.Add(plan.FilterComplexArgument);
-        startInfo.ArgumentList.Add("-map");
-        startInfo.ArgumentList.Add(plan.VideoMapLabel);
-        startInfo.ArgumentList.Add("-map");
-        startInfo.ArgumentList.Add(plan.AudioMapLabel);
+        // The shared timeline graph always produces both final video and audio outputs. For audio-only
+        // containers the video output still has to be consumed inside the graph or FFmpeg rejects the
+        // entire graph as "output ... unconnected" before -vn can take effect. nullsink consumes that
+        // final video branch without encoding or writing it, while the audio branch is mapped normally.
+        var filterGraph = settings.Format.IsAudioOnly()
+            ? $"{plan.FilterComplexArgument};{plan.VideoMapLabel}nullsink"
+            : plan.FilterComplexArgument;
+        startInfo.ArgumentList.Add(filterGraph);
 
-        startInfo.ArgumentList.Add("-c:v");
-        startInfo.ArgumentList.Add(CodecName(codec));
-
-        if (codec == VideoCodec.Libx264)
+        if (settings.Format.IsAudioOnly())
         {
-            // CRF/preset are libx264-specific quality controls - hardware encoders use their own
-            // quality knobs (not implemented this pass, they use each encoder's own defaults).
-            startInfo.ArgumentList.Add("-crf");
-            startInfo.ArgumentList.Add(settings.Crf.ToString(CultureInfo.InvariantCulture));
-            startInfo.ArgumentList.Add("-preset");
-            startInfo.ArgumentList.Add(settings.Preset);
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add(plan.AudioMapLabel);
+            startInfo.ArgumentList.Add("-vn");
+            AppendAudioCodecArguments(startInfo, settings);
+        }
+        else
+        {
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add(plan.VideoMapLabel);
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add(plan.AudioMapLabel);
+
+            startInfo.ArgumentList.Add("-c:v");
+            startInfo.ArgumentList.Add(CodecName(codec));
+            AppendVideoQualityArguments(startInfo, codec, settings);
+
+            startInfo.ArgumentList.Add("-c:a");
+            startInfo.ArgumentList.Add(settings.Format == ExportFormat.WebM ? "libopus" : "aac");
+            startInfo.ArgumentList.Add("-b:a");
+            startInfo.ArgumentList.Add($"{settings.AudioBitrateKbps}k");
+
+            if (settings.Format is ExportFormat.Mp4 or ExportFormat.Mov)
+            {
+                startInfo.ArgumentList.Add("-movflags");
+                startInfo.ArgumentList.Add("+faststart");
+            }
         }
 
-        startInfo.ArgumentList.Add("-c:a");
-        startInfo.ArgumentList.Add("aac");
-        startInfo.ArgumentList.Add("-b:a");
-        startInfo.ArgumentList.Add($"{settings.AudioBitrateKbps}k");
-        startInfo.ArgumentList.Add("-movflags");
-        startInfo.ArgumentList.Add("+faststart");
         startInfo.ArgumentList.Add("-progress");
         startInfo.ArgumentList.Add("pipe:1");
         startInfo.ArgumentList.Add(tempPath);
@@ -246,11 +267,63 @@ public sealed class RenderService : IRenderService
         return startInfo;
     }
 
+    private static void AppendVideoQualityArguments(ProcessStartInfo startInfo, VideoCodec codec, RenderSettings settings)
+    {
+        switch (codec)
+        {
+            case VideoCodec.Libx264:
+            case VideoCodec.Libx265:
+                startInfo.ArgumentList.Add("-crf");
+                startInfo.ArgumentList.Add(settings.Crf.ToString(CultureInfo.InvariantCulture));
+                startInfo.ArgumentList.Add("-preset");
+                startInfo.ArgumentList.Add(settings.Preset);
+                break;
+            case VideoCodec.LibvpxVp9:
+                startInfo.ArgumentList.Add("-crf");
+                startInfo.ArgumentList.Add(settings.Crf.ToString(CultureInfo.InvariantCulture));
+                startInfo.ArgumentList.Add("-b:v");
+                startInfo.ArgumentList.Add("0");
+                break;
+            case VideoCodec.LibaomAv1:
+                startInfo.ArgumentList.Add("-crf");
+                startInfo.ArgumentList.Add(settings.Crf.ToString(CultureInfo.InvariantCulture));
+                startInfo.ArgumentList.Add("-b:v");
+                startInfo.ArgumentList.Add("0");
+                startInfo.ArgumentList.Add("-cpu-used");
+                startInfo.ArgumentList.Add("6");
+                break;
+        }
+    }
+
+    private static void AppendAudioCodecArguments(ProcessStartInfo startInfo, RenderSettings settings)
+    {
+        var codec = settings.Format switch
+        {
+            ExportFormat.M4a => "aac",
+            ExportFormat.Mp3 => "libmp3lame",
+            ExportFormat.Wav => "pcm_s16le",
+            ExportFormat.Flac => "flac",
+            _ => throw new InvalidOperationException($"{settings.Format} nije audio-only format.")
+        };
+
+        startInfo.ArgumentList.Add("-c:a");
+        startInfo.ArgumentList.Add(codec);
+
+        if (settings.Format is ExportFormat.M4a or ExportFormat.Mp3)
+        {
+            startInfo.ArgumentList.Add("-b:a");
+            startInfo.ArgumentList.Add($"{settings.AudioBitrateKbps}k");
+        }
+    }
+
     private static string CodecName(VideoCodec codec) => codec switch
     {
         VideoCodec.H264Nvenc => "h264_nvenc",
         VideoCodec.H264Qsv => "h264_qsv",
         VideoCodec.H264Amf => "h264_amf",
+        VideoCodec.Libx265 => "libx265",
+        VideoCodec.LibvpxVp9 => "libvpx-vp9",
+        VideoCodec.LibaomAv1 => "libaom-av1",
         _ => "libx264"
     };
 }

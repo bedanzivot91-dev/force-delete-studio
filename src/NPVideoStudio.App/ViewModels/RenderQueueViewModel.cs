@@ -10,14 +10,9 @@ using Serilog;
 namespace NPVideoStudio.App.ViewModels;
 
 public sealed record CodecOption(VideoCodec Value, string Label);
+public sealed record ExportFormatOption(ExportFormat Value, string Label, string Extension);
 
-/// <summary>
-/// Export/render screen (spec Phase 9): configures <see cref="RenderSettings"/> and runs any number of
-/// queued <see cref="RenderJob"/>s concurrently against the open project's timeline via
-/// <see cref="IRenderService"/>. Real scope for this pass (see PHASE_STATUS.md): jobs all render the same
-/// project snapshot passed at construction time - re-opening this screen after further timeline edits
-/// picks up the latest state since <see cref="Project"/> is the same live object the workspace edits.
-/// </summary>
+/// <summary>Export queue with real container/codec/audio-only choices backed by RenderService.</summary>
 public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
 {
     private readonly Project _project;
@@ -29,13 +24,18 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<RenderJobItemViewModel> Jobs { get; } = new();
 
-    public IReadOnlyList<CodecOption> CodecOptions { get; } = new[]
+    public IReadOnlyList<ExportFormatOption> FormatOptions { get; } = new[]
     {
-        new CodecOption(VideoCodec.Libx264, "H.264 (softver - libx264, najpouzdaniji)"),
-        new CodecOption(VideoCodec.H264Nvenc, "H.264 NVENC (Nvidia GPU)"),
-        new CodecOption(VideoCodec.H264Qsv, "H.264 QSV (Intel GPU)"),
-        new CodecOption(VideoCodec.H264Amf, "H.264 AMF (AMD GPU)")
+        new ExportFormatOption(ExportFormat.Mp4, "MP4 video", ".mp4"),
+        new ExportFormatOption(ExportFormat.Mov, "MOV video", ".mov"),
+        new ExportFormatOption(ExportFormat.WebM, "WebM video", ".webm"),
+        new ExportFormatOption(ExportFormat.M4a, "M4A audio (AAC)", ".m4a"),
+        new ExportFormatOption(ExportFormat.Mp3, "MP3 audio", ".mp3"),
+        new ExportFormatOption(ExportFormat.Wav, "WAV audio (PCM)", ".wav"),
+        new ExportFormatOption(ExportFormat.Flac, "FLAC audio (lossless)", ".flac")
     };
+
+    public ObservableCollection<CodecOption> CodecOptions { get; } = new();
 
     public IReadOnlyList<string> PresetOptions { get; } = new[]
     {
@@ -43,9 +43,14 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
     };
 
     [ObservableProperty]
-    private CodecOption _selectedCodecOption;
+    private ExportFormatOption _selectedFormatOption = null!;
 
-    /// <summary>Platform presets, so "TikTok"/"YouTube" set real export values instead of being decoration.</summary>
+    [ObservableProperty]
+    private CodecOption _selectedCodecOption = null!;
+
+    public bool IsVideoExport => !SelectedFormatOption.Value.IsAudioOnly();
+    public bool IsLossyAudioExport => SelectedFormatOption.Value is ExportFormat.M4a or ExportFormat.Mp3 || IsVideoExport;
+
     public IReadOnlyList<PlatformExportPreset> AvailablePlatformPresets { get; } = PlatformExportPreset.All;
 
     [ObservableProperty]
@@ -76,10 +81,12 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
         _renderService = renderService;
         _storageService = storageService;
         _logger = logger.ForContext("SourceContext", nameof(RenderQueueViewModel));
-        _selectedCodecOption = CodecOptions[0];
+
+        _selectedFormatOption = FormatOptions[0];
+        RebuildCodecOptions();
 
         var directory = string.IsNullOrEmpty(project.ProjectFilePath) ? null : Path.GetDirectoryName(project.ProjectFilePath);
-        var defaultName = $"{SanitizeFileName(project.Name)}_captioned.mp4";
+        var defaultName = $"{SanitizeFileName(project.Name)}_captioned{SelectedFormatOption.Extension}";
         OutputFilePath = string.IsNullOrEmpty(directory) ? defaultName : Path.Combine(directory, defaultName);
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
@@ -88,6 +95,73 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
     }
 
     public void Dispose() => _timer.Stop();
+
+    partial void OnSelectedFormatOptionChanged(ExportFormatOption value)
+    {
+        RebuildCodecOptions();
+        // A format change is an explicit user action, so changing the suggested/current extension here
+        // is expected. Pick/Start themselves never silently rename a path, because doing that could turn
+        // an existing file into a different non-existing path and bypass overwrite protection.
+        EnsureOutputExtension();
+        OnPropertyChanged(nameof(IsVideoExport));
+        OnPropertyChanged(nameof(IsLossyAudioExport));
+        StatusMessage = value.Value.IsAudioOnly()
+            ? $"Audio-only izvoz: video se neće upisati u {value.Label}."
+            : $"Video format: {value.Label}. Izaberite kompatibilan video kodek.";
+    }
+
+    private void RebuildCodecOptions()
+    {
+        var previous = SelectedCodecOption?.Value;
+        CodecOptions.Clear();
+
+        IEnumerable<CodecOption> options = SelectedFormatOption.Value switch
+        {
+            ExportFormat.Mp4 => new[]
+            {
+                new CodecOption(VideoCodec.Libx264, "H.264 (libx264 - najkompatibilniji)"),
+                new CodecOption(VideoCodec.H264Nvenc, "H.264 NVENC (Nvidia GPU)"),
+                new CodecOption(VideoCodec.H264Qsv, "H.264 QSV (Intel GPU)"),
+                new CodecOption(VideoCodec.H264Amf, "H.264 AMF (AMD GPU)"),
+                new CodecOption(VideoCodec.Libx265, "H.265 / HEVC (libx265)"),
+                new CodecOption(VideoCodec.LibaomAv1, "AV1 (libaom-av1)")
+            },
+            ExportFormat.Mov => new[]
+            {
+                new CodecOption(VideoCodec.Libx264, "H.264 (libx264)"),
+                new CodecOption(VideoCodec.H264Nvenc, "H.264 NVENC (Nvidia GPU)"),
+                new CodecOption(VideoCodec.H264Qsv, "H.264 QSV (Intel GPU)"),
+                new CodecOption(VideoCodec.H264Amf, "H.264 AMF (AMD GPU)"),
+                new CodecOption(VideoCodec.Libx265, "H.265 / HEVC (libx265)")
+            },
+            ExportFormat.WebM => new[]
+            {
+                new CodecOption(VideoCodec.LibvpxVp9, "VP9 (libvpx-vp9)"),
+                new CodecOption(VideoCodec.LibaomAv1, "AV1 (libaom-av1)")
+            },
+            _ => Array.Empty<CodecOption>()
+        };
+
+        foreach (var option in options)
+        {
+            CodecOptions.Add(option);
+        }
+
+        if (CodecOptions.Count > 0)
+        {
+            SelectedCodecOption = CodecOptions.FirstOrDefault(x => x.Value.Equals(previous)) ?? CodecOptions[0];
+        }
+    }
+
+    private void EnsureOutputExtension()
+    {
+        if (string.IsNullOrWhiteSpace(OutputFilePath))
+        {
+            return;
+        }
+
+        OutputFilePath = Path.ChangeExtension(OutputFilePath, SelectedFormatOption.Extension);
+    }
 
     private void RefreshJobs()
     {
@@ -100,17 +174,23 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task PickOutputFileAsync()
     {
-        var suggested = string.IsNullOrEmpty(OutputFilePath) ? "izvoz.mp4" : Path.GetFileName(OutputFilePath);
+        var suggested = string.IsNullOrEmpty(OutputFilePath)
+            ? $"izvoz{SelectedFormatOption.Extension}"
+            : Path.ChangeExtension(Path.GetFileName(OutputFilePath), SelectedFormatOption.Extension);
         var path = await _storageService.PickSaveFileAsync(
-            "Izaberi izlazni fajl za izvoz", suggested, new[] { ("MP4 video", new[] { "mp4" }) });
+            "Izaberi izlazni fajl za izvoz",
+            suggested,
+            new[] { (SelectedFormatOption.Label, new[] { SelectedFormatOption.Extension.TrimStart('.') }) });
 
         if (path is null)
         {
             return;
         }
 
+        // Respect the exact path returned by the native save dialog. It is also the component that asks
+        // the user to confirm overwriting an existing file, so changing the path after that confirmation
+        // would invalidate the confirmation and can silently bypass the overwrite guard.
         OutputFilePath = path;
-        // The native save dialog already asked the user to confirm overwrite if this path exists.
         _outputPathConfirmedForOverwrite = true;
     }
 
@@ -123,9 +203,17 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // Never rewrite the user's path here. RenderService independently validates that the selected
+        // container and file extension match; preserving this exact path keeps overwrite checks honest.
         if (File.Exists(OutputFilePath) && !_outputPathConfirmedForOverwrite)
         {
             StatusMessage = "Fajl na toj putanji već postoji - koristite dugme „Izaberi fajl“ da potvrdite prepisivanje, ili unesite drugo ime.";
+            return;
+        }
+
+        if (IsVideoExport && CodecOptions.Count == 0)
+        {
+            StatusMessage = "Za izabrani video format nema dostupnog kompatibilnog kodeka.";
             return;
         }
 
@@ -138,7 +226,8 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             Settings = new RenderSettings
             {
                 OutputFilePath = OutputFilePath,
-                Codec = SelectedCodecOption.Value,
+                Format = SelectedFormatOption.Value,
+                Codec = IsVideoExport ? SelectedCodecOption.Value : VideoCodec.Libx264,
                 Crf = Crf,
                 Preset = Preset,
                 AudioBitrateKbps = AudioBitrateKbps,
@@ -153,13 +242,6 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
         _ = RunJobAsync(job, itemVm);
     }
 
-    /// <summary>
-    /// Fills the export settings from a platform's own published recommendation, so choosing "TikTok"
-    /// actually changes the output instead of being a label. Before this, TargetPlatform existed and was
-    /// offered when creating a project, but export ignored it entirely.
-    ///
-    /// Only touches quality/bitrate settings - never the output path, which is the user's choice.
-    /// </summary>
     partial void OnSelectedPlatformPresetChanged(PlatformExportPreset? value)
     {
         if (value is null || value.Platform == TargetPlatform.Custom)
@@ -167,8 +249,6 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // OutputFilePath is nullable until the user picks one; the preset never reads it, so an empty
-        // placeholder is correct here and keeps the compiler honest instead of silencing the warning.
         var settings = new RenderSettings { OutputFilePath = OutputFilePath ?? string.Empty };
         value.ApplyTo(settings);
 
@@ -197,8 +277,6 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            // RenderService can throw before it ever sets job.Status away from Queued (e.g. the
-            // overwrite-without-confirmation guard) - make sure the queue never shows a stuck "Queued" row.
             if (job.Status is RenderJobStatus.Queued or RenderJobStatus.Running)
             {
                 job.Status = RenderJobStatus.Failed;
