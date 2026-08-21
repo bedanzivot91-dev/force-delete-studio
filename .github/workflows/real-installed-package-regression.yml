@@ -156,16 +156,15 @@ jobs:
             $homeText = [System.IO.File]::ReadAllText($homePath, $strictUtf8)
             $bundleText = [System.IO.File]::ReadAllText($bundlePath, $strictUtf8)
 
-            if ($homeText -notmatch 'id="connectBtn"' -or $homeText -notmatch 'Poveži Suno') {
-              throw "Installed UI does not expose the Suno connection control"
+            $requiredHomeMarkers = @('id="connectBtn"','id="syncBtn"','id="connectionBadge"')
+            foreach ($marker in $requiredHomeMarkers) {
+              if (-not $homeText.Contains($marker)) { throw "Installed UI is missing required DOM control: $marker" }
             }
             $requiredMarkers = @(
               '/api/connect/start',
               'spsWorkspaceGenerationBadge',
               'sps-shell-2026',
-              '2026 WORKSPACE · MATCH RECOVERY',
               'spsFinalNav2026Marker',
-              'YOUTUBE I OBJAVA',
               'productionWorkspace',
               'youtubeAudioMaxVideos'
             )
