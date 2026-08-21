@@ -27,7 +27,8 @@ public class UserTemplateRepositoryTests : IDisposable
         StarterTrackKinds = { TimelineTrackKind.Video, TimelineTrackKind.Caption },
         Width = 1080,
         Height = 1920,
-        FrameRate = FrameRatePreset.Fps60
+        FrameRate = FrameRatePreset.Custom,
+        Fps = 29.97
     };
 
     [Fact]
@@ -37,7 +38,7 @@ public class UserTemplateRepositoryTests : IDisposable
     }
 
     [Fact]
-    public void SaveThenLoad_RoundTripsEverythingIncludingFormatAndTracks()
+    public void SaveThenLoad_RoundTripsEverythingIncludingExactCustomFpsAndTracks()
     {
         _repository.Save(Template("Moj TikTok"));
 
@@ -45,8 +46,10 @@ public class UserTemplateRepositoryTests : IDisposable
         Assert.Equal("Moj TikTok", loaded.Name);
         Assert.Equal(1080, loaded.Width);
         Assert.Equal(1920, loaded.Height);
-        Assert.Equal(FrameRatePreset.Fps60, loaded.FrameRate);
+        Assert.Equal(FrameRatePreset.Custom, loaded.FrameRate);
+        Assert.Equal(29.97, loaded.Fps, 6);
         Assert.Equal(new[] { TimelineTrackKind.Video, TimelineTrackKind.Caption }, loaded.StarterTrackKinds);
+        Assert.True(_repository.Exists("Moj TikTok"));
     }
 
     [Fact]
@@ -63,6 +66,40 @@ public class UserTemplateRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Rename_UpdatesNameAndFile_AndDoesNotLeaveOldTemplate()
+    {
+        _repository.Save(Template("Stari"));
+
+        var renamed = _repository.Rename("Stari", "Novi");
+
+        Assert.Equal("Novi", renamed.Name);
+        Assert.False(_repository.Exists("Stari"));
+        Assert.True(_repository.Exists("Novi"));
+        Assert.Equal("Novi", Assert.Single(_repository.LoadAll()).Name);
+    }
+
+    [Fact]
+    public void Rename_RefusesSilentOverwrite_UntilCallerExplicitlyAllowsIt()
+    {
+        var first = Template("Prvi");
+        first.Description = "prvi";
+        var second = Template("Drugi");
+        second.Description = "drugi";
+        _repository.Save(first);
+        _repository.Save(second);
+
+        Assert.Throws<IOException>(() => _repository.Rename("Prvi", "Drugi"));
+        Assert.True(_repository.Exists("Prvi"));
+        Assert.Equal(2, _repository.LoadAll().Count);
+
+        _repository.Rename("Prvi", "Drugi", overwrite: true);
+        var only = Assert.Single(_repository.LoadAll());
+        Assert.Equal("Drugi", only.Name);
+        Assert.Equal("prvi", only.Description);
+        Assert.False(_repository.Exists("Prvi"));
+    }
+
+    [Fact]
     public void Delete_RemovesTheTemplate_AndReportsWhetherThereWasOne()
     {
         _repository.Save(Template("Za brisanje"));
@@ -73,13 +110,13 @@ public class UserTemplateRepositoryTests : IDisposable
     }
 
     [Fact]
-    public void Save_NameWithCharactersWindowsForbidsInFileNames_StillSaves()
+    public void Save_NameWithCharactersWindowsForbidsInFileNames_StillSavesAndExistsUsesSamePath()
     {
-        // A user naming a template after an aspect ratio ("9:16") must not hit a file-system error.
         _repository.Save(Template("9:16 vertikalni"));
 
         var loaded = Assert.Single(_repository.LoadAll());
         Assert.Equal("9:16 vertikalni", loaded.Name);
+        Assert.True(_repository.Exists("9:16 vertikalni"));
     }
 
     [Fact]
@@ -102,11 +139,13 @@ public class UserTemplateRepositoryTests : IDisposable
     }
 
     [Fact]
-    public void FromProject_TakesTrackKindsAndFormat_ButNeverTheUsersFootage()
+    public void FromProject_TakesTrackKindsAndExactFormat_ButNeverTheUsersFootage()
     {
         var project = new Project { Name = "Moj projekat" };
         project.Format.Width = 1080;
         project.Format.Height = 1920;
+        project.Format.FrameRate = FrameRatePreset.Custom;
+        project.Format.Fps = 23.976;
         project.Timeline.Tracks.Add(new TimelineTrack
         {
             Kind = TimelineTrackKind.Video,
@@ -118,7 +157,8 @@ public class UserTemplateRepositoryTests : IDisposable
         Assert.Equal(new[] { TimelineTrackKind.Video }, template.StarterTrackKinds);
         Assert.Equal(1080, template.Width);
         Assert.Equal(1920, template.Height);
-        // A template is a starting point: it must carry no reference to the media the project used.
+        Assert.Equal(FrameRatePreset.Custom, template.FrameRate);
+        Assert.Equal(23.976, template.Fps, 6);
         Assert.DoesNotContain("tajni-snimak", System.Text.Json.JsonSerializer.Serialize(template));
     }
 
