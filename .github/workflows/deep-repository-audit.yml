@@ -157,7 +157,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           $unformatted = @(gofmt -l .)
           if ($unformatted.Count -gt 0) {
-            Write-Host "GOFMT FAIL — unformatted Go files:"
+            Write-Host "GOFMT FAIL - unformatted Go files:"
             $unformatted | ForEach-Object { Write-Host $_ }
             throw "gofmt failed: $($unformatted.Count) file(s) are not formatted"
           }
