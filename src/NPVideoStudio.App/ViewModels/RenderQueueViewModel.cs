@@ -99,6 +99,9 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
     partial void OnSelectedFormatOptionChanged(ExportFormatOption value)
     {
         RebuildCodecOptions();
+        // A format change is an explicit user action, so changing the suggested/current extension here
+        // is expected. Pick/Start themselves never silently rename a path, because doing that could turn
+        // an existing file into a different non-existing path and bypass overwrite protection.
         EnsureOutputExtension();
         OnPropertyChanged(nameof(IsVideoExport));
         OnPropertyChanged(nameof(IsLossyAudioExport));
@@ -184,7 +187,10 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        OutputFilePath = Path.ChangeExtension(path, SelectedFormatOption.Extension);
+        // Respect the exact path returned by the native save dialog. It is also the component that asks
+        // the user to confirm overwriting an existing file, so changing the path after that confirmation
+        // would invalidate the confirmation and can silently bypass the overwrite guard.
+        OutputFilePath = path;
         _outputPathConfirmedForOverwrite = true;
     }
 
@@ -197,8 +203,8 @@ public sealed partial class RenderQueueViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        EnsureOutputExtension();
-
+        // Never rewrite the user's path here. RenderService independently validates that the selected
+        // container and file extension match; preserving this exact path keeps overwrite checks honest.
         if (File.Exists(OutputFilePath) && !_outputPathConfirmedForOverwrite)
         {
             StatusMessage = "Fajl na toj putanji već postoji - koristite dugme „Izaberi fajl“ da potvrdite prepisivanje, ili unesite drugo ime.";
