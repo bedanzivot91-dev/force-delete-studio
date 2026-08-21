@@ -35,7 +35,7 @@ public sealed class KeyframeUiPathTests
             onKeyframeUpsert: (clipId, property, localTime, value, easing) =>
                 session.UpsertKeyframe(clipId, property, localTime, value, easing),
             onKeyframeRemove: (clipId, property, localTime) =>
-                session.RemoveKeyframeNear(clipId, property, localTime));
+                session.RemoveKeyframe(clipId, property, localTime));
 
         vm.SelectedKeyframeProperty = ClipKeyframeProperty.Scale;
         vm.KeyframeValue = 135;
