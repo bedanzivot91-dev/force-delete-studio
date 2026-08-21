@@ -176,7 +176,6 @@ public sealed class ExportFormatIntegrationTests : IDisposable
             HasAudioStream = true,
             Width = 320,
             Height = 240,
-            FrameRate = 10,
             Kind = MediaKind.Video
         };
         var project = new Project
