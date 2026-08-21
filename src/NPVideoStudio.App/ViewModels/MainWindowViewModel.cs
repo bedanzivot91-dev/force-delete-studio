@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Infrastructure.Persistence;
 
 namespace NPVideoStudio.App.ViewModels;
 
@@ -168,7 +169,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
-    private ViewModelBase CreateNewProjectPage(TargetPlatform? platform, ProjectTemplate? template = null)
+    private ViewModelBase CreateNewProjectPage(
+        TargetPlatform? platform,
+        ProjectTemplate? template = null,
+        UserTemplate? userTemplate = null)
     {
         var vm = new NewProjectViewModel(
             _services.GetRequiredService<IProjectRepository>(),
@@ -176,15 +180,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<ISettingsService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
             platform,
-            template);
+            template,
+            userTemplate);
         vm.ProjectCreated += project => CurrentPage = OpenWorkspace(project);
         return vm;
     }
 
     private TemplateGalleryViewModel CreateTemplateGalleryPage()
     {
-        var vm = _services.GetRequiredService<TemplateGalleryViewModel>();
-        vm.TemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        // Repository is intentionally real disk persistence, not a second in-memory list. Separate
+        // instances point at the same app-owned Templates folder and therefore stay in sync.
+        var vm = new TemplateGalleryViewModel(new UserTemplateRepository());
+        vm.BuiltInTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        vm.UserTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, userTemplate: template);
         return vm;
     }
 
@@ -213,7 +221,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<ISubtitleGeneratorService>(),
             _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
-            _services.GetRequiredService<IAiWorkerClient>());
+            _services.GetRequiredService<IAiWorkerClient>(),
+            new UserTemplateRepository());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search
         // page the song library already opens, so the file is already selected when it appears.
