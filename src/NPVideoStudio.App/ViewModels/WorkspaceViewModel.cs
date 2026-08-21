@@ -588,8 +588,22 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         });
         item.RemoveCommand = new RelayCommand(() =>
         {
+            // MediaAssetId is the persisted foreign key used by timeline clips. Removing an asset while
+            // a clip still references it makes the project internally invalid and the renderer later has
+            // no source file to resolve. Block that destructive state at the UI boundary instead.
+            var isUsedOnTimeline = Timeline.CurrentTracks
+                .SelectMany(track => track.Clips)
+                .Any(clip => string.Equals(clip.MediaAssetId, asset.Id, StringComparison.Ordinal));
+
+            if (isUsedOnTimeline)
+            {
+                StatusMessage = $"Medij „{asset.FileName}“ se koristi na vremenskoj traci. Prvo uklonite sve njegove klipove sa timeline-a, pa ga onda uklonite iz biblioteke.";
+                return;
+            }
+
             Project.MediaLibrary.Remove(asset);
             MediaLibrary.Remove(item);
+            StatusMessage = $"Medij „{asset.FileName}“ je uklonjen iz projekta.";
         });
         return item;
     }
