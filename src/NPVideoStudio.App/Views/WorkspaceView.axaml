@@ -206,6 +206,20 @@
             <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock Text="{Binding TimingLabel}" Classes="subtle" />
 
+            <!-- Existing edit commands used to survive only in the legacy IsVisible=False clip card.
+                 Keep them in the selected-clip inspector so implemented engine features are reachable. -->
+            <WrapPanel Orientation="Horizontal">
+              <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,6,6" /></Style></WrapPanel.Styles>
+              <Button Name="InspectorNudgeEarlierButton" Classes="ghost" Content="◀ Ranije" Command="{Binding NudgeEarlierCommand}" />
+              <Button Name="InspectorNudgeLaterButton" Classes="ghost" Content="Kasnije ▶" Command="{Binding NudgeLaterCommand}" />
+              <Button Name="InspectorSplitButton" Classes="ghost" Content="Podeli" Command="{Binding SplitAtPlayheadCommand}" />
+              <Button Name="InspectorDuplicateButton" Classes="ghost" Content="Dupliraj" Command="{Binding DuplicateCommand}" />
+              <ToggleButton Name="InspectorMuteToggle" Content="🔇 Utišaj" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+              <ToggleButton Name="InspectorFadeInToggle" Content="Fade in" IsChecked="{Binding HasFadeIn, Mode=OneWay}" Command="{Binding ToggleFadeInCommand}" />
+              <ToggleButton Name="InspectorFadeOutToggle" Content="Fade out" IsChecked="{Binding HasFadeOut, Mode=OneWay}" Command="{Binding ToggleFadeOutCommand}" />
+              <Button Name="InspectorDeleteButton" Classes="ghost" Content="Obriši klip" Command="{Binding DeleteCommand}" />
+            </WrapPanel>
+
             <StackPanel Spacing="8" IsVisible="{Binding IsTextClip}">
               <TextBlock Text="TEKST" Classes="eyebrow" />
               <TextBox Text="{Binding TextContent}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
@@ -219,7 +233,29 @@
                 <StackPanel Spacing="4"><TextBlock Text="Položaj" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}"/></StackPanel>
                 <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Poravnanje" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}"/></StackPanel>
               </Grid>
-              <WrapPanel><CheckBox Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Margin="0,0,10,0"/><CheckBox Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Margin="0,0,10,0"/><CheckBox Content="Kontura" IsChecked="{Binding HasOutline}"/><CheckBox Content="Senka" IsChecked="{Binding HasShadow}" Margin="10,0,0,0"/><CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" Margin="10,0,0,0"/></WrapPanel>
+              <WrapPanel>
+                <CheckBox Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Margin="0,0,10,0"/>
+                <CheckBox Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Margin="0,0,10,0"/>
+                <CheckBox Content="Kontura" IsChecked="{Binding HasOutline}"/>
+                <CheckBox Content="Senka" IsChecked="{Binding HasShadow}" Margin="10,0,0,0"/>
+                <CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" Margin="10,0,0,0"/>
+              </WrapPanel>
+              <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasOutline}">
+                <StackPanel Spacing="4"><TextBlock Text="Boja konture" Classes="subtle"/><TextBox Name="InspectorOutlineColor" Text="{Binding OutlineColor}" Watermark="#000000"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Debljina konture" Classes="subtle"/><NumericUpDown Name="InspectorOutlineWidth" Value="{Binding OutlineWidthPx}" Minimum="1" Maximum="20"/></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasShadow}">
+                <StackPanel Spacing="4"><TextBlock Text="Boja senke" Classes="subtle"/><TextBox Name="InspectorShadowColor" Text="{Binding ShadowColor}" Watermark="#000000"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Pomeraj senke" Classes="subtle"/><NumericUpDown Name="InspectorShadowOffset" Value="{Binding ShadowOffsetPx}" Minimum="1" Maximum="20"/></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasBackground}">
+                <StackPanel Spacing="4"><TextBlock Text="Boja pozadine" Classes="subtle"/><TextBox Name="InspectorBackgroundColor" Text="{Binding BackgroundColor}" Watermark="#000000"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Providnost pozadine (%)" Classes="subtle"/><NumericUpDown Name="InspectorBackgroundOpacity" Value="{Binding BackgroundOpacityPercent}" Minimum="0" Maximum="100"/></StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,*">
+                <StackPanel Spacing="4"><TextBlock Text="VELIKA / mala slova" Classes="subtle"/><ComboBox Name="InspectorTextCase" ItemsSource="{Binding AvailableTextCases}" SelectedItem="{Binding TextCase}"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Razmak redova" Classes="subtle"/><NumericUpDown Name="InspectorLineSpacing" Value="{Binding LineSpacingPx}" Minimum="0" Maximum="40"/></StackPanel>
+              </Grid>
               <Button Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" />
             </StackPanel>
 
@@ -253,6 +289,14 @@
                 <ToggleButton Content="Freeze frame" IsChecked="{Binding IsFreezeFrame}" Margin="0,0,8,4"/>
               </WrapPanel>
               <StackPanel Spacing="4" IsVisible="{Binding IsOverlayClip}">
+                <TextBlock Text="PIP / OVERLAY POLOŽAJ" Classes="eyebrow" Margin="0,8,0,0" />
+                <TextBlock Text="Veličina (% širine)" Classes="subtle"/><NumericUpDown Name="InspectorPipScale" Value="{Binding ScalePercent}" Minimum="1" Maximum="200" Increment="5"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Levo / desno (%)" Classes="subtle"/><Slider Name="InspectorPipX" Minimum="0" Maximum="100" Value="{Binding PositionXPercent}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Gore / dole (%)" Classes="subtle"/><Slider Name="InspectorPipY" Minimum="0" Maximum="100" Value="{Binding PositionYPercent}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Providnost (%)" Classes="subtle"/><NumericUpDown Name="InspectorPipOpacity" Value="{Binding LayerOpacityPercent}" Minimum="0" Maximum="100" Increment="5"/>
+
                 <TextBlock Text="GREEN SCREEN / CHROMA KEY" Classes="eyebrow" Margin="0,8,0,0" />
                 <ToggleButton Content="Uključi Chroma Key" IsChecked="{Binding ChromaKeyEnabled}"/>
                 <TextBlock Text="Boja (#RRGGBB)" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
@@ -275,6 +319,13 @@
 
                 <TextBlock Text="BLEND MODE" Classes="eyebrow" Margin="0,10,0,0" />
                 <ComboBox ItemsSource="{Binding AvailableBlendModes}" SelectedItem="{Binding BlendMode}"/>
+              </StackPanel>
+
+              <StackPanel Spacing="4" IsVisible="{Binding IsVideoClip}">
+                <TextBlock Text="PRELAZ IZ PRETHODNOG KLIPA" Classes="eyebrow" Margin="0,10,0,0" />
+                <ComboBox Name="InspectorTransitionType" ItemsSource="{Binding AvailableTransitions}" SelectedItem="{Binding TransitionInType}"/>
+                <TextBlock Text="Trajanje prelaza (s)" Classes="subtle"/>
+                <NumericUpDown Name="InspectorTransitionDuration" Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>
               </StackPanel>
             </StackPanel>
           </StackPanel>
