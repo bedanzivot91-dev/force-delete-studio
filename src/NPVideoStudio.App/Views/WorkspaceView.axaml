@@ -123,6 +123,8 @@
             <Button Name="ZoomFitButton" Classes="ghost" Content="Uklopi" ToolTip.Tip="Vrati na celu sliku" />
             <Button Name="FullScreenButton" Classes="cta" Content="⛶ Ceo ekran"
                     ToolTip.Tip="Preko celog ekrana. Esc ili dupli klik za izlaz." />
+            <ToggleButton Content="Safe area" IsChecked="{Binding ShowSafeArea}"
+                          ToolTip.Tip="Prikaži bezbednu zonu finalnog 16:9 / 9:16 / 1:1 projekta. Vodič se ne izvozi u video." />
           </WrapPanel>
 
           <!-- The picture takes the PROJECT's shape, not the panel's. A 1080x1920 Shorts project used
@@ -135,6 +137,24 @@
                     BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
               <Grid>
                 <views:VideoSurface Name="PlayerSurface" StaticImage="{Binding Player.CurrentFrameBitmap}" />
+
+                <!-- Preview-only safe-area guides. Star-sized rows/columns preserve the exact normalized
+                     margins from SafeAreaPreset at any on-screen player size. -->
+                <Grid IsVisible="{Binding ShowSafeArea}" IsHitTestVisible="False">
+                  <Grid IsVisible="{Binding IsHorizontalSafeArea}" ColumnDefinitions="8*,84*,8*" RowDefinitions="8*,82*,10*">
+                    <Border Grid.Column="1" Grid.Row="1" BorderBrush="#E6FFD54F" BorderThickness="2"/>
+                  </Grid>
+                  <Grid IsVisible="{Binding IsVerticalSafeArea}" ColumnDefinitions="8*,84*,8*" RowDefinitions="12*,72*,16*">
+                    <Border Grid.Column="1" Grid.Row="1" BorderBrush="#E6FFD54F" BorderThickness="2"/>
+                  </Grid>
+                  <Grid IsVisible="{Binding IsSquareSafeArea}" ColumnDefinitions="8*,84*,8*" RowDefinitions="10*,80*,10*">
+                    <Border Grid.Column="1" Grid.Row="1" BorderBrush="#E6FFD54F" BorderThickness="2"/>
+                  </Grid>
+                  <Border Background="#99000000" CornerRadius="4" Padding="6,3" Margin="8"
+                          HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding SafeAreaGuideLabel}" Foreground="#FFFFD54F" FontSize="11" FontWeight="Bold"/>
+                  </Border>
+                </Grid>
                 <Border IsVisible="{Binding IsPreviewCaptionVisible}"
                         VerticalAlignment="{Binding PreviewCaptionVerticalAlignment}"
                         HorizontalAlignment="{Binding PreviewCaptionHorizontalAlignment}"
