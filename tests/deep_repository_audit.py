@@ -11,17 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "deep-repository-audit-report.json"
-
-EXCLUDED_PARTS = {
-    ".git", ".gradle", ".idea", ".vscode", "__pycache__", "node_modules",
-    "build", "dist", "out", "target", ".venv", "venv", "artifact-download",
-    "coverage", ".coverage", "htmlcov",
-}
-TEXT_SUFFIXES = {
-    ".py", ".js", ".html", ".css", ".go", ".kt", ".kts", ".xml", ".json",
-    ".yml", ".yaml", ".ps1", ".bat", ".cmd", ".sh", ".gradle", ".properties",
-    ".toml", ".ini", ".cfg", ".txt", ".md",
-}
+EXCLUDED = {".git", ".gradle", ".idea", ".vscode", "__pycache__", "node_modules", "build", "dist", "out", "target", ".venv", "venv", "artifact-download", "coverage", "htmlcov"}
+TEXT_SUFFIXES = {".py", ".js", ".html", ".css", ".go", ".kt", ".kts", ".xml", ".json", ".yml", ".yaml", ".ps1", ".bat", ".cmd", ".sh", ".gradle", ".properties", ".toml", ".ini", ".cfg", ".txt", ".md"}
 PRODUCTION_ROOTS = {"app", "plugins", "windows_build", "android", "ci_scripts"}
 
 
@@ -31,68 +22,55 @@ class HtmlAudit(HTMLParser):
         self.ids: list[str] = []
 
     def handle_starttag(self, tag: str, attrs_raw) -> None:
-        attrs = dict(attrs_raw)
-        element_id = attrs.get("id")
+        element_id = dict(attrs_raw).get("id")
         if element_id:
             self.ids.append(str(element_id))
 
 
-def relative(path: Path) -> str:
+def rel(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
 
 def wanted(path: Path) -> bool:
-    rel = path.relative_to(ROOT)
-    return not any(part in EXCLUDED_PARTS for part in rel.parts)
+    return not any(part in EXCLUDED for part in path.relative_to(ROOT).parts)
 
 
-def all_files() -> list[Path]:
+def files() -> list[Path]:
     return sorted(p for p in ROOT.rglob("*") if p.is_file() and wanted(p))
 
 
-def source_files(files: list[Path]) -> list[Path]:
-    return [p for p in files if p.suffix.lower() in TEXT_SUFFIXES or p.name in {"gradlew", "Dockerfile"}]
+def source_files(items: list[Path]) -> list[Path]:
+    return [p for p in items if p.suffix.lower() in TEXT_SUFFIXES or p.name in {"gradlew", "Dockerfile"}]
 
 
-def strict_text(path: Path, issues: list[str]) -> str | None:
+def read_text(path: Path, issues: list[str]) -> str | None:
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
-        issues.append(f"UTF-8 decode failed: {relative(path)}: {exc}")
+        issues.append(f"UTF-8 decode failed: {rel(path)}: {exc}")
     except OSError as exc:
-        issues.append(f"Cannot read source/config file: {relative(path)}: {exc}")
+        issues.append(f"Cannot read source/config file: {rel(path)}: {exc}")
     return None
 
 
-def python_scope_duplicates(tree: ast.AST, file_label: str, issues: list[str]) -> None:
-    def visit_scope(node: ast.AST, scope_name: str) -> None:
+def duplicate_defs(tree: ast.AST, label: str, issues: list[str]) -> None:
+    def walk_scope(node: ast.AST, scope: str) -> None:
         body = getattr(node, "body", [])
-        names: list[tuple[str, int]] = []
-        for child in body:
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                names.append((child.name, child.lineno))
-        counts = Counter(name for name, _line in names)
+        defs = [(x.name, x.lineno) for x in body if isinstance(x, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+        counts = Counter(name for name, _ in defs)
         for name, count in counts.items():
             if count > 1:
-                locations = [str(line) for n, line in names if n == name]
-                issues.append(
-                    f"Duplicate Python definition in one scope: {file_label}:{scope_name}:{name} lines {','.join(locations)}"
-                )
+                lines = ",".join(str(line) for n, line in defs if n == name)
+                issues.append(f"Duplicate Python definition: {label}:{scope}:{name} lines {lines}")
         for child in body:
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                visit_scope(child, f"{scope_name}.{child.name}")
+                walk_scope(child, f"{scope}.{child.name}")
+    walk_scope(tree, "<module>")
 
-    visit_scope(tree, "<module>")
 
-
-def is_obvious_stub(node: ast.AST) -> bool:
-    body = getattr(node, "body", None)
-    if not isinstance(body, list) or not body:
-        return False
-    meaningful = [stmt for stmt in body if not (
-        isinstance(stmt, ast.Expr) and isinstance(getattr(stmt, "value", None), ast.Constant)
-        and isinstance(stmt.value.value, str)
-    )]
+def obvious_stub(node: ast.AST) -> bool:
+    body = getattr(node, "body", [])
+    meaningful = [s for s in body if not (isinstance(s, ast.Expr) and isinstance(getattr(s, "value", None), ast.Constant) and isinstance(s.value.value, str))]
     if len(meaningful) != 1:
         return False
     stmt = meaningful[0]
@@ -102,173 +80,137 @@ def is_obvious_stub(node: ast.AST) -> bool:
         return True
     if isinstance(stmt, ast.Raise):
         exc = stmt.exc
-        if isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
-            return True
-        if isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name) and exc.func.id == "NotImplementedError":
-            return True
+        return (isinstance(exc, ast.Name) and exc.id == "NotImplementedError") or (isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name) and exc.func.id == "NotImplementedError")
     return False
 
 
 def check_python(paths: list[Path], issues: list[str], warnings: list[str], stats: dict) -> None:
-    function_count = 0
-    class_count = 0
-    parsed = 0
+    parsed = funcs = classes = 0
     for path in paths:
-        text = strict_text(path, issues)
+        text = read_text(path, issues)
         if text is None:
             continue
         try:
-            tree = ast.parse(text, filename=relative(path))
-            compile(tree, relative(path), "exec")
+            tree = ast.parse(text, filename=rel(path))
+            compile(tree, rel(path), "exec")
             parsed += 1
         except SyntaxError as exc:
-            issues.append(f"Python syntax/compile failed: {relative(path)}: {exc}")
+            issues.append(f"Python syntax/compile failed: {rel(path)}: {exc}")
             continue
-        python_scope_duplicates(tree, relative(path), issues)
-        top = path.relative_to(ROOT).parts[0] if path.relative_to(ROOT).parts else ""
-        production = top in PRODUCTION_ROOTS
+        duplicate_defs(tree, rel(path), issues)
+        production = path.relative_to(ROOT).parts[0] in PRODUCTION_ROOTS
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                function_count += 1
-                if production and is_obvious_stub(node):
-                    issues.append(f"Production Python function is an obvious stub: {relative(path)}:{node.lineno}:{node.name}")
+                funcs += 1
+                if production and obvious_stub(node):
+                    issues.append(f"Production Python function is an obvious stub: {rel(path)}:{node.lineno}:{node.name}")
             elif isinstance(node, ast.ClassDef):
-                class_count += 1
-            elif isinstance(node, ast.ExceptHandler):
-                if production and len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
-                    warnings.append(f"Silent except/pass: {relative(path)}:{node.lineno}")
-    stats["python_files_parsed"] = parsed
-    stats["python_functions"] = function_count
-    stats["python_classes"] = class_count
+                classes += 1
+            elif production and isinstance(node, ast.ExceptHandler) and len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
+                warnings.append(f"Silent except/pass: {rel(path)}:{node.lineno}")
+    stats.update(python_files_parsed=parsed, python_functions=funcs, python_classes=classes)
 
 
 def check_html(paths: list[Path], issues: list[str], stats: dict) -> None:
-    parsed = 0
-    ids = 0
+    parsed = total_ids = 0
     for path in paths:
-        text = strict_text(path, issues)
+        text = read_text(path, issues)
         if text is None:
             continue
         parser = HtmlAudit()
         try:
-            parser.feed(text)
-            parser.close()
-            parsed += 1
+            parser.feed(text); parser.close(); parsed += 1
         except Exception as exc:
-            issues.append(f"HTML parse failed: {relative(path)}: {exc}")
+            issues.append(f"HTML parse failed: {rel(path)}: {exc}")
             continue
         dupes = sorted(k for k, v in Counter(parser.ids).items() if v > 1)
         if dupes:
-            issues.append(f"Duplicate HTML ids: {relative(path)}: {', '.join(dupes)}")
-        ids += len(parser.ids)
-    stats["html_files_parsed"] = parsed
-    stats["html_ids"] = ids
+            issues.append(f"Duplicate HTML ids: {rel(path)}: {', '.join(dupes)}")
+        total_ids += len(parser.ids)
+    stats.update(html_files_parsed=parsed, html_ids=total_ids)
 
 
-def check_json(paths: list[Path], issues: list[str], stats: dict) -> None:
+def check_structured(paths: list[Path], suffix: str, parser, label: str, issues: list[str], stats: dict) -> None:
     parsed = 0
     for path in paths:
-        text = strict_text(path, issues)
+        if path.suffix.lower() != suffix:
+            continue
+        text = read_text(path, issues)
         if text is None:
             continue
         try:
-            json.loads(text)
-            parsed += 1
+            parser(text); parsed += 1
         except Exception as exc:
-            issues.append(f"JSON parse failed: {relative(path)}: {exc}")
-    stats["json_files_parsed"] = parsed
+            issues.append(f"{label} parse failed: {rel(path)}: {exc}")
+    stats[f"{label.lower()}_files_parsed"] = parsed
 
 
-def check_xml(paths: list[Path], issues: list[str], stats: dict) -> None:
-    parsed = 0
-    for path in paths:
-        text = strict_text(path, issues)
-        if text is None:
-            continue
-        try:
-            ET.fromstring(text)
-            parsed += 1
-        except Exception as exc:
-            issues.append(f"XML parse failed: {relative(path)}: {exc}")
-    stats["xml_files_parsed"] = parsed
-
-
-def check_requirements(files: list[Path], issues: list[str], stats: dict) -> None:
-    reqs = [p for p in files if p.name.startswith("requirements") and p.suffix == ".txt"]
+def check_requirements(items: list[Path], issues: list[str], stats: dict) -> None:
+    reqs = [p for p in items if p.name.startswith("requirements") and p.suffix == ".txt"]
     for path in reqs:
-        text = strict_text(path, issues)
+        text = read_text(path, issues)
         if text is None:
             continue
-        for lineno, raw in enumerate(text.splitlines(), 1):
+        for line_no, raw in enumerate(text.splitlines(), 1):
             line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
             if line.startswith(("-r ", "--requirement ")):
                 target = line.split(maxsplit=1)[1].strip()
                 if not (path.parent / target).resolve().exists():
-                    issues.append(f"Requirements include missing file: {relative(path)}:{lineno}: {target}")
+                    issues.append(f"Requirements include missing file: {rel(path)}:{line_no}: {target}")
     stats["requirements_files"] = len(reqs)
 
 
-def check_obvious_placeholders(paths: list[Path], issues: list[str], warnings: list[str], stats: dict) -> None:
-    fail_patterns = {
+def check_placeholders(paths: list[Path], issues: list[str], warnings: list[str], stats: dict) -> None:
+    fatal = {
         ".go": [r"panic\(\s*[\"'](?:TODO|not implemented|placeholder)", r"IMPLEMENT_ME"],
         ".kt": [r"\bTODO\s*\(", r"NotImplementedError\s*\("],
         ".kts": [r"\bTODO\s*\(", r"NotImplementedError\s*\("],
         ".js": [r"throw\s+new\s+Error\(\s*[\"'](?:TODO|not implemented|placeholder)"],
     }
-    warning_pattern = re.compile(r"\b(TODO|FIXME|XXX)\b", re.IGNORECASE)
+    marker = re.compile(r"\b(TODO|FIXME|XXX)\b", re.I)
     checked = 0
     for path in paths:
-        top = path.relative_to(ROOT).parts[0] if path.relative_to(ROOT).parts else ""
-        if top not in PRODUCTION_ROOTS:
+        if path.relative_to(ROOT).parts[0] not in PRODUCTION_ROOTS or path.suffix.lower() not in {".go", ".kt", ".kts", ".js", ".py", ".ps1"}:
             continue
-        if path.suffix.lower() not in {".go", ".kt", ".kts", ".js", ".py", ".ps1"}:
-            continue
-        text = strict_text(path, issues)
+        text = read_text(path, issues)
         if text is None:
             continue
         checked += 1
-        for pat in fail_patterns.get(path.suffix.lower(), []):
-            if re.search(pat, text, re.IGNORECASE):
-                issues.append(f"Obvious production placeholder found: {relative(path)} pattern={pat}")
-        for lineno, line in enumerate(text.splitlines(), 1):
-            if warning_pattern.search(line):
-                warnings.append(f"TODO/FIXME marker: {relative(path)}:{lineno}: {line.strip()[:180]}")
+        for pattern in fatal.get(path.suffix.lower(), []):
+            if re.search(pattern, text, re.I):
+                issues.append(f"Obvious production placeholder: {rel(path)} pattern={pattern}")
+        for line_no, line in enumerate(text.splitlines(), 1):
+            if marker.search(line):
+                warnings.append(f"TODO/FIXME marker: {rel(path)}:{line_no}: {line.strip()[:180]}")
     stats["production_placeholder_files_scanned"] = checked
 
 
-def check_local_workflow_refs(paths: list[Path], issues: list[str], stats: dict) -> None:
+def check_workflow_refs(paths: list[Path], issues: list[str], stats: dict) -> None:
     workflows = [p for p in paths if p.parent == ROOT / ".github" / "workflows" and p.suffix.lower() in {".yml", ".yaml"}]
-    checked_refs = 0
-    path_re = re.compile(r"(?<![A-Za-z0-9_./-])((?:tests|app|plugins|ci_scripts|windows_build|android|docs)/[A-Za-z0-9_./-]+\.(?:py|ps1|js|sh|bat|cmd|kt|kts|xml|md))")
+    # Longest extensions first + explicit right boundary prevents .kts -> .kt and .json -> .js truncation.
+    path_re = re.compile(r"(?<![A-Za-z0-9_./-])((?:tests|app|plugins|ci_scripts|windows_build|android|docs)/[A-Za-z0-9_./-]+\.(?:json|yaml|kts|ps1|py|js|sh|bat|cmd|xml|yml|kt|md|txt))(?![A-Za-z0-9_.-])")
+    checked = 0
     for path in workflows:
-        text = strict_text(path, issues)
+        text = read_text(path, issues)
         if text is None:
             continue
         for ref in sorted(set(path_re.findall(text))):
-            checked_refs += 1
+            checked += 1
             if not (ROOT / ref).exists():
-                issues.append(f"Workflow references missing repository file: {relative(path)} -> {ref}")
-    stats["workflow_local_refs_checked"] = checked_refs
-    stats["workflow_files"] = len(workflows)
+                issues.append(f"Workflow references missing repository file: {rel(path)} -> {ref}")
+    stats.update(workflow_local_refs_checked=checked, workflow_files=len(workflows))
 
 
-def inventory(files: list[Path], text_paths: list[Path]) -> dict:
-    suffix_counts = Counter((p.suffix.lower() or "<no-ext>") for p in files)
-    top_counts = Counter((p.relative_to(ROOT).parts[0] if p.relative_to(ROOT).parts else "<root>") for p in files)
+def make_inventory(items: list[Path], sources: list[Path]) -> dict:
     manifest = []
-    for path in text_paths:
-        try:
-            data = path.read_bytes()
-        except OSError:
-            continue
-        manifest.append({"path": relative(path), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    for path in sources:
+        data = path.read_bytes()
+        manifest.append({"path": rel(path), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
     return {
-        "total_files": len(files),
-        "text_source_config_files": len(text_paths),
-        "suffix_counts": dict(sorted(suffix_counts.items())),
-        "top_level_counts": dict(sorted(top_counts.items())),
+        "total_files": len(items),
+        "text_source_config_files": len(sources),
+        "suffix_counts": dict(sorted(Counter(p.suffix.lower() or "<no-ext>" for p in items).items())),
+        "top_level_counts": dict(sorted(Counter(p.relative_to(ROOT).parts[0] for p in items).items())),
         "source_manifest": manifest,
     }
 
@@ -277,45 +219,29 @@ def main() -> None:
     issues: list[str] = []
     warnings: list[str] = []
     stats: dict[str, object] = {}
-    files = all_files()
-    text_paths = source_files(files)
-
-    decoded = 0
-    for path in text_paths:
-        if strict_text(path, issues) is not None:
-            decoded += 1
-    stats["utf8_source_files"] = decoded
-
-    check_python([p for p in files if p.suffix.lower() == ".py"], issues, warnings, stats)
-    check_html([p for p in files if p.suffix.lower() == ".html"], issues, stats)
-    check_json([p for p in files if p.suffix.lower() == ".json"], issues, stats)
-    check_xml([p for p in files if p.suffix.lower() == ".xml"], issues, stats)
-    check_requirements(files, issues, stats)
-    check_obvious_placeholders(text_paths, issues, warnings, stats)
-    check_local_workflow_refs(text_paths, issues, stats)
-
-    inv = inventory(files, text_paths)
+    items = files(); sources = source_files(items)
+    stats["utf8_source_files"] = sum(read_text(p, issues) is not None for p in sources)
+    check_python([p for p in items if p.suffix.lower() == ".py"], issues, warnings, stats)
+    check_html([p for p in items if p.suffix.lower() == ".html"], issues, stats)
+    check_structured(items, ".json", json.loads, "JSON", issues, stats)
+    check_structured(items, ".xml", ET.fromstring, "XML", issues, stats)
+    check_requirements(items, issues, stats)
+    check_placeholders(sources, issues, warnings, stats)
+    check_workflow_refs(sources, issues, stats)
+    inv = make_inventory(items, sources)
     result = {"result": "FAIL" if issues else "PASS", "inventory": inv, "stats": stats, "issues": issues, "warnings": warnings}
     REPORT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-
     print("DEEP REPOSITORY AUDIT")
-    print(f"Files enumerated: {inv['total_files']}")
-    print(f"Source/config files strict-decoded and hashed: {inv['text_source_config_files']}")
-    for key, value in stats.items():
-        print(f"{key}: {value}")
-    print(f"Warnings requiring review: {len(warnings)}")
-    for warning in warnings[:100]:
-        print("WARNING:", warning)
-    if len(warnings) > 100:
-        print(f"... {len(warnings) - 100} additional warnings are in {REPORT.name}")
+    print("Files enumerated:", inv["total_files"])
+    print("Source/config files strict-decoded and hashed:", inv["text_source_config_files"])
+    for key, value in stats.items(): print(f"{key}: {value}")
+    print("Warnings requiring review:", len(warnings))
+    for warning in warnings[:100]: print("WARNING:", warning)
     if issues:
         print("\nFAILURES:")
-        for issue in issues:
-            print("-", issue)
-        print(f"\nFull machine-readable report: {REPORT}")
+        for issue in issues: print("-", issue)
         raise SystemExit(1)
     print("\nRESULT: PASS — every enumerated repository source/config file passed the applicable static integrity checks.")
-    print(f"Machine-readable report: {REPORT}")
 
 
 if __name__ == "__main__":
