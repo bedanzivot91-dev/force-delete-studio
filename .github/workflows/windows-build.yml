@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/capcut-p3-keyframes-easing
+  pull_request:
+    branches:
+      - claude/np-video-studio-desktop-po139q
   workflow_dispatch:
 
 permissions:
