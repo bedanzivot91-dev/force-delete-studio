@@ -267,6 +267,12 @@ from workspace_backend import apply as _apply_workspace_backend
 _WORKSPACE_EXPORTS = _apply_workspace_backend(_core)
 globals().update(_WORKSPACE_EXPORTS)
 
+# Correct operations where the mature code could swallow a partial filesystem
+# or database failure and still return an over-optimistic success result.
+from truthfulness_fixes import apply as _apply_truthfulness_fixes
+_TRUTHFULNESS_EXPORTS = _apply_truthfulness_fixes(_core)
+globals().update(_TRUTHFULNESS_EXPORTS)
+
 
 def main() -> None:
     return _core.main()
