@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Correctness fixes for operations that previously swallowed a real partial failure.
 
-These patches deliberately change only result truthfulness.  Best-effort cleanup,
+These patches deliberately change only result truthfulness. Best-effort cleanup,
 network fallback and disconnect handling remain untouched.
 """
 
@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,12 @@ def restore_cloud_backup_strict(
     restore_root: Path | None = None,
     preserve_original_paths: bool = False,
 ) -> dict[str, Any]:
-    """Restore a cloud backup without counting an unlinked derived file as success."""
+    """Restore a cloud backup without claiming success after a DB-link failure.
+
+    Existing destination files are moved aside before replacement and restored
+    if the database update fails, so a failed retry cannot destroy the previous
+    good restore either.
+    """
     package = package.expanduser().resolve()
     if not package.is_file():
         raise RuntimeError("Cloud backup ZIP ne postoji.")
@@ -63,6 +69,7 @@ def restore_cloud_backup_strict(
 
             restored = 0
             skipped: list[dict[str, str]] = []
+            warnings: list[dict[str, str]] = []
             controlled_root.mkdir(parents=True, exist_ok=True)
             for item in (manifest.get("files") or []) if restore_files else []:
                 arc = str(item.get("arcname") or "")
@@ -81,6 +88,8 @@ def restore_cloud_backup_strict(
                     target = controlled_root / (_advanced.sanitize_filename(song_id, 80) or "bez-id") / safe_field / safe_name
 
                 temp = target.with_suffix(target.suffix + ".restore-part")
+                previous: Path | None = None
+                placed_new = False
                 try:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with archive.open(arc) as src, temp.open("wb") as out:
@@ -88,35 +97,51 @@ def restore_cloud_backup_strict(
                     expected = str(item.get("sha256") or "")
                     if expected and _advanced.sha256_file(temp) != expected:
                         raise RuntimeError("SHA-256 se ne poklapa")
-                    os.replace(temp, target)
 
-                    # This call MUST be part of the successful transaction result.
-                    # The old implementation swallowed this exception and then
-                    # incremented files_restored, leaving a restored file whose DB
-                    # path still pointed to the old location.
+                    if target.exists():
+                        previous = target.with_name(target.name + ".restore-previous-" + uuid.uuid4().hex)
+                        os.replace(target, previous)
+                    os.replace(temp, target)
+                    placed_new = True
+
+                    # The DB link is part of the success condition. The legacy
+                    # implementation swallowed this exception and incremented
+                    # files_restored anyway.
                     if field.startswith("derived:"):
                         db.update_derived_file_path(int(field.split(":", 1)[1]), str(target.resolve()))
                     elif song_id and field:
                         db.update_song_files(song_id, **{field: str(target.resolve())})
+
                     restored += 1
+                    if previous is not None and previous.exists():
+                        try:
+                            previous.unlink()
+                        except OSError as cleanup_exc:
+                            warnings.append(
+                                {
+                                    "arcname": arc,
+                                    "target": str(previous),
+                                    "warning": f"Stara rollback kopija nije obrisana: {cleanup_exc}",
+                                }
+                            )
                 except Exception as exc:
                     temp.unlink(missing_ok=True)
-                    # If the file was already moved into place but the DB link
-                    # failed, remove that new copy so result + database + disk do
-                    # not disagree about whether the item was restored.
-                    try:
-                        if target.exists() and target.is_file():
-                            target.unlink()
-                    except OSError as cleanup_exc:
-                        skipped.append(
-                            {
-                                "arcname": arc,
-                                "target": str(target),
-                                "error": f"{exc}; rollback brisanje nije uspelo: {cleanup_exc}",
-                            }
-                        )
-                        continue
-                    skipped.append({"arcname": arc, "target": str(target), "error": str(exc)})
+                    rollback_errors: list[str] = []
+                    if placed_new:
+                        try:
+                            if target.exists() and target.is_file():
+                                target.unlink()
+                        except OSError as cleanup_exc:
+                            rollback_errors.append(f"nova kopija nije obrisana: {cleanup_exc}")
+                    if previous is not None and previous.exists():
+                        try:
+                            os.replace(previous, target)
+                        except OSError as restore_exc:
+                            rollback_errors.append(f"prethodni fajl nije vraćen: {restore_exc}")
+                    error_text = str(exc)
+                    if rollback_errors:
+                        error_text += "; rollback: " + " | ".join(rollback_errors)
+                    skipped.append({"arcname": arc, "target": str(target), "error": error_text})
 
     return {
         "path": str(package),
@@ -124,6 +149,7 @@ def restore_cloud_backup_strict(
         "files_restored": restored,
         "restore_root": str(controlled_root),
         "skipped": skipped,
+        "warnings": warnings,
     }
 
 
@@ -137,7 +163,6 @@ def _song_file_paths(song: dict[str, Any]) -> list[Path]:
         raw = str(item.get("path") or "").strip()
         if raw:
             paths.append(Path(raw))
-    # Preserve order but do not attempt to delete the same physical file twice.
     seen: set[str] = set()
     unique: list[Path] = []
     for path in paths:
@@ -156,8 +181,6 @@ def apply(core: Any) -> dict[str, Any]:
             "truthfulness_fixes_installed": True,
         }
 
-    # Replace both the core's imported alias and the source module attribute so
-    # later imports receive the same corrected behavior.
     _advanced.restore_cloud_backup = restore_cloud_backup_strict
     core.restore_cloud_backup = restore_cloud_backup_strict
 
