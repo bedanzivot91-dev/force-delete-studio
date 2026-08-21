@@ -96,9 +96,12 @@ begin
   AppDataDir := ExpandConstant('{localappdata}\NP Video Studio');
   if DirExists(AppDataDir) then
   begin
-    Response := MsgBox('Da li želite da obrišete i sačuvana podešavanja, logove i keš NP Video Studio programa?' + #13#10 +
+    { SuppressibleMsgBox is deliberate: /VERYSILENT /SUPPRESSMSGBOXES must never hang an automated or
+      enterprise uninstall. IDNO is the safe silent default so user data/projects are never deleted merely
+      because no human is present to answer the prompt. }
+    Response := SuppressibleMsgBox('Da li želite da obrišete i sačuvana podešavanja, logove i keš NP Video Studio programa?' + #13#10 +
       '(Vaši projekti se NE brišu ovom opcijom - oni ostaju na disku gde god da ste ih sačuvali.)',
-      mbConfirmation, MB_YESNO);
+      mbConfirmation, MB_YESNO, IDNO);
     if Response = IDYES then
       DelTree(AppDataDir, True, True, True);
   end;
