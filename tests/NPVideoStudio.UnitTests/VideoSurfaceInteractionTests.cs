@@ -23,13 +23,11 @@ public class VideoSurfaceInteractionTests
     {
         var rect = VideoSurface.ComputeDestination(Panel, Source, zoom: 1.0, pan: default);
 
-        // 16:9 into a 16:9 panel - fills it exactly.
         Assert.Equal(0, rect.X, 1);
         Assert.Equal(0, rect.Y, 1);
         Assert.Equal(800, rect.Width, 1);
         Assert.Equal(450, rect.Height, 1);
 
-        // Nothing hidden, so dragging must not move it - otherwise the picture slides into empty space.
         var clamped = VideoSurface.ClampPan(new Point(300, 300), Panel, Source, zoom: 1.0);
         Assert.Equal(0, clamped.X, 3);
         Assert.Equal(0, clamped.Y, 3);
@@ -46,8 +44,6 @@ public class VideoSurfaceInteractionTests
 
         Assert.Equal(fit.Width * zoom, zoomed.Width, 1);
         Assert.Equal(fit.Height * zoom, zoomed.Height, 1);
-
-        // Still the right shape - zooming must not stretch it.
         Assert.Equal(fit.Width / fit.Height, zoomed.Width / zoomed.Height, 3);
     }
 
@@ -59,12 +55,9 @@ public class VideoSurfaceInteractionTests
         var moved = VideoSurface.ComputeDestination(Panel, Source, zoom, new Point(120, 60));
         var still = VideoSurface.ComputeDestination(Panel, Source, zoom, default);
 
-        // It really moved.
         Assert.Equal(still.X + 120, moved.X, 1);
         Assert.Equal(still.Y + 60, moved.Y, 1);
 
-        // And an absurd drag is clamped so the picture always still covers the panel: at 2x the hidden
-        // overflow is half the panel on each axis, so the edge can never come inside the panel edge.
         var extreme = VideoSurface.ComputeDestination(Panel, Source, zoom, new Point(99999, 99999));
         Assert.True(extreme.X <= 0.001, $"left edge slid inside the panel: {extreme.X}");
         Assert.True(extreme.Y <= 0.001, $"top edge slid inside the panel: {extreme.Y}");
@@ -77,15 +70,12 @@ public class VideoSurfaceInteractionTests
     {
         Assert.Equal(default, VideoSurface.ClampPan(new Point(5, 5), Panel, Source, VideoSurface.MinZoom));
 
-        // Below fit there would only be empty space; above the cap a preview is just big pixels.
-        Assert.True(VideoSurface.MinZoom >= 1.0);
-        Assert.True(VideoSurface.MaxZoom is > 1.0 and <= 16.0);
+        // These are deliberate public UX bounds. Exact assertions retain the regression protection while
+        // avoiding a compiler warning caused by asking whether compile-time constants match a range pattern.
+        Assert.Equal(1.0, VideoSurface.MinZoom);
+        Assert.Equal(8.0, VideoSurface.MaxZoom);
     }
 
-    /// <summary>
-    /// Wheel-zoom has to keep the thing under the pointer under the pointer. Without this the picture
-    /// lurches away from wherever the user was looking, which is what makes a zoom feel broken.
-    /// </summary>
     [Theory]
     [InlineData(200, 100)]
     [InlineData(400, 225)]
@@ -113,12 +103,11 @@ public class VideoSurfaceInteractionTests
     [Fact]
     public void AVerticalVideoInAWidePanel_IsLetterboxedNotStretched()
     {
-        var vertical = new PixelSize(1080, 1920);   // Shorts / TikTok
-
+        var vertical = new PixelSize(1080, 1920);
         var rect = VideoSurface.ComputeDestination(Panel, vertical, 1.0, default);
 
-        Assert.Equal(450, rect.Height, 1);                       // limited by panel height
-        Assert.Equal(450 * 1080.0 / 1920.0, rect.Width, 1);       // and kept in proportion
+        Assert.Equal(450, rect.Height, 1);
+        Assert.Equal(450 * 1080.0 / 1920.0, rect.Width, 1);
         Assert.True(rect.X > 0, "vertical video should be centred with bars, not pinned left");
     }
 
