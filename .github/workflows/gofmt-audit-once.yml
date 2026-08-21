@@ -1,0 +1,44 @@
+name: One-shot gofmt audit branch
+
+on:
+  push:
+    branches:
+      - audit/full-program-current-head
+    paths:
+      - ".github/workflows/gofmt-audit-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  gofmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/full-program-current-head
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Format every Go source
+        run: gofmt -w windows_build
+
+      - name: Commit formatting only when gofmt changed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- windows_build; then
+            echo "All Go source was already formatted."
+            exit 0
+          fi
+          echo "gofmt changed:"
+          git diff --name-only -- windows_build
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add windows_build
+          git commit -m "Format all Windows Go sources with gofmt"
+          git push origin HEAD:audit/full-program-current-head
