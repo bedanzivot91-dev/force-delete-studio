@@ -1,18 +1,46 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
-             xmlns:dom="using:NPVideoStudio.Domain"
              x:Class="NPVideoStudio.App.Views.TemplateGalleryView"
              x:DataType="vm:TemplateGalleryViewModel">
 
   <ScrollViewer>
-    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="900" HorizontalAlignment="Left">
-      <StackPanel Spacing="2">
-        <TextBlock Text="ŠABLONI" Classes="eyebrow" />
-        <TextBlock Text="Izaberi šablon za novi projekat" Classes="heading" />
-        <TextBlock Classes="subtle" TextWrapping="Wrap"
-                   Text="Šablon samo unapred dodaje prazne trake pogodne za tu vrstu videa - format i naziv projekta se biraju na sledećem koraku." />
-      </StackPanel>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="980" HorizontalAlignment="Left">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="4">
+          <TextBlock Text="ŠABLONI" Classes="eyebrow" />
+          <TextBlock Text="Ugrađeni i moji šabloni" Classes="heading" />
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Ugrađeni šabloni daju početne trake. Moji šabloni čuvaju i rezoluciju/FPS projekta koji ste sami podesili." />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="ghost" Content="Osveži" Command="{Binding RefreshTemplatesCommand}" VerticalAlignment="Top" />
+      </Grid>
+
+      <Border Classes="panel" Padding="14" IsVisible="{Binding IsRenameActive}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Preimenuj moj šablon" FontWeight="SemiBold" />
+          <TextBox Text="{Binding RenameName}" Watermark="Novo ime šablona" MinWidth="320" />
+          <WrapPanel Orientation="Horizontal">
+            <Button Classes="cta" Content="Sačuvaj novo ime" Command="{Binding ConfirmRenameCommand}" Margin="0,0,10,0" />
+            <Button Classes="danger" Content="Potvrdi prepisivanje postojećeg" Command="{Binding ConfirmRenameOverwriteCommand}"
+                    IsVisible="{Binding IsRenameOverwriteRequired}" Margin="0,0,10,0" />
+            <Button Classes="ghost" Content="Otkaži" Command="{Binding CancelManageCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="panel" Padding="14" IsVisible="{Binding IsDeleteConfirmationVisible}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Potvrda brisanja" FontWeight="SemiBold" />
+          <TextBlock Text="Brisanje uklanja samo sačuvani šablon. Postojeći projekti ostaju netaknuti." Classes="subtle" TextWrapping="Wrap" />
+          <WrapPanel Orientation="Horizontal">
+            <Button Classes="danger" Content="Da, obriši šablon" Command="{Binding ConfirmDeleteCommand}" Margin="0,0,10,0" />
+            <Button Classes="ghost" Content="Otkaži" Command="{Binding CancelManageCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding Message}" Classes="subtle" TextWrapping="Wrap" />
 
       <ItemsControl ItemsSource="{Binding Templates}">
         <ItemsControl.ItemsPanel>
@@ -21,15 +49,25 @@
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="dom:ProjectTemplate">
-            <Button Classes="tile" Width="260" Margin="0,0,14,14"
-                    Command="{Binding $parent[ItemsControl].((vm:TemplateGalleryViewModel)DataContext).SelectTemplateCommand}"
-                    CommandParameter="{Binding}">
-              <StackPanel Spacing="4">
-                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+          <DataTemplate x:DataType="vm:TemplateGalleryItemViewModel">
+            <Border Classes="panel" Width="290" Padding="14" Margin="0,0,14,14">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock Classes="subtle" Text="{Binding Description}" TextWrapping="Wrap" />
+                <TextBlock Classes="subtle" Text="{Binding FormatLabel}" TextWrapping="Wrap" />
+                <Button Classes="cta" Content="Koristi šablon"
+                        Command="{Binding $parent[ItemsControl].((vm:TemplateGalleryViewModel)DataContext).SelectTemplateCommand}"
+                        CommandParameter="{Binding}" />
+                <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsUserTemplate}">
+                  <Button Classes="ghost" Content="Preimenuj"
+                          Command="{Binding $parent[ItemsControl].((vm:TemplateGalleryViewModel)DataContext).BeginRenameCommand}"
+                          CommandParameter="{Binding}" Margin="0,0,8,0" />
+                  <Button Classes="danger" Content="Obriši"
+                          Command="{Binding $parent[ItemsControl].((vm:TemplateGalleryViewModel)DataContext).BeginDeleteCommand}"
+                          CommandParameter="{Binding}" />
+                </WrapPanel>
               </StackPanel>
-            </Button>
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
