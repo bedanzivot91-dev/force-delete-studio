@@ -101,7 +101,8 @@ jobs:
           $env:USERPROFILE = $profile
           $env:APPDATA = Join-Path $profile "AppData\Roaming"
           $env:LOCALAPPDATA = Join-Path $profile "AppData\Local"
-          New-Item -ItemType Directory -Force -Path $env:APPDATA,$env:LOCALAPPDATA | Out-Null
+          $desktop = Join-Path $env:USERPROFILE "Desktop"
+          New-Item -ItemType Directory -Force -Path @($env:APPDATA,$env:LOCALAPPDATA,$desktop) | Out-Null
           $installRoot = Join-Path $env:RUNNER_TEMP "Suno-Pesme-Studio-real-install-$cycle"
           $installer = Join-Path $env:RELEASE_ROOT "INSTALIRAJ_PROGRAM.exe"
 
@@ -165,7 +166,8 @@ jobs:
           $env:USERPROFILE = $profile
           $env:APPDATA = Join-Path $profile "AppData\Roaming"
           $env:LOCALAPPDATA = Join-Path $profile "AppData\Local"
-          New-Item -ItemType Directory -Force -Path $env:APPDATA,$env:LOCALAPPDATA | Out-Null
+          $desktop = Join-Path $env:USERPROFILE "Desktop"
+          New-Item -ItemType Directory -Force -Path @($env:APPDATA,$env:LOCALAPPDATA,$desktop) | Out-Null
           $installRoot = Join-Path $env:RUNNER_TEMP "Suno-Pesme-Studio-real-install-$cycle"
           $installer = Join-Path $env:RELEASE_ROOT "INSTALIRAJ_PROGRAM.exe"
 
