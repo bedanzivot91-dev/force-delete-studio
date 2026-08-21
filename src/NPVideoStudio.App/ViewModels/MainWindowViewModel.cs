@@ -16,7 +16,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ViewModelBase? _currentPage;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCurrentProject))]
     private Project? _currentProject;
+
+    public bool HasCurrentProject => CurrentProject is not null;
 
     public event Action<AppTheme>? ThemeChanged;
 
@@ -196,6 +199,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
+    private SaveTemplateViewModel CreateSaveTemplatePage()
+    {
+        if (CurrentProject is null)
+        {
+            throw new InvalidOperationException("Nema otvorenog projekta koji može da se sačuva kao šablon.");
+        }
+
+        var vm = new SaveTemplateViewModel(CurrentProject, new UserTemplateRepository());
+        vm.BackRequested += () =>
+        {
+            if (CurrentProject is not null)
+            {
+                CurrentPage = OpenWorkspace(CurrentProject);
+            }
+        };
+        return vm;
+    }
+
     private QuickVideoViewModel CreateQuickVideoPage(bool initialAutoCaptions)
     {
         var vm = new QuickVideoViewModel(
@@ -221,8 +242,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<ISubtitleGeneratorService>(),
             _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
-            _services.GetRequiredService<IAiWorkerClient>(),
-            new UserTemplateRepository());
+            _services.GetRequiredService<IAiWorkerClient>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search
         // page the song library already opens, so the file is already selected when it appears.
@@ -258,6 +278,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     private async Task GoHomeAsync() => await ShowStartScreenAsync();
+
+    [RelayCommand]
+    private void GoToSaveTemplate()
+    {
+        if (CurrentProject is not null)
+        {
+            CurrentPage = CreateSaveTemplatePage();
+        }
+    }
 
     [RelayCommand]
     private void GoToSettings() => CurrentPage = CreateSettingsPage();
