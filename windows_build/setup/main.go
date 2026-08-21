@@ -1304,7 +1304,9 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	ffprobeExe := filepath.Join(ffDir, "ffprobe.exe")
 	if !fileReady(ffmpegExe, 1000000) || !fileReady(ffprobeExe, 1000000) {
 		log("FFmpeg nije pronađen; preuzimam provereni BtbN full GPL paket sa Chromaprintom")
-		if err := stageChromaprintFFmpeg(stage, log); err != nil { return fmt.Errorf("FFmpeg: %w", err) }
+		if err := stageChromaprintFFmpeg(stage, log); err != nil {
+			return fmt.Errorf("FFmpeg: %w", err)
+		}
 	}
 
 	ytdlp := filepath.Join(stage, "tools", "yt-dlp", "yt-dlp.exe")
@@ -1328,7 +1330,9 @@ func prepareComponents(stage string, reuseBases []string, log func(string)) erro
 	denoExe := filepath.Join(denoDir, "deno.exe")
 	if !fileReady(denoExe, 1000000) {
 		log("Deno nije pronađen; preuzimam aktuelni paket sa zvaničnom SHA-256 proverom")
-		if err := stageCurrentDeno(stage, log); err != nil { return fmt.Errorf("Deno: %w", err) }
+		if err := stageCurrentDeno(stage, log); err != nil {
+			return fmt.Errorf("Deno: %w", err)
+		}
 	}
 
 	checks := []struct {
