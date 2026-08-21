@@ -308,6 +308,11 @@ public sealed class TimelineClip
     public double MaskRotationDegrees { get; set; }
     public bool MaskInvert { get; set; }
     public ClipBlendMode BlendMode { get; set; } = ClipBlendMode.Normal;
+
+    // --- Keyframe animation ----------------------------------------------------------------------
+    // Times are local to this rendered clip (0 = first visible frame), not absolute project time.
+    // Moving the clip therefore never changes the animation authored inside it.
+    public List<ClipKeyframe> Keyframes { get; set; } = new();
 }
 
 /// <summary>One track (a lane of non-overlapping clips) in the timeline.</summary>

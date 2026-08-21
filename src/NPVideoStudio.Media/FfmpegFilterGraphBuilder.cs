@@ -105,20 +105,57 @@ public static class FfmpegFilterGraphBuilder
             videoFilter.Append(BuildTemporalVideoFilters(clip, duration));
             videoFilter.Append(BuildSpeedFilter(clip));
             videoFilter.Append(BuildTransformFilters(clip));
-            videoFilter.Append(FormattableString.Invariant(
-                $",scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"));
-            videoFilter.Append(BuildEffectFilters(clip));
-            if (clip.FadeInSeconds > 0)
+
+            if (!HasVisualKeyframes(clip))
             {
-                videoFilter.Append(FormattableString.Invariant($",fade=t=in:st=0:d={clip.FadeInSeconds}"));
+                videoFilter.Append(FormattableString.Invariant(
+                    $",scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"));
+                videoFilter.Append(BuildEffectFilters(clip));
+                if (clip.FadeInSeconds > 0)
+                {
+                    videoFilter.Append(FormattableString.Invariant($",fade=t=in:st=0:d={clip.FadeInSeconds}"));
+                }
+                if (clip.FadeOutSeconds > 0)
+                {
+                    var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
+                    videoFilter.Append(FormattableString.Invariant($",fade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                }
+                videoFilter.Append(vLabel);
+                filterLines.Add(videoFilter.ToString());
             }
-            if (clip.FadeOutSeconds > 0)
+            else
             {
-                var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
-                videoFilter.Append(FormattableString.Invariant($",fade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                var animatedSource = $"[vanimsrc{segmentIndex}]";
+                var scaleExpr = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Scale, "t", clip.ScalePercent);
+                var fitWidth = FormattableString.Invariant($"min({targetWidth},{targetHeight}*iw/ih)");
+                videoFilter.Append(FormattableString.Invariant(
+                    $",scale=w='max(2,({fitWidth})*({scaleExpr})/100)':h=-1:eval=frame"));
+                videoFilter.Append(BuildAnimatedRotationFilter(clip, "t"));
+                videoFilter.Append(BuildEffectFilters(clip));
+                videoFilter.Append(",format=rgba");
+                videoFilter.Append(BuildAnimatedOpacityFilter(clip, "T"));
+                if (clip.FadeInSeconds > 0)
+                {
+                    videoFilter.Append(FormattableString.Invariant($",fade=t=in:st=0:d={clip.FadeInSeconds}:alpha=1"));
+                }
+                if (clip.FadeOutSeconds > 0)
+                {
+                    var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
+                    videoFilter.Append(FormattableString.Invariant($",fade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}:alpha=1"));
+                }
+                videoFilter.Append(animatedSource);
+                filterLines.Add(videoFilter.ToString());
+
+                var animatedCanvas = $"[vanimbg{segmentIndex}]";
+                filterLines.Add(FormattableString.Invariant(
+                    $"color=c=black:s={targetWidth}x{targetHeight}:d={duration}:r={frameRate},format=rgba{animatedCanvas}"));
+                var posX = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionX, "t", clip.PositionXPercent);
+                var posY = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionY, "t", clip.PositionYPercent);
+                var x = $"(main_w*(({posX})/100))-(overlay_w/2)";
+                var y = $"(main_h*(({posY})/100))-(overlay_h/2)";
+                filterLines.Add(FormattableString.Invariant(
+                    $"{animatedCanvas}{animatedSource}overlay=x='{x}':y='{y}':shortest=1:format=auto,format=yuv420p,setsar=1{vLabel}"));
             }
-            videoFilter.Append(vLabel);
-            filterLines.Add(videoFilter.ToString());
 
             var audioFilter = new StringBuilder();
             var volume = clip.IsMuted ? 0 : clip.Volume;
@@ -215,18 +252,35 @@ public static class FfmpegFilterGraphBuilder
             var nextLabel = $"[vtext{i}]";
             var displayText = ApplyTextCase(clip.TextContent!, clip.TextCase);
             var escapedText = EscapeDrawtext(displayText);
-            var y = clip.TextPosition switch
+            var defaultYPercent = clip.TextPosition switch
             {
-                CaptionTextPosition.Top => "h*0.08",
-                CaptionTextPosition.Middle => "(h-text_h)/2",
-                _ => "h*0.85"
+                CaptionTextPosition.Top => 8.0,
+                CaptionTextPosition.Middle => 50.0,
+                _ => 85.0
             };
-            var x = clip.TextHorizontalAlign switch
+            var defaultXPercent = clip.TextHorizontalAlign switch
             {
-                TextHorizontalAlign.Left => "w*0.05",
-                TextHorizontalAlign.Right => "w-text_w-w*0.05",
-                _ => "(w-text_w)/2"
+                TextHorizontalAlign.Left => 5.0,
+                TextHorizontalAlign.Right => 95.0,
+                _ => 50.0
             };
+            var textLocalTime = FormattableString.Invariant($"(t-{MapToRenderedTime(clip.TimelineStartSeconds)})");
+            var y = HasKeyframes(clip, ClipKeyframeProperty.PositionY)
+                ? $"h*(({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionY, textLocalTime, defaultYPercent)})/100)-text_h/2"
+                : clip.TextPosition switch
+                {
+                    CaptionTextPosition.Top => "h*0.08",
+                    CaptionTextPosition.Middle => "(h-text_h)/2",
+                    _ => "h*0.85"
+                };
+            var x = HasKeyframes(clip, ClipKeyframeProperty.PositionX)
+                ? $"w*(({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionX, textLocalTime, defaultXPercent)})/100)-text_w/2"
+                : clip.TextHorizontalAlign switch
+                {
+                    TextHorizontalAlign.Left => "w*0.05",
+                    TextHorizontalAlign.Right => "w-text_w-w*0.05",
+                    _ => "(w-text_w)/2"
+                };
             var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice, clip.IsTextBold, clip.IsTextItalic);
             var fontFileArgument = fontFilePath is null ? string.Empty : $":fontfile='{EscapeDrawtext(fontFilePath)}'";
             var renderedStart = MapToRenderedTime(clip.TimelineStartSeconds);
@@ -249,13 +303,27 @@ public static class FfmpegFilterGraphBuilder
             {
                 extraArguments.Append(FormattableString.Invariant($":line_spacing={clip.LineSpacingPx}"));
             }
-            if (clip.FadeInSeconds > 0 || clip.FadeOutSeconds > 0)
+            var textAlpha = clip.FadeInSeconds > 0 || clip.FadeOutSeconds > 0
+                ? BuildTextAlphaExpression(clip, renderedStart, renderedEnd)
+                : "1";
+            if (HasKeyframes(clip, ClipKeyframeProperty.Opacity))
             {
-                extraArguments.Append($":alpha='{BuildTextAlphaExpression(clip, renderedStart, renderedEnd)}'");
+                var opacity = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Opacity, textLocalTime, 1);
+                textAlpha = $"({textAlpha})*({opacity})";
+            }
+            if (textAlpha != "1")
+            {
+                extraArguments.Append($":alpha='{textAlpha}'");
             }
 
+            var fontSize = HasKeyframes(clip, ClipKeyframeProperty.Scale)
+                ? $"'{clip.FontSizePx}*({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Scale, textLocalTime, 100)})/100'"
+                : clip.FontSizePx.ToString(CultureInfo.InvariantCulture);
+
+            var drawTextX = HasKeyframes(clip, ClipKeyframeProperty.PositionX) ? $"'{x}'" : x;
+            var drawTextY = HasKeyframes(clip, ClipKeyframeProperty.PositionY) ? $"'{y}'" : y;
             filterLines.Add(FormattableString.Invariant(
-                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x={x}:y={y}:fontsize={clip.FontSizePx}:fontcolor={clip.TextColor}{fontFileArgument}{extraArguments}{nextLabel}"));
+                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x={drawTextX}:y={drawTextY}:fontsize={fontSize}:fontcolor={clip.TextColor}{fontFileArgument}{extraArguments}{nextLabel}"));
             currentTextVideoLabel = nextLabel;
         }
 
@@ -453,6 +521,7 @@ public static class FfmpegFilterGraphBuilder
                     newClip.TransitionInType = ClipTransitionType.None;
                 }
 
+                SliceKeyframesForRange(clip, newClip, trimmedFromStart, Math.Max(0.05, overlapEnd - overlapStart));
                 newTrack.Clips.Add(newClip);
             }
 
@@ -528,8 +597,60 @@ public static class FfmpegFilterGraphBuilder
         MaskFeatherPercent = clip.MaskFeatherPercent,
         MaskRotationDegrees = clip.MaskRotationDegrees,
         MaskInvert = clip.MaskInvert,
-        BlendMode = clip.BlendMode
+        BlendMode = clip.BlendMode,
+        Keyframes = clip.Keyframes.Select(CloneKeyframe).ToList()
     };
+
+    private static ClipKeyframe CloneKeyframe(ClipKeyframe keyframe) => new()
+    {
+        Id = keyframe.Id,
+        Property = keyframe.Property,
+        TimeSeconds = keyframe.TimeSeconds,
+        Value = keyframe.Value,
+        Easing = keyframe.Easing
+    };
+
+    private static void SliceKeyframesForRange(TimelineClip original, TimelineClip sliced, double trimmedFromStart, double visibleDuration)
+    {
+        if (original.Keyframes.Count == 0)
+        {
+            return;
+        }
+
+        var result = new List<ClipKeyframe>();
+        foreach (var property in original.Keyframes.Select(k => k.Property).Distinct())
+        {
+            var fallback = ClipKeyframeEvaluator.StaticValue(original, property);
+            result.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = 0,
+                Value = ClipKeyframeEvaluator.Evaluate(original, property, trimmedFromStart),
+                Easing = ClipKeyframeEasing.Linear
+            });
+
+            foreach (var point in original.Keyframes.Where(k => k.Property == property &&
+                         k.TimeSeconds > trimmedFromStart + 0.001 &&
+                         k.TimeSeconds < trimmedFromStart + visibleDuration - 0.001))
+            {
+                var clone = CloneKeyframe(point);
+                clone.TimeSeconds -= trimmedFromStart;
+                result.Add(clone);
+            }
+
+            result.Add(new ClipKeyframe
+            {
+                Property = property,
+                TimeSeconds = visibleDuration,
+                Value = ClipKeyframeEvaluator.Evaluate(original, property, trimmedFromStart + visibleDuration),
+                Easing = original.Keyframes.Where(k => k.Property == property && k.TimeSeconds >= trimmedFromStart + visibleDuration)
+                    .OrderBy(k => k.TimeSeconds)
+                    .Select(k => k.Easing)
+                    .FirstOrDefault()
+            });
+        }
+        sliced.Keyframes = result.OrderBy(k => k.Property).ThenBy(k => k.TimeSeconds).ToList();
+    }
 
     /// <summary>Joins a new segment onto the running output with a plain hard-cut `concat` (used for the
     /// very first segment - nothing to join yet, so it just becomes the running output - gap fillers, and
@@ -606,13 +727,29 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(BuildTransformFilters(clip));
-            prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
+            if (HasKeyframes(clip, ClipKeyframeProperty.Scale))
+            {
+                var scaleExpr = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Scale, "t", clip.ScalePercent);
+                prepared.Append(FormattableString.Invariant($",scale=w='max(2,{targetWidth}*({scaleExpr})/100)':h=-1:eval=frame"));
+            }
+            else
+            {
+                prepared.Append(FormattableString.Invariant($",scale={overlayWidth}:-1"));
+            }
+            prepared.Append(BuildAnimatedRotationFilter(clip, "t"));
             prepared.Append(BuildEffectFilters(clip));
-            // colorchannelmixer/chromakey/masks need an alpha-capable pixel format.
+            // geq/chromakey/masks need an alpha-capable pixel format.
             prepared.Append(",format=rgba");
             prepared.Append(BuildChromaKeyFilter(clip));
             prepared.Append(BuildMaskFilter(clip));
-            prepared.Append(FormattableString.Invariant($",colorchannelmixer=aa={opacity}"));
+            if (HasKeyframes(clip, ClipKeyframeProperty.Opacity))
+            {
+                prepared.Append(BuildAnimatedOpacityFilter(clip, "T"));
+            }
+            else
+            {
+                prepared.Append(FormattableString.Invariant($",colorchannelmixer=aa={opacity}"));
+            }
             // Overlay streams used to stay at t=0 regardless of where the clip lived on the timeline.
             // That makes a delayed overlay repeat its last decoded frame when enable() finally turns on.
             // Shift the prepared overlay into the same rendered clock as the base before compositing it.
@@ -620,9 +757,15 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(preparedLabel);
             filterLines.Add(prepared.ToString());
 
-            // Centre-anchored: shift left/up by half the overlay's own rendered size.
-            var centreX = FormattableString.Invariant($"(main_w*{clip.PositionXPercent / 100.0})-(overlay_w/2)");
-            var centreY = FormattableString.Invariant($"(main_h*{clip.PositionYPercent / 100.0})-(overlay_h/2)");
+            // Centre-anchored. Static clips keep the exact old expressions; animated clips use the global
+            // rendered clock minus this clip's rendered start as their local keyframe time.
+            var localOverlayTime = FormattableString.Invariant($"(t-{start})");
+            var centreX = HasKeyframes(clip, ClipKeyframeProperty.PositionX)
+                ? $"(main_w*(({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionX, localOverlayTime, clip.PositionXPercent)})/100))-(overlay_w/2)"
+                : FormattableString.Invariant($"(main_w*{clip.PositionXPercent / 100.0})-(overlay_w/2)");
+            var centreY = HasKeyframes(clip, ClipKeyframeProperty.PositionY)
+                ? $"(main_h*(({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.PositionY, localOverlayTime, clip.PositionYPercent)})/100))-(overlay_h/2)"
+                : FormattableString.Invariant($"(main_h*{clip.PositionYPercent / 100.0})-(overlay_h/2)");
 
             var outLabel = i == overlayClips.Count - 1 ? "[vlayered]" : $"[vlay{i}]";
             if (clip.BlendMode == ClipBlendMode.Normal)
@@ -700,6 +843,77 @@ public static class FfmpegFilterGraphBuilder
     /// Filters chosen from ffmpeg's own documented set (eq/hue/gblur/vignette/unsharp/negate/hflip); the
     /// sepia matrix is the standard colorchannelmixer one.
     /// </summary>
+    private static bool HasVisualKeyframes(TimelineClip clip) =>
+        HasKeyframes(clip, ClipKeyframeProperty.PositionX) ||
+        HasKeyframes(clip, ClipKeyframeProperty.PositionY) ||
+        HasKeyframes(clip, ClipKeyframeProperty.Scale) ||
+        HasKeyframes(clip, ClipKeyframeProperty.Rotation) ||
+        HasKeyframes(clip, ClipKeyframeProperty.Opacity);
+
+    private static bool HasKeyframes(TimelineClip clip, ClipKeyframeProperty property) =>
+        clip.Keyframes.Any(k => k.Property == property);
+
+    /// <summary>Piecewise FFmpeg expression for one animated property. The easing attached to the RIGHT
+    /// keyframe controls travel into that point, matching ClipKeyframeEvaluator exactly.</summary>
+    public static string BuildKeyframeValueExpression(
+        TimelineClip clip,
+        ClipKeyframeProperty property,
+        string timeExpression,
+        double fallback)
+    {
+        var points = clip.Keyframes.Where(k => k.Property == property).OrderBy(k => k.TimeSeconds).ToArray();
+        if (points.Length == 0)
+        {
+            return F(ClipKeyframeEvaluator.ClampValue(property, fallback));
+        }
+        if (points.Length == 1)
+        {
+            return F(ClipKeyframeEvaluator.ClampValue(property, points[0].Value));
+        }
+
+        string result = F(ClipKeyframeEvaluator.ClampValue(property, points[^1].Value));
+        for (var i = points.Length - 1; i >= 1; i--)
+        {
+            var left = points[i - 1];
+            var right = points[i];
+            var leftValue = ClipKeyframeEvaluator.ClampValue(property, left.Value);
+            var rightValue = ClipKeyframeEvaluator.ClampValue(property, right.Value);
+            var span = Math.Max(1e-9, right.TimeSeconds - left.TimeSeconds);
+            var u = $"(({timeExpression}-{F(left.TimeSeconds)})/{F(span)})";
+            var eased = BuildEasingExpression(u, right.Easing);
+            var segment = $"({F(leftValue)}+({F(rightValue)}-{F(leftValue)})*({eased}))";
+            result = $"if(lt({timeExpression},{F(right.TimeSeconds)}),{segment},{result})";
+        }
+        return $"if(lte({timeExpression},{F(points[0].TimeSeconds)}),{F(ClipKeyframeEvaluator.ClampValue(property, points[0].Value))},{result})";
+    }
+
+    private static string BuildEasingExpression(string u, ClipKeyframeEasing easing) => easing switch
+    {
+        ClipKeyframeEasing.EaseIn => $"(({u})*({u}))",
+        ClipKeyframeEasing.EaseOut => $"(1-(1-({u}))*(1-({u})))",
+        ClipKeyframeEasing.EaseInOut => $"if(lt(({u}),0.5),2*({u})*({u}),1-2*(1-({u}))*(1-({u})))",
+        ClipKeyframeEasing.Hold => "0",
+        _ => u
+    };
+
+    private static string BuildAnimatedRotationFilter(TimelineClip clip, string localTimeExpression)
+    {
+        if (!HasKeyframes(clip, ClipKeyframeProperty.Rotation))
+        {
+            return string.Empty;
+        }
+        var angle = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Rotation, localTimeExpression, clip.RotationDegrees);
+        return $",format=rgba,rotate=angle='({angle})*PI/180':ow='hypot(iw,ih)':oh='hypot(iw,ih)':c=black@0";
+    }
+
+    private static string BuildAnimatedOpacityFilter(TimelineClip clip, string localTimeExpression)
+    {
+        var opacity = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Opacity, localTimeExpression, clip.Opacity);
+        return $",geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*({opacity})'";
+    }
+
+    private static string F(double value) => value.ToString("0.#########", CultureInfo.InvariantCulture);
+
     public static string BuildTemporalVideoFilters(TimelineClip clip, double durationSeconds)
     {
         var parts = new List<string>();
@@ -734,7 +948,7 @@ public static class FfmpegFilterGraphBuilder
         if (clip.FlipVertical) parts.Add("vflip");
 
         var rotation = clip.RotationDegrees % 360.0;
-        if (Math.Abs(rotation) > 1e-6)
+        if (!HasKeyframes(clip, ClipKeyframeProperty.Rotation) && Math.Abs(rotation) > 1e-6)
         {
             parts.Add(FormattableString.Invariant(
                 $"rotate={rotation}*PI/180:ow=rotw({rotation}*PI/180):oh=roth({rotation}*PI/180):c=black"));

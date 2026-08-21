@@ -348,10 +348,21 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetClipCompositing(clipId, settings);
             RefreshFromSession();
         }
+        void OnKeyframeUpsert(string clipId, ClipKeyframeProperty property, double localTime, double value, ClipKeyframeEasing easing)
+        {
+            _session.UpsertKeyframe(clipId, property, localTime, value, easing);
+            TimelineChanged?.Invoke();
+        }
+        void OnKeyframeRemove(string clipId, ClipKeyframeProperty property, double localTime)
+        {
+            _session.RemoveKeyframe(clipId, property, localTime);
+            TimelineChanged?.Invoke();
+        }
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
-            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio)
+            OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };
