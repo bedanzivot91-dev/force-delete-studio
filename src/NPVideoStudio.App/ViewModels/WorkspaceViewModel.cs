@@ -167,6 +167,18 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private double _playerAspectRatio = 16.0 / 9.0;
 
+    /// <summary>Preview-only platform safe-area guide. It is never burned into export; it only shows the
+    /// usable rectangle from SafeAreaPreset over the player so text/logos stay clear of Shorts/Reels/
+    /// TikTok chrome.</summary>
+    [ObservableProperty]
+    private bool _showSafeArea;
+
+    public SafeAreaPreset CurrentSafeAreaPreset => SafeAreaPreset.ForFrame(Project.Format.Width, Project.Format.Height);
+    public string SafeAreaGuideLabel => $"SAFE AREA {CurrentSafeAreaPreset.FormatLabel}";
+    public bool IsVerticalSafeArea => CurrentSafeAreaPreset == SafeAreaPreset.Vertical9By16;
+    public bool IsSquareSafeArea => CurrentSafeAreaPreset == SafeAreaPreset.Square1By1;
+    public bool IsHorizontalSafeArea => !IsVerticalSafeArea && !IsSquareSafeArea;
+
     public string PreviewCaptionText => Timeline.SelectedClip is { IsTextClip: true } clip ? clip.TextContent : string.Empty;
     public bool IsPreviewCaptionVisible => !string.IsNullOrWhiteSpace(PreviewCaptionText);
     public double PreviewCaptionFontSize => Timeline.SelectedClip is { IsTextClip: true } clip
@@ -744,6 +756,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     {
         FormatSummaryLabel = $"{Project.Format.Width}×{Project.Format.Height}  ·  {Project.Format.Fps:0.##} fps  ·  {Project.Format.Orientation}";
         OnPropertyChanged(nameof(ProjectAspectRatio));
+        OnPropertyChanged(nameof(CurrentSafeAreaPreset));
+        OnPropertyChanged(nameof(SafeAreaGuideLabel));
+        OnPropertyChanged(nameof(IsVerticalSafeArea));
+        OnPropertyChanged(nameof(IsSquareSafeArea));
+        OnPropertyChanged(nameof(IsHorizontalSafeArea));
     }
 
     /// <summary>
