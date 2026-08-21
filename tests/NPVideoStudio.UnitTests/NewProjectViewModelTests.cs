@@ -1,6 +1,7 @@
 using NPVideoStudio.App.ViewModels;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Infrastructure.Persistence;
 using Serilog;
 using Xunit;
 
@@ -35,11 +36,6 @@ public sealed class FakeRecentProjectsService : IRecentProjectsService
     public Task RemoveAsync(string projectFilePath, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
-/// <summary>
-/// Covers the Phase 10 addition to an existing, already-shipped screen: picking a
-/// <see cref="ProjectTemplate"/> pre-populates the new project's timeline with that template's starter
-/// tracks, on top of the plain "Novi projekat" flow which stays unchanged (no template = no tracks).
-/// </summary>
 public sealed class NewProjectViewModelTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"npvs_newproject_test_{Guid.NewGuid():N}");
@@ -49,9 +45,9 @@ public sealed class NewProjectViewModelTests : IDisposable
 
     public void Dispose() => Directory.Delete(_tempDir, recursive: true);
 
-    private NewProjectViewModel Create(ProjectTemplate? template = null) => new(
+    private NewProjectViewModel Create(ProjectTemplate? template = null, UserTemplate? userTemplate = null) => new(
         _repository, new FakeRecentProjectsService(), new FakeSettingsService(_tempDir),
-        new LoggerConfiguration().CreateLogger(), prefillPlatform: null, template: template);
+        new LoggerConfiguration().CreateLogger(), prefillPlatform: null, template: template, userTemplate: userTemplate);
 
     [Fact]
     public async Task CreateAsync_NoTemplate_ProducesProjectWithEmptyTimeline()
@@ -67,7 +63,7 @@ public sealed class NewProjectViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_WithTemplate_AddsExactlyTheTemplatesStarterTracks()
+    public async Task CreateAsync_WithBuiltInTemplate_AddsExactlyTheTemplatesStarterTracks()
     {
         var template = ProjectTemplate.BuiltIn.Single(t => t.Name == "Muzički spot");
         var vm = Create(template);
@@ -81,22 +77,82 @@ public sealed class NewProjectViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_WithUserTemplate_RestoresExactCustomFormatAndStarterTracks()
+    {
+        var userTemplate = new UserTemplate
+        {
+            Name = "Moj 29.97 Shorts",
+            Description = "test",
+            Width = 1080,
+            Height = 1920,
+            FrameRate = FrameRatePreset.Custom,
+            Fps = 29.97,
+            StarterTrackKinds =
+            {
+                TimelineTrackKind.Video,
+                TimelineTrackKind.Audio,
+                TimelineTrackKind.Text,
+                TimelineTrackKind.Caption
+            }
+        };
+        var vm = Create(userTemplate: userTemplate);
+        Project? created = null;
+        vm.ProjectCreated += p => created = p;
+
+        Assert.Equal(ResolutionPreset.Custom, vm.SelectedResolution);
+        Assert.Equal(1080, vm.CustomWidth);
+        Assert.Equal(1920, vm.CustomHeight);
+        Assert.Equal(FrameRatePreset.Custom, vm.SelectedFrameRate);
+        Assert.Equal(29.97, vm.CustomFps, 6);
+
+        await vm.CreateCommand.ExecuteAsync(null);
+
+        Assert.NotNull(created);
+        Assert.Equal(1080, created!.Format.Width);
+        Assert.Equal(1920, created.Format.Height);
+        Assert.Equal(FrameRatePreset.Custom, created.Format.FrameRate);
+        Assert.Equal(29.97, created.Format.Fps, 6);
+        Assert.Equal(userTemplate.StarterTrackKinds, created.Timeline.Tracks.Select(t => t.Kind));
+    }
+
+    [Fact]
     public void TemplateInfoLabel_NoTemplate_IsNull()
     {
         Assert.Null(Create().TemplateInfoLabel);
     }
 
     [Fact]
-    public void TemplateInfoLabel_EmptyTemplate_IsNull()
+    public void TemplateInfoLabel_EmptyBuiltInTemplate_IsNull()
     {
         var emptyTemplate = ProjectTemplate.BuiltIn.Single(t => t.StarterTrackKinds.Count == 0);
         Assert.Null(Create(emptyTemplate).TemplateInfoLabel);
     }
 
     [Fact]
-    public void TemplateInfoLabel_NonEmptyTemplate_MentionsTemplateName()
+    public void TemplateInfoLabel_NonEmptyBuiltInTemplate_MentionsTemplateName()
     {
         var template = ProjectTemplate.BuiltIn.Single(t => t.Name == "Govor sa titlovima");
         Assert.Contains(template.Name, Create(template).TemplateInfoLabel);
+    }
+
+    [Fact]
+    public void TemplateInfoLabel_UserTemplate_MentionsExactSavedFormat()
+    {
+        var template = new UserTemplate
+        {
+            Name = "Custom",
+            Width = 1080,
+            Height = 1920,
+            FrameRate = FrameRatePreset.Custom,
+            Fps = 23.976,
+            StarterTrackKinds = { TimelineTrackKind.Video }
+        };
+
+        var label = Create(userTemplate: template).TemplateInfoLabel;
+
+        Assert.Contains("Custom", label);
+        Assert.Contains("1080", label);
+        Assert.Contains("1920", label);
+        Assert.Contains("23.98", label);
     }
 }
