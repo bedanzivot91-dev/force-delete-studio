@@ -13,6 +13,8 @@ function Replace-Once([string]$Text, [string]$Old, [string]$New, [string]$Label)
     return $Text.Substring(0, $i) + $New + $Text.Substring($i + $Old.Length)
 }
 
+# Materialization trigger: production source is committed by the branch validation workflow, then helpers are removed before merge.
+
 # -----------------------------------------------------------------------------
 # Persist keyframes on every clip.
 # -----------------------------------------------------------------------------
