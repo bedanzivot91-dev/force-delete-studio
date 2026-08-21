@@ -1,0 +1,44 @@
+name: Apply safe-area preview v2
+
+on:
+  push:
+    branches:
+      - agent/capcut-safe-area-preview
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/capcut-safe-area-preview
+          fetch-depth: 0
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Apply safe-area production patch
+        shell: pwsh
+        run: pwsh -File scripts/apply-safe-area-preview-v2.ps1
+      - name: Restore
+        run: dotnet restore NPVideoStudio.sln
+      - name: Build
+        run: dotnet build NPVideoStudio.sln -c Release --no-restore
+      - name: Safe-area tests
+        run: dotnet test tests/NPVideoStudio.UnitTests/NPVideoStudio.UnitTests.csproj -c Release --no-build --filter FullyQualifiedName~SafeAreaPreviewTests
+      - name: Commit validated production files
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/NPVideoStudio.App/ViewModels/WorkspaceViewModel.cs src/NPVideoStudio.App/Views/WorkspaceView.axaml tests/NPVideoStudio.UnitTests/SafeAreaPreviewTests.cs
+          if (git diff --cached --quiet) { throw 'Safe-area patch produced no production diff.' }
+          git commit -m "Add safe-area preview guides"
+          git fetch origin agent/capcut-safe-area-preview
+          git rebase origin/agent/capcut-safe-area-preview
+          git push origin HEAD:agent/capcut-safe-area-preview
