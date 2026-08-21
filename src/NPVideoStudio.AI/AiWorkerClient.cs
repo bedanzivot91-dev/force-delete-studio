@@ -30,11 +30,13 @@ public sealed class AiWorkerClient : IAiWorkerClient
     private readonly string? _workerCommandOverride;
     private string _pythonPath;
     private readonly string _workerScriptPath;
+    private readonly string _installerScriptPath;
 
     public AiWorkerClient(
         string? workerCommandOverride = null,
         string? pythonOverridePath = null,
-        string? workerScriptOverridePath = null)
+        string? workerScriptOverridePath = null,
+        string? installerScriptOverridePath = null)
     {
         _workerCommandOverride = workerCommandOverride;
         _pythonPath = !string.IsNullOrWhiteSpace(pythonOverridePath)
@@ -42,6 +44,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             : ResolveAppPythonPath();
         _workerScriptPath = workerScriptOverridePath
             ?? Path.Combine(AppContext.BaseDirectory, "Tools", "ai-worker", "ai_worker.py");
+        _installerScriptPath = installerScriptOverridePath
+            ?? Path.Combine(AppContext.BaseDirectory, "Tools", "ai-worker", "install-song-ai.ps1");
     }
 
     private static string ResolveAppPythonPath()
@@ -67,10 +71,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
             throw new PlatformNotSupportedException("Automatska AI instalacija je trenutno namenjena Windows verziji programa.");
         }
 
-        var scriptPath = Path.Combine(AppContext.BaseDirectory, "Tools", "ai-worker", "install-song-ai.ps1");
-        if (!File.Exists(scriptPath))
+        if (!File.Exists(_installerScriptPath))
         {
-            throw new FileNotFoundException("Installer za AI nije pronađen u programu.", scriptPath);
+            throw new FileNotFoundException("Installer za AI nije pronađen u programu.", _installerScriptPath);
         }
 
         using var process = new Process
@@ -90,24 +93,44 @@ public sealed class AiWorkerClient : IAiWorkerClient
         process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
         process.StartInfo.ArgumentList.Add("Bypass");
         process.StartInfo.ArgumentList.Add("-File");
-        process.StartInfo.ArgumentList.Add(scriptPath);
+        process.StartInfo.ArgumentList.Add(_installerScriptPath);
         process.StartInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
         process.Start();
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+        try
         {
-            if (!string.IsNullOrWhiteSpace(line)) progress?.Report(line.Trim());
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+            {
+                if (!string.IsNullOrWhiteSpace(line)) progress?.Report(line.Trim());
+            }
+
+            await process.WaitForExitAsync(cancellationToken);
+            var error = await errorTask;
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
+                    ? $"AI instalacija nije uspela (kod {process.ExitCode})."
+                    : error.Trim());
+            }
+
+            _pythonPath = ResolveAppPythonPath();
         }
-        await process.WaitForExitAsync(cancellationToken);
-        var error = await errorTask;
-        if (process.ExitCode != 0)
+        finally
         {
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
-                ? $"AI instalacija nije uspela (kod {process.ExitCode})."
-                : error.Trim());
+            // Cancelling the async reads/wait is not enough: PowerShell can keep winget/pip/python child
+            // processes alive. Terminate the whole tree and wait for the actual exit before returning so
+            // the UI's "Otkaži" cannot report completion while installation continues in the background.
+            if (!process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch { /* best-effort during teardown */ }
+            }
         }
-        _pythonPath = ResolveAppPythonPath();
     }
 
     public async Task<AiWorkerCapabilities> CheckCapabilitiesAsync(CancellationToken cancellationToken = default)
@@ -165,9 +188,6 @@ public sealed class AiWorkerClient : IAiWorkerClient
             return new AiWorkerCapabilities { WorkerReachable = false, Error = ex.Message };
         }
 
-        // Only a real "python" capability line proves the script actually ran end to end - a process
-        // that merely launched (e.g. python found, but the bundled script itself missing) and exited
-        // non-zero must not be reported as reachable just because nothing threw.
         if (pythonVersion is null)
         {
             return new AiWorkerCapabilities
@@ -235,7 +255,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
                 }
                 catch (JsonException)
                 {
-                    continue; // Ignore any stray non-JSON line rather than aborting the whole run.
+                    continue;
                 }
 
                 if (evt is not null)
@@ -248,8 +268,6 @@ public sealed class AiWorkerClient : IAiWorkerClient
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             var stdErr = await stdErrTask.ConfigureAwait(false);
 
-            // Only synthesize a fallback Error from stderr/exit code if the worker didn't already
-            // explain itself via a proper Error event - otherwise every honest error would double up.
             if (process.ExitCode != 0 && !sawErrorEvent)
             {
                 yield return new AiWorkerEvent
@@ -265,7 +283,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
         {
             if (!process.HasExited)
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best-effort on cancellation */ }
+                try { process.Kill(entireProcessTree: true); } catch { }
             }
 
             if (File.Exists(requestPath))
@@ -275,10 +293,6 @@ public sealed class AiWorkerClient : IAiWorkerClient
         }
     }
 
-    // No-BOM UTF-8: the default Encoding.UTF8 instance writes a byte-order-mark preamble, which would
-    // corrupt the very first JSONL line's JSON parsing. Serbian č/ć/š/ž/đ in worker output only round-
-    // trips correctly on Windows if both sides agree on plain UTF-8 - Windows' console default codepage
-    // is not UTF-8, which silently mangled non-ASCII text before this was pinned down explicitly.
     private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     private ProcessStartInfo BuildStartInfo(string requestPath)
@@ -297,15 +311,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
         if (_workerCommandOverride is null)
         {
             startInfo.ArgumentList.Add(_workerScriptPath);
-            // Forces Python's stdout/stderr to UTF-8 regardless of the OS locale/codepage (matters on
-            // Windows in particular, where Python's default for a *redirected* stream is the locale's
-            // codepage, not UTF-8).
             startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
-            // Demucs/torchaudio may launch ffmpeg while decoding an MP4. The application deliberately
-            // ships FFmpeg in Tools/ffmpeg instead of modifying the user's machine PATH, so the child
-            // process must receive that directory explicitly. Without this, Diagnostics could report
-            // bundled FFmpeg as installed while song separation failed with "ffmpeg not found".
             var bundledFfmpegDirectory = Path.Combine(AppContext.BaseDirectory, "Tools", "ffmpeg");
             if (Directory.Exists(bundledFfmpegDirectory))
             {
@@ -313,7 +320,6 @@ public sealed class AiWorkerClient : IAiWorkerClient
                 startInfo.EnvironmentVariables["PATH"] = bundledFfmpegDirectory + Path.PathSeparator + existingPath;
             }
 
-            // Keep downloaded model files owned by this application and reusable between runs.
             var modelCache = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "NPVideoStudio", "ai-models");
@@ -326,7 +332,6 @@ public sealed class AiWorkerClient : IAiWorkerClient
         return startInfo;
     }
 
-    /// <summary>Wire format for word timing is fractional seconds, not .NET's TimeSpan string format, so the Python side only ever writes/reads plain numbers.</summary>
     private sealed class TimeSpanSecondsConverter : JsonConverter<TimeSpan>
     {
         public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
