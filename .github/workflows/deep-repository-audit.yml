@@ -57,6 +57,12 @@ jobs:
         shell: powershell
         run: python tests/runtime_frontend_bundle_test.py
 
+      - id: truthfulness
+        name: Verify restore and delete partial failures are never reported as clean success
+        continue-on-error: true
+        shell: powershell
+        run: python tests/truthfulness_fixes_test.py
+
       - id: pycompile
         name: Compile every Python file in repository
         continue-on-error: true
@@ -173,6 +179,7 @@ jobs:
             deep='${{ steps.deep.outcome }}'
             desktop='${{ steps.desktop.outcome }}'
             bundle='${{ steps.bundle.outcome }}'
+            truthfulness='${{ steps.truthfulness.outcome }}'
             pycompile='${{ steps.pycompile.outcome }}'
             yaml='${{ steps.yaml.outcome }}'
             js='${{ steps.js.outcome }}'
