@@ -71,11 +71,7 @@ class DeleteDB:
     def get_song(self, song_id: str):
         if song_id != "song-1" or not self.song_present:
             return None
-        return {
-            "id": "song-1",
-            "local_audio": str(self.song_file),
-            "derived_files": [],
-        }
+        return {"id": "song-1", "local_audio": str(self.song_file), "derived_files": []}
 
     def delete_song(self, song_id: str, delete_files: bool = False):
         self.song_delete_flag = delete_files
@@ -100,14 +96,21 @@ def test_restore_does_not_claim_success_when_db_link_fails() -> None:
         tmp = Path(tmp_raw)
         package = make_restore_zip(tmp)
         output = tmp / "restored"
+        previous_target = output / "song-1" / "derived-7" / "restored.wav"
+        previous_target.parent.mkdir(parents=True, exist_ok=True)
+        previous_target.write_bytes(b"previous-good-restore")
         db = RestoreFailDB()
+
         result = fixes.restore_cloud_backup_strict(db, package, restore_root=output)
+
         assert db.restore_called
         assert db.update_called
         assert result["files_restored"] == 0, result
         assert len(result["skipped"]) == 1, result
         assert "simulated DB link failure" in result["skipped"][0]["error"], result
-        assert not any(p.is_file() for p in output.rglob("*")), "failed derived restore must be rolled back from disk"
+        assert previous_target.read_bytes() == b"previous-good-restore", "failed rerun must restore the previous valid target"
+        rollback_files = list(output.rglob("*.restore-previous-*")) + list(output.rglob("*.restore-part"))
+        assert not rollback_files, f"rollback temporaries leaked: {rollback_files}"
 
 
 def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
@@ -150,8 +153,6 @@ def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
             assert db.derived_delete_flag is False
             assert db.derived_present is False
         finally:
-            # Restore the fake class and module globals so this test cannot leak
-            # a patched fake method into another test in the same interpreter.
             DeleteDB.delete_song = fixes._ORIGINAL_DELETE_SONG
             DeleteDB.delete_derived_file = fixes._ORIGINAL_DELETE_DERIVED
             fixes._PATCHED = old_patched
@@ -162,7 +163,7 @@ def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
 def main() -> None:
     test_restore_does_not_claim_success_when_db_link_fails()
     test_delete_failures_are_reported_instead_of_silently_ignored()
-    print("truthfulness_fixes_test: PASS — restore/delete partial failures cannot be reported as clean success")
+    print("truthfulness_fixes_test: PASS — partial failures are reported and restore rollback preserves prior good files")
 
 
 if __name__ == "__main__":
