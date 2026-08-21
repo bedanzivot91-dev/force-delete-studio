@@ -5,6 +5,7 @@ on:
     paths:
       - "app/**"
       - "plugins/**"
+      - "tests/runtime_frontend_bundle_test.py"
       - "windows_build/**"
       - "requirements-core.txt"
       - ".github/workflows/windows-build.yml"
@@ -89,6 +90,7 @@ jobs:
             "Program\Suno Pesme Studio.exe",
             "Program\Deinstaliraj Suno Pesme Studio.exe",
             "Program\app\server.py",
+            "Program\app\workspace_backend.py",
             "Program\app\youtube_match_recovery.py",
             "Program\app\youtube_reconcile_fixes.py",
             "Program\app\web\index.html",
@@ -106,6 +108,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
+          $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
 
           function New-CleanProfile([string]$cycle) {
             $profile = Join-Path $env:RUNNER_TEMP "sps-real-profile-$cycle"
@@ -140,22 +143,42 @@ jobs:
           }
 
           function Verify-InstalledUI([string]$cycle) {
-            $homePage = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -UseBasicParsing -TimeoutSec 5
-            $bundlePage = Invoke-WebRequest -Uri "http://127.0.0.1:8765/assets/app.js" -UseBasicParsing -TimeoutSec 10
-            if ($homePage.StatusCode -ne 200 -or $bundlePage.StatusCode -ne 200) { throw "Installed UI assets did not return HTTP 200" }
-            if ($homePage.Content -notmatch 'id="connectBtn"' -or $homePage.Content -notmatch 'Poveži Suno') {
+            $homePath = Join-Path $env:RUNNER_TEMP "sps-installed-home-$cycle.html"
+            $bundlePath = Join-Path $env:RUNNER_TEMP "sps-installed-app-$cycle.js"
+            Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -UseBasicParsing -TimeoutSec 5 -OutFile $homePath
+            Invoke-WebRequest -Uri "http://127.0.0.1:8765/assets/app.js" -UseBasicParsing -TimeoutSec 10 -OutFile $bundlePath
+            if (-not (Test-Path -LiteralPath $homePath -PathType Leaf) -or (Get-Item $homePath).Length -lt 1000) {
+              throw "Installed index.html response is missing or implausibly small"
+            }
+            if (-not (Test-Path -LiteralPath $bundlePath -PathType Leaf) -or (Get-Item $bundlePath).Length -lt 10000) {
+              throw "Installed app.js response is missing or implausibly small"
+            }
+            $homeText = [System.IO.File]::ReadAllText($homePath, $strictUtf8)
+            $bundleText = [System.IO.File]::ReadAllText($bundlePath, $strictUtf8)
+
+            if ($homeText -notmatch 'id="connectBtn"' -or $homeText -notmatch 'Poveži Suno') {
               throw "Installed UI does not expose the Suno connection control"
             }
-            if ($bundlePage.Content -notmatch '/api/connect/start') { throw "Installed Suno button is not wired to the real connection endpoint" }
-            if ($bundlePage.Content -notmatch '2026 WORKSPACE · MATCH RECOVERY') { throw "Installed app.js is missing the final 2026 shell marker" }
-            if ($bundlePage.Content -notmatch 'YOUTUBE I OBJAVA') { throw "Installed app.js is missing final navigation grouping" }
-            if ($bundlePage.Content -notmatch 'productionWorkspace') { throw "Installed app.js is missing Video Studio workspace" }
-            if ($bundlePage.Content -notmatch 'youtubeAudioMaxVideos') { throw "Installed app.js is missing YouTube scan controls" }
+            $requiredMarkers = @(
+              '/api/connect/start',
+              'spsWorkspaceGenerationBadge',
+              'sps-shell-2026',
+              '2026 WORKSPACE · MATCH RECOVERY',
+              'spsFinalNav2026Marker',
+              'YOUTUBE I OBJAVA',
+              'productionWorkspace',
+              'youtubeAudioMaxVideos'
+            )
+            foreach ($marker in $requiredMarkers) {
+              if (-not $bundleText.Contains($marker)) {
+                throw "Installed UTF-8 app.js is missing runtime marker: $marker"
+              }
+            }
 
             $statusResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/status" -TimeoutSec 5
             $finderResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/song-finder/status" -TimeoutSec 5
             if ($null -eq $statusResponse -or $null -eq $finderResponse) { throw "Installed functional status endpoints did not answer" }
-            Write-Host "Installed UI/backend functional verification PASS for cycle $cycle"
+            Write-Host "Installed UTF-8 UI/backend functional verification PASS for cycle $cycle; bundle bytes=$((Get-Item $bundlePath).Length)"
           }
 
           function Invoke-RealCycle([string]$cycle) {
@@ -175,8 +198,13 @@ jobs:
             }
             $app = Join-Path $versionDir "Suno Pesme Studio.exe"
             $uninstaller = Join-Path $versionDir "Deinstaliraj Suno Pesme Studio.exe"
+            $installedShell = Join-Path $versionDir "app\web\modern_2026_shell_extension.js"
+            $installedNav = Join-Path $versionDir "app\web\modern_2026_navigation_final.js"
             if (-not (Test-Path -LiteralPath $app -PathType Leaf)) { throw "Installed GUI executable is missing" }
             if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) { throw "Installed uninstaller is missing" }
+            if (-not (Test-Path -LiteralPath $installedShell -PathType Leaf) -or -not (Test-Path -LiteralPath $installedNav -PathType Leaf)) {
+              throw "Installed final 2026 UI extension files are missing"
+            }
             if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SunoPesmeStudio")) {
               throw "Installer did not register uninstall metadata"
             }
@@ -197,7 +225,7 @@ jobs:
               throw "Persistent application data still exists after deleteData=true in cycle $cycle"
             }
             Remove-Item -LiteralPath $tempUninstaller -Force -ErrorAction SilentlyContinue
-            Write-Host "REAL INSTALL CYCLE $cycle PASS: installer -> installed native GUI -> backend -> Suno wiring -> status tools -> uninstall"
+            Write-Host "REAL INSTALL CYCLE $cycle PASS: installer -> installed native GUI -> strict UTF-8 frontend -> backend -> Suno wiring -> status tools -> uninstall"
           }
 
           Invoke-RealCycle "1"
@@ -213,16 +241,17 @@ jobs:
           tested_zip_size=$env:TESTED_ZIP_SIZE
           install_cycle_1=PASS
           native_gui_cycle_1=PASS
+          utf8_runtime_bundle_cycle_1=PASS
           backend_cycle_1=PASS
           suno_wiring_cycle_1=PASS
           functional_status_cycle_1=PASS
           uninstall_cycle_1=PASS
           install_cycle_2=PASS
           native_gui_cycle_2=PASS
+          utf8_runtime_bundle_cycle_2=PASS
           backend_cycle_2=PASS
           suno_wiring_cycle_2=PASS
           functional_status_cycle_2=PASS
-          final_ui_bundle_cycle_2=PASS
           uninstall_cycle_2=PASS
           "@ | Set-Content -Encoding ascii real-install-evidence.txt
           Get-Content real-install-evidence.txt
