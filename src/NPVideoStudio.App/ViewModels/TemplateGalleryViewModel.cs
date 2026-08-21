@@ -15,6 +15,12 @@ public sealed class TemplateGalleryItemViewModel
     public ProjectTemplate? BuiltInTemplate { get; init; }
     public UserTemplate? UserTemplate { get; init; }
 
+    /// <summary>Common starter-track surface for built-in and user templates. Keeping this on the gallery
+    /// item also preserves the normal app smoke-test/navigation contract that existed before the gallery
+    /// learned about user templates.</summary>
+    public IReadOnlyList<TimelineTrackKind> StarterTrackKinds =>
+        UserTemplate?.StarterTrackKinds ?? BuiltInTemplate?.StarterTrackKinds ?? Array.Empty<TimelineTrackKind>();
+
     public static TemplateGalleryItemViewModel FromBuiltIn(ProjectTemplate template) => new()
     {
         Name = template.Name,
