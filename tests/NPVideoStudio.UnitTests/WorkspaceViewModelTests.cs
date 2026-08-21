@@ -106,6 +106,62 @@ public class WorkspaceViewModelTests
     }
 
     [AvaloniaFact]
+    public void RemoveMedia_WhenTimelineStillReferencesAsset_IsBlockedAndProjectRemainsValid()
+    {
+        var asset = new MediaAsset
+        {
+            FilePath = "/tmp/used.mp4",
+            Kind = MediaKind.Video,
+            HasVideoStream = true,
+            Duration = TimeSpan.FromSeconds(2)
+        };
+        var project = new Project { Name = "Bezbedno uklanjanje" };
+        project.MediaLibrary.Add(asset);
+        project.Timeline.Tracks.Add(new TimelineTrack
+        {
+            Kind = TimelineTrackKind.Video,
+            Name = "Video 1",
+            Clips =
+            {
+                new TimelineClip
+                {
+                    MediaAssetId = asset.Id,
+                    SourceTrimInSeconds = 0,
+                    SourceTrimOutSeconds = 2,
+                    TimelineStartSeconds = 0
+                }
+            }
+        });
+
+        using var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary[0].RemoveCommand!.Execute(null);
+
+        Assert.Single(workspace.MediaLibrary);
+        Assert.Single(project.MediaLibrary);
+        Assert.Contains("koristi na vremenskoj traci", workspace.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public void RemoveMedia_WhenAssetIsUnused_RemovesItFromProjectAndVisibleLibrary()
+    {
+        var asset = new MediaAsset
+        {
+            FilePath = "/tmp/unused.mp4",
+            Kind = MediaKind.Video,
+            HasVideoStream = true,
+            Duration = TimeSpan.FromSeconds(2)
+        };
+        var project = new Project { Name = "Uklanjanje neiskorišćenog" };
+        project.MediaLibrary.Add(asset);
+
+        using var workspace = CreateWorkspace(project);
+        workspace.MediaLibrary[0].RemoveCommand!.Execute(null);
+
+        Assert.Empty(workspace.MediaLibrary);
+        Assert.Empty(project.MediaLibrary);
+        Assert.Contains("uklonjen iz projekta", workspace.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+    [AvaloniaFact]
     public void Construction_WithEmptyTimeline_StartsWithNoTracksAndZeroDuration()
     {
         var workspace = CreateWorkspace();
