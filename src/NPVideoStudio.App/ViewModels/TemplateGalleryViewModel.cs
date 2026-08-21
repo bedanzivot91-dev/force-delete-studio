@@ -27,19 +27,9 @@ public sealed class TemplateGalleryItemViewModel
     {
         Name = template.Name,
         Description = string.IsNullOrWhiteSpace(template.Description) ? "Moj sačuvani raspored projekta" : template.Description,
-        FormatLabel = $"{template.Width} × {template.Height} • {FrameRateLabel(template.FrameRate)} • {template.StarterTrackKinds.Count} traka",
+        FormatLabel = $"{template.Width} × {template.Height} • {template.Fps:0.##} fps • {template.StarterTrackKinds.Count} traka",
         IsUserTemplate = true,
         UserTemplate = template
-    };
-
-    private static string FrameRateLabel(FrameRatePreset preset) => preset switch
-    {
-        FrameRatePreset.Fps24 => "24 fps",
-        FrameRatePreset.Fps25 => "25 fps",
-        FrameRatePreset.Fps30 => "30 fps",
-        FrameRatePreset.Fps50 => "50 fps",
-        FrameRatePreset.Fps60 => "60 fps",
-        _ => preset.ToString()
     };
 }
 
@@ -75,6 +65,11 @@ public sealed partial class TemplateGalleryViewModel : ViewModelBase
 
     public event Action<ProjectTemplate>? BuiltInTemplateSelected;
     public event Action<UserTemplate>? UserTemplateSelected;
+
+    // Keep DI registration safe even if another navigation path resolves this ViewModel directly.
+    public TemplateGalleryViewModel() : this(new UserTemplateRepository())
+    {
+    }
 
     public TemplateGalleryViewModel(UserTemplateRepository repository)
     {
