@@ -221,7 +221,14 @@ public sealed class RenderService : IRenderService
         }
 
         startInfo.ArgumentList.Add("-filter_complex");
-        startInfo.ArgumentList.Add(plan.FilterComplexArgument);
+        // The shared timeline graph always produces both final video and audio outputs. For audio-only
+        // containers the video output still has to be consumed inside the graph or FFmpeg rejects the
+        // entire graph as "output ... unconnected" before -vn can take effect. nullsink consumes that
+        // final video branch without encoding or writing it, while the audio branch is mapped normally.
+        var filterGraph = settings.Format.IsAudioOnly()
+            ? $"{plan.FilterComplexArgument};{plan.VideoMapLabel}nullsink"
+            : plan.FilterComplexArgument;
+        startInfo.ArgumentList.Add(filterGraph);
 
         if (settings.Format.IsAudioOnly())
         {
