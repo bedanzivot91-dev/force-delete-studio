@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.SaveTemplateView"
+             x:DataType="vm:SaveTemplateViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="760" HorizontalAlignment="Left">
+      <StackPanel Spacing="4">
+        <TextBlock Text="MOJI ŠABLONI" Classes="eyebrow" />
+        <TextBlock Text="Sačuvaj trenutni projekat kao šablon" Classes="heading" />
+        <TextBlock Text="Šablon čuva format i vrste traka. Ne kopira vaše video/audio fajlove niti sadržaj klipova."
+                   Classes="subtle" TextWrapping="Wrap" />
+      </StackPanel>
+
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="7">
+          <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding ProjectFormatLabel}" Classes="subtle" />
+          <TextBlock Text="{Binding TrackSummary}" Classes="subtle" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <StackPanel Spacing="8">
+        <TextBlock Text="Ime šablona" FontWeight="SemiBold" />
+        <TextBox Text="{Binding TemplateName}" Watermark="Na primer: Moj Shorts 9:16" MinWidth="420" />
+        <TextBlock Text="Opis (opciono)" FontWeight="SemiBold" Margin="0,6,0,0" />
+        <TextBox Text="{Binding Description}" Watermark="Za šta koristite ovaj raspored..." AcceptsReturn="True" Height="90" TextWrapping="Wrap" />
+      </StackPanel>
+
+      <Border Classes="panel" Padding="14" IsVisible="{Binding IsOverwriteConfirmationVisible}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Šablon sa tim imenom već postoji." FontWeight="SemiBold" />
+          <TextBlock Text="Prepisivanje zamenjuje samo taj šablon. Postojeći projekti ostaju netaknuti."
+                     Classes="subtle" TextWrapping="Wrap" />
+          <WrapPanel Orientation="Horizontal">
+            <Button Classes="danger" Content="Potvrdi prepisivanje" Command="{Binding ConfirmOverwriteCommand}" Margin="0,0,10,0" />
+            <Button Classes="ghost" Content="Ne prepisuj" Command="{Binding CancelOverwriteCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding Message}" Classes="subtle" TextWrapping="Wrap" />
+
+      <WrapPanel Orientation="Horizontal">
+        <Button Classes="cta" Content="Sačuvaj kao šablon" Command="{Binding SaveCommand}" Margin="0,0,10,0" />
+        <Button Classes="ghost" Content="Nazad u projekat" Command="{Binding BackCommand}" />
+      </WrapPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
