@@ -17,10 +17,12 @@ public sealed class UserTemplate
     public List<TimelineTrackKind> StarterTrackKinds { get; set; } = new();
 
     /// <summary>Export format saved with the template, so "my TikTok setup" restores 1080x1920 at the
-    /// right frame rate too - not just the track layout.</summary>
+    /// right frame rate too - not just the track layout. Fps is stored separately because a Custom preset
+    /// can be 23.976/29.97/etc. and the enum alone cannot reconstruct that value.</summary>
     public int Width { get; set; } = 1920;
     public int Height { get; set; } = 1080;
     public FrameRatePreset FrameRate { get; set; } = FrameRatePreset.Fps30;
+    public double Fps { get; set; } = 30.0;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
@@ -167,7 +169,8 @@ public sealed class UserTemplateRepository
         StarterTrackKinds = project.Timeline.Tracks.Select(t => t.Kind).ToList(),
         Width = project.Format.Width,
         Height = project.Format.Height,
-        FrameRate = project.Format.FrameRate
+        FrameRate = project.Format.FrameRate,
+        Fps = project.Format.Fps
     };
 
     private string PathFor(string name) => Path.Combine(_folder, $"{SanitizeFileName(name)}.json");
