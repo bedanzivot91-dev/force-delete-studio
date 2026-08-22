@@ -9,12 +9,16 @@ $expectedPayload = @(
     'NPVideoStudio.exe',
     'Tools\ffmpeg\ffmpeg.exe',
     'Tools\ffmpeg\ffprobe.exe',
+    'Tools\ffmpeg\ffplay.exe',
     'Tools\yt-dlp\yt-dlp.exe',
     'Tools\fpcalc\fpcalc.exe',
     'Tools\tesseract\tesseract.exe',
     'Tools\whisper-models\ggml-tiny.bin',
     'Tools\ai-worker\ai_worker.py',
-    'Tools\ai-worker\install-song-ai.ps1'
+    'Tools\ai-worker\install-song-ai.ps1',
+    'libvlc\win-x64\libvlc.dll',
+    'libvlc\win-x64\libvlccore.dll',
+    'runtimes\win-x64\whisper.dll'
 )
 
 function Invoke-SetupInstall([int]$pass) {
@@ -48,6 +52,7 @@ function Assert-BundledTool([int]$pass, [string]$relativePath, [string[]]$argume
 function Assert-BundledTools([int]$pass) {
     Assert-BundledTool $pass 'Tools\ffmpeg\ffmpeg.exe' @('-version')
     Assert-BundledTool $pass 'Tools\ffmpeg\ffprobe.exe' @('-version')
+    Assert-BundledTool $pass 'Tools\ffmpeg\ffplay.exe' @('-version')
     Assert-BundledTool $pass 'Tools\yt-dlp\yt-dlp.exe' @('--version')
     Assert-BundledTool $pass 'Tools\fpcalc\fpcalc.exe' @('-version')
     Assert-BundledTool $pass 'Tools\tesseract\tesseract.exe' @('--version')
@@ -98,4 +103,4 @@ Assert-BundledTools 2
 Assert-GuiLaunch 2
 Invoke-Uninstall 2
 
-Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools -> GUI window/responding -> uninstall -> second clean install -> bundled tools -> GUI window/responding -> uninstall.'
+Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> GUI window/responding -> uninstall -> second clean install -> bundled tools/runtime payload -> GUI window/responding -> uninstall.'
