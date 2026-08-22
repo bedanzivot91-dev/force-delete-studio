@@ -73,9 +73,6 @@
     body.sps-modern-2026 #view-tools .youtube-matrix-wrap{border-color:var(--m-line);border-radius:16px;background:rgba(3,8,15,.45)}
 
     /* VIDEO STUDIO */
-    body.sps-modern-2026 #view-production #productionWorkspace{isolation:isolate}
-    body.sps-modern-2026 #view-production .studio-subtitle-flow{border:1px solid color-mix(in srgb,var(--m-accent) 35%,var(--m-line));border-radius:16px;background:linear-gradient(135deg,var(--m-accent-soft),rgba(6,14,25,.52))}
-    body.sps-modern-2026 #view-production .pws-scroll{border-radius:0 0 14px 14px}
 
     /* STATISTIKA */
     body.sps-modern-2026 #view-stats .chart-panel{border-radius:19px}
