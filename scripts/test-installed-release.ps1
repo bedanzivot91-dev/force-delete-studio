@@ -36,6 +36,23 @@ function Invoke-SetupInstall([int]$pass) {
     if ($assoc -ne 'NPVideoStudioProject') { throw "Install pass $pass nije registrovao .npvsproject za trenutnog korisnika." }
 }
 
+function Assert-BundledTool([int]$pass, [string]$relativePath, [string[]]$arguments) {
+    $exe = Join-Path $installDir $relativePath
+    Write-Host "== Tool smoke pass $pass: $relativePath $($arguments -join ' ') =="
+    $p = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru -NoNewWindow
+    if ($p.ExitCode -ne 0) {
+        throw "Bundled alat $relativePath nije funkcionalan nakon instalacije (pass $pass), exit=$($p.ExitCode)."
+    }
+}
+
+function Assert-BundledTools([int]$pass) {
+    Assert-BundledTool $pass 'Tools\ffmpeg\ffmpeg.exe' @('-version')
+    Assert-BundledTool $pass 'Tools\ffmpeg\ffprobe.exe' @('-version')
+    Assert-BundledTool $pass 'Tools\yt-dlp\yt-dlp.exe' @('--version')
+    Assert-BundledTool $pass 'Tools\fpcalc\fpcalc.exe' @('-version')
+    Assert-BundledTool $pass 'Tools\tesseract\tesseract.exe' @('--version')
+}
+
 function Assert-GuiLaunch([int]$pass) {
     Write-Host "== GUI launch/responding pass $pass =="
     $exe = Join-Path $installDir 'NPVideoStudio.exe'
@@ -51,7 +68,7 @@ function Assert-GuiLaunch([int]$pass) {
         $p.Refresh()
         if ($p.MainWindowHandle -eq 0) { throw "Instalirana aplikacija nije otvorila pravi Windows GUI prozor u roku od 35 s (pass $pass)." }
         if (-not $p.Responding) { throw "Instalirani GUI ne odgovara na Windows message pump (pass $pass)." }
-        Write-Host "GUI pass $pass: PID=$($p.Id), HWND=$($p.MainWindowHandle), Responding=$($p.Responding)"
+        Write-Host "GUI pass ${pass}: PID=$($p.Id), HWND=$($p.MainWindowHandle), Responding=$($p.Responding)"
     }
     finally {
         if (-not $p.HasExited) {
@@ -73,10 +90,12 @@ function Invoke-Uninstall([int]$pass) {
 }
 
 Invoke-SetupInstall 1
+Assert-BundledTools 1
 Assert-GuiLaunch 1
 Invoke-Uninstall 1
 Invoke-SetupInstall 2
+Assert-BundledTools 2
 Assert-GuiLaunch 2
 Invoke-Uninstall 2
 
-Write-Host 'REAL INSTALL GATE PASSED: install -> GUI window/responding -> uninstall -> second clean install -> GUI window/responding -> uninstall.'
+Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools -> GUI window/responding -> uninstall -> second clean install -> bundled tools -> GUI window/responding -> uninstall.'
