@@ -542,7 +542,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set
         {
             if (Clip.TextPosition == value) return;
-            _onTextStyleChanged?.Invoke(Clip.Id, FontChoice, FontSizePx, TextColor, value);
+            _onTextStyleChanged?.Invoke(Clip.Id, Clip.FontChoice, FontSizePx, TextColor, value);
         }
     }
 
