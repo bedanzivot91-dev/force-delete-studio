@@ -160,28 +160,38 @@ public static class FfmpegFilterGraphBuilder
                     $"{animatedCanvas}{animatedSource}overlay=x='{x}':y='{y}':shortest=1:format=auto,format=yuv420p,setsar=1{vLabel}"));
             }
 
-            var audioFilter = new StringBuilder();
-            var volume = clip.IsMuted ? 0 : clip.Volume;
-            audioFilter.Append(FormattableString.Invariant(
-                $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
-            if (clip.IsReversed && !clip.IsFreezeFrame)
+            if (asset.HasAudioStream)
             {
-                audioFilter.Append(",areverse");
+                var audioFilter = new StringBuilder();
+                var volume = clip.IsMuted ? 0 : clip.Volume;
+                audioFilter.Append(FormattableString.Invariant(
+                    $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
+                if (clip.IsReversed && !clip.IsFreezeFrame)
+                {
+                    audioFilter.Append(",areverse");
+                }
+                audioFilter.Append(BuildAudioSpeedFilter(clip));
+                audioFilter.Append(BuildAudioEnhancementFilters(clip));
+                audioFilter.Append(FormattableString.Invariant($",volume={(clip.IsFreezeFrame ? 0 : volume)}"));
+                if (clip.FadeInSeconds > 0)
+                {
+                    audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                }
+                if (clip.FadeOutSeconds > 0)
+                {
+                    var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
+                    audioFilter.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                }
+                audioFilter.Append(aLabel);
+                filterLines.Add(audioFilter.ToString());
             }
-            audioFilter.Append(BuildAudioSpeedFilter(clip));
-            audioFilter.Append(BuildAudioEnhancementFilters(clip));
-            audioFilter.Append(FormattableString.Invariant($",volume={(clip.IsFreezeFrame ? 0 : volume)}"));
-            if (clip.FadeInSeconds > 0)
+            else
             {
-                audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                // A perfectly valid silent video has no [input:a] pad. Generate finite silence matching
+                // this clip instead of emitting an invalid FFmpeg stream reference and failing export.
+                filterLines.Add(FormattableString.Invariant(
+                    $"anullsrc=r=44100:cl=stereo:d={duration}{aLabel}"));
             }
-            if (clip.FadeOutSeconds > 0)
-            {
-                var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
-                audioFilter.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
-            }
-            audioFilter.Append(aLabel);
-            filterLines.Add(audioFilter.ToString());
 
             var useTransition = canTransitionFromPrevious && clip.TransitionInType != ClipTransitionType.None;
             var transitionDuration = useTransition
@@ -394,6 +404,11 @@ public static class FfmpegFilterGraphBuilder
                 {
                     throw new InvalidOperationException(
                         $"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
+                }
+                if (!asset.HasAudioStream)
+                {
+                    throw new InvalidOperationException(
+                        $"Audio traka referencira medij bez audio stream-a: {asset.FileName}.");
                 }
 
                 var inputIndex = inputs.Count;

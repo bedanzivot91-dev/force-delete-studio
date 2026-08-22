@@ -121,6 +121,39 @@ public sealed class AudioEnhancementIntegrationTests
     }
 
     [Fact]
+    public void SilentBaseVideo_GeneratesSilenceInsteadOfReferencingMissingAudioPad()
+    {
+        var video = new MediaAsset { Id = "v", FilePath = "silent.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
+        var timeline = new Timeline
+        {
+            Tracks = new List<TimelineTrack>
+            {
+                new() { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { new() { MediaAssetId = "v", SourceTrimOutSeconds = 1 } } }
+            }
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { video }, 320, 180, 30);
+        Assert.Contains("anullsrc=r=44100:cl=stereo:d=1[a0]", plan.FilterComplexArgument);
+        Assert.DoesNotContain("[0:a]", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void StandaloneAudioTrack_RejectsMediaWithoutAudioStreamClearly()
+    {
+        var baseVideo = new MediaAsset { Id = "v", FilePath = "base.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
+        var silent = new MediaAsset { Id = "s", FilePath = "not-audio.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
+        var timeline = new Timeline
+        {
+            Tracks = new List<TimelineTrack>
+            {
+                new() { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { new() { MediaAssetId = "v", SourceTrimOutSeconds = 1 } } },
+                new() { Kind = TimelineTrackKind.Audio, Clips = new List<TimelineClip> { new() { MediaAssetId = "s", SourceTrimOutSeconds = 1 } } }
+            }
+        };
+        var ex = Assert.Throws<InvalidOperationException>(() => FfmpegFilterGraphBuilder.Build(timeline, new[] { baseVideo, silent }, 320, 180, 30));
+        Assert.Contains("bez audio stream-a", ex.Message);
+    }
+
+    [Fact]
     public async Task RealFfmpeg_ExecutesCompleteAudioEnhancementChain()
     {
         var ffmpeg = FfmpegLocator.ResolveFfmpegPath(null);
