@@ -21,7 +21,6 @@ def main() -> None:
     assert "const groups = [" not in shell, "shell must not perform a second, conflicting navigation layout"
     assert "stage.appendChild(view)" in shell, "views must be moved as the same DOM nodes"
     assert "Segoe UI Variable" in shell
-    assert "#productionWorkspace" in shell
     assert "#view-tools" in shell and "#view-recognition" in shell
 
     sizes = [float(value) for value in re.findall(r"font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)px", shell)]
@@ -32,13 +31,13 @@ def main() -> None:
     # Final grouping deliberately corrects the last remaining logical scatter:
     # recognition/song-finder is an audio tool, while release belongs with
     # YouTube/publication. Existing nav buttons are moved, never cloned.
-    assert "['AUDIO I VIDEO', ['recognition','audio','production']]" in nav_final
+    assert "['AUDIO', ['recognition','audio']]" in nav_final
     assert "['YOUTUBE I OBJAVA', ['release','tools']]" in nav_final
     assert "['SUNO I BIBLIOTEKA', ['import','library','download','folders','smart','versions','stats']]" in nav_final
     assert "['SISTEM', ['logs','settings']]" in nav_final
     assert "section.appendChild(button)" in nav_final
     assert "spsFinalNav2026Marker" in nav_final
-    assert 'data-view="production"><span>⚡</span> Video Studio' in INDEX.read_text(encoding="utf-8")
+    assert 'data-view="production"' not in INDEX.read_text(encoding="utf-8")
 
     legibility_pos = backend.index('modern_2026_legibility_extension.js')
     shell_pos = backend.index('modern_2026_shell_extension.js')
