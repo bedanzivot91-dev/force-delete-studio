@@ -65,7 +65,9 @@ public static class VideoStabilizationPrepass
                 }
 
                 var transformPath = Path.Combine(root, $"{clip.Id}.trf");
-                await RunDetectAsync(ffmpegPath, asset.FilePath, clip, transformPath, cancellationToken)
+                await RunDetectAsync(
+                        ffmpegPath, asset.FilePath, clip, transformPath,
+                        project.Format.Width, project.Format.Height, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (!File.Exists(transformPath) || new FileInfo(transformPath).Length == 0)
@@ -123,6 +125,8 @@ public static class VideoStabilizationPrepass
         string sourcePath,
         TimelineClip clip,
         string transformPath,
+        int targetWidth,
+        int targetHeight,
         CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo
@@ -147,8 +151,20 @@ public static class VideoStabilizationPrepass
         startInfo.ArgumentList.Add(sourcePath);
         startInfo.ArgumentList.Add("-an");
         startInfo.ArgumentList.Add("-vf");
-        startInfo.ArgumentList.Add(
-            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness={Math.Clamp(clip.StabilizationShakiness, 1, 10)}:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}");
+
+        var detectFilter =
+            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness={Math.Clamp(clip.StabilizationShakiness, 1, 10)}:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}";
+        if (clip.AutoReframeEnabled)
+        {
+            // Tracking coordinates are authored against the original source frame. The final render first
+            // resets the trimmed clip's clock and crops around that tracking path. Detect motion on those
+            // exact same reframed pixels/dimensions, otherwise vidstabtransform would consume vectors from
+            // a different geometry and the combined feature could drift or fail.
+            detectFilter = "setpts=PTS-STARTPTS" +
+                           FfmpegFilterGraphBuilder.BuildAutoReframeFilter(clip, targetWidth, targetHeight) +
+                           "," + detectFilter;
+        }
+        startInfo.ArgumentList.Add(detectFilter);
         startInfo.ArgumentList.Add("-f");
         startInfo.ArgumentList.Add("null");
         startInfo.ArgumentList.Add("-");

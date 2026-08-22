@@ -169,6 +169,7 @@ $requiredReleaseFiles = @(
     'Tools\tesseract\tesseract.exe',
     'Tools\whisper-models\ggml-tiny.bin',
     'Tools\ai-worker\ai_worker.py',
+    'Tools\ai-worker\motion_tracker.py',
     'Tools\ai-worker\install-song-ai.ps1'
 )
 $missingReleaseFiles = @($requiredReleaseFiles | Where-Object {

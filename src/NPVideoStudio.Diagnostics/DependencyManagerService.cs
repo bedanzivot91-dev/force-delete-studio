@@ -111,13 +111,15 @@ public sealed class DependencyManagerService : IDependencyManagerService
         var installed = capabilities.WorkerReachable &&
                         capabilities.FasterWhisperAvailable &&
                         capabilities.DemucsAvailable &&
-                        capabilities.LyricAlignAvailable;
+                        capabilities.LyricAlignAvailable &&
+                        capabilities.OpenCvAvailable;
 
         var details = capabilities.WorkerReachable
             ? $"faster-whisper: {(capabilities.FasterWhisperAvailable ? "da" : "ne")}, " +
               $"WhisperX: {(capabilities.WhisperXAvailable ? "da" : "ne")}, " +
               $"Demucs: {(capabilities.DemucsAvailable ? "da" : "ne")}, " +
-              $"lyric-align: {(capabilities.LyricAlignAvailable ? "da" : "ne")}" +
+              $"lyric-align: {(capabilities.LyricAlignAvailable ? "da" : "ne")}, " +
+              $"OpenCV/CSRT: {(capabilities.OpenCvAvailable ? "da" : "ne")}" +
               (capabilities.PythonVersion is null ? "" : $" (Python {capabilities.PythonVersion})")
             : capabilities.Error ?? "AI worker nije dostupan.";
 
@@ -126,7 +128,7 @@ public sealed class DependencyManagerService : IDependencyManagerService
             Name = "AI radnik (napredna obrada govora)",
             Status = installed ? DependencyStatus.Installed : DependencyStatus.NotInstalled,
             Version = capabilities.PythonVersion,
-            WhyItMatters = "Za pesme moraju raditi faster-whisper, Demucs i lyric-align. WhisperX je opcion za napredno poravnanje.",
+            WhyItMatters = "Za pesme moraju raditi faster-whisper, Demucs i lyric-align; OpenCV/CSRT je potreban za Motion Tracking i Auto Reframe. WhisperX je opcion za napredno poravnanje.",
             TechnicalDetails = details
         };
     }

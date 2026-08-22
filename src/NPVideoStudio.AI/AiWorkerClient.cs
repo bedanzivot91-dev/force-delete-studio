@@ -146,6 +146,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
         var whisperX = false;
         var demucs = false;
         var lyricAlign = false;
+        var openCv = false;
         var errorMessage = (string?)null;
 
         try
@@ -180,6 +181,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
                     case "lyric_align":
                         lyricAlign = evt.EngineAvailable == true;
                         break;
+                    case "opencv":
+                        openCv = evt.EngineAvailable == true;
+                        break;
                 }
             }
         }
@@ -204,7 +208,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             FasterWhisperAvailable = fasterWhisper,
             WhisperXAvailable = whisperX,
             DemucsAvailable = demucs,
-            LyricAlignAvailable = lyricAlign
+            LyricAlignAvailable = lyricAlign,
+            OpenCvAvailable = openCv
         };
     }
 

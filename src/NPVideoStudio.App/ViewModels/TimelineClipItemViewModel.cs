@@ -35,6 +35,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
     private readonly Action<string, bool, int, int, double>? _onStabilizationChanged;
+    private readonly Action<string, MotionTrackingRegion>? _onTrackingRegionChanged;
+    private readonly Action<string, MotionTrackingRegion>? _onMotionTrackingRequested;
+    private readonly Action<string, bool>? _onAutoReframeChanged;
     private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
     private readonly Action<string, ClipCompositingSettings>? _onCompositingChanged;
     private readonly Func<double>? _getPlayheadSeconds;
@@ -265,6 +268,46 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
             _onStabilizationChanged?.Invoke(Clip.Id, StabilizationEnabled, StabilizationSmoothingFrames, StabilizationAccuracy, value);
         }
     }
+
+    public bool CanUseMotionTracking => HasSourceMedia && IsVideoClip && !Clip.IsReversed && !Clip.IsFreezeFrame;
+    public bool HasMotionTracking => Clip.MotionTrackingPoints.Count >= 2;
+    public string MotionTrackingSummary => HasMotionTracking
+        ? $"Praćenje: {Clip.MotionTrackingPoints.Count} tačaka"
+        : "Praćenje još nije izračunato";
+
+    private MotionTrackingRegion CurrentTrackingRegion() => new(
+        Clip.TrackingRegionCenterX, Clip.TrackingRegionCenterY,
+        Clip.TrackingRegionWidth, Clip.TrackingRegionHeight);
+
+    private void PushTrackingRegion(Func<MotionTrackingRegion, MotionTrackingRegion> mutate) =>
+        _onTrackingRegionChanged?.Invoke(Clip.Id, mutate(CurrentTrackingRegion()).Clamp());
+
+    public double TrackingCenterXPercent
+    {
+        get => Clip.TrackingRegionCenterX * 100;
+        set { var normalized = Math.Clamp(value, 0, 100) / 100.0; if (Math.Abs(normalized - Clip.TrackingRegionCenterX) < 1e-6) return; PushTrackingRegion(r => r with { CenterX = normalized }); }
+    }
+    public double TrackingCenterYPercent
+    {
+        get => Clip.TrackingRegionCenterY * 100;
+        set { var normalized = Math.Clamp(value, 0, 100) / 100.0; if (Math.Abs(normalized - Clip.TrackingRegionCenterY) < 1e-6) return; PushTrackingRegion(r => r with { CenterY = normalized }); }
+    }
+    public double TrackingWidthPercent
+    {
+        get => Clip.TrackingRegionWidth * 100;
+        set { var normalized = Math.Clamp(value, 2, 100) / 100.0; if (Math.Abs(normalized - Clip.TrackingRegionWidth) < 1e-6) return; PushTrackingRegion(r => r with { Width = normalized }); }
+    }
+    public double TrackingHeightPercent
+    {
+        get => Clip.TrackingRegionHeight * 100;
+        set { var normalized = Math.Clamp(value, 2, 100) / 100.0; if (Math.Abs(normalized - Clip.TrackingRegionHeight) < 1e-6) return; PushTrackingRegion(r => r with { Height = normalized }); }
+    }
+    public bool AutoReframeEnabled
+    {
+        get => Clip.AutoReframeEnabled;
+        set { if (Clip.AutoReframeEnabled == value) return; _onAutoReframeChanged?.Invoke(Clip.Id, value); }
+    }
+    public ICommand TrackMotionCommand { get; }
 
     private ClipTransformSettings CurrentTransform() => new(
         RotationDegrees, FlipHorizontal, FlipVertical,
@@ -814,11 +857,17 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, double>? onTrimInChanged = null,
         Action<string, double>? onTrimOutChanged = null,
         Action<string, SpeedCurvePreset>? onSpeedCurvePresetChanged = null,
-        Action<string, bool, int, int, double>? onStabilizationChanged = null)
+        Action<string, bool, int, int, double>? onStabilizationChanged = null,
+        Action<string, MotionTrackingRegion>? onTrackingRegionChanged = null,
+        Action<string, MotionTrackingRegion>? onMotionTrackingRequested = null,
+        Action<string, bool>? onAutoReframeChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
         _onStabilizationChanged = onStabilizationChanged;
+        _onTrackingRegionChanged = onTrackingRegionChanged;
+        _onMotionTrackingRequested = onMotionTrackingRequested;
+        _onAutoReframeChanged = onAutoReframeChanged;
         _onTransformChanged = onTransformChanged;
         _onCompositingChanged = onCompositingChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
@@ -851,6 +900,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         _keyframeValue = CurrentKeyframeValue(_selectedKeyframeProperty);
         AddKeyframeAtPlayheadCommand = new RelayCommand(AddKeyframeAtPlayhead);
         RemoveKeyframeAtPlayheadCommand = new RelayCommand(RemoveKeyframeAtPlayhead);
+        TrackMotionCommand = new RelayCommand(() => _onMotionTrackingRequested?.Invoke(Clip.Id, CurrentTrackingRegion()));
     }
 
     private static string FormatTime(double seconds)

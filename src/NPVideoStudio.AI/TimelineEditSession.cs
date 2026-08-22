@@ -492,6 +492,80 @@ public sealed class TimelineEditSession
         return true;
     }
 
+    public void SetMotionTrackingRegion(string clipId, MotionTrackingRegion region)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.MediaAssetId is null) return;
+        var clamped = region.Clamp();
+        if (Math.Abs(clip.TrackingRegionCenterX - clamped.CenterX) < 1e-9 &&
+            Math.Abs(clip.TrackingRegionCenterY - clamped.CenterY) < 1e-9 &&
+            Math.Abs(clip.TrackingRegionWidth - clamped.Width) < 1e-9 &&
+            Math.Abs(clip.TrackingRegionHeight - clamped.Height) < 1e-9) return;
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.TrackingRegionCenterX = clamped.CenterX;
+        liveClip.TrackingRegionCenterY = clamped.CenterY;
+        liveClip.TrackingRegionWidth = clamped.Width;
+        liveClip.TrackingRegionHeight = clamped.Height;
+        // A changed starting box invalidates an old path; never silently render stale tracking data.
+        liveClip.MotionTrackingPoints.Clear();
+        liveClip.AutoReframeEnabled = false;
+    }
+
+    public bool ApplyMotionTrackingResult(string clipId, MotionTrackingRegion region, IReadOnlyList<MotionTrackingPoint> points)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.MediaAssetId is null || clip.IsReversed || clip.IsFreezeFrame || points.Count < 2)
+            return false;
+
+        var ordered = points
+            .Where(p => p.SourceTimeSeconds >= clip.SourceTrimInSeconds - 0.01 &&
+                        p.SourceTimeSeconds <= clip.SourceTrimOutSeconds + 0.01)
+            .OrderBy(p => p.SourceTimeSeconds)
+            .Select(CloneTrackingPoint)
+            .ToList();
+        if (ordered.Count < 2) return false;
+        const double endpointToleranceSeconds = 0.05;
+        if (ordered[0].SourceTimeSeconds > clip.SourceTrimInSeconds + endpointToleranceSeconds ||
+            ordered[^1].SourceTimeSeconds < clip.SourceTrimOutSeconds - endpointToleranceSeconds)
+        {
+            return false;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        var clamped = region.Clamp();
+        liveClip.TrackingRegionCenterX = clamped.CenterX;
+        liveClip.TrackingRegionCenterY = clamped.CenterY;
+        liveClip.TrackingRegionWidth = clamped.Width;
+        liveClip.TrackingRegionHeight = clamped.Height;
+        liveClip.MotionTrackingPoints = ordered;
+        liveClip.AutoReframeEnabled = true;
+        return true;
+    }
+
+    public void SetAutoReframeEnabled(string clipId, bool enabled)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.AutoReframeEnabled == enabled) return;
+        if (enabled && (clip.IsReversed || clip.IsFreezeFrame || clip.MotionTrackingPoints.Count < 2 ||
+            clip.MotionTrackingPoints.Min(p => p.SourceTimeSeconds) > clip.SourceTrimInSeconds + 0.05 ||
+            clip.MotionTrackingPoints.Max(p => p.SourceTimeSeconds) < clip.SourceTrimOutSeconds - 0.05)) return;
+        SaveSnapshot();
+        FindClipWithTrack(clipId).Clip!.AutoReframeEnabled = enabled;
+    }
+
+    private static MotionTrackingPoint CloneTrackingPoint(MotionTrackingPoint point) => new()
+    {
+        SourceTimeSeconds = point.SourceTimeSeconds,
+        CenterX = Math.Clamp(point.CenterX, 0, 1),
+        CenterY = Math.Clamp(point.CenterY, 0, 1),
+        Width = Math.Clamp(point.Width, 0.001, 1),
+        Height = Math.Clamp(point.Height, 0.001, 1),
+        Confidence = Math.Clamp(point.Confidence, 0, 1)
+    };
+
     public void SetClipTransform(string clipId, ClipTransformSettings settings)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -521,9 +595,11 @@ public sealed class TimelineEditSession
         }
         if (liveClip.IsReversed || liveClip.IsFreezeFrame)
         {
-            // libvidstab first-pass vectors describe forward-moving source frames. Do not silently reuse
-            // them for Reverse/Freeze where they would no longer describe the rendered frame sequence.
+            // libvidstab vectors and source-time tracking paths both describe forward-moving source frames.
+            // Keep authored tracking points for later, but disable consumers that would otherwise interpret
+            // them on the wrong temporal axis.
             liveClip.StabilizationEnabled = false;
+            liveClip.AutoReframeEnabled = false;
         }
         liveClip.ChromaKeyEnabled = settings.ChromaKeyEnabled;
         liveClip.ChromaKeyColor = string.IsNullOrWhiteSpace(settings.ChromaKeyColor) ? "#00FF00" : settings.ChromaKeyColor;
@@ -1046,6 +1122,12 @@ public sealed class TimelineEditSession
         StabilizationSmoothing = clip.StabilizationSmoothing,
         StabilizationZoomPercent = clip.StabilizationZoomPercent,
         StabilizationOptimalZoom = clip.StabilizationOptimalZoom,
+        TrackingRegionCenterX = clip.TrackingRegionCenterX,
+        TrackingRegionCenterY = clip.TrackingRegionCenterY,
+        TrackingRegionWidth = clip.TrackingRegionWidth,
+        TrackingRegionHeight = clip.TrackingRegionHeight,
+        MotionTrackingPoints = clip.MotionTrackingPoints.Select(CloneTrackingPoint).ToList(),
+        AutoReframeEnabled = clip.AutoReframeEnabled,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,

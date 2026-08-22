@@ -143,6 +143,24 @@
                     <TextBlock Text="Export prvo analizira pomeranje kadrova (vidstabdetect), zatim primenjuje vidstabtransform. Reverse/Freeze automatski isključuju stabilizaciju." Classes="subtle" TextWrapping="Wrap"/>
                   </StackPanel>
                 </Border>
+                <Border Name="ModernMotionTrackingPanel" Classes="inspectorSection" IsVisible="{Binding CanUseMotionTracking}" Margin="0,4,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Motion Tracking / Auto Reframe" Classes="section"/>
+                    <TextBlock Text="Početni region objekta (%)" Classes="subtle"/>
+                    <Grid ColumnDefinitions="*,*,*,*">
+                      <NumericUpDown Value="{Binding TrackingCenterXPercent}" Minimum="0" Maximum="100" Increment="1" ToolTip.Tip="Centar X"/>
+                      <NumericUpDown Grid.Column="1" Margin="6,0,0,0" Value="{Binding TrackingCenterYPercent}" Minimum="0" Maximum="100" Increment="1" ToolTip.Tip="Centar Y"/>
+                      <NumericUpDown Grid.Column="2" Margin="6,0,0,0" Value="{Binding TrackingWidthPercent}" Minimum="2" Maximum="100" Increment="1" ToolTip.Tip="Širina"/>
+                      <NumericUpDown Grid.Column="3" Margin="6,0,0,0" Value="{Binding TrackingHeightPercent}" Minimum="2" Maximum="100" Increment="1" ToolTip.Tip="Visina"/>
+                    </Grid>
+                    <WrapPanel>
+                      <Button Name="ModernTrackMotionButton" Classes="cta" Content="Prati objekat" Command="{Binding TrackMotionCommand}" Margin="0,0,8,4"/>
+                      <ToggleButton Content="Auto Reframe" IsChecked="{Binding AutoReframeEnabled}" IsEnabled="{Binding HasMotionTracking}" Margin="0,0,8,4"/>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding MotionTrackingSummary}" Classes="subtle"/>
+                    <TextBlock Text="CSRT radi lokalno. Ako tracker izgubi objekat, operacija prekida umesto da izmisli ostatak putanje. Auto Reframe koristi putanju u finalnom FFmpeg exportu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
                 <StackPanel Spacing="4" IsVisible="{Binding IsVideoClip}">
                   <TextBlock Text="Trajanje prelaza (s)" Classes="subtle"/>
                   <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>

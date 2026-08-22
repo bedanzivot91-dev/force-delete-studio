@@ -252,7 +252,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
             _services.GetRequiredService<IAiWorkerClient>(),
-            _services.GetRequiredService<IProxyGeneratorService>());
+            _services.GetRequiredService<IProxyGeneratorService>(),
+            _services.GetRequiredService<IMotionTrackingService>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         workspace.CaptionStyleGalleryRequested += () => CurrentPage = CreateCaptionStyleGalleryPage(workspace);
         // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search

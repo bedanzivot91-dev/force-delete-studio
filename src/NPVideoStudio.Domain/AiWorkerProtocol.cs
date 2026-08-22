@@ -105,5 +105,6 @@ public sealed class AiWorkerCapabilities
     public bool WhisperXAvailable { get; init; }
     public bool DemucsAvailable { get; init; }
     public bool LyricAlignAvailable { get; init; }
+    public bool OpenCvAvailable { get; init; }
     public string? Error { get; init; }
 }

@@ -103,6 +103,7 @@ public static class FfmpegFilterGraphBuilder
             var videoFilter = new StringBuilder();
             videoFilter.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));
             videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             videoFilter.Append(BuildTemporalVideoFilters(clip, duration));
             videoFilter.Append(BuildSpeedFilter(clip));
@@ -599,6 +600,20 @@ public static class FfmpegFilterGraphBuilder
         StabilizationSmoothing = clip.StabilizationSmoothing,
         StabilizationZoomPercent = clip.StabilizationZoomPercent,
         StabilizationOptimalZoom = clip.StabilizationOptimalZoom,
+        TrackingRegionCenterX = clip.TrackingRegionCenterX,
+        TrackingRegionCenterY = clip.TrackingRegionCenterY,
+        TrackingRegionWidth = clip.TrackingRegionWidth,
+        TrackingRegionHeight = clip.TrackingRegionHeight,
+        MotionTrackingPoints = clip.MotionTrackingPoints.Select(point => new MotionTrackingPoint
+        {
+            SourceTimeSeconds = point.SourceTimeSeconds,
+            CenterX = point.CenterX,
+            CenterY = point.CenterY,
+            Width = point.Width,
+            Height = point.Height,
+            Confidence = point.Confidence
+        }).ToList(),
+        AutoReframeEnabled = clip.AutoReframeEnabled,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
@@ -748,6 +763,7 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
+            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));
             prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
@@ -866,6 +882,79 @@ public static class FfmpegFilterGraphBuilder
         var optimalZoom = Math.Clamp(clip.StabilizationOptimalZoom, 0, 2);
         return FormattableString.Invariant(
             $",vidstabtransform=input='{escapedPath}':smoothing={smoothing}:zoom={zoom}:optzoom={optimalZoom}:interpol=bicubic");
+    }
+
+    public static string BuildAutoReframeFilter(TimelineClip clip, int targetWidth, int targetHeight)
+    {
+        if (!clip.AutoReframeEnabled) return string.Empty;
+        if (targetWidth <= 0 || targetHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(targetWidth), "Auto Reframe zahteva validnu ciljnu rezoluciju.");
+        if (clip.IsReversed || clip.IsFreezeFrame)
+            throw new InvalidOperationException("Auto Reframe nije podržan zajedno sa Reverse/Freeze Frame.");
+        if (clip.MotionTrackingPoints.Count < 2)
+            throw new InvalidOperationException("Auto Reframe je uključen, ali klip nema kompletnu Motion Tracking putanju.");
+        var firstTrackingTime = clip.MotionTrackingPoints.Min(point => point.SourceTimeSeconds);
+        var lastTrackingTime = clip.MotionTrackingPoints.Max(point => point.SourceTimeSeconds);
+        if (firstTrackingTime > clip.SourceTrimInSeconds + 0.05 ||
+            lastTrackingTime < clip.SourceTrimOutSeconds - 0.05)
+        {
+            throw new InvalidOperationException("Auto Reframe putanja ne pokriva ceo trenutno isečeni klip. Pokrenite Motion Tracking ponovo.");
+        }
+
+        var x = BuildTrackingValueExpression(clip, point => point.CenterX);
+        var y = BuildTrackingValueExpression(clip, point => point.CenterY);
+        var aspect = F((double)targetWidth / targetHeight);
+        var cropWidth = $"if(gt(iw/ih,{aspect}),ih*{aspect},iw)";
+        var cropHeight = $"if(gt(iw/ih,{aspect}),ih,iw/{aspect})";
+        return $",crop=w='{cropWidth}':h='{cropHeight}':" +
+               $"x='max(0,min(iw-ow,iw*({x})-ow/2))':" +
+               $"y='max(0,min(ih-oh,ih*({y})-oh/2))'";
+    }
+
+    /// <summary>Piecewise-linear normalized tracking coordinate evaluated in the clip's source-local
+    /// pre-speed clock. Tracking points are stored in absolute source time, so trim/split do not deform
+    /// the authored path.</summary>
+    public static string BuildTrackingValueExpression(TimelineClip clip, Func<MotionTrackingPoint, double> selector)
+    {
+        if (clip.MotionTrackingPoints.Count == 0) return "0.5";
+        var start = clip.SourceTrimInSeconds;
+        var end = clip.SourceTrimOutSeconds;
+        var sourcePoints = clip.MotionTrackingPoints.OrderBy(point => point.SourceTimeSeconds).ToArray();
+
+        double ValueAt(double sourceTime)
+        {
+            if (sourceTime <= sourcePoints[0].SourceTimeSeconds) return Math.Clamp(selector(sourcePoints[0]), 0, 1);
+            if (sourceTime >= sourcePoints[^1].SourceTimeSeconds) return Math.Clamp(selector(sourcePoints[^1]), 0, 1);
+            for (var i = 1; i < sourcePoints.Length; i++)
+            {
+                var right = sourcePoints[i];
+                if (sourceTime > right.SourceTimeSeconds) continue;
+                var left = sourcePoints[i - 1];
+                var span = Math.Max(1e-9, right.SourceTimeSeconds - left.SourceTimeSeconds);
+                var u = Math.Clamp((sourceTime - left.SourceTimeSeconds) / span, 0, 1);
+                return Math.Clamp(selector(left) + (selector(right) - selector(left)) * u, 0, 1);
+            }
+            return Math.Clamp(selector(sourcePoints[^1]), 0, 1);
+        }
+
+        var anchors = new List<(double LocalTime, double Value)> { (0, ValueAt(start)) };
+        anchors.AddRange(sourcePoints
+            .Where(point => point.SourceTimeSeconds > start + 1e-6 && point.SourceTimeSeconds < end - 1e-6)
+            .Select(point => (point.SourceTimeSeconds - start, Math.Clamp(selector(point), 0, 1))));
+        anchors.Add((Math.Max(0, end - start), ValueAt(end)));
+        anchors = anchors.OrderBy(anchorPoint => anchorPoint.LocalTime).ToList();
+
+        if (anchors.Count == 1) return F(anchors[0].Value);
+        var result = F(anchors[^1].Value);
+        for (var i = anchors.Count - 1; i >= 1; i--)
+        {
+            var left = anchors[i - 1];
+            var right = anchors[i];
+            var span = Math.Max(1e-9, right.LocalTime - left.LocalTime);
+            var segment = $"({F(left.Value)}+({F(right.Value)}-{F(left.Value)})*max(0,min(1,(t-{F(left.LocalTime)})/{F(span)})))";
+            result = $"if(lt(t,{F(right.LocalTime)}),{segment},{result})";
+        }
+        return result;
     }
 
     public static string EscapeFilterPath(string path)

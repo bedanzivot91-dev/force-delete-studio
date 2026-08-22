@@ -50,12 +50,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Instalacija Demucs paketa nije uspela.' }
 Write-Output 'Instaliram poravnanje poznatog teksta pesme...'
 & $managedPython -m pip install --disable-pip-version-check --upgrade "lyric-align[asr,separate]"
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija lyric-align paketa nije uspela.' }
+Write-Output 'Instaliram OpenCV CSRT za Motion Tracking i Auto Reframe...'
+& $managedPython -m pip install --disable-pip-version-check --upgrade opencv-contrib-python-headless
+if ($LASTEXITCODE -ne 0) { throw 'Instalacija OpenCV tracking paketa nije uspela.' }
 Write-Output 'Proveravam AI instalaciju...'
-& $managedPython -c "import importlib.metadata as m; import faster_whisper, demucs, lyric_align; print('AI za pesme je spreman. lyric-align ' + m.version('lyric-align'))"
-if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa nije uspela.' }
+& $managedPython -c "import importlib.metadata as m; import faster_whisper, demucs, lyric_align, cv2; tracker = getattr(cv2, 'TrackerCSRT_create', None) or getattr(getattr(cv2, 'legacy', None), 'TrackerCSRT_create', None); assert tracker is not None; print('AI alati su spremni. lyric-align ' + m.version('lyric-align') + ', OpenCV ' + cv2.__version__)"
+if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa/CSRT trackera nije uspela.' }
 
 Write-Output 'Preuzimam model large-v3 za stihove (ovo je veliko i radi se samo prvi put)...'
 & $managedPython -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8'); print('Whisper large-v3 model je spreman.')"
 if ($LASTEXITCODE -ne 0) { throw 'Preuzimanje ili učitavanje Whisper large-v3 modela nije uspelo.' }
 
-Write-Output 'Svi AI alati i model za pesme su instalirani.'
+Write-Output 'Svi AI alati, Motion Tracking i model za pesme su instalirani.'

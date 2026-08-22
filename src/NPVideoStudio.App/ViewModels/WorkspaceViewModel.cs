@@ -31,10 +31,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly IAiWorkerClient? _aiWorkerClient;
     private readonly IRenderService _renderService;
     private readonly IProxyGeneratorService? _proxyGeneratorService;
+    private readonly IMotionTrackingService? _motionTrackingService;
 
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
     private CancellationTokenSource? _captionGenerationCts;
+    private CancellationTokenSource? _motionTrackingCts;
 
     public Project Project { get; }
 
@@ -217,7 +219,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IAiWorkerClient? aiWorkerClient = null, IProxyGeneratorService? proxyGeneratorService = null)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IAiWorkerClient? aiWorkerClient = null, IProxyGeneratorService? proxyGeneratorService = null, IMotionTrackingService? motionTrackingService = null)
     {
         Project = project;
         _projectRepository = projectRepository;
@@ -228,6 +230,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _aiWorkerClient = aiWorkerClient;
         _renderService = renderService;
         _proxyGeneratorService = proxyGeneratorService;
+        _motionTrackingService = motionTrackingService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
         RefreshFormatSummaryLabel();
         PlayerAspectRatio = ProjectAspectRatio;
@@ -241,6 +244,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         Player = new PlayerViewModel(totalDurationSeconds: ComputeInitialDuration(project));
         Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds);
+        Timeline.MotionTrackingRequested += (clipId, region) => _ = TrackMotionAndEnableReframeAsync(clipId, region);
         Timeline.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TimelineViewModel.SelectedMediaAsset))
@@ -351,12 +355,69 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         return fromMedia;
     }
 
+    private async Task TrackMotionAndEnableReframeAsync(string clipId, MotionTrackingRegion region)
+    {
+        if (_motionTrackingService is null)
+        {
+            StatusMessage = "Motion Tracking servis nije dostupan.";
+            return;
+        }
+
+        var clip = Timeline.CurrentTracks.SelectMany(track => track.Clips).FirstOrDefault(item => item.Id == clipId);
+        var asset = clip?.MediaAssetId is null ? null : Project.MediaLibrary.FirstOrDefault(item => item.Id == clip.MediaAssetId);
+        if (clip is null || asset is null || !asset.HasVideoStream)
+        {
+            StatusMessage = "Izabrani klip nema validan video izvor za Motion Tracking.";
+            return;
+        }
+
+        _motionTrackingCts?.Cancel();
+        _motionTrackingCts?.Dispose();
+        _motionTrackingCts = new CancellationTokenSource();
+        var token = _motionTrackingCts.Token;
+        StatusMessage = "Motion Tracking: pratim izabrani objekat kroz klip...";
+
+        try
+        {
+            var progress = new Progress<double>(value => StatusMessage = $"Motion Tracking: {value:0}%");
+            var points = await _motionTrackingService.TrackAsync(new MotionTrackingRequest
+            {
+                MediaFilePath = asset.FilePath,
+                SourceStartSeconds = clip.SourceTrimInSeconds,
+                SourceEndSeconds = clip.SourceTrimOutSeconds,
+                InitialRegion = region,
+                SampleIntervalSeconds = 0.1
+            }, progress, token);
+
+            if (!Timeline.ApplyMotionTrackingResult(clipId, region, points))
+                throw new InvalidOperationException("Tracking rezultat nije mogao bezbedno da se primeni na klip.");
+
+            Timeline.SaveToProject();
+            Project.LastModifiedAt = DateTimeOffset.Now;
+            if (!string.IsNullOrWhiteSpace(Project.ProjectFilePath))
+                await _projectRepository.SaveAsync(Project, Project.ProjectFilePath, token);
+            RefreshPreviewFrame(Player.CurrentTimeSeconds);
+            StatusMessage = $"Motion Tracking završen: {points.Count} tačaka. Auto Reframe je uključen.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            StatusMessage = "Motion Tracking je otkazan.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Motion Tracking nije uspeo: {ex.Message}";
+            _logger.Warning(ex, "Motion Tracking nije uspeo za klip {ClipId}", clipId);
+        }
+    }
+
     public void Dispose()
     {
         _framePreviewCts?.Cancel();
         _framePreviewCts?.Dispose();
         _captionGenerationCts?.Cancel();
         _captionGenerationCts?.Dispose();
+        _motionTrackingCts?.Cancel();
+        _motionTrackingCts?.Dispose();
         Player.Dispose();
         RealPreview.Dispose();
     }
