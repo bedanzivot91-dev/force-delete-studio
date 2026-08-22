@@ -9,6 +9,20 @@ namespace NPVideoStudio.Domain;
 /// </summary>
 public sealed class MediaAssetCollection : Collection<MediaAsset>
 {
+    public MediaAssetCollection()
+    {
+    }
+
+    public MediaAssetCollection(IList<MediaAsset> items) : base(items)
+    {
+    }
+
+    /// <summary>
+    /// Keeps existing preview/project-construction code source-compatible when it materializes media with
+    /// LINQ ToList(). The resulting project still receives the cleanup-aware collection.
+    /// </summary>
+    public static implicit operator MediaAssetCollection(List<MediaAsset> items) => new(items);
+
     protected override void RemoveItem(int index)
     {
         var asset = this[index];
