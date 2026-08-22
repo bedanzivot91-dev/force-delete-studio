@@ -156,7 +156,9 @@ public sealed class TimelineEditSession
         }
 
         var offsetIntoClip = atTimelineSeconds - clip.TimelineStartSeconds;
-        var splitSourcePoint = clip.SourceTrimInSeconds + offsetIntoClip * (clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4));
+        var splitSourcePoint = clip.IsFreezeFrame
+            ? clip.SourceTrimInSeconds + offsetIntoClip
+            : SpeedCurveMath.SourceTimeAtTimelineOffset(clip, offsetIntoClip);
 
         SaveSnapshot();
         var (liveTrack, liveClip) = FindClipWithTrack(clipId);
@@ -190,7 +192,15 @@ public sealed class TimelineEditSession
 
         SaveSnapshot();
         var (_, liveClip) = FindClipWithTrack(clipId);
-        var timelineDelta = delta / (liveClip!.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4));
+        var oldTrimIn = liveClip!.SourceTrimInSeconds;
+        var timelineDelta = liveClip.IsFreezeFrame
+            ? delta
+            : Math.Sign(delta) * SpeedCurveMath.OutputDuration(
+                Math.Min(oldTrimIn, clamped),
+                Math.Max(oldTrimIn, clamped),
+                liveClip.SpeedMultiplier,
+                liveClip.SpeedCurvePoints,
+                SpeedCurveMath.HasCurve(liveClip));
         TrimKeyframesAtStart(liveClip, timelineDelta);
         liveClip.SourceTrimInSeconds = clamped;
         liveClip.TimelineStartSeconds = Math.Max(0, liveClip.TimelineStartSeconds + timelineDelta);
@@ -212,8 +222,14 @@ public sealed class TimelineEditSession
 
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
-        var speed = liveClip.IsFreezeFrame ? 1.0 : Math.Clamp(liveClip.SpeedMultiplier, 0.25, 4);
-        var newDuration = Math.Max(0, clamped - liveClip.SourceTrimInSeconds) / speed;
+        var newDuration = liveClip.IsFreezeFrame
+            ? Math.Max(0, clamped - liveClip.SourceTrimInSeconds)
+            : SpeedCurveMath.OutputDuration(
+                liveClip.SourceTrimInSeconds,
+                clamped,
+                liveClip.SpeedMultiplier,
+                liveClip.SpeedCurvePoints,
+                SpeedCurveMath.HasCurve(liveClip));
         TrimKeyframesAtEnd(liveClip, newDuration);
         liveClip.SourceTrimOutSeconds = clamped;
     }
@@ -400,7 +416,46 @@ public sealed class TimelineEditSession
         liveClip.Brightness = Math.Clamp(brightness, -1, 1);
         liveClip.Contrast = Math.Clamp(contrast, 0, 3);
         liveClip.Saturation = Math.Clamp(saturation, 0, 3);
-        liveClip.SpeedMultiplier = Math.Clamp(speed, 0.25, 4);
+        var newSpeed = SpeedCurveMath.ClampSpeed(speed);
+        if (Math.Abs(newSpeed - liveClip.SpeedMultiplier) > 1e-9)
+        {
+            // The constant-speed slider is an explicit switch back from a velocity ramp.
+            liveClip.SpeedCurvePreset = SpeedCurvePreset.None;
+            liveClip.SpeedCurvePoints.Clear();
+        }
+        liveClip.SpeedMultiplier = newSpeed;
+        RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
+    }
+
+    public void SetSpeedCurvePreset(string clipId, SpeedCurvePreset preset)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.MediaAssetId is null || clip.IsFreezeFrame || clip.IsReversed)
+        {
+            return;
+        }
+
+        if (preset != SpeedCurvePreset.None && clip.SourceTrimOutSeconds - clip.SourceTrimInSeconds <= MinClipDurationSeconds)
+        {
+            return;
+        }
+
+        if (clip.SpeedCurvePreset == preset &&
+            (preset == SpeedCurvePreset.None || clip.SpeedCurvePoints.Count >= 2))
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        var previousTimelineDuration = liveClip.TimelineDurationSeconds;
+        liveClip.SpeedCurvePreset = preset;
+        liveClip.SpeedCurvePoints = SpeedCurveMath.CreatePreset(preset, liveClip.SourceTrimInSeconds, liveClip.SourceTrimOutSeconds);
+        if (preset != SpeedCurvePreset.None)
+        {
+            // Preset points own the timing while active; 1x is the deterministic fallback at malformed edges.
+            liveClip.SpeedMultiplier = 1.0;
+        }
         RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
     }
 
@@ -414,6 +469,7 @@ public sealed class TimelineEditSession
 
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
+        var previousTimelineDuration = liveClip.TimelineDurationSeconds;
         liveClip.RotationDegrees = Math.Clamp(settings.RotationDegrees, -360, 360);
         liveClip.FlipHorizontal = settings.FlipHorizontal;
         liveClip.FlipVertical = settings.FlipVertical;
@@ -423,10 +479,18 @@ public sealed class TimelineEditSession
         liveClip.CropBottomPercent = Math.Clamp(settings.CropBottomPercent, 0, 45);
         liveClip.IsReversed = settings.IsReversed;
         liveClip.IsFreezeFrame = settings.IsFreezeFrame;
+        if ((liveClip.IsReversed || liveClip.IsFreezeFrame) && SpeedCurveMath.HasCurve(liveClip))
+        {
+            // v1 does not silently fake reverse/freeze + velocity interaction. Switching either on returns
+            // the clip to deterministic constant timing; the user can reapply a curve after disabling it.
+            liveClip.SpeedCurvePreset = SpeedCurvePreset.None;
+            liveClip.SpeedCurvePoints.Clear();
+        }
         liveClip.ChromaKeyEnabled = settings.ChromaKeyEnabled;
         liveClip.ChromaKeyColor = string.IsNullOrWhiteSpace(settings.ChromaKeyColor) ? "#00FF00" : settings.ChromaKeyColor;
         liveClip.ChromaKeySimilarity = Math.Clamp(settings.ChromaKeySimilarity, 0.01, 1.0);
         liveClip.ChromaKeyBlend = Math.Clamp(settings.ChromaKeyBlend, 0, 1.0);
+        RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
     }
     public void SetClipCompositing(string clipId, ClipCompositingSettings settings)
     {
@@ -930,6 +994,13 @@ public sealed class TimelineEditSession
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
         SpeedMultiplier = clip.SpeedMultiplier,
+        SpeedCurvePreset = clip.SpeedCurvePreset,
+        SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
+        {
+            Id = point.Id,
+            SourceTimeSeconds = point.SourceTimeSeconds,
+            SpeedMultiplier = point.SpeedMultiplier
+        }).ToList(),
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
