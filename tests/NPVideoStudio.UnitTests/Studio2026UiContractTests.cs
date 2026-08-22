@@ -37,7 +37,9 @@ public class Studio2026UiContractTests
 
         Assert.Contains("ProjectHeader.Child = new ModernWorkspaceHeaderView()", code);
         Assert.Contains("CaptionToolbar.Child = new ModernWorkspaceCommandBarView()", code);
+        Assert.Contains("MediaLibraryPanel.Child = new ModernMediaLibraryView()", code);
         Assert.Contains("InspectorPanel.Child = new ModernInspectorView()", code);
+        Assert.Contains("TimelinePanel.Child = new ModernTimelineView()", code);
 
         foreach (var tab in new[] { "Osnovno", "Tekst", "Video", "Audio", "Transform", "Overlay", "Animacija" })
         {
@@ -65,7 +67,24 @@ public class Studio2026UiContractTests
     {
         Assert.NotNull(new ModernWorkspaceHeaderView());
         Assert.NotNull(new ModernWorkspaceCommandBarView());
+        Assert.NotNull(new ModernMediaLibraryView());
         Assert.NotNull(new ModernInspectorView());
+        Assert.NotNull(new ModernTimelineView());
+    }
+
+    [Fact]
+    public void Studio2026Theme_IsExplicitlyMappedAndTimelineCommandsAreGrouped()
+    {
+        var root = FindRepositoryRoot();
+        var app = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "App.axaml.cs"));
+        var timeline = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "Views", "ModernTimelineView.axaml"));
+        var media = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "Views", "ModernMediaLibraryView.axaml"));
+        Assert.Contains("AppTheme.Studio2026 => \"Studio2026\"", app);
+        foreach (var marker in new[] { "DODAJ", "+ Traka", "PRIKAZ", "AppendSelectedVideoCommand", "AddTextAtPlayheadCommand", "ZoomPixelsPerSecond" })
+            Assert.Contains(marker, timeline);
+        Assert.Contains("ImportMediaCommand", media);
+        Assert.Contains("GenerateProxyCommand", media);
+        Assert.Contains("RemoveCommand", media);
     }
 
     private static string FindRepositoryRoot()

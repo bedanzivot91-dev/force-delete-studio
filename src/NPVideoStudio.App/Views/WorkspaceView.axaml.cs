@@ -56,7 +56,9 @@ public partial class WorkspaceView : UserControl
     {
         ProjectHeader.Child = new ModernWorkspaceHeaderView();
         CaptionToolbar.Child = new ModernWorkspaceCommandBarView();
+        MediaLibraryPanel.Child = new ModernMediaLibraryView();
         InspectorPanel.Child = new ModernInspectorView();
+        TimelinePanel.Child = new ModernTimelineView();
     }
 
     private RealPreviewViewModel? _subscribedPreview;
