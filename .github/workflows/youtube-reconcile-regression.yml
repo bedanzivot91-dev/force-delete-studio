@@ -62,13 +62,9 @@ jobs:
           python -m py_compile tests\runtime_frontend_bundle_test.py
       - name: Syntax-check Studio UI extensions
         run: |
-          node --check app\web\production_workspace_extension.js
           node --check app\web\startup_guard_extension.js
-          node --check app\web\organized_ui_extension.js
           node --check app\web\arbitrary_selection_extension.js
           node --check app\web\unbounded_youtube_ui_extension.js
-          node --check app\web\studio_functionality_extension.js
-          node --check app\web\workflow_cleanup_extension.js
           node --check app\web\information_architecture_2026_extension.js
           node --check app\web\modern_2026_skin_extension.js
           node --check app\web\modern_2026_surface_coverage_extension.js
@@ -77,6 +73,8 @@ jobs:
           node --check app\web\modern_2026_legibility_extension.js
           node --check app\web\modern_2026_shell_extension.js
           node --check app\web\modern_2026_navigation_final.js
+          node --check app\web\real_theme_layouts_extension.js
+          node --check app\web\suno_only_runtime_extension.js
       - name: Verify production Handler serves complete final frontend bundle
         run: python tests\runtime_frontend_bundle_test.py
       - name: Verify startup no longer auto-starts full fingerprinting
