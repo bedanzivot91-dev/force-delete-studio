@@ -12,6 +12,15 @@ internal static class Program
     {
         try
         {
+            // Installed-release verification uses the real shipped EXE in a headless production-path mode.
+            // This must run before Avalonia creates any desktop lifetime/window: its purpose is to prove that
+            // the installed app itself can save/reload a .npvsproject and export it through RenderService.
+            if (InstalledProjectSelfTest.TryRun(args, out var selfTestExitCode))
+            {
+                Environment.ExitCode = selfTestExitCode;
+                return;
+            }
+
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)
