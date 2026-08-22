@@ -53,11 +53,32 @@ public sealed class AppSettings
     /// <summary>
     /// Updates the process-wide cache root after persisted settings are loaded or saved. Centralising this
     /// here prevents proxy generation, proxy-folder navigation and ownership cleanup from silently using
-    /// different roots after the user changes Settings -> Cache folder.
+    /// different roots after the user changes Settings -> Cache folder. An invalid manually typed path is
+    /// never allowed to crash Settings save/startup; in that case the safe factory cache root is used.
     /// </summary>
     public static void ConfigureRuntimeCacheFolder(string? cacheFolder)
     {
-        var normalized = string.IsNullOrWhiteSpace(cacheFolder) ? DefaultCacheFolder() : Path.GetFullPath(cacheFolder.Trim());
+        var normalized = DefaultCacheFolder();
+        if (!string.IsNullOrWhiteSpace(cacheFolder))
+        {
+            try
+            {
+                normalized = Path.GetFullPath(cacheFolder.Trim());
+            }
+            catch (ArgumentException)
+            {
+                normalized = DefaultCacheFolder();
+            }
+            catch (NotSupportedException)
+            {
+                normalized = DefaultCacheFolder();
+            }
+            catch (PathTooLongException)
+            {
+                normalized = DefaultCacheFolder();
+            }
+        }
+
         lock (RuntimePathLock)
         {
             _runtimeCacheFolder = normalized;
