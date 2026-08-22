@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Compatibility alias for users who already have DarkCinematic persisted in settings.
-       Keep the enum value, but give it the same current-generation visual language as Studio2026. -->
+  <!-- Studio 2026: dense modern creator UI. Near-black neutral canvas, raised blue-black surfaces,
+       electric violet accent, readable contrast and larger radii without turning the editor into cards everywhere. -->
   <Color x:Key="ThemeBackgroundColor">#090A0D</Color>
   <Color x:Key="ThemeSurfaceColor">#0F1117</Color>
   <Color x:Key="ThemePanelColor">#131722</Color>

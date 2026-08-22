@@ -188,6 +188,7 @@ public partial class App : Avalonia.Application
     {
         var fileName = theme switch
         {
+            AppTheme.Studio2026 => "Studio2026",
             AppTheme.DarkCinematic => "DarkCinematic",
             AppTheme.MinimalLight => "MinimalLight",
             AppTheme.ProfessionalStudio => "ProfessionalStudio",
