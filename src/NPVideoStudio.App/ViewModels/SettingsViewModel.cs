@@ -14,6 +14,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly ILogger _logger;
 
     public IReadOnlyList<AppTheme> AvailableThemes { get; } = Enum.GetValues<AppTheme>();
+    public int AvailableThemeCount => AvailableThemes.Count;
     public IReadOnlyList<ToolUpdatePolicy> AvailableToolUpdatePolicies { get; } = Enum.GetValues<ToolUpdatePolicy>();
 
     [ObservableProperty]

@@ -24,7 +24,7 @@
               </ComboBox.ItemTemplate>
             </ComboBox>
             <TextBlock Classes="subtle" TextWrapping="Wrap"
-                       Text="Trenutno su dostupne 3 od planiranih 10 tema. Ostale dolaze u narednim fazama." />
+                       Text="{Binding AvailableThemeCount, StringFormat=Trenutno je dostupno {0} tema. Izbor se čuva u podešavanjima.}" />
           </StackPanel>
 
           <StackPanel Spacing="6">

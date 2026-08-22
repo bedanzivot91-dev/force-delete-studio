@@ -8,7 +8,7 @@
     <!-- ===== Modern editor typography & chrome ===== -->
     <Style Selector="Window">
       <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
-      <Setter Property="FontSize" Value="13.5" />
+      <Setter Property="FontSize" Value="14.5" />
     </Style>
 
     <Style Selector="TextBlock">
@@ -16,11 +16,11 @@
     </Style>
     <Style Selector="TextBlock.subtle">
       <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}" />
-      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontSize" Value="13.5" />
     </Style>
     <Style Selector="TextBlock.micro">
       <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}" />
-      <Setter Property="FontSize" Value="9.5" />
+      <Setter Property="FontSize" Value="12.5" />
       <Setter Property="LetterSpacing" Value="1.2" />
     </Style>
     <Style Selector="TextBlock.heading">
@@ -28,12 +28,12 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.section">
-      <Setter Property="FontSize" Value="15.5" />
+      <Setter Property="FontSize" Value="16.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Margin" Value="0,4,0,2" />
     </Style>
     <Style Selector="TextBlock.eyebrow">
-      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="LetterSpacing" Value="1.35" />
       <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
