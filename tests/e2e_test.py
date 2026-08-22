@@ -36,7 +36,11 @@ def main() -> int:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        print('Playwright nije instaliran. Otvori ALATI_I_ODRZAVANJE i pokreni INSTALIRAJ_E2E_TESTOVE.bat.')
+        print(
+            'Playwright nije instaliran u ovom Python okruženju. '
+            'Instaliraj zaključane osnovne zavisnosti komandom: '
+            f'{sys.executable} -m pip install -r requirements-core.txt'
+        )
         return 2
     candidates=browser_candidates()
     if not candidates:
@@ -63,9 +67,29 @@ def main() -> int:
                         page.on('requestfailed',lambda r: failed.append(f'{r.method} {r.url}: {r.failure}'))
                         page.goto(f'http://127.0.0.1:{PORT}/',wait_until='networkidle',timeout=30000)
                         page.locator('#pageTitle').wait_for(timeout=10000)
-                        for view in ('library','folders','audio','download','import','production','tools','stats','logs','settings'):
+                        expected_groups = {
+                            'SUNO I BIBLIOTEKA': ('import','library','download','folders','smart','versions','stats'),
+                            'AUDIO I VIDEO': ('recognition','audio','production'),
+                            'YOUTUBE I OBJAVA': ('release','tools'),
+                            'SISTEM': ('logs','settings'),
+                        }
+                        sections = page.locator('.sidebar nav > .sps-nav-section')
+                        assert sections.count() == 4, 'Navigacija nema tačno četiri završne funkcionalne grupe.'
+                        for index, (title, views) in enumerate(expected_groups.items()):
+                            section = sections.nth(index)
+                            assert section.locator(':scope > .sps-nav-section-title').inner_text().strip() == title
+                            actual = section.locator(':scope > .nav-item').evaluate_all(
+                                "nodes => nodes.map(node => node.dataset.view)"
+                            )
+                            assert actual == list(views), f'Pogrešan raspored grupe {title}: {actual}'
+
+                        all_views = tuple(view for views in expected_groups.values() for view in views)
+                        assert page.locator('.sidebar nav .nav-item[data-view]').count() == len(all_views)
+                        for view in all_views:
                             page.locator(f'[data-view="{view}"]').click(); page.wait_for_timeout(100)
                             assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
+                            assert page.locator(f'#view-{view} > .sps-view-kicker').count() == 1
+                        assert page.locator('[data-view="production"]').inner_text().strip().endswith('Video Studio')
                         assert not errors, f'JavaScript greške: {errors}'
                         local_failed=[x for x in failed if f'127.0.0.1:{PORT}' in x]
                         assert not local_failed, f'Lokalni zahtevi nisu uspeli: {local_failed}'
