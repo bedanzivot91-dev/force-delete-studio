@@ -380,6 +380,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetSpeedCurvePreset(clipId, preset);
             RefreshFromSession();
         }
+        void OnStabilizationChanged(string clipId, bool enabled, int smoothing, int accuracy, double zoom)
+        {
+            _session.SetClipStabilization(clipId, enabled, smoothing, accuracy, zoom);
+            RefreshFromSession();
+        }
 
         void OnTransformChanged(string clipId, ClipTransformSettings settings)
         {
@@ -411,7 +416,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
-            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged)
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

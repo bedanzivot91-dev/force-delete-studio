@@ -131,6 +131,18 @@
                     <TextBlock Text="Montage / Hero / Bullet / JumpCut / FlashIn / FlashOut menjaju stvarni video i audio timing. Ručna Brzina iznad vraća klip na konstantnu brzinu." Classes="subtle" TextWrapping="Wrap"/>
                   </StackPanel>
                 </Border>
+                <Border Name="ModernVideoStabilizationPanel" Classes="inspectorSection" IsVisible="{Binding CanUseStabilization}" Margin="0,4,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Stabilizacija (2-pass)" Classes="section"/>
+                    <ToggleButton Name="ModernVideoStabilization" Content="Uključi stabilizaciju" IsChecked="{Binding StabilizationEnabled}" HorizontalAlignment="Left"/>
+                    <Grid ColumnDefinitions="*,*,*" IsVisible="{Binding StabilizationEnabled}">
+                      <StackPanel Spacing="4"><TextBlock Text="Smoothing" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationSmoothingFrames}" Minimum="0" Maximum="120" Increment="1"/></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Accuracy" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationAccuracy}" Minimum="1" Maximum="15" Increment="1"/></StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Zoom %" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationZoomPercent}" Minimum="0" Maximum="30" Increment="1"/></StackPanel>
+                    </Grid>
+                    <TextBlock Text="Export prvo analizira pomeranje kadrova (vidstabdetect), zatim primenjuje vidstabtransform. Reverse/Freeze automatski isključuju stabilizaciju." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
                 <StackPanel Spacing="4" IsVisible="{Binding IsVideoClip}">
                   <TextBlock Text="Trajanje prelaza (s)" Classes="subtle"/>
                   <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>

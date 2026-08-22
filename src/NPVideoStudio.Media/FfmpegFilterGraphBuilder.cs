@@ -39,7 +39,8 @@ public static class FfmpegFilterGraphBuilder
     /// clips around it, both fail concat outright - verified for real while building this).
     /// </summary>
     public static FfmpegRenderPlan Build(
-        Timeline timeline, IReadOnlyList<MediaAsset> mediaLibrary, int targetWidth = 1920, int targetHeight = 1080, double frameRate = 30)
+        Timeline timeline, IReadOnlyList<MediaAsset> mediaLibrary, int targetWidth = 1920, int targetHeight = 1080, double frameRate = 30,
+        IReadOnlyDictionary<string, string>? stabilizationTransforms = null)
     {
         var videoTrack = timeline.Tracks.FirstOrDefault(t => t.Kind == TimelineTrackKind.Video && t.Clips.Count > 0);
         if (videoTrack is null)
@@ -102,6 +103,7 @@ public static class FfmpegFilterGraphBuilder
             var videoFilter = new StringBuilder();
             videoFilter.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
+            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             videoFilter.Append(BuildTemporalVideoFilters(clip, duration));
             videoFilter.Append(BuildSpeedFilter(clip));
             videoFilter.Append(BuildTransformFilters(clip));
@@ -236,7 +238,7 @@ public static class FfmpegFilterGraphBuilder
         // already built. Track order in Timeline.Tracks is the z-order, first = furthest back.
         currentVideoLabel = AppendOverlayLayers(
             timeline, videoTrack, mediaLibrary, inputs, filterLines,
-            currentVideoLabel!, targetWidth, targetHeight, MapToRenderedTime);
+            currentVideoLabel!, targetWidth, targetHeight, MapToRenderedTime, stabilizationTransforms);
 
         var currentTextVideoLabel = currentVideoLabel!;
         var textClips = timeline.Tracks
@@ -591,6 +593,10 @@ public static class FfmpegFilterGraphBuilder
             SourceTimeSeconds = point.SourceTimeSeconds,
             SpeedMultiplier = point.SpeedMultiplier
         }).ToList(),
+        StabilizationEnabled = clip.StabilizationEnabled,
+        StabilizationSmoothingFrames = clip.StabilizationSmoothingFrames,
+        StabilizationAccuracy = clip.StabilizationAccuracy,
+        StabilizationZoomPercent = clip.StabilizationZoomPercent,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
@@ -696,7 +702,8 @@ public static class FfmpegFilterGraphBuilder
         string baseVideoLabel,
         int targetWidth,
         int targetHeight,
-        Func<double, double> mapToRenderedTime)
+        Func<double, double> mapToRenderedTime,
+        IReadOnlyDictionary<string, string>? stabilizationTransforms)
     {
         var overlayClips = timeline.Tracks
             .Where(t => !t.IsHidden)
@@ -739,6 +746,7 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
+            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(BuildTransformFilters(clip));
@@ -828,6 +836,41 @@ public static class FfmpegFilterGraphBuilder
         }
 
         return currentLabel;
+    }
+
+    public static string BuildStabilizationFilter(
+        TimelineClip clip,
+        IReadOnlyDictionary<string, string>? stabilizationTransforms)
+    {
+        if (!clip.StabilizationEnabled)
+        {
+            return string.Empty;
+        }
+        if (clip.IsReversed || clip.IsFreezeFrame)
+        {
+            throw new InvalidOperationException("Stabilizacija nije podržana zajedno sa Reverse/Freeze Frame.");
+        }
+        if (stabilizationTransforms is null ||
+            !stabilizationTransforms.TryGetValue(clip.Id, out var transformPath) ||
+            string.IsNullOrWhiteSpace(transformPath))
+        {
+            throw new InvalidOperationException(
+                $"Nedostaje vidstab motion analiza za stabilizovani klip {clip.Id}; render ne sme tiho da preskoči stabilizaciju.");
+        }
+
+        var escapedPath = EscapeFilterPath(transformPath);
+        var smoothing = Math.Clamp(clip.StabilizationSmoothingFrames, 0, 120);
+        var zoom = Math.Clamp(clip.StabilizationZoomPercent, 0, 30);
+        return FormattableString.Invariant(
+            $",vidstabtransform=input='{escapedPath}':smoothing={smoothing}:zoom={zoom}:optzoom=0:interpol=bicubic");
+    }
+
+    public static string EscapeFilterPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return path.Replace("\\", "/", StringComparison.Ordinal)
+            .Replace(":", "\\:", StringComparison.Ordinal)
+            .Replace("'", "\\'", StringComparison.Ordinal);
     }
 
     private static (string VideoLabel, string AudioLabel, double Duration) AppendSegment(

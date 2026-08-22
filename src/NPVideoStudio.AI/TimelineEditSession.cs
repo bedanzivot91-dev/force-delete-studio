@@ -459,6 +459,39 @@ public sealed class TimelineEditSession
         RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
     }
 
+    public bool SetClipStabilization(string clipId, bool enabled, int smoothingFrames, int accuracy, double zoomPercent)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.MediaAssetId is null)
+        {
+            return false;
+        }
+
+        if (enabled && (clip.IsReversed || clip.IsFreezeFrame))
+        {
+            return false;
+        }
+
+        var smoothing = Math.Clamp(smoothingFrames, 0, 120);
+        var clampedAccuracy = Math.Clamp(accuracy, 1, 15);
+        var zoom = Math.Clamp(zoomPercent, 0, 30);
+        if (clip.StabilizationEnabled == enabled &&
+            clip.StabilizationSmoothingFrames == smoothing &&
+            clip.StabilizationAccuracy == clampedAccuracy &&
+            Math.Abs(clip.StabilizationZoomPercent - zoom) < 1e-9)
+        {
+            return true;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.StabilizationEnabled = enabled;
+        liveClip.StabilizationSmoothingFrames = smoothing;
+        liveClip.StabilizationAccuracy = clampedAccuracy;
+        liveClip.StabilizationZoomPercent = zoom;
+        return true;
+    }
+
     public void SetClipTransform(string clipId, ClipTransformSettings settings)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -485,6 +518,12 @@ public sealed class TimelineEditSession
             // the clip to deterministic constant timing; the user can reapply a curve after disabling it.
             liveClip.SpeedCurvePreset = SpeedCurvePreset.None;
             liveClip.SpeedCurvePoints.Clear();
+        }
+        if (liveClip.IsReversed || liveClip.IsFreezeFrame)
+        {
+            // libvidstab first-pass vectors describe forward-moving source frames. Do not silently reuse
+            // them for Reverse/Freeze where they would no longer describe the rendered frame sequence.
+            liveClip.StabilizationEnabled = false;
         }
         liveClip.ChromaKeyEnabled = settings.ChromaKeyEnabled;
         liveClip.ChromaKeyColor = string.IsNullOrWhiteSpace(settings.ChromaKeyColor) ? "#00FF00" : settings.ChromaKeyColor;
@@ -1001,6 +1040,10 @@ public sealed class TimelineEditSession
             SourceTimeSeconds = point.SourceTimeSeconds,
             SpeedMultiplier = point.SpeedMultiplier
         }).ToList(),
+        StabilizationEnabled = clip.StabilizationEnabled,
+        StabilizationSmoothingFrames = clip.StabilizationSmoothingFrames,
+        StabilizationAccuracy = clip.StabilizationAccuracy,
+        StabilizationZoomPercent = clip.StabilizationZoomPercent,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
