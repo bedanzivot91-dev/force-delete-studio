@@ -271,6 +271,43 @@ def _install_unbounded_owned_audio_scan(core: Any) -> dict[str, Any]:
         core.ensure_ffmpeg(lambda m, p: task.log(m, "info") if p in (0, 100) else None)
         core.ensure_ytdlp(lambda m, p: task.log(m, "info") if p in (0, 100) else None)
 
+        # The owned-channel matcher depends on the audio index, not titles.
+        # Real Shorts commonly use quote titles that have no words in common
+        # with the Suno song. Starting without the full available index made a
+        # synthetic pre-indexed E2E pass while the user's real library found 0.
+        index_before = core.song_finder_status()
+        missing_before = int(index_before.get("songs_not_indexed") or 0)
+        if missing_before:
+            task.log(
+                f"Pre YouTube provere pravim {missing_before} nedostajućih Suno audio-otisaka. "
+                "Bez toga rezultat ne bi bio pouzdan.",
+                "warning",
+            )
+            core.song_finder_index_task(task, {
+                "force": False,
+                "finish_task": False,
+                "required_for_youtube": True,
+            })
+            if task.cancel_event.is_set():
+                task.finish_partial("Zaustavljeno tokom pripreme Suno audio-indeksa; YouTube provera nije pokrenuta.")
+                return
+        index_after = core.song_finder_status()
+        indexed = int(index_after.get("songs_indexed") or 0)
+        available = int(index_after.get("songs_with_audio") or 0)
+        still_missing = int(index_after.get("songs_not_indexed") or 0)
+        if available and indexed == 0:
+            raise RuntimeError(
+                "Nijedna Suno pesma nema napravljen audio-otisak. Ponovo poveži Suno nalog i sinhronizuj biblioteku; "
+                "YouTube provera nije pokrenuta da ne bi lažno prijavila 0 rezultata."
+            )
+        if still_missing:
+            task.log(
+                f"Upozorenje: {still_missing} Suno pesama nema dostupan audio-otisak i ne može biti pronađeno dok se "
+                "ne osveži Suno veza. Nastavljam sa {indexed} pouzdano indeksiranih pesama.",
+                "warning",
+            )
+        songs = core.DB.export_rows(song_ids or None)
+
         max_videos = _positive_or_unlimited(options.get("max_videos_per_channel"))
         scan_mode = str(options.get("scan_mode") or "new").strip().lower()
         analysed_ids, uncertain_ids = _all_audio_analysis_state(core.DB)
