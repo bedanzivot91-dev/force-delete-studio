@@ -65,7 +65,9 @@ Name: "{group}\Deinstaliraj {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-Root: HKA; Subkey: "Software\Classes\{#MyProjectFileExt}"; ValueType: string; ValueName: ""; ValueData: "NPVideoStudioProject"; Tasks: associate; Flags: uninsdeletevalue
+; Delete the whole extension key on uninstall. uninsdeletevalue only removed the default
+; value and left an empty Software\Classes\.npvsproject key behind, which is not a clean uninstall.
+Root: HKA; Subkey: "Software\Classes\{#MyProjectFileExt}"; ValueType: string; ValueName: ""; ValueData: "NPVideoStudioProject"; Tasks: associate; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject"; ValueType: string; ValueName: ""; ValueData: "NP Video Studio projekat"; Tasks: associate; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associate
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associate
