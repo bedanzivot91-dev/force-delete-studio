@@ -11,6 +11,8 @@
         <Button Classes="cta" Content="Automatski tekst" Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}"
                 ToolTip.Tip="Prepoznaje govor/pesmu i dodaje uređive titlove na timeline." />
         <Button Classes="ghost" Content="Karaoke" Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        <Button Classes="ghost" Content="Stilovi titla" Command="{Binding OpenCaptionStyleGalleryCommand}"
+                ToolTip.Tip="Izaberi tekst/titl klip na timeline-u i primeni stil koji se čuva u projektu i ulazi u export." />
         <Button Classes="ghost" Content="Prekini" Command="{Binding CancelCaptionGenerationCommand}" IsVisible="{Binding IsGeneratingCaptions}" />
       </StackPanel>
     </Border>
