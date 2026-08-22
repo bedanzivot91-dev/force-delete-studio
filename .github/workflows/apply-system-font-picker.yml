@@ -1,0 +1,76 @@
+name: Apply system font picker
+
+on:
+  push:
+    branches:
+      - agent/system-font-picker
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/system-font-picker
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test toolchain
+        shell: pwsh
+        run: |
+          choco install ffmpeg yt-dlp chromaprint tesseract -y --no-progress
+          echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+
+      - name: Apply production patch
+        shell: pwsh
+        run: pwsh -File scripts/apply-system-font-picker.ps1
+
+      - name: Restore
+        run: dotnet restore NPVideoStudio.sln
+
+      - name: Build solution
+        run: dotnet build NPVideoStudio.sln -c Release --no-restore
+
+      - name: Run .NET tests
+        run: dotnet test tests/NPVideoStudio.UnitTests/NPVideoStudio.UnitTests.csproj -c Release --no-build
+
+      - name: Run Python regression tests
+        run: python -m unittest discover -s tests/python -p "test_*.py" -v
+
+      - name: Commit validated production files
+        shell: pwsh
+        run: |
+          $paths = @(
+            'src/NPVideoStudio.Domain/Timeline.cs',
+            'src/NPVideoStudio.AI/TimelineEditSession.cs',
+            'src/NPVideoStudio.Media/CaptionFontResolver.cs',
+            'src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs',
+            'src/NPVideoStudio.Media/SystemFontCatalog.cs',
+            'src/NPVideoStudio.App/ViewModels/TimelineClipItemViewModel.cs',
+            'src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs',
+            'src/NPVideoStudio.App/Views/WorkspaceView.axaml',
+            'tests/NPVideoStudio.UnitTests/SystemFontPickerTests.cs'
+          )
+          git add -- $paths
+          if (git diff --cached --quiet) {
+            Write-Host 'Production files already materialized; nothing to commit.'
+            exit 0
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Wire installed system fonts into text and caption export'
+          git push origin HEAD:agent/system-font-picker
