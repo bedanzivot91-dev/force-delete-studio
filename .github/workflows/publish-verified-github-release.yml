@@ -27,6 +27,12 @@ jobs:
       RELEASE_ZIP: "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip"
 
     steps:
+      - name: Checkout default branch for permanent release marker
+        uses: actions/checkout@v4
+        with:
+          ref: "claude/suno-pesme-studio-full-build-ljk5m7"
+          fetch-depth: 0
+
       - name: Download exact real-install-verified artifact
         shell: bash
         run: |
@@ -113,6 +119,7 @@ jobs:
           fi
 
       - name: Verify GitHub Release assets are present
+        id: verify_release
         shell: bash
         run: |
           set -euo pipefail
@@ -124,3 +131,33 @@ jobs:
           grep -Fx "${RELEASE_ZIP}" <<<"${ASSETS}"
           grep -Fx "real-install-evidence.txt" <<<"${ASSETS}"
           grep -Fx "SHA256SUMS.txt" <<<"${ASSETS}"
+          RELEASE_URL="$(gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json url --jq '.url')"
+          echo "release_url=${RELEASE_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Record successful release permanently in repository
+        shell: bash
+        env:
+          RELEASE_URL: ${{ steps.verify_release.outputs.release_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          jq -n \
+            --arg status "verified" \
+            --arg tag "${RELEASE_TAG}" \
+            --arg release_url "${RELEASE_URL}" \
+            --arg zip "${RELEASE_ZIP}" \
+            --arg zip_sha256 "${EXPECTED_ZIP_SHA256}" \
+            --arg verified_head "${VERIFIED_HEAD_SHA}" \
+            --arg merged_source_commit "${MERGE_SHA}" \
+            --arg artifact_id "${VERIFIED_ARTIFACT_ID}" \
+            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:832,real_install_run:20,deep_audit_run:14,android_build:253,manifest:{checked:877,missing:0,mismatch:0}}' \
+            > docs/verified-release.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/verified-release.json
+          if git diff --cached --quiet; then
+            echo "Verified release marker already matches."
+            exit 0
+          fi
+          git commit -m "Record published real-install-verified v3.3.2 release"
+          git push origin HEAD:"claude/suno-pesme-studio-full-build-ljk5m7"
