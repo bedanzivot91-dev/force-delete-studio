@@ -12,6 +12,7 @@
   <Color x:Key="ThemeTextColor">#10233D</Color>
   <Color x:Key="ThemeSubtleTextColor">#58718D</Color>
   <Color x:Key="ThemeBorderColor">#B9D7F0</Color>
+  <Color x:Key="ThemeDangerColor">#C93C55</Color>
 
   <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
   <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
@@ -25,6 +26,7 @@
   <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
   <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
   <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+  <SolidColorBrush x:Key="ThemeDangerBrush" Color="{StaticResource ThemeDangerColor}" />
   <SolidColorBrush x:Key="ThemeTimelineBrush" Color="{StaticResource ThemeInputColor}" />
   <SolidColorBrush x:Key="ThemePlayerBrush" Color="{StaticResource ThemeBackgroundColor}" />
 

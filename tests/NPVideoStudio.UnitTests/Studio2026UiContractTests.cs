@@ -59,12 +59,15 @@ public class Studio2026UiContractTests
         foreach (var command in new[]
         {
             "GenerateCaptionsForVideoCommand", "GenerateKaraokeCaptionsForVideoCommand",
-            "OpenCaptionStyleGalleryCommand", "SyncVerifiedLyricsCommand",
+            "Timeline.ApplySelectedCaptionPresetCommand", "SyncVerifiedLyricsCommand",
             "RenderRealPreviewAroundPlayheadCommand", "RenderRealPreviewCommand"
         })
         {
             Assert.Contains(command, commandBar);
         }
+
+        Assert.Contains("Timeline.CaptionPresetChoices", commandBar);
+        Assert.Contains("Timeline.SelectedCaptionPresetChoice", commandBar);
     }
 
     [AvaloniaFact]

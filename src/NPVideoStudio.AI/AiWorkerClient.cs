@@ -232,7 +232,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
 
         try
         {
-            var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            // Do not cancel the stderr drain independently from the process. On cancellation the process
+            // tree is killed in finally, which closes stderr naturally and lets this task finish cleanly.
+            var stdErrTask = process.StandardError.ReadToEndAsync();
             var sawErrorEvent = false;
 
             while (true)
@@ -281,9 +283,20 @@ public sealed class AiWorkerClient : IAiWorkerClient
         }
         finally
         {
+            // Cancellation must not return while the local AI worker (or one of its children such as
+            // ffmpeg/Whisper) is still alive. Kill the full tree and then wait without the cancelled token.
             if (!process.HasExited)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
+            }
+
+            if (!process.HasExited)
+            {
+                try
+                {
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException) { }
             }
 
             if (File.Exists(requestPath))

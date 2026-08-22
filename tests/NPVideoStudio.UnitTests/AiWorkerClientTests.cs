@@ -127,6 +127,7 @@ public class AiWorkerClientTests
 
         using var cts = new CancellationTokenSource();
         var events = new List<AiWorkerEvent>();
+        var firstProgress = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var runTask = Task.Run(async () =>
         {
@@ -135,16 +136,22 @@ public class AiWorkerClientTests
                 await foreach (var evt in client.RunAsync(request, cts.Token))
                 {
                     events.Add(evt);
+                    if (evt.Type == AiWorkerEventType.Progress)
+                    {
+                        firstProgress.TrySetResult(true);
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected: cancelling mid-stream throws from the enumerator.
+                // Expected: cancelling mid-stream throws from the enumerator after process teardown.
             }
         });
 
-        // Give the fake worker time to emit its first Progress event before cancelling.
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        // Synchronize on the worker's real first event instead of assuming every Windows runner can
+        // launch a subprocess within one second. If no event arrives, that is still a real test failure.
+        var progressCompleted = await Task.WhenAny(firstProgress.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(firstProgress.Task, progressCompleted);
         cts.Cancel();
 
         var completed = await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(10)));
