@@ -732,7 +732,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             }
         });
 
-        item.RemoveCommand = new RelayCommand(() =>
+        item.RemoveCommand = new AsyncRelayCommand(async () =>
         {
             // MediaAssetId is the persisted foreign key used by timeline clips. Removing an asset while
             // a clip still references it makes the project internally invalid and the renderer later has
@@ -747,11 +747,38 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 return;
             }
 
+            DeleteOwnedProxyFile(asset);
             Project.MediaLibrary.Remove(asset);
             MediaLibrary.Remove(item);
-            StatusMessage = $"Medij „{asset.FileName}“ je uklonjen iz projekta.";
+            if (!string.IsNullOrEmpty(Project.ProjectFilePath))
+            {
+                Timeline.SaveToProject();
+                await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
+            }
+            RefreshPreviewFrame(Player.CurrentTimeSeconds);
+            StatusMessage = $"Medij „{asset.FileName}“ i njegov NP Video Studio proxy su uklonjeni iz projekta.";
         });
         return item;
+    }
+
+    public static bool DeleteOwnedProxyFile(MediaAsset asset)
+    {
+        if (string.IsNullOrWhiteSpace(asset.ProxyFilePath)) return false;
+        try
+        {
+            var proxyPath = Path.GetFullPath(asset.ProxyFilePath);
+            var cacheRoot = Path.GetFullPath(AppSettings.ProxyCacheFolder()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!proxyPath.StartsWith(cacheRoot, StringComparison.OrdinalIgnoreCase)) return false;
+            if (File.Exists(proxyPath)) File.Delete(proxyPath);
+            asset.ProxyFilePath = null;
+            asset.ProxyStatus = MediaProxyStatus.Original;
+            asset.ProxyError = null;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     [RelayCommand]

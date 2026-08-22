@@ -196,4 +196,45 @@ public class ProxyWorkspaceIntegrationTests
             File.Delete(source);
         }
     }
+    [AvaloniaFact]
+    public async Task RemovingUnusedMedia_DeletesOnlyOwnedProxyAndRemovesProjectEntry()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"npvs-proxy-remove-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(source, new byte[] { 1 });
+        var project = new Project { Name = "Proxy removal cleanup" };
+        var asset = new MediaAsset { FilePath = source, Kind = MediaKind.Video, HasVideoStream = true, HasAudioStream = true, Duration = TimeSpan.FromSeconds(2) };
+        project.MediaLibrary.Add(asset);
+        var proxy = new FakeProxyGeneratorService();
+        try
+        {
+            using var workspace = new WorkspaceViewModel(project, new FakeProjectRepository(), new FakeMediaProbeService(), new FakeStorageService(), new FakeFramePreviewService(), new FakeSubtitleGeneratorService(), new FakeRenderService(), new LoggerConfiguration().CreateLogger(), aiWorkerClient: null, proxyGeneratorService: proxy);
+            var item = Assert.Single(workspace.MediaLibrary);
+            await Assert.IsAssignableFrom<IAsyncRelayCommand>(item.GenerateProxyCommand).ExecuteAsync(null);
+            var generated = asset.ProxyFilePath!;
+            Assert.True(File.Exists(generated));
+
+            await Assert.IsAssignableFrom<IAsyncRelayCommand>(item.RemoveCommand).ExecuteAsync(null);
+
+            Assert.Empty(project.MediaLibrary);
+            Assert.Empty(workspace.MediaLibrary);
+            Assert.False(File.Exists(generated));
+        }
+        finally { File.Delete(source); }
+    }
+
+    [Fact]
+    public void DeleteOwnedProxyFile_NeverDeletesArbitraryExternalPath()
+    {
+        var external = Path.Combine(Path.GetTempPath(), $"npvs-external-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(external, new byte[] { 9 });
+        try
+        {
+            var asset = new MediaAsset { FilePath = "original.mp4", ProxyStatus = MediaProxyStatus.Ready, ProxyFilePath = external };
+            Assert.False(WorkspaceViewModel.DeleteOwnedProxyFile(asset));
+            Assert.True(File.Exists(external));
+            Assert.Equal(external, asset.ProxyFilePath);
+        }
+        finally { File.Delete(external); }
+    }
+
 }
