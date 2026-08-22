@@ -38,6 +38,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     private readonly Func<double>? _getPlayheadSeconds;
     private readonly Action<string, ClipKeyframeProperty, double, double, ClipKeyframeEasing>? _onKeyframeUpsert;
     private readonly Action<string, ClipKeyframeProperty, double>? _onKeyframeRemove;
+    private readonly Action<string, double>? _onTrimInChanged;
+    private readonly Action<string, double>? _onTrimOutChanged;
 
     public TimelineClip Clip { get; }
     public string TrackId { get; }
@@ -77,6 +79,40 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public bool IsMuted => Clip.IsMuted;
     public bool HasFadeIn => Clip.FadeInSeconds > 0;
     public bool HasFadeOut => Clip.FadeOutSeconds > 0;
+
+    /// <summary>True only when this clip points at a real media asset whose source duration is known.
+    /// Text/caption clips do not expose source trim controls because they have no source media file.</summary>
+    public bool HasSourceMedia => Clip.MediaAssetId is not null && SourceDurationSeconds > 0.05;
+
+    /// <summary>Actual source-file duration supplied by the project media library. It bounds Trim Out so
+    /// the UI cannot create an ffmpeg seek beyond the source file.</summary>
+    public double SourceDurationSeconds { get; }
+    public double MaxTrimInSeconds => Math.Max(0, Math.Min(TrimOutSeconds, SourceDurationSeconds) - 0.05);
+    public double MinTrimOutSeconds => Math.Min(SourceDurationSeconds, TrimInSeconds + 0.05);
+
+    public double TrimInSeconds
+    {
+        get => Clip.SourceTrimInSeconds;
+        set
+        {
+            if (!HasSourceMedia) return;
+            var clamped = Math.Clamp(value, 0, MaxTrimInSeconds);
+            if (Math.Abs(Clip.SourceTrimInSeconds - clamped) < 1e-6) return;
+            _onTrimInChanged?.Invoke(Clip.Id, clamped);
+        }
+    }
+
+    public double TrimOutSeconds
+    {
+        get => Clip.SourceTrimOutSeconds;
+        set
+        {
+            if (!HasSourceMedia) return;
+            var clamped = Math.Clamp(value, MinTrimOutSeconds, SourceDurationSeconds);
+            if (Math.Abs(Clip.SourceTrimOutSeconds - clamped) < 1e-6) return;
+            _onTrimOutChanged?.Invoke(Clip.Id, clamped);
+        }
+    }
 
     /// <summary>True for a Caption/Text clip - the font/size/color/position controls below only make
     /// sense (and are only shown in the UI) for these.</summary>
@@ -721,7 +757,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Func<double>? getPlayheadSeconds = null,
         Action<string, ClipKeyframeProperty, double, double, ClipKeyframeEasing>? onKeyframeUpsert = null,
         Action<string, ClipKeyframeProperty, double>? onKeyframeRemove = null,
-        Action<string, CaptionFontChoice, string?, string?>? onTextFontChanged = null)
+        Action<string, CaptionFontChoice, string?, string?>? onTextFontChanged = null,
+        double sourceMediaDurationSeconds = 0,
+        Action<string, double>? onTrimInChanged = null,
+        Action<string, double>? onTrimOutChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onTransformChanged = onTransformChanged;
@@ -730,6 +769,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         _getPlayheadSeconds = getPlayheadSeconds;
         _onKeyframeUpsert = onKeyframeUpsert;
         _onKeyframeRemove = onKeyframeRemove;
+        _onTrimInChanged = onTrimInChanged;
+        _onTrimOutChanged = onTrimOutChanged;
+        SourceDurationSeconds = Math.Max(0, sourceMediaDurationSeconds);
         IsOverlayClip = isOverlayClip;
         Clip = clip;
         TrackId = trackId;
