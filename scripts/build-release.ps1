@@ -65,9 +65,18 @@ try {
     Remove-Item $ffmpegZip, $ffmpegExtractDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "FFmpeg i FFprobe spakovani u Tools\ffmpeg\." -ForegroundColor Green
 } catch {
-    $bundledToolsOk = $false
-    Write-Host "UPOZORENJE: Preuzimanje FFmpeg-a nije uspelo ($_)." -ForegroundColor Yellow
-    Write-Host "Program ce i dalje raditi ako korisnik sam instalira FFmpeg (scripts\check-dependencies.ps1)." -ForegroundColor Yellow
+    $downloadError = $_
+    Write-Host "UPOZORENJE: Preuzimanje FFmpeg-a nije uspelo ($downloadError). Pokusavam validirani lokalni fallback..." -ForegroundColor Yellow
+    try {
+        $fallbackScript = Join-Path $repoRoot 'scripts\copy-ffmpeg-from-path.ps1'
+        if (-not (Test-Path $fallbackScript)) { throw "Fallback skripta ne postoji: $fallbackScript" }
+        & $fallbackScript -Destination $ffmpegToolsDir
+        if ($LASTEXITCODE -ne 0) { throw "Fallback skripta je vratila kod $LASTEXITCODE." }
+        Write-Host "FFmpeg download je bio nedostupan, ali release koristi validirane lokalne FFmpeg binarne fajlove." -ForegroundColor Green
+    } catch {
+        $bundledToolsOk = $false
+        throw "FFmpeg nije mogao da se spakuje. Download greska: $downloadError; lokalni fallback greska: $_"
+    }
 }
 
 try {
