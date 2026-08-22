@@ -10,19 +10,21 @@
 
   if (document.getElementById('spsModern2026Style')) return;
 
-  const SKINS = new Set(['aurora', 'graphite', 'midnight']);
+  const SKINS = new Set(['aurora-flow', 'graphite-console', 'vinyl-loft', 'signal-grid', 'paper-studio']);
+  const LEGACY_SKINS = { aurora: 'aurora-flow', graphite: 'graphite-console', midnight: 'signal-grid' };
 
   function readSkin() {
     try {
-      const saved = localStorage.getItem('sps-modern-2026-skin') || 'aurora';
-      return SKINS.has(saved) ? saved : 'aurora';
+      const raw = localStorage.getItem('sps-modern-2026-skin') || 'aurora-flow';
+      const saved = LEGACY_SKINS[raw] || raw;
+      return SKINS.has(saved) ? saved : 'aurora-flow';
     } catch (_) {
-      return 'aurora';
+      return 'aurora-flow';
     }
   }
 
   function applySkin(name) {
-    const skin = SKINS.has(String(name)) ? String(name) : 'aurora';
+    const skin = SKINS.has(String(name)) ? String(name) : 'aurora-flow';
     document.body.classList.add('sps-modern-2026');
     document.body.dataset.spsSkin = skin;
     try { localStorage.setItem('sps-modern-2026-skin', skin); } catch (_) {}
@@ -72,11 +74,11 @@
       min-height:100vh;
       overflow-x:hidden;
     }
-    body.sps-modern-2026[data-sps-skin="graphite"]{
+    body.sps-modern-2026[data-sps-skin="graphite-console"]{
       --m-bg:#080a0d;--m-bg-2:#101318;--m-panel:rgba(20,23,29,.82);--m-panel-solid:#15191f;--m-panel-2:rgba(29,33,41,.82);
       --m-line:rgba(203,213,225,.13);--m-line-strong:rgba(203,213,225,.24);--m-accent:#d7dde8;--m-accent-2:#7f91aa;--m-accent-soft:rgba(215,221,232,.10);
     }
-    body.sps-modern-2026[data-sps-skin="midnight"]{
+    body.sps-modern-2026[data-sps-skin="signal-grid"]{
       --m-bg:#02070b;--m-bg-2:#06121a;--m-panel:rgba(6,20,29,.82);--m-panel-solid:#081824;--m-panel-2:rgba(9,28,40,.82);
       --m-line:rgba(103,232,249,.14);--m-line-strong:rgba(103,232,249,.25);--m-accent:#29d3ff;--m-accent-2:#2f7dff;--m-accent-soft:rgba(41,211,255,.12);
     }
@@ -262,20 +264,6 @@
     body.sps-modern-2026 .organized-step b{background:linear-gradient(135deg,var(--m-accent),var(--m-accent-2))!important;box-shadow:0 8px 20px var(--m-accent-soft)}
     body.sps-modern-2026 .organized-section{border:1px solid var(--m-line)!important;border-radius:18px!important;background:rgba(12,19,31,.62)!important}
 
-    body.sps-modern-2026 #productionWorkspace{border:1px solid var(--m-line)!important;border-radius:20px!important;background:rgba(10,16,27,.72)!important;box-shadow:var(--m-shadow)}
-    body.sps-modern-2026 #productionWorkspace .pws-head{padding:15px 16px;border-bottom:1px solid var(--m-line)!important;background:linear-gradient(125deg,var(--m-accent-soft),color-mix(in srgb,var(--m-accent-2) 7%,transparent))!important}
-    body.sps-modern-2026 #productionWorkspace .pws-body{gap:12px;padding:12px;background:rgba(3,8,15,.38)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-panel,body.sps-modern-2026 #productionWorkspace .pws-timeline-panel{border:1px solid var(--m-line)!important;border-radius:16px!important;background:rgba(13,21,34,.74)!important;overflow:hidden}
-    body.sps-modern-2026 #productionWorkspace .pws-preview-shell{border:1px solid var(--m-line);border-radius:14px!important;background:linear-gradient(145deg,#03070d,#0a1420)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-preview{border:1px solid rgba(255,255,255,.09);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.42)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-status{border:1px solid var(--m-line)!important;border-radius:11px!important;background:rgba(4,9,17,.5)}
-    body.sps-modern-2026 #productionWorkspace .pws-timeline-toolbar{border-bottom:1px solid var(--m-line)!important;background:rgba(255,255,255,.025)}
-    body.sps-modern-2026 #productionWorkspace .pws-scroll{background:#050a11!important}
-    body.sps-modern-2026 #productionWorkspace .pws-ruler{background:#0b121d!important;border-color:var(--m-line)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-track{border-color:var(--m-line)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-cue{border-color:var(--m-accent)!important;background:color-mix(in srgb,var(--m-accent) 28%,transparent)!important;border-radius:7px!important;box-shadow:0 6px 18px rgba(0,0,0,.18)}
-    body.sps-modern-2026 #productionWorkspace .pws-cue.active{border-color:var(--m-warn)!important;background:rgba(247,184,75,.24)!important}
-    body.sps-modern-2026 #productionWorkspace .pws-playhead{background:#ff4d6d!important;box-shadow:0 0 12px rgba(255,77,109,.45)}
 
     body.sps-modern-2026 .modal-backdrop{background:rgba(1,4,9,.72);backdrop-filter:blur(14px)}
     body.sps-modern-2026 .modal-card{border:1px solid var(--m-line-strong);border-radius:22px;background:linear-gradient(180deg,rgba(17,25,40,.97),rgba(8,13,22,.97));box-shadow:0 40px 120px rgba(0,0,0,.60)}
@@ -348,14 +336,14 @@
       const badge = document.createElement('span');
       badge.id = 'modernTopBadge';
       badge.className = 'modern-top-badge';
-      badge.innerHTML = '<i></i> STUDIO 2026';
+      badge.innerHTML = '<i></i> SUNO DESKTOP';
       topActions.prepend(badge);
     }
 
     if (!document.getElementById('modernSkinQuickSelect')) {
       const quick = document.createElement('label');
       quick.className = 'modern-quick-skin';
-      quick.innerHTML = '<span>SKIN</span><select id="modernSkinQuickSelect" aria-label="Moderni skin"><option value="aurora">Aurora</option><option value="graphite">Graphite</option><option value="midnight">Midnight</option></select>';
+      quick.innerHTML = '<span>TEMA</span><select id="modernSkinQuickSelect" aria-label="Moderna tema i raspored"><option value="aurora-flow">Aurora Flow</option><option value="graphite-console">Graphite Console</option><option value="vinyl-loft">Vinyl Loft</option><option value="signal-grid">Signal Grid</option><option value="paper-studio">Paper Studio</option></select>';
       topActions.prepend(quick);
       quick.querySelector('select').addEventListener('change', e => applySkin(e.target.value));
     }
@@ -374,13 +362,15 @@
     panel.className = 'panel modern-skin-panel';
     panel.innerHTML = `
       <div class="modern-skin-title">
-        <div><h2>Izgled programa — 2026 UI</h2><p>Tri moderna skina koriste isti čist raspored. Menja se samo vizuelni karakter, ne funkcije programa.</p></div>
+        <div><h2>Izgled programa — pet pravih tema</h2><p>Svaka tema menja raspored navigacije, gustinu kartica, tipografiju, oblike i radnu površinu — ne samo boju.</p></div>
         <span class="modern-top-badge"><i></i> AKTIVAN NOVI UI</span>
       </div>
       <div class="modern-skin-grid">
-        <button type="button" class="modern-skin-choice" data-modern-skin-choice="aurora"><span class="modern-skin-preview aurora"></span><span><strong>Aurora Studio</strong><small>Ljubičasti + cyan akcenti</small></span></button>
-        <button type="button" class="modern-skin-choice" data-modern-skin-choice="graphite"><span class="modern-skin-preview graphite"></span><span><strong>Graphite Pro</strong><small>Neutralan profesionalni izgled</small></span></button>
-        <button type="button" class="modern-skin-choice" data-modern-skin-choice="midnight"><span class="modern-skin-preview midnight"></span><span><strong>Midnight Signal</strong><small>Tamna audio/video konzola</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="aurora-flow"><span class="modern-skin-preview aurora"></span><span><strong>Aurora Flow</strong><small>Prostrana staklena bočna navigacija</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="graphite-console"><span class="modern-skin-preview graphite"></span><span><strong>Graphite Console</strong><small>Kompaktan profesionalni kontrolni panel</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="vinyl-loft"><span class="modern-skin-preview vinyl"></span><span><strong>Vinyl Loft</strong><small>Topla muzička biblioteka sa velikim omotima</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="signal-grid"><span class="modern-skin-preview midnight"></span><span><strong>Signal Grid</strong><small>Horizontalna navigacija i tehnički grid</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="paper-studio"><span class="modern-skin-preview paper"></span><span><strong>Paper Studio</strong><small>Svetla radna površina i urednički izgled</small></span></button>
       </div>`;
 
     if (legacy) legacy.insertAdjacentElement('beforebegin', panel);
