@@ -52,6 +52,7 @@ public enum TargetPlatform
 
 public enum AppTheme
 {
+    Studio2026,
     DarkCinematic,
     MinimalLight,
     ProfessionalStudio,

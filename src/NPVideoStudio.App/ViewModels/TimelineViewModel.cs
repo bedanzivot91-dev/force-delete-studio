@@ -65,6 +65,25 @@ public sealed partial class TimelineViewModel : ViewModelBase
     /// <see cref="Project.Timeline"/>.Tracks, this reflects edits before <see cref="SaveToProject"/> runs.</summary>
     public IReadOnlyList<TimelineTrack> CurrentTracks => _session.Tracks;
 
+    /// <summary>Applies one gallery preset to the currently selected real text/caption clip.</summary>
+    public bool ApplyCaptionStylePresetToSelected(CaptionStylePreset preset)
+    {
+        var selectedId = SelectedClipId;
+        if (selectedId is null || SelectedClip is not { IsTextClip: true })
+        {
+            return false;
+        }
+
+        if (!_session.ApplyCaptionStylePreset(selectedId, preset))
+        {
+            return false;
+        }
+
+        RefreshFromSession();
+        SelectedClipId = selectedId;
+        return true;
+    }
+
     public double TotalDurationSeconds =>
         _session.Tracks.SelectMany(t => t.Clips).Select(c => (double?)c.TimelineEndSeconds).DefaultIfEmpty(0).Max() ?? 0;
 
@@ -320,6 +339,16 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTextFont(clipId, legacy, family, filePath);
             RefreshFromSession();
         }
+        void OnTrimInChanged(string clipId, double sourceSeconds)
+        {
+            _session.TrimIn(clipId, sourceSeconds);
+            RefreshFromSession();
+        }
+        void OnTrimOutChanged(string clipId, double sourceSeconds)
+        {
+            _session.TrimOut(clipId, sourceSeconds);
+            RefreshFromSession();
+        }
         void OnTransitionChanged(string clipId, ClipTransitionType type, double duration)
         {
             _session.SetTransition(clipId, type, duration);
@@ -368,11 +397,16 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.RemoveKeyframe(clipId, property, localTime);
             TimelineChanged?.Invoke();
         }
+        var sourceDurationSeconds = clip.MediaAssetId is null
+            ? 0
+            : AvailableMedia.FirstOrDefault(m => m.Asset.Id == clip.MediaAssetId)?.Asset.Duration.TotalSeconds
+              ?? Math.Max(clip.SourceTrimOutSeconds, 0);
+
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
-            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged)
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

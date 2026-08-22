@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.ModernMediaLibraryView"
+             x:DataType="vm:WorkspaceViewModel">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="14,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Mediji" FontSize="16" FontWeight="SemiBold" />
+          <TextBlock Text="Video, audio i slike projekta" Classes="subtle" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="cta" Content="+ Dodaj" Command="{Binding ImportMediaCommand}" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Border IsVisible="{Binding !HasMedia}" Padding="28">
+      <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="Nema medija" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Classes="subtle" Text="Prevuci fajlove ovde ili klikni + Dodaj." TextWrapping="Wrap" TextAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding MediaLibrary}" Margin="8">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:MediaAssetViewModel">
+            <Border Classes="inspectorSection" Padding="10" Margin="0,0,0,8">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Background="{DynamicResource ThemeAccentSubtleBrush}" CornerRadius="8" Padding="8,5" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding KindLabel}" Foreground="{DynamicResource ThemeAccentBrush}" FontWeight="SemiBold" FontSize="12.5" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2" Margin="10,0">
+                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding DurationLabel}" Classes="subtle" />
+                      <TextBlock Text="{Binding ResolutionLabel}" Classes="subtle" />
+                      <TextBlock Text="{Binding SizeLabel}" Classes="subtle" />
+                    </StackPanel>
+                  </StackPanel>
+                  <ToggleButton Grid.Column="2" Content="★" IsChecked="{Binding IsFavorite, Mode=OneWay}" Command="{Binding ToggleFavoriteCommand}" ToolTip.Tip="Omiljeno" />
+                </Grid>
+
+                <TextBlock Text="{Binding ProxyStatusLabel}" Classes="subtle" TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                  <Button Classes="ghost" Content="Napravi proxy za brži pregled" Command="{Binding GenerateProxyCommand}" IsEnabled="{Binding CanGenerateProxy}" HorizontalAlignment="Left" />
+                  <Expander Grid.Column="1" Header="Više" HorizontalAlignment="Right">
+                    <Border Classes="inspectorSection" MinWidth="180" Padding="8">
+                      <StackPanel Spacing="6">
+                        <Button Classes="ghost" Content="Ukloni proxy" Command="{Binding RemoveProxyCommand}" IsVisible="{Binding HasReadyProxy}" HorizontalContentAlignment="Left" />
+                        <Button Classes="ghost" Content="Otvori proxy folder" Command="{Binding OpenProxyFolderCommand}" HorizontalContentAlignment="Left" />
+                        <Button Classes="ghost" Content="Ukloni iz projekta" Command="{Binding RemoveCommand}" HorizontalContentAlignment="Left" />
+                      </StackPanel>
+                    </Border>
+                  </Expander>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

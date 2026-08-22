@@ -30,6 +30,7 @@ public partial class WorkspaceView : UserControl
         DataContextChanged += (_, _) => SubscribeToRealPreviewFrames();
         SubscribeToRealPreviewFrames();
         WireZoomControls();
+        InstallModernWorkspaceChrome();
 
         // Esc leaves full screen, the way every player does it.
         AddHandler(KeyDownEvent, (_, e) =>
@@ -43,6 +44,21 @@ public partial class WorkspaceView : UserControl
                 SetPlayerFocus(false);
             }
         }, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
+    /// The engine/view-model bindings stay exactly the same; only the visual chrome is replaced.
+    /// This keeps the existing editing functionality and tests intact while removing the old flat,
+    /// duplicated form layout at runtime. Each replacement inherits the DataContext already assigned
+    /// to its host Border, so no second command path or shadow state is introduced.
+    /// </summary>
+    private void InstallModernWorkspaceChrome()
+    {
+        ProjectHeader.Child = new ModernWorkspaceHeaderView();
+        CaptionToolbar.Child = new ModernWorkspaceCommandBarView();
+        MediaLibraryPanel.Child = new ModernMediaLibraryView();
+        InspectorPanel.Child = new ModernInspectorView();
+        TimelinePanel.Child = new ModernTimelineView();
     }
 
     private RealPreviewViewModel? _subscribedPreview;
