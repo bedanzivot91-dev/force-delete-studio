@@ -1,23 +1,22 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Modern creator/editor palette: neutral dark surfaces, restrained cyan accent, high contrast text.
-       Deliberately avoids glossy gradients and oversized rounded cards so the workspace reads like a
-       contemporary NLE instead of a generic desktop form application. -->
-  <Color x:Key="ThemeBackgroundColor">#0D0D0F</Color>
-  <Color x:Key="ThemeSurfaceColor">#121216</Color>
-  <Color x:Key="ThemePanelColor">#18181D</Color>
-  <Color x:Key="ThemeHoverColor">#24242B</Color>
-  <Color x:Key="ThemePressedColor">#2E2E36</Color>
-  <Color x:Key="ThemeInputColor">#101014</Color>
-  <Color x:Key="ThemeAccentColor">#21D4C2</Color>
-  <Color x:Key="ThemeAccentHoverColor">#4BE2D2</Color>
-  <Color x:Key="ThemeAccentSubtleColor">#2921D4C2</Color>
-  <Color x:Key="ThemeTextColor">#F5F5F7</Color>
-  <Color x:Key="ThemeSubtleTextColor">#96969F</Color>
-  <Color x:Key="ThemeBorderColor">#292930</Color>
-  <Color x:Key="ThemeDangerColor">#FF5A67</Color>
-  <Color x:Key="ThemeTimelineColor">#111115</Color>
-  <Color x:Key="ThemePlayerColor">#060607</Color>
+  <!-- Compatibility alias for users who already have DarkCinematic persisted in settings.
+       Keep the enum value, but give it the same current-generation visual language as Studio2026. -->
+  <Color x:Key="ThemeBackgroundColor">#090A0D</Color>
+  <Color x:Key="ThemeSurfaceColor">#0F1117</Color>
+  <Color x:Key="ThemePanelColor">#131722</Color>
+  <Color x:Key="ThemeHoverColor">#1C2230</Color>
+  <Color x:Key="ThemePressedColor">#252D3D</Color>
+  <Color x:Key="ThemeInputColor">#0B0E14</Color>
+  <Color x:Key="ThemeAccentColor">#7C5CFC</Color>
+  <Color x:Key="ThemeAccentHoverColor">#9279FF</Color>
+  <Color x:Key="ThemeAccentSubtleColor">#2E7C5CFC</Color>
+  <Color x:Key="ThemeTextColor">#F7F8FA</Color>
+  <Color x:Key="ThemeSubtleTextColor">#9BA4B5</Color>
+  <Color x:Key="ThemeBorderColor">#252B38</Color>
+  <Color x:Key="ThemeDangerColor">#FF5C7A</Color>
+  <Color x:Key="ThemeTimelineColor">#0B0D12</Color>
+  <Color x:Key="ThemePlayerColor">#030406</Color>
 
   <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
   <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
@@ -35,7 +34,7 @@
   <SolidColorBrush x:Key="ThemeTimelineBrush" Color="{StaticResource ThemeTimelineColor}" />
   <SolidColorBrush x:Key="ThemePlayerBrush" Color="{StaticResource ThemePlayerColor}" />
 
-  <CornerRadius x:Key="ThemeCornerRadius">6</CornerRadius>
-  <CornerRadius x:Key="ThemeCardCornerRadius">9</CornerRadius>
+  <CornerRadius x:Key="ThemeCornerRadius">10</CornerRadius>
+  <CornerRadius x:Key="ThemeCardCornerRadius">14</CornerRadius>
   <Thickness x:Key="ThemeBorderThickness">1</Thickness>
 </ResourceDictionary>
