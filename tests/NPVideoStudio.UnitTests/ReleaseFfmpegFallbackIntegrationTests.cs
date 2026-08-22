@@ -6,6 +6,27 @@ namespace NPVideoStudio.UnitTests;
 public sealed class ReleaseFfmpegFallbackIntegrationTests
 {
     [Fact]
+    public void BuildRelease_InitializesFallbackDestinationBeforeNetworkDownload()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var scriptPath = Path.Combine(repoRoot, "scripts", "build-release.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        var destinationAssignment = script.IndexOf("$ffmpegToolsDir = Join-Path $toolsDir 'ffmpeg'", StringComparison.Ordinal);
+        var destinationCreation = script.IndexOf("New-Item -ItemType Directory -Force -Path $ffmpegToolsDir", StringComparison.Ordinal);
+        var networkAttempt = script.IndexOf("Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'", StringComparison.Ordinal);
+        var fallbackCall = script.IndexOf("& $fallbackScript -Destination $ffmpegToolsDir", StringComparison.Ordinal);
+
+        Assert.True(destinationAssignment >= 0, "Release skripta ne inicijalizuje FFmpeg destination.");
+        Assert.True(destinationCreation > destinationAssignment, "FFmpeg destination folder mora da se kreira posle izračunavanja putanje.");
+        Assert.True(networkAttempt > destinationCreation, "FFmpeg destination mora postojati pre prvog mrežnog pokušaja.");
+        Assert.True(fallbackCall > networkAttempt, "Fallback poziv mora ostati posle primarnog download pokušaja.");
+
+        var assignmentsBeforeNetwork = script[..networkAttempt].Split("$ffmpegToolsDir = Join-Path $toolsDir 'ffmpeg'", StringSplitOptions.None).Length - 1;
+        Assert.Equal(1, assignmentsBeforeNetwork);
+    }
+
+    [Fact]
     public void CopyFfmpegFromPath_CreatesStandaloneValidatedPayload()
     {
         if (!OperatingSystem.IsWindows())

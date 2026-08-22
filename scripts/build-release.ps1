@@ -48,6 +48,10 @@ Write-Host "== 4/7: Preuzimanje FFmpeg/FFprobe/yt-dlp/Whisper modela da program 
 # required file is missing: that was how an installer could be green in CI but unusable on a clean PC.
 $toolsDir = Join-Path $publishDir 'Tools'
 $bundledToolsOk = $true
+# This destination must exist before the network attempt. If gyan.dev fails before any code
+# inside try assigns local variables, the fallback still needs a real, non-empty target.
+$ffmpegToolsDir = Join-Path $toolsDir 'ffmpeg'
+New-Item -ItemType Directory -Force -Path $ffmpegToolsDir | Out-Null
 
 try {
     Write-Host "Preuzimam FFmpeg (gyan.dev 'essentials' GPLv3 build - vidi THIRD_PARTY_NOTICES.md)..." -ForegroundColor Cyan
@@ -57,8 +61,6 @@ try {
     Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $ffmpegZip -UseBasicParsing
     Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtractDir -Force
     $ffmpegBinDir = Join-Path (Get-ChildItem -Path $ffmpegExtractDir -Directory | Select-Object -First 1).FullName 'bin'
-    $ffmpegToolsDir = Join-Path $toolsDir 'ffmpeg'
-    New-Item -ItemType Directory -Force -Path $ffmpegToolsDir | Out-Null
     Copy-Item -Path (Join-Path $ffmpegBinDir 'ffmpeg.exe') -Destination $ffmpegToolsDir -Force
     Copy-Item -Path (Join-Path $ffmpegBinDir 'ffprobe.exe') -Destination $ffmpegToolsDir -Force
     Copy-Item -Path (Join-Path $ffmpegBinDir 'ffplay.exe') -Destination $ffmpegToolsDir -Force
