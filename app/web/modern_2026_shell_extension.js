@@ -206,22 +206,6 @@
     }
 
     /* ---------- VIDEO STUDIO: OVERRIDE LEGACY MICRO UI ---------- */
-    body.sps-shell-2026 #productionWorkspace{border-radius:22px !important;border-color:color-mix(in srgb,var(--m-accent,#7c5cff) 25%,var(--m-line,var(--shell-line))) !important;overflow:hidden !important}
-    body.sps-shell-2026 #productionWorkspace .pws-head{padding:18px 20px !important;background:linear-gradient(115deg,color-mix(in srgb,var(--m-accent,#7c5cff) 16%,rgba(16,24,39,.94)),color-mix(in srgb,var(--m-accent-2,#39d4ff) 7%,rgba(16,24,39,.94))) !important}
-    body.sps-shell-2026 #productionWorkspace .pws-head h2{font-size:22px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-head p{font-size:14px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-body{gap:16px !important;padding:16px !important;background:rgba(5,10,18,.55) !important}
-    body.sps-shell-2026 #productionWorkspace .pws-panel{padding:16px !important;border-radius:16px !important;border-color:var(--m-line,var(--shell-line)) !important;background:rgba(15,23,37,.82) !important}
-    body.sps-shell-2026 #productionWorkspace .pws-song-cover{width:56px !important;height:56px !important;border-radius:13px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-song-title{font-size:16px !important}
-    body.sps-shell-2026 #productionWorkspace :where(.pws-song-sub,.pws-controls label,.pws-status,.pws-timeline-toolbar label,.pws-track-label,.pws-editor-head){font-size:13px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-tick{font-size:12.5px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-cue{font-size:13px !important;height:38px !important;line-height:36px !important;border-radius:8px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-handle{height:38px !important;width:8px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-timeline-panel{margin:0 16px 16px !important;border-radius:16px !important;border-color:var(--m-line,var(--shell-line)) !important}
-    body.sps-shell-2026 #productionWorkspace .pws-timeline-toolbar{padding:12px 14px !important;gap:10px !important;font-size:13px}
-    body.sps-shell-2026 #productionWorkspace .pws-editor{grid-template-columns:84px 84px minmax(210px,1fr) 42px !important;gap:8px !important;padding:8px 10px !important}
-    body.sps-shell-2026 #productionWorkspace .pws-preview-shell{border-radius:14px !important;background:#04070d !important}
 
     /* ---------- TASK / PLAYER / MODALS ---------- */
     body.sps-shell-2026 #taskPanel,body.sps-shell-2026 .task-panel{border-radius:16px !important;border-color:var(--m-line,var(--shell-line)) !important}
@@ -248,7 +232,6 @@
       body.sps-shell-2026 .sidebar nav{grid-template-columns:1fr}
       body.sps-shell-2026 .topbar{align-items:flex-start;flex-direction:column}
       body.sps-shell-2026 .top-actions{justify-content:flex-start}
-      body.sps-shell-2026 #productionWorkspace .pws-editor{grid-template-columns:70px 70px minmax(140px,1fr) 38px !important}
     }
   `;
   document.head.appendChild(css);
@@ -301,7 +284,6 @@
     import:'Suno · povezivanje i sinhronizacija',
     recognition:'Prepoznavanje · moje pesme',
     tools:'YouTube · kanali i audio provera',
-    production:'Video Studio · timeline i objava',
     settings:'Sistem · podešavanja i održavanje',
     folders:'Biblioteka · kolekcije',
     download:'Biblioteka · preuzimanje',
