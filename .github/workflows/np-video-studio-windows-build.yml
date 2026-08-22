@@ -1,7 +1,9 @@
 name: Windows build (installer + portable + tests)
 
-# Builds NP Video Studio on a real Windows runner, runs the complete test suite, and produces
-# the actual Windows installer plus portable package.
+# Builds NP Video Studio on a real Windows runner (Linux dev environments cannot compile a Windows
+# installer). Runs the full test suite, then produces the actual .exe installer and the portable ZIP, and
+# uploads both as downloadable workflow artifacts when the account's Actions artifact storage quota
+# allows it - a quota hit there is continue-on-error and must not fail an otherwise-green build/test run.
 
 on:
   push:
@@ -10,9 +12,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: windows-latest
@@ -20,41 +19,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
-      - name: Materialize audited unified XAML into real source
-        if: github.event_name == 'pull_request' && github.head_ref == 'integration/complete-suno-np-studio'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if (-not (Test-Path '.integration-ui-materialized')) {
-            pwsh -File scripts/apply-integration-audited-ui.ps1
-            $timeline = Get-Content 'src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs' -Raw -Encoding UTF8
-            if ($timeline -notmatch 'OnTrackVolumeChanged') { throw 'Track-volume callback missing after XAML repair.' }
-            if ($timeline -notmatch 'OnTextFontChanged') { throw 'Installed-font callback missing after XAML repair.' }
-            $app = Get-Content 'src/NPVideoStudio.App/App.axaml' -Raw -Encoding UTF8
-            if ($app -notmatch 'FontSize" Value="14\.5') { throw 'Readable base typography was not materialized.' }
-            if ($app -match 'FontSize" Value="9\.5') { throw '9.5px global text remains.' }
-            $bad = @()
-            Get-ChildItem 'src/NPVideoStudio.App/Views' -Filter '*.axaml' | ForEach-Object {
-              $content = Get-Content $_.FullName -Raw -Encoding UTF8
-              foreach ($m in [regex]::Matches($content, '<TextBlock\b[^>]*?FontSize="([0-9]+(?:\.[0-9]+)?)"[^>]*?>')) {
-                $size = [double]::Parse($m.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
-                if ($size -lt 12.5) { $bad += "$($_.Name): $size" }
-              }
-            }
-            if ($bad.Count -gt 0) { throw "Unreadable TextBlock sizes remain: $($bad -join ', ')" }
-            Set-Content '.integration-ui-materialized' 'readable-ui+system-fonts+track-volume=v2' -Encoding ascii
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add src/NPVideoStudio.App/App.axaml src/NPVideoStudio.App/Views src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs .integration-ui-materialized
-            git commit -m 'Materialize real readable 2026 NP Video Studio XAML'
-            git push origin HEAD:integration/complete-suno-np-studio
-          } else {
-            Write-Host 'Audited XAML already materialized in source.'
-          }
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -88,12 +52,21 @@ jobs:
         run: choco install yt-dlp -y --no-progress
 
       - name: Install Chromaprint (fpcalc)
+        # Release-completeness gate requires this in the clean-install payload.
         run: choco install chromaprint -y --no-progress
 
       - name: Install Tesseract OCR
+        # Release-completeness gate requires this in the clean-install payload.
         run: choco install tesseract -y --no-progress
 
       - name: Add Tesseract to PATH
+        # Unlike ffmpeg/yt-dlp/chromaprint (installed as Chocolatey shims into a directory already on
+        # PATH), Tesseract's installer writes straight to Program Files and updates machine PATH via the
+        # registry - a change later `run:` steps in this same job never see, since each step's process
+        # inherits the job's initial environment rather than re-reading the registry. Appending to
+        # $GITHUB_PATH is the supported way to make it visible to the "Run tests" step below (real CI
+        # failure hit once: RenderServiceTests's OCR assertions got Win32Exception "cannot find the file
+        # specified" for `tesseract` despite the install step reporting success).
         run: echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
 
       - name: Restore
@@ -109,6 +82,10 @@ jobs:
         run: python -m unittest discover -s tests/python -p "test_*.py" -v
 
       - name: Upload test results
+        # Diagnostic-only, not a build deliverable - must never fail the whole job on its own. Real CI
+        # failure hit despite the actual build+tests genuinely passing (306/306): the account's GitHub
+        # Actions artifact storage quota was hit, which fails this upload step independently of anything
+        # this repo's code does, and without continue-on-error that turns an otherwise-green run red.
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -124,6 +101,11 @@ jobs:
         run: pwsh -File scripts/build-release.ps1
 
       - name: Upload Windows installer
+        # continue-on-error: the "Build release" step above already proves the installer genuinely builds
+        # for real on Windows - that's the actual verification. This step only makes the .exe downloadable
+        # from the Actions UI, and must not fail an otherwise-green run when the account's GitHub Actions
+        # artifact storage quota is hit (real, repeated CI failure - four separate runs across 24+ hours
+        # all hit the same "Artifact storage quota has been hit" error independent of any code change).
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -132,6 +114,11 @@ jobs:
           if-no-files-found: error
 
       - name: Upload portable build
+        # Uploads the extracted folder, not dist/NPVideoStudio-Portable-x64-*.zip - actions/upload-artifact
+        # always zips whatever it's given for download, so zipping our own output first would make a
+        # user's download a zip-of-a-zip. The real distributable NPVideoStudio-Portable-x64-<version>.zip
+        # made by build-release.ps1 is for manual releases, not this CI artifact.
+        # continue-on-error: same artifact-storage-quota reasoning as "Upload Windows installer" above.
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
