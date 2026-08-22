@@ -40,10 +40,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Real, committed AI worker script (Phase 5) - copied next to the exe so AiWorkerClient's
-         default "Tools/ai-worker/ai_worker.py" resolution finds it. Requires a user-installed Python
-         (and, for Balanced/MostAccurate, `pip install -r ai-worker/requirements.txt`) - see that file. -->
+    <!-- Real, committed AI worker scripts - copied next to the exe so the local AI and motion-tracking
+         services can find them from an installed/portable application, not only from the source tree. -->
     <None Include="..\..\ai-worker\ai_worker.py" Link="Tools\ai-worker\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ai-worker\motion_tracker.py" Link="Tools\ai-worker\motion_tracker.py" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\ai-worker\requirements.txt" Link="Tools\ai-worker\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\ai-worker\install-song-ai.ps1" Link="Tools\ai-worker\install-song-ai.ps1" CopyToOutputDirectory="PreserveNewest" />
     <!-- EasyOcrVideoLayoutAnalysisService's helper script - copied next to the exe so its default
