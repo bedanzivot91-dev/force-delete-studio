@@ -1,0 +1,45 @@
+name: Materialize caption style v2
+
+on:
+  push:
+    branches:
+      - agent/caption-style-gallery-apply-v2
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/caption-style-gallery-apply-v2
+          fetch-depth: 0
+      - name: Copy validated caption integration from v1
+        shell: bash
+        run: |
+          git fetch origin agent/caption-style-gallery-apply
+          git checkout origin/agent/caption-style-gallery-apply -- \
+            src/NPVideoStudio.AI/TimelineEditSession.cs \
+            src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs \
+            src/NPVideoStudio.App/ViewModels/WorkspaceViewModel.cs \
+            src/NPVideoStudio.App/ViewModels/MainWindowViewModel.cs \
+            src/NPVideoStudio.App/ViewModels/CaptionStyleGalleryViewModel.cs \
+            src/NPVideoStudio.App/ViewModels/CaptionStylePresetItemViewModel.cs \
+            src/NPVideoStudio.App/Views/WorkspaceView.axaml \
+            src/NPVideoStudio.App/Views/CaptionStyleGalleryView.axaml \
+            tests/NPVideoStudio.UnitTests/CaptionStyleGalleryIntegrationTests.cs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NPVideoStudio.AI/TimelineEditSession.cs \
+                  src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs \
+                  src/NPVideoStudio.App/ViewModels/WorkspaceViewModel.cs \
+                  src/NPVideoStudio.App/ViewModels/MainWindowViewModel.cs \
+                  src/NPVideoStudio.App/ViewModels/CaptionStyleGalleryViewModel.cs \
+                  src/NPVideoStudio.App/ViewModels/CaptionStylePresetItemViewModel.cs \
+                  src/NPVideoStudio.App/Views/WorkspaceView.axaml \
+                  src/NPVideoStudio.App/Views/CaptionStyleGalleryView.axaml \
+                  tests/NPVideoStudio.UnitTests/CaptionStyleGalleryIntegrationTests.cs
+          git commit -m "feat: connect caption style gallery to real timeline" || exit 0
+          git push origin HEAD:agent/caption-style-gallery-apply-v2
