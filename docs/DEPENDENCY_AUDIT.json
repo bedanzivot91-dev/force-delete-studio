@@ -1,0 +1,11 @@
+{
+  "method": "AST-walked import/importfrom statements across app/, plugins/, tests/",
+  "stdlib_or_local_excluded": true,
+  "third_party_top_level_imports_found": [
+    "audio_separator",
+    "ctranslate2",
+    "faster_whisper",
+    "playwright"
+  ],
+  "note": "These are the only external (non-stdlib, non-local) imports actually referenced in source. requirements-core.txt is derived from this list, not guessed."
+}

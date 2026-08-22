@@ -1,0 +1,30 @@
+{
+  "note": "Every package here is either resolved for real against PyPI in this session (core) or version-verified against PyPI's JSON API (ai) -- see docs/DEPENDENCY_AUDIT.json for how the required-package list itself was derived (AST walk of actual import statements in app/, plugins/, tests/, not a guess).",
+  "core": {
+    "source": "requirements-core.txt, locked in requirements-lock.txt",
+    "resolved_via": "pip install into a clean python3.13 venv against PyPI, in this session",
+    "packages": [
+      {"name": "playwright", "version": "1.61.0", "license": "Apache-2.0", "used_by": "app/cdp.py (optional controlled-browser Suno login)"},
+      {"name": "greenlet", "version": "3.5.4", "license": "MIT", "used_by": "playwright dependency"},
+      {"name": "pyee", "version": "13.0.1", "license": "MIT", "used_by": "playwright dependency"},
+      {"name": "typing_extensions", "version": "4.16.0", "license": "PSF-2.0", "used_by": "playwright dependency"}
+    ]
+  },
+  "ai_optional": {
+    "source": "requirements-ai.txt",
+    "resolved_via": "version existence + compatibility range confirmed against PyPI JSON API in this session (pypi.org/pypi/<pkg>/json); NOT installed here -- native tensor wheels (torch, onnxruntime, ctranslate2) are hundreds of MB to GB and this sandbox's network policy does not reliably support that download volume. requirements-lock.txt documents this explicitly and defers the AI lock file to the Windows CI runner.",
+    "packages": [
+      {"name": "faster-whisper", "version": "1.2.1", "license": "MIT", "used_by": "plugins/transcribe_worker.py", "requires": "ctranslate2<5,>=4.0 (confirmed from faster-whisper's own requires_dist)"},
+      {"name": "ctranslate2", "version": "4.8.1", "license": "MIT", "used_by": "faster-whisper's inference backend"},
+      {"name": "audio-separator", "version": "0.44.5", "license": "MIT", "used_by": "plugins/stems_worker.py", "extras": "[cpu]"}
+    ]
+  },
+  "third_party_repos_used_by_go_toolchain": {
+    "note": "Not Python, but same 'real dependency, real version, real license' bar -- windows_build's Go module dependencies, resolved via proxy.golang.org in this session.",
+    "packages": [
+      {"module": "github.com/jchv/go-webview2", "version": "v0.0.0-20260205173254-56598839c808", "license": "MIT", "used_by": "windows_build/launcher (native WebView2 window host, replaces the previous browser-tab launcher)"},
+      {"module": "github.com/jchv/go-winloader", "version": "v0.0.0-20250406163304-c1995be93bd1", "license": "MIT", "used_by": "go-webview2 (in-memory WebView2Loader.dll fallback)"},
+      {"module": "golang.org/x/sys", "version": "v0.0.0-20210218145245-beda7e5e158e", "license": "BSD-3-Clause", "used_by": "go-webview2 dependency"}
+    ]
+  }
+}

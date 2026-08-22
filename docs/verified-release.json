@@ -1,0 +1,19 @@
+{
+  "status": "verified",
+  "tag": "v3.3.2-final-audited",
+  "release_url": "https://github.com/bedanzivot91-dev/force-delete-studio/releases/tag/v3.3.2-final-audited",
+  "windows_zip": "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip",
+  "windows_zip_sha256": "bd7bffaaefcf9e860bcc3bd86face8b4d5e196e57db3ac801fc8d72b0141ba3f",
+  "verified_head": "5844a62c4e1d4cb955a938b1528c22294831ad14",
+  "merged_source_commit": "ad639b9330dea4e3bd5bab3438ef87df4407698c",
+  "verified_artifact_id": "9461214821",
+  "windows_build": 832,
+  "real_install_run": 20,
+  "deep_audit_run": 14,
+  "android_build": 253,
+  "manifest": {
+    "checked": 877,
+    "missing": 0,
+    "mismatch": 0
+  }
+}
