@@ -339,6 +339,20 @@ public sealed class TimelineClip
     /// <summary>libvidstab optzoom: 0=off, 1=static optimal zoom, 2=adaptive optimal zoom.</summary>
     public int StabilizationOptimalZoom { get; set; } = 1;
 
+    // --- Motion Tracking / Auto Reframe ---------------------------------------------------------
+    /// <summary>Initial user-selected CSRT rectangle, normalized to source frame coordinates.</summary>
+    public double TrackingRegionCenterX { get; set; } = 0.5;
+    public double TrackingRegionCenterY { get; set; } = 0.5;
+    public double TrackingRegionWidth { get; set; } = 0.25;
+    public double TrackingRegionHeight { get; set; } = 0.25;
+
+    /// <summary>Absolute source-time path returned by the real local tracker. Empty means not tracked.</summary>
+    public List<MotionTrackingPoint> MotionTrackingPoints { get; set; } = new();
+
+    /// <summary>When enabled, the renderer dynamically crops the source around MotionTrackingPoints to
+    /// the current project aspect ratio. This is a real render/export effect, not preview metadata.</summary>
+    public bool AutoReframeEnabled { get; set; }
+
     // --- Overlay mask + blend -------------------------------------------------------------------
     public ClipMaskType MaskType { get; set; } = ClipMaskType.None;
     public double MaskCenterXPercent { get; set; } = 50;
