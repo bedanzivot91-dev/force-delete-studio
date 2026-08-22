@@ -113,4 +113,15 @@ public sealed partial class WorkspaceViewModel
     {
         _sceneDetectionCts?.Cancel();
     }
+
+    /// <summary>MainWindow disposes pages through IDisposable. Ensure a running FFmpeg analysis cannot
+    /// outlive the workspace, then delegate to the existing public Dispose implementation for frame,
+    /// caption, player and real-preview cleanup.</summary>
+    void IDisposable.Dispose()
+    {
+        _sceneDetectionCts?.Cancel();
+        _sceneDetectionCts?.Dispose();
+        _sceneDetectionCts = null;
+        Dispose();
+    }
 }
