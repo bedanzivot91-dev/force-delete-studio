@@ -152,7 +152,7 @@
                   </Grid>
                   <Border Background="#99000000" CornerRadius="4" Padding="6,3" Margin="8"
                           HorizontalAlignment="Left" VerticalAlignment="Top">
-                    <TextBlock Text="{Binding SafeAreaGuideLabel}" Foreground="#FFFFD54F" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding SafeAreaGuideLabel}" Foreground="#FFFFD54F" FontSize="12.5" FontWeight="Bold"/>
                   </Border>
                 </Grid>
                 <Border IsVisible="{Binding IsPreviewCaptionVisible}"
@@ -468,7 +468,7 @@
                         <ItemsControl ItemsSource="{Binding Clips}" Height="52" Width="{Binding LaneWidth}" Name="ClipLane">
                           <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                              <Canvas Height="52" Background="#1A1A1A" />
+                              <Canvas Height="52" Background="{DynamicResource ThemeTimelineBrush}" />
                             </ItemsPanelTemplate>
                           </ItemsControl.ItemsPanel>
                           <ItemsControl.Styles>
@@ -494,7 +494,7 @@
                                       CornerRadius="4" ClipToBounds="True"
                                       Tag="{Binding}"
                                       ToolTip.Tip="Kliknite da izaberete. Prevucite da pomerite po vremenu ili na drugu traku.">
-                                <TextBlock Text="{Binding Label}" Margin="6,4" FontSize="11"
+                                <TextBlock Text="{Binding Label}" Margin="6,4" FontSize="12.5"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                               </Border>
                             </DataTemplate>
@@ -510,7 +510,7 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                   <StackPanel Spacing="2">
                                     <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding TimingLabel}" Classes="subtle" FontSize="11" />
+                                    <TextBlock Text="{Binding TimingLabel}" Classes="subtle" FontSize="12.5" />
                                   </StackPanel>
                                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                                     <Button Content="◀" ToolTip.Tip="Pomeri ranije" Command="{Binding NudgeEarlierCommand}" />

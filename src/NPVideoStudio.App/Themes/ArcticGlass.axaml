@@ -25,6 +25,8 @@
   <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
   <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
   <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+  <SolidColorBrush x:Key="ThemeTimelineBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemePlayerBrush" Color="{StaticResource ThemeBackgroundColor}" />
 
   <!-- Glassmorphism fallback note: ThemePanelBrush uses a semi-transparent white over the light blue
        Background instead of a real backdrop-blur (Avalonia has no cross-platform blur-behind for

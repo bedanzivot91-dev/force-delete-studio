@@ -50,7 +50,7 @@
               <DataTemplate x:DataType="vm:ZoneOccupancyItem">
                 <Border Classes="panel" Padding="10" Margin="3">
                   <StackPanel Spacing="2" HorizontalAlignment="Center">
-                    <TextBlock Text="{Binding Label}" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" />
+                    <TextBlock Text="{Binding Label}" FontSize="12.5" HorizontalAlignment="Center" TextAlignment="Center" />
                     <TextBlock Text="{Binding RatioLabel}" FontWeight="SemiBold" HorizontalAlignment="Center" />
                   </StackPanel>
                 </Border>

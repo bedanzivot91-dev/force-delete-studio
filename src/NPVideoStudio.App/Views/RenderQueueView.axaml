@@ -102,13 +102,13 @@
                       <Grid ColumnDefinitions="*,Auto,Auto">
                         <StackPanel Spacing="2">
                           <TextBlock Text="{Binding OutputFilePath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Text="{Binding StatusLabel}" Classes="subtle" FontSize="12" />
+                          <TextBlock Text="{Binding StatusLabel}" Classes="subtle" FontSize="12.5" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding ProgressPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" Margin="12,0" />
                         <Button Grid.Column="2" Classes="ghost" Content="Otkaži" Command="{Binding CancelCommand}" />
                       </Grid>
                       <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="6" />
-                      <TextBlock Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" Foreground="IndianRed" TextWrapping="Wrap" FontSize="12" />
+                      <TextBlock Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}" Foreground="IndianRed" TextWrapping="Wrap" FontSize="12.5" />
                     </StackPanel>
                   </Border>
                 </DataTemplate>

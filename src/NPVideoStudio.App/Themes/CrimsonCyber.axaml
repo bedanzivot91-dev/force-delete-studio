@@ -25,6 +25,8 @@
   <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
   <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
   <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+  <SolidColorBrush x:Key="ThemeTimelineBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemePlayerBrush" Color="{StaticResource ThemeBackgroundColor}" />
 
   <CornerRadius x:Key="ThemeCornerRadius">6</CornerRadius>
   <CornerRadius x:Key="ThemeCardCornerRadius">10</CornerRadius>
