@@ -160,25 +160,38 @@ public static class FfmpegFilterGraphBuilder
                     $"{animatedCanvas}{animatedSource}overlay=x='{x}':y='{y}':shortest=1:format=auto,format=yuv420p,setsar=1{vLabel}"));
             }
 
-            var audioFilter = new StringBuilder();
-            var volume = clip.IsMuted ? 0 : clip.Volume;
-            audioFilter.Append(FormattableString.Invariant(
-                $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS,volume={(clip.IsFreezeFrame ? 0 : volume)}"));
-            if (clip.IsReversed && !clip.IsFreezeFrame)
+            if (!IsConfirmedSilentVideo(asset))
             {
-                audioFilter.Append(",areverse");
-            }            audioFilter.Append(BuildAudioSpeedFilter(clip));
-            if (clip.FadeInSeconds > 0)
-            {
-                audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                var audioFilter = new StringBuilder();
+                var volume = clip.IsMuted ? 0 : clip.Volume;
+                audioFilter.Append(FormattableString.Invariant(
+                    $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
+                if (clip.IsReversed && !clip.IsFreezeFrame)
+                {
+                    audioFilter.Append(",areverse");
+                }
+                audioFilter.Append(BuildAudioSpeedFilter(clip));
+                audioFilter.Append(BuildAudioEnhancementFilters(clip));
+                audioFilter.Append(FormattableString.Invariant($",volume={(clip.IsFreezeFrame ? 0 : volume)}"));
+                if (clip.FadeInSeconds > 0)
+                {
+                    audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
+                }
+                if (clip.FadeOutSeconds > 0)
+                {
+                    var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
+                    audioFilter.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                }
+                audioFilter.Append(aLabel);
+                filterLines.Add(audioFilter.ToString());
             }
-            if (clip.FadeOutSeconds > 0)
+            else
             {
-                var fadeOutStart = Math.Max(0, duration - clip.FadeOutSeconds);
-                audioFilter.Append(FormattableString.Invariant($",afade=t=out:st={fadeOutStart}:d={clip.FadeOutSeconds}"));
+                // A perfectly valid silent video has no [input:a] pad. Generate finite silence matching
+                // this clip instead of emitting an invalid FFmpeg stream reference and failing export.
+                filterLines.Add(FormattableString.Invariant(
+                    $"anullsrc=r=44100:cl=stereo:d={duration}{aLabel}"));
             }
-            audioFilter.Append(aLabel);
-            filterLines.Add(audioFilter.ToString());
 
             var useTransition = canTransitionFromPrevious && clip.TransitionInType != ClipTransitionType.None;
             var transitionDuration = useTransition
@@ -392,6 +405,11 @@ public static class FfmpegFilterGraphBuilder
                     throw new InvalidOperationException(
                         $"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
                 }
+                if (IsConfirmedSilentVideo(asset))
+                {
+                    throw new InvalidOperationException(
+                        $"Audio traka referencira potvrđeno analiziran video bez audio stream-a: {asset.FileName}.");
+                }
 
                 var inputIndex = inputs.Count;
                 inputs.Add(asset.FilePath);
@@ -405,6 +423,7 @@ public static class FfmpegFilterGraphBuilder
                 chain.Append(FormattableString.Invariant(
                     $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
                 chain.Append(BuildAudioSpeedFilter(clip));
+                chain.Append(BuildAudioEnhancementFilters(clip));
                 chain.Append(FormattableString.Invariant($",volume={volume}"));
 
                 if (clip.FadeInSeconds > 0)
@@ -578,6 +597,10 @@ public static class FfmpegFilterGraphBuilder
         TransitionInDurationSeconds = clip.TransitionInDurationSeconds,
         IsMuted = clip.IsMuted,
         Volume = clip.Volume,
+        AudioNoiseReductionEnabled = clip.AudioNoiseReductionEnabled,
+        AudioNoiseReductionStrength = clip.AudioNoiseReductionStrength,
+        AudioEnhanceVoiceEnabled = clip.AudioEnhanceVoiceEnabled,
+        AudioLoudnessNormalizationEnabled = clip.AudioLoudnessNormalizationEnabled,
         ScalePercent = clip.ScalePercent,
         PositionXPercent = clip.PositionXPercent,
         PositionYPercent = clip.PositionYPercent,
@@ -1379,6 +1402,46 @@ public static class FfmpegFilterGraphBuilder
             ? string.Empty
             : "," + string.Join(",", stages.Select(s => FormattableString.Invariant($"atempo={s}")));
     }
+
+    /// <summary>Backward-compatible stream-state check. Historical project files and many pure graph
+    /// tests predate HasAudioStream and deserialize/default that bool to false. Treating every false as
+    /// authoritative would silently strip valid embedded audio from older projects. A video is considered
+    /// confirmed silent only after probe metadata proves a real video stream (HasVideoStream + VideoCodec)
+    /// while HasAudioStream remains false. Current FfprobeService always fills VideoCodec for a probed video.</summary>
+    private static bool IsConfirmedSilentVideo(MediaAsset asset) =>
+        asset.HasVideoStream &&
+        !asset.HasAudioStream &&
+        !string.IsNullOrWhiteSpace(asset.VideoCodec) &&
+        asset.ProbeError is null;
+
+    /// <summary>Real per-clip audio cleanup. The chain intentionally uses only filters present in the
+    /// bundled Windows FFmpeg build and returns an empty string for neutral settings.</summary>
+    public static string BuildAudioEnhancementFilters(TimelineClip clip)
+    {
+        var parts = new List<string>();
+        if (clip.AudioNoiseReductionEnabled)
+        {
+            var strength = Math.Clamp(clip.AudioNoiseReductionStrength, 0, 1);
+            var reductionDb = 6 + strength * 24; // afftdn nr: 6..30 dB, conservative and stable.
+            parts.Add($"afftdn=nr={F(reductionDb)}:nf=-50:tn=1");
+        }
+
+        if (clip.AudioEnhanceVoiceEnabled)
+        {
+            parts.Add("highpass=f=80");
+            parts.Add("lowpass=f=12000");
+            parts.Add("equalizer=f=2500:t=q:w=1:g=3");
+            parts.Add("acompressor=threshold=0.125:ratio=3:attack=20:release=250:makeup=1.5");
+        }
+
+        if (clip.AudioLoudnessNormalizationEnabled)
+        {
+            parts.Add("loudnorm=I=-16:TP=-1.5:LRA=11");
+        }
+
+        return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
+    }
+
     private static string TransitionName(ClipTransitionType type) => type switch
     {
         ClipTransitionType.Fade => "fade",
