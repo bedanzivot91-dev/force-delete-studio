@@ -77,7 +77,10 @@ public class AppSmokeTests
         // genuinely launches FFmpeg/FFprobe/yt-dlp as real processes one after another (real -version/
         // --version calls), so a generous budget is needed on a loaded CI runner, not just the near-
         // instant case where a tool is absent and fails fast.
-        for (var i = 0; i < 300 && dependencyManager.IsLoading; i++)
+        // Seven real external version checks can take longer than 15 seconds on a cold Windows
+        // runner (especially immediately after Chocolatey installs). Keep pumping the dispatcher and
+        // allow up to 60 seconds; this is a hard timeout, not an unconditional delay.
+        for (var i = 0; i < 1200 && dependencyManager.IsLoading; i++)
         {
             Dispatcher.UIThread.RunJobs();
             Thread.Sleep(50);
