@@ -33,6 +33,8 @@
         <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
                 ToolTip.Tip="Svaka izgovorena reč se pojavljuje na ekranu pojedinačno, tačno kad se izgovori."
                 Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        <Button Classes="ghost" Content="🎨 STILOVI ZA IZABRANI TITL" Command="{Binding OpenCaptionStyleGalleryCommand}"
+                ToolTip.Tip="Izaberite titl/tekst klip na timeline-u, pa primenite pravi preset koji se čuva i ulazi u export." />
         <Button Classes="ghost" Content="Prekini prepoznavanje" Command="{Binding CancelCaptionGenerationCommand}"
                 IsVisible="{Binding IsGeneratingCaptions}" />
         <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
