@@ -161,11 +161,11 @@
                   <ToggleButton Content="Freeze frame" IsChecked="{Binding IsFreezeFrame}" Margin="0,0,8,4"/>
                 </WrapPanel>
                 <TextBlock Text="Crop (%)" Classes="subtle"/>
-                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                <Grid ColumnDefinitions="*,*,*,*">
                   <NumericUpDown Value="{Binding CropLeftPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Levo"/>
-                  <NumericUpDown Grid.Column="1" Value="{Binding CropTopPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Gore"/>
-                  <NumericUpDown Grid.Column="2" Value="{Binding CropRightPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Desno"/>
-                  <NumericUpDown Grid.Column="3" Value="{Binding CropBottomPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Dole"/>
+                  <NumericUpDown Grid.Column="1" Margin="6,0,0,0" Value="{Binding CropTopPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Gore"/>
+                  <NumericUpDown Grid.Column="2" Margin="6,0,0,0" Value="{Binding CropRightPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Desno"/>
+                  <NumericUpDown Grid.Column="3" Margin="6,0,0,0" Value="{Binding CropBottomPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Dole"/>
                 </Grid>
               </StackPanel>
             </Border>
