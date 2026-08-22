@@ -3,7 +3,7 @@ namespace NPVideoStudio.Domain;
 /// <summary>Application-wide settings, persisted locally. No telemetry, no remote sync.</summary>
 public sealed class AppSettings
 {
-    public AppTheme Theme { get; set; } = AppTheme.DarkCinematic;
+    public AppTheme Theme { get; set; } = AppTheme.Studio2026;
     public string Language { get; set; } = "sr-Latn";
 
     public string ProjectsFolder { get; set; } = DefaultProjectsFolder();
