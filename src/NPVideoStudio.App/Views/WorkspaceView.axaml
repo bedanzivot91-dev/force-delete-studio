@@ -23,37 +23,41 @@
       </Grid>
     </Border>
 
-    <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="24,10" BorderThickness="0,0,0,1">
-      <StackPanel Spacing="4">
-      <WrapPanel Orientation="Horizontal">
-        <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,10,6" /></Style></WrapPanel.Styles>
-        <Button Classes="cta" Content="♪ AUTOMATSKI PREPOZNAJ I DODAJ TEKST"
-                ToolTip.Tip="Za govor i pesmu: izdvaja vokal, prepoznaje srpski tekst i dodaje uređive titlove na timeline."
-                Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
-        <Button Classes="ghost" Content="Karaoke titlovi (reč po reč)"
-                ToolTip.Tip="Svaka izgovorena reč se pojavljuje na ekranu pojedinačno, tačno kad se izgovori."
-                Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
-        <Button Classes="ghost" Content="🎨 STILOVI ZA IZABRANI TITL" Command="{Binding OpenCaptionStyleGalleryCommand}"
-                ToolTip.Tip="Izaberite titl/tekst klip na timeline-u, pa primenite pravi preset koji se čuva i ulazi u export." />
-        <Button Classes="ghost" Content="Prekini prepoznavanje" Command="{Binding CancelCaptionGenerationCommand}"
-                IsVisible="{Binding IsGeneratingCaptions}" />
-        <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
-                   IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
-      </WrapPanel>
-      <Expander Header="Imam tačan tekst pesme — učitaj ili nalepi pa sinhronizuj">
-        <StackPanel Spacing="8" Margin="0,6,0,4">
-          <WrapPanel Orientation="Horizontal">
-            <Button Classes="ghost" Content="UČITAJ .TXT / .RTF" Command="{Binding LoadVerifiedLyricsCommand}" Margin="0,0,10,0" />
-            <TextBlock Text="{Binding VerifiedLyricsFileName}" Classes="subtle" VerticalAlignment="Center" />
-          </WrapPanel>
-          <TextBox Text="{Binding VerifiedLyricsText}" AcceptsReturn="True" TextWrapping="Wrap"
-                   Height="120" Watermark="Nalepite kompletan tačan tekst pesme, red po red..." />
-          <Button Classes="cta" Content="♪ SINHRONIZUJ TAČAN TEKST SA PESMOM"
-                  HorizontalAlignment="Left" Command="{Binding SyncVerifiedLyricsCommand}"
-                  IsEnabled="{Binding !IsGeneratingCaptions}" />
+    <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="24,8" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Titlovi" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <Button Classes="cta" Content="Automatski titlovi"
+                  ToolTip.Tip="Za govor i pesmu: izdvaja vokal, prepoznaje srpski tekst i dodaje uređive titlove na timeline."
+                  Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+          <Button Classes="ghost" Content="Karaoke"
+                  ToolTip.Tip="Svaka izgovorena reč se pojavljuje pojedinačno, tačno kada se izgovori."
+                  Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+          <Button Classes="ghost" Content="Stil izabranog titla" Command="{Binding OpenCaptionStyleGalleryCommand}"
+                  ToolTip.Tip="Izaberite titl ili tekst-klip na timeline-u, pa primenite preset koji se čuva i ulazi u izvoz." />
         </StackPanel>
-      </Expander>
-      </StackPanel>
+
+        <Expander Grid.Column="1" Header="Tačan tekst pesme" HorizontalAlignment="Right">
+          <StackPanel Spacing="8" Margin="0,8,0,4" Width="440">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="ghost" Content="Učitaj .TXT / .RTF" Command="{Binding LoadVerifiedLyricsCommand}" />
+              <TextBlock Text="{Binding VerifiedLyricsFileName}" Classes="subtle" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+            </StackPanel>
+            <TextBox Text="{Binding VerifiedLyricsText}" AcceptsReturn="True" TextWrapping="Wrap"
+                     Height="110" Watermark="Nalepite kompletan tačan tekst pesme, red po red..." />
+            <Button Classes="cta" Content="Sinhronizuj tekst sa pesmom"
+                    HorizontalAlignment="Left" Command="{Binding SyncVerifiedLyricsCommand}"
+                    IsEnabled="{Binding !IsGeneratingCaptions}" />
+          </StackPanel>
+        </Expander>
+
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,6,0,0"
+                    IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+          <Button Classes="ghost" Content="Prekini prepoznavanje" Command="{Binding CancelCaptionGenerationCommand}"
+                  IsVisible="{Binding IsGeneratingCaptions}" />
+          <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
     </Border>
 
     <Grid Name="EditingGrid" RowDefinitions="3*,Auto,2*">
@@ -425,34 +429,50 @@
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="8">
             <TextBlock Text="Timeline" FontWeight="SemiBold" />
-            <WrapPanel Orientation="Horizontal">
-              <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,6" /></Style></WrapPanel.Styles>
-              <ComboBox ItemsSource="{Binding AvailableMedia}" SelectedItem="{Binding SelectedMediaAsset}" MinWidth="160" PlaceholderText="Izaberite medij za dodavanje">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:MediaAssetViewModel">
-                    <TextBlock Text="{Binding FileName}" />
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
-              <Button Classes="ghost" Content="+ Video traka" Command="{Binding AddVideoTrackCommand}" />
-              <Button Classes="ghost" Content="+ Audio traka" Command="{Binding AddAudioTrackCommand}" />
-              <Button Classes="ghost" Content="+ Titl traka" Command="{Binding AddCaptionTrackCommand}" />
-              <Button Classes="ghost" Content="+ Tekst traka" Command="{Binding AddTextTrackCommand}" />
-              <Button Classes="cta" Content="+ DODAJ TEKST" Command="{Binding AddTextAtPlayheadCommand}"
-                      ToolTip.Tip="Odmah dodaje tekst na poziciju plejheda i otvara sve kontrole za uređivanje." />
-              <Button Classes="cta" Content="+ DODAJ VIDEO NA KRAJ" Command="{Binding AppendSelectedVideoCommand}"
-                      ToolTip.Tip="Izabrani video dodaje odmah posle poslednjeg video-klipa. Tako se više videa spaja u jedan izvoz." />
-              <Button Classes="ghost" Content="+ Slika (overlay)" Command="{Binding AddImageOverlayTrackCommand}" />
-              <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" />
-              <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" />
-              <Border Width="1" Background="{DynamicResource ThemeBorderBrush}" Margin="6,2" />
-              <TextBlock Text="Zum trake:" VerticalAlignment="Center" />
-              <Button Classes="ghost" Content="−" Command="{Binding ZoomOutCommand}" />
-              <Slider Minimum="10" Maximum="300" Width="150" Value="{Binding ZoomPixelsPerSecond}" />
-              <Button Classes="ghost" Content="+" Command="{Binding ZoomInCommand}" />
-              <Button Classes="ghost" Content="Vrati" Command="{Binding ResetZoomCommand}" />
-              <TextBlock Text="{Binding ZoomLabel}" VerticalAlignment="Center" MinWidth="62" />
-            </WrapPanel>
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <ComboBox ItemsSource="{Binding AvailableMedia}" SelectedItem="{Binding SelectedMediaAsset}"
+                          MinWidth="220" PlaceholderText="Izaberite medij">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MediaAssetViewModel">
+                      <TextBlock Text="{Binding FileName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Classes="cta" Content="Dodaj video na kraj" Command="{Binding AppendSelectedVideoCommand}"
+                        ToolTip.Tip="Izabrani video dodaje odmah posle poslednjeg video-klipa." />
+                <Button Classes="ghost" Content="Dodaj tekst" Command="{Binding AddTextAtPlayheadCommand}"
+                        ToolTip.Tip="Dodaje tekst na poziciju plejheda i otvara kontrole za uređivanje." />
+                <Expander Header="+ Nova traka">
+                  <WrapPanel Orientation="Horizontal" Margin="0,8,0,0" MaxWidth="480">
+                    <WrapPanel.Styles><Style Selector="WrapPanel > :is(Control)"><Setter Property="Margin" Value="0,0,8,8" /></Style></WrapPanel.Styles>
+                    <Button Classes="ghost" Content="Video" Command="{Binding AddVideoTrackCommand}" />
+                    <Button Classes="ghost" Content="Audio" Command="{Binding AddAudioTrackCommand}" />
+                    <Button Classes="ghost" Content="Titl" Command="{Binding AddCaptionTrackCommand}" />
+                    <Button Classes="ghost" Content="Tekst" Command="{Binding AddTextTrackCommand}" />
+                    <Button Classes="ghost" Content="Slika preko videa" Command="{Binding AddImageOverlayTrackCommand}" />
+                  </WrapPanel>
+                </Expander>
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Classes="ghost" Content="Poništi" Command="{Binding UndoCommand}" />
+                <Button Classes="ghost" Content="Ponovi" Command="{Binding RedoCommand}" />
+              </StackPanel>
+
+              <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                <TextBlock Text="Prevucite klipove između traka ili koristite meni Nova traka." Classes="subtle"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="Zum" Classes="subtle" VerticalAlignment="Center" />
+                  <Button Classes="ghost" Content="−" Command="{Binding ZoomOutCommand}" />
+                  <Slider Minimum="10" Maximum="300" Width="140" Value="{Binding ZoomPixelsPerSecond}" />
+                  <Button Classes="ghost" Content="+" Command="{Binding ZoomInCommand}" />
+                  <Button Classes="ghost" Content="100%" Command="{Binding ResetZoomCommand}" ToolTip.Tip="Vrati podrazumevani zum" />
+                  <TextBlock Text="{Binding ZoomLabel}" VerticalAlignment="Center" MinWidth="62" />
+                </StackPanel>
+              </Grid>
+            </Grid>
           </StackPanel>
 
           <ScrollViewer>
