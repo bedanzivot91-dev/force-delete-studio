@@ -141,7 +141,23 @@ def main():
             server_module.song_finder_index_task(task, {"force": False, "finish_task": False})
         assert api_calls2["n"] == 0, api_calls2
         assert any("nije uslov" in str(row.get("message") or "") for row in task.logs), task.logs
-        checks.append("YouTube audio preflight no longer launches a full-library fingerprint pass before checking videos")
+    checks.append("YouTube audio preflight no longer launches a full-library fingerprint pass before checking videos")
+
+    # The real owned-channel AUDIO path is different from the cheap metadata
+    # preflight above. It must require the missing fingerprints; otherwise a
+    # synthetic pre-indexed test passes while the user's quote-titled Shorts
+    # are compared against no useful Suno candidates.
+    unbounded_source = (ROOT / "app" / "unbounded_operations.py").read_text(encoding="utf-8")
+    runtime_source = (ROOT / "app" / "runtime_fixes.py").read_text(encoding="utf-8")
+    for token in (
+        'missing_before = int(index_before.get("songs_not_indexed") or 0)',
+        '"required_for_youtube": True',
+        'Nijedna Suno pesma nema napravljen audio-otisak',
+    ):
+        assert token in unbounded_source, token
+    assert 'if not finish_task and not required_for_youtube:' in runtime_source
+    assert 'task.log(summary, "warning" if failed or unavailable else "success")' in runtime_source
+    checks.append("owned-channel audio scan now builds missing Suno fingerprints instead of returning a false 0-result scan")
 
     # -- Explicit indexing remains complete, but a cached fingerprint whose
     # temporary Suno URL disappeared is reused without a network refresh. --
