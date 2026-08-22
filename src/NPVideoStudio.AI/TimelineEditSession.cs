@@ -427,6 +427,31 @@ public sealed class TimelineEditSession
         RescaleKeyframesForDurationChange(liveClip, previousTimelineDuration);
     }
 
+    public void SetColorGrading(string clipId, ClipColorGradingSettings settings)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null) return;
+
+        var exposure = Math.Clamp(settings.ExposureStops, -3, 3);
+        var highlights = Math.Clamp(settings.Highlights, -1, 1);
+        var shadows = Math.Clamp(settings.Shadows, -1, 1);
+        var temperature = Math.Clamp(settings.Temperature, -1, 1);
+        var tint = Math.Clamp(settings.Tint, -1, 1);
+        if (Math.Abs(clip.ExposureStops - exposure) < 1e-9 &&
+            Math.Abs(clip.Highlights - highlights) < 1e-9 &&
+            Math.Abs(clip.Shadows - shadows) < 1e-9 &&
+            Math.Abs(clip.Temperature - temperature) < 1e-9 &&
+            Math.Abs(clip.Tint - tint) < 1e-9) return;
+
+        SaveSnapshot();
+        var live = FindClipWithTrack(clipId).Clip!;
+        live.ExposureStops = exposure;
+        live.Highlights = highlights;
+        live.Shadows = shadows;
+        live.Temperature = temperature;
+        live.Tint = tint;
+    }
+
     public void SetSpeedCurvePreset(string clipId, SpeedCurvePreset preset)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -1108,6 +1133,11 @@ public sealed class TimelineEditSession
         Brightness = clip.Brightness,
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
+        ExposureStops = clip.ExposureStops,
+        Highlights = clip.Highlights,
+        Shadows = clip.Shadows,
+        Temperature = clip.Temperature,
+        Tint = clip.Tint,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint

@@ -586,6 +586,11 @@ public static class FfmpegFilterGraphBuilder
         Brightness = clip.Brightness,
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
+        ExposureStops = clip.ExposureStops,
+        Highlights = clip.Highlights,
+        Shadows = clip.Shadows,
+        Temperature = clip.Temperature,
+        Tint = clip.Tint,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
@@ -1225,6 +1230,40 @@ public static class FfmpegFilterGraphBuilder
         {
             parts.Add(FormattableString.Invariant(
                 $"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}"));
+        }
+
+        // Advanced grading is intentionally composed from standard FFmpeg filters available in the
+        // bundled Windows build. Exposure is a real per-channel luminance multiplier; highlights/shadows
+        // use a monotonic five-point tone curve; temperature/tint use colorbalance while preserving lightness.
+        var exposure = Math.Clamp(clip.ExposureStops, -3, 3);
+        if (Math.Abs(exposure) > 1e-6)
+        {
+            var factor = Math.Pow(2, exposure);
+            parts.Add(FormattableString.Invariant(
+                $"lutrgb=r='val*{factor}':g='val*{factor}':b='val*{factor}'"));
+        }
+
+        var shadows = Math.Clamp(clip.Shadows, -1, 1);
+        var highlights = Math.Clamp(clip.Highlights, -1, 1);
+        if (Math.Abs(shadows) > 1e-6 || Math.Abs(highlights) > 1e-6)
+        {
+            var shadowY = Math.Clamp(0.25 + shadows * 0.18, 0.02, 0.48);
+            var highlightY = Math.Clamp(0.75 + highlights * 0.18, 0.52, 0.98);
+            parts.Add(FormattableString.Invariant(
+                $"curves=all='0/0 0.25/{shadowY} 0.5/0.5 0.75/{highlightY} 1/1'"));
+        }
+
+        var temperature = Math.Clamp(clip.Temperature, -1, 1);
+        var tint = Math.Clamp(clip.Tint, -1, 1);
+        if (Math.Abs(temperature) > 1e-6 || Math.Abs(tint) > 1e-6)
+        {
+            var redShadows = temperature * 0.25;
+            var blueShadows = -temperature * 0.25;
+            var redMid = tint * 0.10;
+            var greenMid = -tint * 0.20;
+            var blueMid = tint * 0.10;
+            parts.Add(FormattableString.Invariant(
+                $"colorbalance=rs={redShadows}:bs={blueShadows}:rm={redMid}:gm={greenMid}:bm={blueMid}:pl=1"));
         }
 
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);

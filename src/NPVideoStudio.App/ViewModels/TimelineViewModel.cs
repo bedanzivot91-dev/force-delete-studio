@@ -384,6 +384,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetClipEffects(clipId, effect, brightness, contrast, saturation, speed);
             RefreshFromSession();
         }
+        void OnColorGradingChanged(string clipId, ClipColorGradingSettings settings)
+        {
+            _session.SetColorGrading(clipId, settings);
+            RefreshFromSession();
+        }
         void OnSpeedCurvePresetChanged(string clipId, SpeedCurvePreset preset)
         {
             _session.SetSpeedCurvePreset(clipId, preset);
@@ -438,7 +443,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
             _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged,
-            OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged)
+            OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged, OnColorGradingChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };
