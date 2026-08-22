@@ -4,8 +4,8 @@
              xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
              x:Class="NPVideoStudio.App.Views.ModernWorkspaceCommandBarView"
              x:DataType="vm:WorkspaceViewModel">
-  <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
-    <Border Classes="inspectorSection" Padding="10,7">
+  <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+    <Border Classes="inspectorSection" Padding="10,7" Margin="0,0,12,0">
       <StackPanel Orientation="Horizontal" Spacing="8">
         <TextBlock Text="Titlovi" Classes="eyebrow" VerticalAlignment="Center" />
         <Button Classes="cta" Content="Automatski tekst" Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}"
@@ -15,7 +15,7 @@
       </StackPanel>
     </Border>
 
-    <Expander Grid.Column="1" Header="Tačan tekst pesme" VerticalAlignment="Center">
+    <Expander Grid.Column="1" Header="Tačan tekst pesme" VerticalAlignment="Center" Margin="0,0,12,0">
       <Border Classes="inspectorSection" Padding="12" MinWidth="420">
         <StackPanel Spacing="8">
           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -30,7 +30,7 @@
       </Border>
     </Expander>
 
-    <TextBlock Grid.Column="2" Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
+    <TextBlock Grid.Column="2" Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"
                IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
 
     <Border Grid.Column="3" Classes="inspectorSection" Padding="10,7">
