@@ -100,6 +100,62 @@
       <Setter Property="MinHeight" Value="34"/>
     </Style>
 
+    <!-- Dashboard / bento visual language -->
+    <Style Selector="Border.dashboardHero">
+      <Setter Property="CornerRadius" Value="22"/>
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BoxShadow" Value="0 18 55 0 #26000000"/>
+    </Style>
+    <Style Selector="Border.heroVisual">
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.heroAction">
+      <Setter Property="MinHeight" Value="42"/>
+      <Setter Property="Padding" Value="18,10"/>
+      <Setter Property="CornerRadius" Value="12"/>
+    </Style>
+    <Style Selector="Button.heroSecondary">
+      <Setter Property="MinHeight" Value="42"/>
+      <Setter Property="Padding" Value="18,10"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}"/>
+    </Style>
+    <Style Selector="Border.bentoPrimary">
+      <Setter Property="CornerRadius" Value="20"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.formatCard">
+      <Setter Property="MinHeight" Value="86"/>
+      <Setter Property="CornerRadius" Value="15"/>
+      <Setter Property="Padding" Value="15"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.formatCard:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}"/>
+    </Style>
+    <Style Selector="Button.bentoAction">
+      <Setter Property="MinHeight" Value="104"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Padding" Value="18"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.bentoAction:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}"/>
+    </Style>
+
     <!-- Surfaces -->
     <Style Selector="Border.appbar">
       <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}" />
