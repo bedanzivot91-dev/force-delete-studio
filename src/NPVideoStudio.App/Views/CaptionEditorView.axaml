@@ -75,9 +75,9 @@
                   <StackPanel Grid.Column="1" Spacing="2">
                     <TextBox Text="{Binding Text}" />
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                      <TextBlock Classes="subtle" Text="{Binding TimingLabel}" FontSize="12.5" />
-                      <TextBlock Classes="subtle" Text="{Binding SourceLabel}" FontSize="12.5" />
-                      <TextBlock Classes="subtle" Text="{Binding VerificationLabel}" FontSize="12.5" />
+                      <TextBlock Classes="subtle" Text="{Binding TimingLabel}" FontSize="13.5" />
+                      <TextBlock Classes="subtle" Text="{Binding SourceLabel}" FontSize="13.5" />
+                      <TextBlock Classes="subtle" Text="{Binding VerificationLabel}" FontSize="13.5" />
                     </StackPanel>
                   </StackPanel>
                   <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="10,0">

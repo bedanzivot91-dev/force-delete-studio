@@ -36,8 +36,8 @@
               <StackPanel Spacing="10">
                 <StackPanel Spacing="2">
                   <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                  <TextBlock Classes="subtle" Text="{Binding GranularityLabel}" FontSize="12.5" />
-                  <TextBlock Classes="subtle" Text="{Binding AnimationLabel}" FontSize="12.5" />
+                  <TextBlock Classes="subtle" Text="{Binding GranularityLabel}" FontSize="13.5" />
+                  <TextBlock Classes="subtle" Text="{Binding AnimationLabel}" FontSize="13.5" />
                 </StackPanel>
 
                 <Border CornerRadius="6" Background="{DynamicResource ThemePlayerBrush}" Padding="14" MinHeight="70">

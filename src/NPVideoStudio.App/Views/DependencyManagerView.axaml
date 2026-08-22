@@ -35,13 +35,13 @@
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                     <Border Classes="panel" Padding="8,2" CornerRadius="10">
-                      <TextBlock Text="{Binding StatusLabel}" FontSize="12.5" Classes="subtle" />
+                      <TextBlock Text="{Binding StatusLabel}" FontSize="13.5" Classes="subtle" />
                     </Border>
-                    <TextBlock Text="{Binding VersionLabel}" Classes="subtle" FontSize="12.5"
+                    <TextBlock Text="{Binding VersionLabel}" Classes="subtle" FontSize="13.5"
                                IsVisible="{Binding VersionLabel, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                   </StackPanel>
                   <TextBlock Text="{Binding WhyItMatters}" Classes="subtle" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding TechnicalDetails}" Classes="subtle" FontSize="12.5" TextWrapping="Wrap"
+                  <TextBlock Text="{Binding TechnicalDetails}" Classes="subtle" FontSize="13.5" TextWrapping="Wrap"
                              IsVisible="{Binding TechnicalDetails, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                 </StackPanel>
                 <Button Grid.Column="2" Classes="ghost" Content="Otvori folder" Command="{Binding OpenFolderCommand}"
