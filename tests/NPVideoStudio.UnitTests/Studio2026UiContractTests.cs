@@ -56,10 +56,15 @@ public class Studio2026UiContractTests
             Assert.Contains(binding, inspector);
         }
 
-        Assert.Contains("GenerateCaptionsForVideoCommand", commandBar);
-        Assert.Contains("GenerateKaraokeCaptionsForVideoCommand", commandBar);
-        Assert.Contains("SyncVerifiedLyricsCommand", commandBar);
-        Assert.Contains("RenderRealPreviewAroundPlayheadCommand", commandBar);
+        foreach (var command in new[]
+        {
+            "GenerateCaptionsForVideoCommand", "GenerateKaraokeCaptionsForVideoCommand",
+            "OpenCaptionStyleGalleryCommand", "SyncVerifiedLyricsCommand",
+            "RenderRealPreviewAroundPlayheadCommand", "RenderRealPreviewCommand"
+        })
+        {
+            Assert.Contains(command, commandBar);
+        }
     }
 
     [AvaloniaFact]
