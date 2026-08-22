@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Backend bridge for the production/timeline workspace.
+"""Backend bridge for the standalone Suno desktop application.
 
 The mature renderer in v3_features already supports text/outline colours and an
 optional waveform, but the old one-button v3 task never forwarded those
@@ -28,18 +28,14 @@ def _ass_color(value: Any, default: str) -> str:
 def _install_complete_app_bundle(core: Any) -> None:
     """Serve all UI extensions as one lexical app.js bundle."""
     handler = core.Handler
-    if getattr(handler, "_workspace_complete_bundle_v9", False):
+    if getattr(handler, "_workspace_complete_bundle_v10", False):
         return
     previous_send_file = handler._send_file
     extensions = (
         ("whole-library download extension", core.WEB_DIR / "bulk_download_extension.js"),
         ("arbitrary song count selection", core.WEB_DIR / "arbitrary_selection_extension.js"),
-        ("production timeline workspace", core.WEB_DIR / "production_workspace_extension.js"),
-        ("practical Studio subtitle workflow", core.WEB_DIR / "studio_functionality_extension.js"),
         ("startup heavy-task guard", core.WEB_DIR / "startup_guard_extension.js"),
-        ("organized Studio and YouTube workflow", core.WEB_DIR / "organized_ui_extension.js"),
         ("user controlled unbounded YouTube scans", core.WEB_DIR / "unbounded_youtube_ui_extension.js"),
-        ("final workflow layout cleanup", core.WEB_DIR / "workflow_cleanup_extension.js"),
         ("2026 information architecture cleanup", core.WEB_DIR / "information_architecture_2026_extension.js"),
         ("modern 2026 application skin", core.WEB_DIR / "modern_2026_skin_extension.js"),
         ("modern 2026 page-by-page surface coverage", core.WEB_DIR / "modern_2026_surface_coverage_extension.js"),
@@ -48,6 +44,8 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("modern 2026 final legibility pass", core.WEB_DIR / "modern_2026_legibility_extension.js"),
         ("2026 workspace shell and navigation hierarchy", core.WEB_DIR / "modern_2026_shell_extension.js"),
         ("final 2026 navigation grouping", core.WEB_DIR / "modern_2026_navigation_final.js"),
+        ("five genuinely different application layouts", core.WEB_DIR / "real_theme_layouts_extension.js"),
+        ("standalone Suno-only runtime guard", core.WEB_DIR / "suno_only_runtime_extension.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
@@ -65,7 +63,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         self._send_bytes(payload, "application/javascript; charset=utf-8", download_name)
 
     handler._send_file = send_file
-    handler._workspace_complete_bundle_v9 = True
+    handler._workspace_complete_bundle_v10 = True
 
 
 def apply(core: Any) -> dict[str, Any]:
