@@ -34,6 +34,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, ClipColorGradingSettings>? _onColorGradingChanged;
+    private readonly Action<string, ClipAudioEnhancementSettings>? _onAudioEnhancementChanged;
     private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
     private readonly Action<string, bool, int, int, double>? _onStabilizationChanged;
     private readonly Action<string, MotionTrackingRegion>? _onTrackingRegionChanged;
@@ -130,6 +131,9 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public bool IsOverlayClip { get; }
     public bool IsPictureClip => IsVideoClip || IsOverlayClip;
     public bool IsAudioClip { get; }
+    /// <summary>True for both standalone audio and video media that actually contains an audio stream.</summary>
+    public bool HasAudioStream { get; }
+    public bool CanUseAudioEnhancement => HasAudioStream && !Clip.IsFreezeFrame;
     public bool SupportsKeyframes => IsPictureClip || IsTextClip;
 
     private bool _isSelected;
@@ -245,6 +249,35 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set { if (Math.Abs(Clip.Tint - value) < 1e-6) return; PushColorGrading(s => s with { Tint = value }); }
     }
 
+    private void PushAudioEnhancement(Func<ClipAudioEnhancementSettings, ClipAudioEnhancementSettings> mutate)
+    {
+        var current = new ClipAudioEnhancementSettings(
+            AudioNoiseReductionEnabled, AudioNoiseReductionStrength,
+            AudioEnhanceVoiceEnabled, AudioLoudnessNormalizationEnabled);
+        _onAudioEnhancementChanged?.Invoke(Clip.Id, mutate(current));
+    }
+
+    public bool AudioNoiseReductionEnabled
+    {
+        get => Clip.AudioNoiseReductionEnabled;
+        set { if (Clip.AudioNoiseReductionEnabled == value) return; PushAudioEnhancement(s => s with { NoiseReductionEnabled = value }); }
+    }
+    public double AudioNoiseReductionStrength
+    {
+        get => Clip.AudioNoiseReductionStrength;
+        set { if (Math.Abs(Clip.AudioNoiseReductionStrength - value) < 1e-6) return; PushAudioEnhancement(s => s with { NoiseReductionStrength = value }); }
+    }
+    public bool AudioEnhanceVoiceEnabled
+    {
+        get => Clip.AudioEnhanceVoiceEnabled;
+        set { if (Clip.AudioEnhanceVoiceEnabled == value) return; PushAudioEnhancement(s => s with { EnhanceVoiceEnabled = value }); }
+    }
+    public bool AudioLoudnessNormalizationEnabled
+    {
+        get => Clip.AudioLoudnessNormalizationEnabled;
+        set { if (Clip.AudioLoudnessNormalizationEnabled == value) return; PushAudioEnhancement(s => s with { LoudnessNormalizationEnabled = value }); }
+    }
+
     /// <summary>0.5 = slow motion, 2 = double speed. Changing it explicitly disables a velocity curve.</summary>
     public double SpeedMultiplier
     {
@@ -253,7 +286,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     }
 
     public IReadOnlyList<SpeedCurvePreset> AvailableSpeedCurvePresets { get; } = Enum.GetValues<SpeedCurvePreset>();
-    public bool CanUseSpeedCurve => HasSourceMedia && !IsTextClip && !Clip.IsReversed && !Clip.IsFreezeFrame;
+    public bool CanUseSpeedCurve => HasSourceMedia && (IsVideoClip || IsAudioClip) && !Clip.IsReversed && !Clip.IsFreezeFrame;
     public SpeedCurvePreset SpeedCurvePreset
     {
         get => Clip.SpeedCurvePreset;
@@ -894,10 +927,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, MotionTrackingRegion>? onTrackingRegionChanged = null,
         Action<string, MotionTrackingRegion>? onMotionTrackingRequested = null,
         Action<string, bool>? onAutoReframeChanged = null,
-        Action<string, ClipColorGradingSettings>? onColorGradingChanged = null)
+        Action<string, ClipColorGradingSettings>? onColorGradingChanged = null,
+        bool hasAudioStream = false,
+        Action<string, ClipAudioEnhancementSettings>? onAudioEnhancementChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onColorGradingChanged = onColorGradingChanged;
+        _onAudioEnhancementChanged = onAudioEnhancementChanged;
         _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
         _onStabilizationChanged = onStabilizationChanged;
         _onTrackingRegionChanged = onTrackingRegionChanged;
@@ -918,6 +954,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         _mediaLabel = label;
         IsVideoClip = isVideoClip;
         IsAudioClip = isAudioClip;
+        HasAudioStream = hasAudioStream;
         SplitAtPlayheadCommand = splitAtPlayheadCommand;
         DeleteCommand = deleteCommand;
         DuplicateCommand = duplicateCommand;

@@ -389,6 +389,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetColorGrading(clipId, settings);
             RefreshFromSession();
         }
+        void OnAudioEnhancementChanged(string clipId, ClipAudioEnhancementSettings settings)
+        {
+            _session.SetClipAudioEnhancement(clipId, settings);
+            RefreshFromSession();
+        }
         void OnSpeedCurvePresetChanged(string clipId, SpeedCurvePreset preset)
         {
             _session.SetSpeedCurvePreset(clipId, preset);
@@ -433,17 +438,20 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.RemoveKeyframe(clipId, property, localTime);
             TimelineChanged?.Invoke();
         }
-        var sourceDurationSeconds = clip.MediaAssetId is null
-            ? 0
-            : AvailableMedia.FirstOrDefault(m => m.Asset.Id == clip.MediaAssetId)?.Asset.Duration.TotalSeconds
-              ?? Math.Max(clip.SourceTrimOutSeconds, 0);
+        var sourceAsset = clip.MediaAssetId is null
+            ? null
+            : AvailableMedia.FirstOrDefault(m => m.Asset.Id == clip.MediaAssetId)?.Asset;
+        var sourceDurationSeconds = sourceAsset?.Duration.TotalSeconds
+            ?? (clip.MediaAssetId is null ? 0 : Math.Max(clip.SourceTrimOutSeconds, 0));
+        var hasAudioStream = sourceAsset?.HasAudioStream == true;
 
         return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
             _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged,
-            OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged, OnColorGradingChanged)
+            OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged, OnColorGradingChanged,
+            hasAudioStream, OnAudioEnhancementChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

@@ -199,23 +199,38 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="Audio" IsVisible="{Binding IsAudioClip}">
+      <TabItem Header="Audio" IsVisible="{Binding HasAudioStream}">
         <ScrollViewer>
-          <Border Classes="inspectorSection" Margin="2,10,2,2">
-            <StackPanel Spacing="8">
-              <TextBlock Text="Audio klip" Classes="section" />
-              <TextBlock Text="Brzina" Classes="subtle"/>
-              <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
-              <Border Name="ModernAudioSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
-                <StackPanel Spacing="5">
-                  <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
-                  <ComboBox Name="ModernAudioSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
-                  <TextBlock Text="Kriva menja tempo uz očuvanje visine tona. Ručna Brzina iznad isključuje aktivnu krivu." Classes="subtle" TextWrapping="Wrap"/>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection" IsVisible="{Binding IsAudioClip}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Audio klip" Classes="section" />
+                <TextBlock Text="Brzina" Classes="subtle"/>
+                <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+                <Border Name="ModernAudioSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
+                    <ComboBox Name="ModernAudioSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                    <TextBlock Text="Kriva menja tempo uz očuvanje visine tona. Ručna Brzina iznad isključuje aktivnu krivu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+            <Border Name="ModernAudioEnhancementPanel" Classes="inspectorSection" IsVisible="{Binding CanUseAudioEnhancement}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Poboljšanje zvuka" Classes="section" />
+                <ToggleButton Name="ModernAudioNoiseReduction" Content="Smanji šum" IsChecked="{Binding AudioNoiseReductionEnabled}" HorizontalAlignment="Left"/>
+                <StackPanel Spacing="4" IsVisible="{Binding AudioNoiseReductionEnabled}">
+                  <TextBlock Text="Jačina redukcije šuma" Classes="subtle"/>
+                  <Slider Minimum="0" Maximum="1" Value="{Binding AudioNoiseReductionStrength}" TickFrequency="0.1"/>
                 </StackPanel>
-              </Border>
-              <TextBlock Text="Utišavanje i fade kontrole su uvek dostupne u zaglavlju inspektora." Classes="subtle" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
+                <ToggleButton Name="ModernAudioEnhanceVoice" Content="Istakni govor" IsChecked="{Binding AudioEnhanceVoiceEnabled}" HorizontalAlignment="Left"/>
+                <ToggleButton Name="ModernAudioLoudnessNormalization" Content="Normalizuj glasnoću (-16 LUFS)" IsChecked="{Binding AudioLoudnessNormalizationEnabled}" HorizontalAlignment="Left"/>
+                <TextBlock Text="Radi i na zvuku video klipa i na zasebnoj audio traci. Originalni fajl se ne menja; obrada ulazi u pravi FFmpeg preview/export." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="Utišavanje i fade kontrole su uvek dostupne u zaglavlju inspektora." Classes="subtle" TextWrapping="Wrap"/>
+          </StackPanel>
         </ScrollViewer>
       </TabItem>
 
