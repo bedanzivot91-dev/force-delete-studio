@@ -74,6 +74,7 @@ public class DependencyManagerServiceTests : IDisposable
         Assert.Contains(results, d => d.Name.Contains("Whisper"));
         Assert.Contains(results, d => d.Name.Contains("AI radnik"));
         Assert.Contains(results, d => d.Name.Contains("Tesseract"));
+        Assert.All(results, result => Assert.NotEqual(default, result.LastCheckedUtc));
     }
 
     [Fact]
@@ -86,6 +87,7 @@ public class DependencyManagerServiceTests : IDisposable
 
         Assert.Equal(DependencyStatus.NotInstalled, aiWorker.Status);
         Assert.Contains("python3 not found", aiWorker.TechnicalDetails);
+        Assert.True(aiWorker.CanRepair);
     }
 
     [Fact]
@@ -117,6 +119,27 @@ public class DependencyManagerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDependenciesAsync_AiWorkerWithAllEnginesButPython311_ReportsIncompatible()
+    {
+        _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
+        {
+            WorkerReachable = true,
+            PythonVersion = "3.11.9",
+            FasterWhisperAvailable = true,
+            DemucsAvailable = true,
+            LyricAlignAvailable = true,
+            OpenCvAvailable = true
+        };
+
+        var results = await _service.GetDependenciesAsync();
+        var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
+
+        Assert.Equal(DependencyStatus.Incompatible, aiWorker.Status);
+        Assert.Contains("Python 3.12+", aiWorker.TechnicalDetails);
+        Assert.True(aiWorker.CanRepair);
+    }
+
+    [Fact]
     public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperDemucsLyricAlignAndOpenCv_ReportsInstalled()
     {
         _aiWorkerClient.CapabilitiesToReturn = new AiWorkerCapabilities
@@ -133,30 +156,25 @@ public class DependencyManagerServiceTests : IDisposable
         var aiWorker = results.Single(d => d.Name.Contains("AI radnik"));
 
         Assert.Equal(DependencyStatus.Installed, aiWorker.Status);
+        Assert.False(aiWorker.CanRepair);
     }
 
     [Fact]
-    public async Task GetDependenciesAsync_FfmpegOnPath_ReportsInstalledWithVersion()
+    public async Task GetDependenciesAsync_FfmpegOnPath_ReportsInstalledWithVersionAndConcreteFolder()
     {
-        // ffmpeg/ffprobe are genuinely installed in this environment (apt), so this checks the real
-        // version-command exit code path, not a mocked answer.
         var results = await _service.GetDependenciesAsync();
         var ffmpeg = results.Single(d => d.Name == "FFmpeg");
 
         Assert.Equal(DependencyStatus.Installed, ffmpeg.Status);
         Assert.False(string.IsNullOrWhiteSpace(ffmpeg.Version));
         Assert.True(ffmpeg.CanOpenFolder);
+        Assert.False(string.IsNullOrWhiteSpace(ffmpeg.Path));
+        Assert.False(string.IsNullOrWhiteSpace(ffmpeg.ExpectedVersion));
     }
 
     [Fact]
-    public async Task GetDependenciesAsync_YtDlpPathIsNotAnExecutable_ReportsNotInstalled()
+    public async Task GetDependenciesAsync_ExistingInvalidExecutable_ReportsCorruptInsteadOfMissing()
     {
-        // A *nonexistent* override path would NOT reliably test "not installed": FfmpegLocator.Resolve
-        // only honors an override when File.Exists is true, otherwise it falls back to bare "yt-dlp" on
-        // PATH - and real CI runners genuinely have yt-dlp installed (via choco) and on PATH, so that
-        // fallback would silently find the real tool and this test would flake depending on the
-        // environment. Pointing the override at a real file that exists but isn't a valid executable
-        // forces FfmpegLocator to use (and fail to run) exactly this path, independent of PATH/environment.
         var notAnExecutable = Path.Combine(_tempDir, "not-a-real-yt-dlp.txt");
         File.WriteAllText(notAnExecutable, "this is not an executable");
         _settingsService.Current.YtDlpPath = notAnExecutable;
@@ -164,8 +182,10 @@ public class DependencyManagerServiceTests : IDisposable
         var results = await _service.GetDependenciesAsync();
         var ytDlp = results.Single(d => d.Name == "yt-dlp");
 
-        Assert.Equal(DependencyStatus.NotInstalled, ytDlp.Status);
-        Assert.False(ytDlp.CanOpenFolder);
+        Assert.Equal(DependencyStatus.Corrupt, ytDlp.Status);
+        Assert.True(ytDlp.CanOpenFolder);
+        Assert.Equal(Path.GetFullPath(notAnExecutable), ytDlp.Path);
+        Assert.Contains("provera verzije nije uspela", ytDlp.TechnicalDetails);
     }
 
     [Fact]
@@ -177,6 +197,7 @@ public class DependencyManagerServiceTests : IDisposable
 
         Assert.Equal(DependencyStatus.NotInstalled, whisper.Status);
         Assert.True(whisper.CanDownload);
+        Assert.True(whisper.CanRepair);
     }
 
     [Fact]
@@ -190,15 +211,11 @@ public class DependencyManagerServiceTests : IDisposable
         Assert.False(whisper.CanDownload);
     }
 
-    /// <summary>Real bug found and fixed: this used to always reconstruct the AppData default model
-    /// path here regardless of where the model was actually resolved from (e.g. a bundled copy next to
-    /// the exe) - so "Otvori folder" could point at a path with nothing in it even when the model was
-    /// genuinely ready. Must report the service's own real, resolved path instead.</summary>
     [Fact]
     public async Task GetDependenciesAsync_WhisperModelReady_ReportsTheServicesActualResolvedModelPath()
     {
         _lyricSearchService.IsModelReady = true;
-        _lyricSearchService.ModelPath = "C:\\Program\\Tools\\whisper-models\\ggml-tiny.bin"; // e.g. a bundled copy, not the AppData default
+        _lyricSearchService.ModelPath = "C:\\Program\\Tools\\whisper-models\\ggml-tiny.bin";
         var results = await _service.GetDependenciesAsync();
         var whisper = results.Single(d => d.Name.Contains("Whisper"));
 

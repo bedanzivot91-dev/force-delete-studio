@@ -17,7 +17,7 @@
       </Grid>
 
       <TextBlock Classes="subtle" TextWrapping="Wrap"
-                 Text="Stvarno stanje alata koje program koristi - svaka provera pokreće alat i čita njegov izlazni kod, ne samo proverava da li fajl postoji." />
+                 Text="Stvarno stanje alata koje program koristi — provera pokreće pravi alat/modul, čita njegovu verziju i proverava kompatibilnost. Postojeći fajl koji ne može da se pokrene prijavljuje se kao neispravan, ne kao uspešno instaliran." />
 
       <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
                  IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
@@ -29,7 +29,7 @@
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Panel Margin="0,4,14,0" VerticalAlignment="Top">
                   <Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource ThemeAccentBrush}" IsVisible="{Binding IsInstalled}" />
-                  <Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource ThemeBorderBrush}" IsVisible="{Binding !IsInstalled}" />
+                  <Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource ThemeDangerBrush}" IsVisible="{Binding NeedsAttention}" />
                 </Panel>
                 <StackPanel Grid.Column="1" Spacing="3">
                   <StackPanel Orientation="Horizontal" Spacing="8">
@@ -41,8 +41,15 @@
                                IsVisible="{Binding VersionLabel, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
                   </StackPanel>
                   <TextBlock Text="{Binding WhyItMatters}" Classes="subtle" TextWrapping="Wrap" />
+                  <WrapPanel>
+                    <TextBlock Text="{Binding ExpectedVersionLabel}" Classes="subtle" FontSize="11" Margin="0,0,12,0"
+                               IsVisible="{Binding ExpectedVersionLabel, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                    <TextBlock Text="{Binding LicenseLabel}" Classes="subtle" FontSize="11" TextWrapping="Wrap"
+                               IsVisible="{Binding LicenseLabel, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                  </WrapPanel>
                   <TextBlock Text="{Binding TechnicalDetails}" Classes="subtle" FontSize="11" TextWrapping="Wrap"
                              IsVisible="{Binding TechnicalDetails, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                  <TextBlock Text="{Binding LastCheckedLabel}" Classes="subtle" FontSize="10.5" />
                 </StackPanel>
                 <Button Grid.Column="2" Classes="ghost" Content="Otvori folder" Command="{Binding OpenFolderCommand}"
                         IsVisible="{Binding CanOpenFolder}" VerticalAlignment="Top" />
@@ -55,10 +62,10 @@
       <Border Classes="panel" Padding="20" IsVisible="{Binding HasMissingSongAi}"
               Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
         <StackPanel Spacing="10">
-          <TextBlock Text="AI za prepoznavanje stihova pesme nije instaliran" FontWeight="SemiBold" />
+          <TextBlock Text="AI za prepoznavanje stihova pesme nije spreman" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Program će sam instalirati kompatibilan Python 3.12, faster-whisper, Demucs i model large-v3. Potrebno je najmanje 8 GB slobodnog prostora; prvo preuzimanje može dugo trajati." />
-          <Button Classes="cta" Content="INSTALIRAJ AI ZA PESME" Command="{Binding InstallSongAiCommand}"
+                     Text="Program instalira ili popravlja svoje zasebno Python 3.12 okruženje, faster-whisper, Demucs, lyric-align i OpenCV/CSRT. Potrebno je najmanje 8 GB slobodnog prostora." />
+          <Button Classes="cta" Content="INSTALIRAJ / POPRAVI AI ZA PESME" Command="{Binding InstallSongAiCommand}"
                   IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
         </StackPanel>
       </Border>
@@ -67,7 +74,7 @@
         <StackPanel Spacing="10">
           <TextBlock Text="Instalacija i ažuriranje AI alata" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" TextWrapping="Wrap"
-                     Text="Instalira ili ažurira zasebno okruženje programa: faster-whisper, Demucs i kompletan lyric-align paket. Stvarna instalacija se proverava pokretanjem svakog modula." />
+                     Text="Menja samo NP Video Studio AI okruženje. Ne ažurira Windows niti sistemske kopije FFmpeg-a, yt-dlp-a ili drugih programa. Posle instalacije svaki obavezni modul se ponovo stvarno proverava." />
           <Button Classes="cta" Content="INSTALIRAJ / AŽURIRAJ SVE AI ALATE" Command="{Binding InstallSongAiCommand}"
                   IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
           <TextBlock Text="{Binding ModelStatusMessage}" Classes="subtle" TextWrapping="Wrap" />
@@ -77,11 +84,11 @@
       <Border Classes="panel" Padding="20" IsVisible="{Binding HasDownloadableWhisperModel}"
               Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
         <StackPanel Spacing="10">
-          <TextBlock Text="Whisper model nije preuzet" FontWeight="SemiBold" />
+          <TextBlock Text="Whisper model nije spreman" FontWeight="SemiBold" />
           <TextBlock Classes="subtle" Text="{Binding ModelStatusMessage}" TextWrapping="Wrap"
                      IsVisible="{Binding ModelStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Classes="cta" Content="Preuzmi model" Command="{Binding DownloadWhisperModelCommand}"
+            <Button Classes="cta" Content="Preuzmi / popravi model" Command="{Binding DownloadWhisperModelCommand}"
                     IsEnabled="{Binding !IsDownloadingModel}" />
             <Button Classes="ghost" Content="Otkaži" Command="{Binding CancelDownloadCommand}"
                     IsVisible="{Binding IsDownloadingModel}" />

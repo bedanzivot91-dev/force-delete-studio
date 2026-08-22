@@ -15,12 +15,29 @@ public sealed partial class DependencyItemViewModel : ViewModelBase
     }
 
     public string Name => _info.Name;
-    public bool IsInstalled => _info.Status == DependencyStatus.Installed;
-    public string StatusLabel => IsInstalled ? "Instalirano" : "Nije instalirano";
+    public bool IsInstalled => _info.IsUsable;
+    public bool NeedsAttention => _info.NeedsAttention;
+    public string StatusLabel => _info.Status switch
+    {
+        DependencyStatus.Installed => "Instalirano",
+        DependencyStatus.NotInstalled => "Nije instalirano",
+        DependencyStatus.UpdateAvailable => "Ažuriranje dostupno",
+        DependencyStatus.Corrupt => "Oštećeno / neispravno",
+        DependencyStatus.Incompatible => "Nekompatibilno",
+        DependencyStatus.Checking => "Provera...",
+        DependencyStatus.Downloading => "Preuzimanje...",
+        _ => _info.Status.ToString()
+    };
     public string? VersionLabel => _info.Version;
+    public string? ExpectedVersionLabel => string.IsNullOrWhiteSpace(_info.ExpectedVersion)
+        ? null
+        : $"Očekivano: {_info.ExpectedVersion}";
+    public string? LicenseLabel => string.IsNullOrWhiteSpace(_info.License) ? null : $"Licenca: {_info.License}";
+    public string LastCheckedLabel => $"Provereno: {_info.LastCheckedUtc.ToLocalTime():dd.MM.yyyy HH:mm}";
     public string WhyItMatters => _info.WhyItMatters;
     public string? TechnicalDetails => _info.TechnicalDetails;
     public bool CanDownload => _info.CanDownload;
+    public bool CanRepair => _info.CanRepair;
     public bool CanOpenFolder => _info.CanOpenFolder && _info.Path is not null;
 
     [RelayCommand(CanExecute = nameof(CanOpenFolder))]
