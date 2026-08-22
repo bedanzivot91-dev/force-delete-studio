@@ -5,7 +5,7 @@
         x:Class="NPVideoStudio.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="NP Video Studio"
-        Width="1500" Height="940" MinWidth="1100" MinHeight="680">
+        Width="1560" Height="960" MinWidth="1160" MinHeight="720">
 
   <Window.DataTemplates>
     <DataTemplate DataType="vm:StartScreenViewModel"><views:StartScreenView /></DataTemplate>
@@ -28,37 +28,67 @@
     <DataTemplate DataType="vm:QuickVideoViewModel"><views:QuickVideoView /></DataTemplate>
   </Window.DataTemplates>
 
-  <DockPanel>
-    <!-- Compact creator-style app bar. The actual Windows title bar remains native and dependable;
-         this is application navigation, not a fake draggable window chrome. -->
-    <Border DockPanel.Dock="Top" Classes="appbar" BorderThickness="0,0,0,1" Padding="14,8">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
-          <Border Width="31" Height="31" CornerRadius="7" Background="{DynamicResource ThemeAccentBrush}">
-            <TextBlock Text="NP" FontSize="12.5" FontWeight="Bold" Foreground="#101014"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+  <!-- Real 2026 desktop shell: persistent vertical navigation, separate command bar and edge-to-edge work area. -->
+  <Grid ColumnDefinitions="224,*" RowDefinitions="64,*">
+    <Border Grid.RowSpan="2" Classes="sidebar" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="14,16">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="11" Margin="7,0,7,22">
+          <Border Classes="brandMark">
+            <TextBlock Text="NP" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <StackPanel Spacing="0" VerticalAlignment="Center">
-            <TextBlock Text="NP VIDEO STUDIO" FontWeight="SemiBold" FontSize="13.5" LetterSpacing="0.7" />
-            <TextBlock Text="VIDEO · TEXT · LYRICS" Classes="micro" />
+            <TextBlock Text="NP VIDEO" FontWeight="Bold" FontSize="14" LetterSpacing="0.8"/>
+            <TextBlock Text="STUDIO 2026" Classes="micro"/>
           </StackPanel>
         </StackPanel>
 
-        <Border Grid.Column="1" Width="1" Height="24" Background="{DynamicResource ThemeBorderBrush}" Margin="14,0" />
+        <TextBlock Grid.Row="1" Text="RADNI PROSTOR" Classes="navCaption" Margin="10,0,0,8"/>
 
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <Button Classes="topnav" Content="⌂  Početna" Command="{Binding GoHomeCommand}" />
-          <Button Classes="topnav" Content="▣  Sačuvaj kao šablon" Command="{Binding GoToSaveTemplateCommand}"
-                  IsVisible="{Binding HasCurrentProject}" />
+        <StackPanel Grid.Row="2" Spacing="5">
+          <Button Classes="sidenav" Command="{Binding GoHomeCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="⌂" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Početna"/></Grid>
+          </Button>
+          <Button Classes="sidenav" Command="{Binding GoToSaveTemplateCommand}" IsVisible="{Binding HasCurrentProject}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="▦" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Sačuvaj šablon"/></Grid>
+          </Button>
+
+          <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="8,13"/>
+          <TextBlock Text="SISTEM" Classes="navCaption" Margin="10,0,0,3"/>
+
+          <Button Classes="sidenav" Command="{Binding GoToSettingsCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="⚙" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Podešavanja"/></Grid>
+          </Button>
+          <Button Classes="sidenav" Command="{Binding GoToDiagnosticsCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="◈" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Dijagnostika"/></Grid>
+          </Button>
         </StackPanel>
 
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-          <Button Classes="topnav" Content="⚙  Podešavanja" Command="{Binding GoToSettingsCommand}" />
-          <Button Classes="topnav" Content="◈  Dijagnostika" Command="{Binding GoToDiagnosticsCommand}" />
+        <Border Grid.Row="3" Classes="sidebarFooter" Padding="12" Margin="0,16,0,0">
+          <StackPanel Spacing="3">
+            <TextBlock Text="LOKALNI DESKTOP" Classes="micro"/>
+            <TextBlock Text="Video · Audio · Titlovi" FontSize="12.5" FontWeight="SemiBold"/>
+            <TextBlock Text="Rad bez cloud zaključavanja" Classes="subtle" FontSize="11.5"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Border Grid.Column="1" Grid.Row="0" Classes="commandbar" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto" Margin="22,0">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="Kreativni centar" FontSize="15" FontWeight="SemiBold"/>
+          <Border Classes="livePill"><TextBlock Text="●  SPREMAN" FontSize="10.5" FontWeight="Bold"/></Border>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="commandButton" Content="⌂  Početna" Command="{Binding GoHomeCommand}"/>
+          <Button Classes="commandButton" Content="⚙  Podešavanja" Command="{Binding GoToSettingsCommand}"/>
         </StackPanel>
       </Grid>
     </Border>
 
-    <ContentControl Content="{Binding CurrentPage}" />
-  </DockPanel>
+    <Border Grid.Column="1" Grid.Row="1" Background="{DynamicResource ThemeBackgroundBrush}">
+      <ContentControl Content="{Binding CurrentPage}"/>
+    </Border>
+  </Grid>
 </Window>
