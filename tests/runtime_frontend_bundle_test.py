@@ -51,12 +51,15 @@ def main() -> None:
         "2026 WORKSPACE · MATCH RECOVERY",
         "spsFinalNav2026Marker",
         "YOUTUBE I OBJAVA",
-        "productionWorkspace",
+        "sunoOnlyRuntimeMarker",
+        "spsRealThemeLayouts",
         "/api/connect/start",
         "youtubeAudioMaxVideos",
     )
     missing = [marker for marker in required if marker not in text]
     assert not missing, f"runtime app.js bundle is incomplete; missing: {missing}"
+    assert "productionWorkspace" not in text
+    assert "pwsTimeline" not in text
 
     # These two final layers must be present once in the response.  Duplicate
     # execution would be a separate wiring bug even if the visible page looked OK.
@@ -65,7 +68,7 @@ def main() -> None:
     assert str(captured.get("content_type") or "").lower().startswith("application/javascript")
 
     print(
-        "runtime_frontend_bundle_test: PASS — production Handler serves the final UTF-8 2026/Suno/YouTube/Studio bundle",
+        "runtime_frontend_bundle_test: PASS — Handler serves the standalone Suno-only five-layout bundle",
         f"bytes={len(payload)}",
     )
 
