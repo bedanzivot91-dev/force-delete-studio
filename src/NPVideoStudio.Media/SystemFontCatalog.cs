@@ -24,6 +24,8 @@ public sealed record InstalledFont(
         (false, true) => $"{FamilyName} (kurziv)",
         _ => FamilyName
     };
+
+    public override string ToString() => DisplayLabel;
 }
 
 /// <summary>
