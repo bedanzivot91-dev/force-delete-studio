@@ -5,16 +5,38 @@
              x:DataType="vm:StartScreenViewModel">
 
   <ScrollViewer>
-    <StackPanel Margin="36,30,36,40" Spacing="26" MaxWidth="1240" HorizontalAlignment="Stretch">
+    <StackPanel Margin="30,26,30,42" Spacing="24" MaxWidth="1380" HorizontalAlignment="Stretch">
 
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Spacing="4">
-          <TextBlock Text="NP VIDEO STUDIO" Classes="eyebrow" />
-          <TextBlock Text="Kreiraj. Uredi. Objavi." Classes="heading" />
-          <TextBlock Text="Izaberi šta želiš da uradiš — program otvara direktno odgovarajući tok rada." Classes="subtle" />
-        </StackPanel>
-        <Button Grid.Column="1" Classes="cta" Content="+ Novi projekat" Command="{Binding NewProjectCommand}" VerticalAlignment="Center" />
-      </Grid>
+      <Border Classes="dashboardHero" Padding="28">
+        <Grid ColumnDefinitions="1.35*,0.65*" ColumnSpacing="28">
+          <StackPanel Spacing="12" VerticalAlignment="Center">
+            <Border Classes="livePill" HorizontalAlignment="Left">
+              <TextBlock Text="●  NP CREATOR WORKSPACE"/>
+            </Border>
+            <TextBlock Text="Od ideje do gotovog videa." FontSize="32" FontWeight="Bold" LetterSpacing="-0.4"/>
+            <TextBlock Text="Montaža, audio, automatski titlovi i izvoz u jednom modernom radnom prostoru."
+                       Classes="subtle" FontSize="15" TextWrapping="Wrap" MaxWidth="650"/>
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+              <Button Classes="cta heroAction" Content="+  Novi projekat" Command="{Binding NewProjectCommand}"/>
+              <Button Classes="heroSecondary" Content="Otvori projekat" Command="{Binding OpenProjectCommand}"/>
+            </StackPanel>
+          </StackPanel>
+          <Border Grid.Column="1" Classes="heroVisual" MinHeight="170">
+            <Grid RowDefinitions="Auto,*,Auto" Margin="18">
+              <TextBlock Text="NP / STUDIO 2026" Classes="micro"/>
+              <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="7">
+                <Border Height="8" CornerRadius="4" Background="{DynamicResource ThemeAccentBrush}" Width="170" HorizontalAlignment="Left"/>
+                <Border Height="8" CornerRadius="4" Background="{DynamicResource ThemeBorderBrush}" Width="220" HorizontalAlignment="Left"/>
+                <Border Height="8" CornerRadius="4" Background="{DynamicResource ThemeBorderBrush}" Width="135" HorizontalAlignment="Left"/>
+              </StackPanel>
+              <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                <TextBlock Text="VIDEO  •  AUDIO  •  TEXT" Classes="micro"/>
+                <TextBlock Grid.Column="1" Text="▶" Foreground="{DynamicResource ThemeAccentBrush}" FontSize="20"/>
+              </Grid>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
 
       <Border Classes="panel" Padding="18" IsVisible="{Binding HasRecoveryMessage}"
               Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
@@ -27,35 +49,46 @@
         </Grid>
       </Border>
 
-      <!-- QUICK START: project creation belongs together instead of being mixed with utilities. -->
-      <Border Classes="panel" Padding="18">
-        <StackPanel Spacing="14">
-          <Grid ColumnDefinitions="*,Auto">
-            <StackPanel Spacing="2">
-              <TextBlock Text="BRZI POČETAK" Classes="eyebrow" />
-              <TextBlock Text="Projekti i formati" Classes="section" />
+      <!-- Modern bento quick-start area: different hierarchy and card geometry, not a recolored list. -->
+      <Grid ColumnDefinitions="1.25*,0.75*" ColumnSpacing="16">
+        <Border Classes="bentoPrimary" Padding="22">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <StackPanel Spacing="3">
+              <TextBlock Text="BRZI POČETAK" Classes="eyebrow"/>
+              <TextBlock Text="Napravi video za nekoliko minuta" FontSize="20" FontWeight="Bold"/>
+              <TextBlock Text="Izaberi format i odmah otvori spreman timeline." Classes="subtle"/>
             </StackPanel>
-            <Button Grid.Column="1" Classes="ghost" Content="Otvori postojeći projekat" Command="{Binding OpenProjectCommand}" />
+            <Grid Grid.Row="1" ColumnDefinitions="*,*" RowDefinitions="*,*" Margin="0,18,0,16" ColumnSpacing="10" RowSpacing="10">
+              <Button Classes="formatCard" Command="{Binding NewYouTubeVideoCommand}">
+                <StackPanel><TextBlock Text="16:9" FontSize="20" FontWeight="Bold"/><TextBlock Text="YouTube video" Classes="subtle"/></StackPanel>
+              </Button>
+              <Button Grid.Column="1" Classes="formatCard" Command="{Binding NewYouTubeShortsCommand}">
+                <StackPanel><TextBlock Text="9:16" FontSize="20" FontWeight="Bold"/><TextBlock Text="YouTube Shorts" Classes="subtle"/></StackPanel>
+              </Button>
+              <Button Grid.Row="1" Classes="formatCard" Command="{Binding NewTikTokCommand}">
+                <StackPanel><TextBlock Text="9:16" FontSize="20" FontWeight="Bold"/><TextBlock Text="TikTok" Classes="subtle"/></StackPanel>
+              </Button>
+              <Button Grid.Row="1" Grid.Column="1" Classes="formatCard" Command="{Binding NewInstagramReelCommand}">
+                <StackPanel><TextBlock Text="9:16" FontSize="20" FontWeight="Bold"/><TextBlock Text="Instagram Reel" Classes="subtle"/></StackPanel>
+              </Button>
+            </Grid>
+            <Button Grid.Row="2" Classes="ghost" HorizontalAlignment="Left" Content="Facebook Reel →"
+                    Command="{Binding NewFacebookReelCommand}"/>
           </Grid>
-          <WrapPanel>
-            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewYouTubeVideoCommand}">
-              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="16:9" FontSize="12" /></Border><TextBlock Text="YouTube video" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1920×1080 · 30 fps"/></StackPanel>
-            </Button>
-            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewYouTubeShortsCommand}">
-              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="YouTube Shorts" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
-            </Button>
-            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewTikTokCommand}">
-              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="TikTok video" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
-            </Button>
-            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewInstagramReelCommand}">
-              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="Instagram Reel" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
-            </Button>
-            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewFacebookReelCommand}">
-              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="Facebook Reel" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
-            </Button>
-          </WrapPanel>
+        </Border>
+
+        <StackPanel Grid.Column="1" Spacing="16">
+          <Button Classes="bentoAction" Command="{Binding OpenQuickVideoCommand}">
+            <Grid ColumnDefinitions="*,Auto"><StackPanel><TextBlock Text="Brzi video" FontSize="17" FontWeight="Bold"/><TextBlock Text="Slika + pesma" Classes="subtle"/></StackPanel><TextBlock Grid.Column="1" Text="▶" FontSize="24" Foreground="{DynamicResource ThemeAccentBrush}"/></Grid>
+          </Button>
+          <Button Classes="bentoAction" Command="{Binding OpenQuickVideoWithCaptionsCommand}">
+            <Grid ColumnDefinitions="*,Auto"><StackPanel><TextBlock Text="Auto titlovi" FontSize="17" FontWeight="Bold"/><TextBlock Text="Prepoznaj i utisni tekst" Classes="subtle"/></StackPanel><TextBlock Grid.Column="1" Text="CC" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentBrush}"/></Grid>
+          </Button>
+          <Button Classes="bentoAction" Command="{Binding OpenTemplateGalleryCommand}">
+            <Grid ColumnDefinitions="*,Auto"><StackPanel><TextBlock Text="Šabloni" FontSize="17" FontWeight="Bold"/><TextBlock Text="Gotovi rasporedi traka" Classes="subtle"/></StackPanel><TextBlock Grid.Column="1" Text="▦" FontSize="22" Foreground="{DynamicResource ThemeAccentBrush}"/></Grid>
+          </Button>
         </StackPanel>
-      </Border>
+      </Grid>
 
       <!-- CREATE: direct outcomes, not implementation/tool names. -->
       <StackPanel Spacing="12">
