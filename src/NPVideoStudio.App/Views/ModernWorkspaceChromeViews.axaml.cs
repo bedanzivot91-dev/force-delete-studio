@@ -1,10 +1,16 @@
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace NPVideoStudio.App.Views;
 
 public partial class ModernWorkspaceHeaderView : UserControl
 {
-    public ModernWorkspaceHeaderView() => InitializeComponent();
+    public ModernWorkspaceHeaderView()
+    {
+        InitializeComponent();
+        AttachedToVisualTree += (_, _) =>
+            this.GetVisualAncestors().OfType<WorkspaceView>().FirstOrDefault()?.InstallModernSecondaryChrome();
+    }
 }
 
 public partial class ModernWorkspaceCommandBarView : UserControl
