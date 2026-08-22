@@ -13,7 +13,7 @@ public sealed class ReleaseFfmpegFallbackIntegrationTests
             return;
         }
 
-        var repoRoot = Directory.GetCurrentDirectory();
+        var repoRoot = FindRepositoryRoot();
         var script = Path.Combine(repoRoot, "scripts", "copy-ffmpeg-from-path.ps1");
         Assert.True(File.Exists(script), $"Fallback skripta nije pronađena: {script}");
 
@@ -52,5 +52,23 @@ public sealed class ReleaseFfmpegFallbackIntegrationTests
         {
             try { Directory.Delete(destination, recursive: true); } catch { }
         }
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        foreach (var startingPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            var directory = new DirectoryInfo(startingPath);
+            while (directory is not null)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, "NPVideoStudio.sln")))
+                {
+                    return directory.FullName;
+                }
+                directory = directory.Parent;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Nije pronađen NPVideoStudio.sln iz test radnog direktorijuma.");
     }
 }
