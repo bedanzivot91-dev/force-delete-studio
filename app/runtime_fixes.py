@@ -298,11 +298,13 @@ def _install_scalable_song_indexer(core: Any) -> dict[str, Any]:
     """Keep full indexing explicit, resumable and non-serial during source lookup."""
 
     def scalable_song_finder_index_task(task: Any, options: dict[str, Any]) -> None:
-        # YouTube audio analysis used this exact internal call as a mandatory
-        # precondition.  That made a channel scan wait for all 3k songs first.
-        # YouTube can fingerprint its shortlisted Suno candidates on demand, so
-        # defer the full-library index to the explicit 'Napravi indeks' action.
-        if bool(options.get("finish_task", True)) is False:
+        finish_task = bool(options.get("finish_task", True))
+        required_for_youtube = bool(options.get("required_for_youtube", False))
+        # A cheap metadata-only scan may still skip a full pre-index. A real
+        # YouTube audio scan may not: Shorts often have quote titles unrelated
+        # to the Suno title, so on-demand metadata candidates caused genuine
+        # false negatives in the user's library.
+        if not finish_task and not required_for_youtube:
             status = core.song_finder_status()
             task.log(
                 f"Kompletan audio indeks nije uslov za YouTube proveru. "
@@ -316,7 +318,10 @@ def _install_scalable_song_indexer(core: Any) -> dict[str, Any]:
         all_songs = core.DB.export_rows()
         task.total = len(all_songs)
         if not all_songs:
-            task.finish("Biblioteka je prazna; nema pesama za indeksiranje.")
+            if finish_task:
+                task.finish("Biblioteka je prazna; nema pesama za indeksiranje.")
+            else:
+                task.log("Biblioteka je prazna; nema pesama za indeksiranje.", "warning")
             return
 
         ok = 0
@@ -420,12 +425,15 @@ def _install_scalable_song_indexer(core: Any) -> dict[str, Any]:
             + (f" {reused_without_source} postojećih otisaka ponovo iskorišćeno bez mreže." if reused_without_source else "")
             + (f" Brzi indeks: {indexed_rows} otisaka." if indexed_rows else "")
         )
-        if task.cancel_event.is_set():
-            task.finish_partial(summary + " Posao je zaustavljen; sledeći put nastavlja samo ono što nedostaje.")
-        elif failed:
-            task.finish_partial(summary)
+        if finish_task:
+            if task.cancel_event.is_set():
+                task.finish_partial(summary + " Posao je zaustavljen; sledeći put nastavlja samo ono što nedostaje.")
+            elif failed:
+                task.finish_partial(summary)
+            else:
+                task.finish(summary)
         else:
-            task.finish(summary)
+            task.log(summary, "warning" if failed or unavailable else "success")
 
     core.song_finder_index_task = scalable_song_finder_index_task
     return {"song_finder_index_task": scalable_song_finder_index_task}
