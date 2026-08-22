@@ -58,6 +58,35 @@ function Assert-BundledTools([int]$pass) {
     Assert-BundledTool $pass 'Tools\tesseract\tesseract.exe' @('--version')
 }
 
+function Assert-FunctionalMediaRender([int]$pass) {
+    Write-Host "== Functional installed FFmpeg render + FFprobe pass $pass =="
+    $ffmpeg = Join-Path $installDir 'Tools\ffmpeg\ffmpeg.exe'
+    $ffprobe = Join-Path $installDir 'Tools\ffmpeg\ffprobe.exe'
+    $output = Join-Path $env:RUNNER_TEMP "npvs-installed-render-pass-$pass.mp4"
+    Remove-Item $output -Force -ErrorAction SilentlyContinue
+
+    $renderArgs = @(
+        '-hide_banner', '-loglevel', 'error', '-y',
+        '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=30:d=1.2',
+        '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:duration=1.2',
+        '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', $output
+    )
+    $render = Start-Process -FilePath $ffmpeg -ArgumentList $renderArgs -Wait -PassThru -NoNewWindow
+    if ($render.ExitCode -ne 0 -or -not (Test-Path $output -PathType Leaf)) {
+        throw "Instalirani FFmpeg nije napravio funkcionalni MP4 (pass $pass), exit=$($render.ExitCode)."
+    }
+    if ((Get-Item $output).Length -lt 1000) { throw "FFmpeg output je sumnjivo mali (pass $pass)." }
+
+    $probeJson = & $ffprobe -v error -show_entries stream=codec_type -of json $output | Out-String
+    if ($LASTEXITCODE -ne 0) { throw "Instalirani FFprobe nije mogao da pročita render (pass $pass)." }
+    $probe = $probeJson | ConvertFrom-Json
+    $types = @($probe.streams | ForEach-Object { $_.codec_type })
+    if ('video' -notin $types -or 'audio' -notin $types) {
+        throw "Funkcionalni render pass $pass nema i video i audio stream. Dobijeno: $($types -join ', ')"
+    }
+    Write-Host "Functional media render pass ${pass}: $((Get-Item $output).Length) bytes; streams=$($types -join ',')"
+}
+
 function Assert-GuiLaunch([int]$pass) {
     Write-Host "== GUI launch/responding pass $pass =="
     $exe = Join-Path $installDir 'NPVideoStudio.exe'
@@ -96,11 +125,13 @@ function Invoke-Uninstall([int]$pass) {
 
 Invoke-SetupInstall 1
 Assert-BundledTools 1
+Assert-FunctionalMediaRender 1
 Assert-GuiLaunch 1
 Invoke-Uninstall 1
 Invoke-SetupInstall 2
 Assert-BundledTools 2
+Assert-FunctionalMediaRender 2
 Assert-GuiLaunch 2
 Invoke-Uninstall 2
 
-Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> GUI window/responding -> uninstall -> second clean install -> bundled tools/runtime payload -> GUI window/responding -> uninstall.'
+Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> functional FFmpeg render+FFprobe -> GUI window/responding -> uninstall -> second clean install -> tools/runtime -> functional render -> GUI -> uninstall.'
