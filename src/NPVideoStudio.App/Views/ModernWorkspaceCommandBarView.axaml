@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.ModernWorkspaceCommandBarView"
+             x:DataType="vm:WorkspaceViewModel">
+  <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+    <Border Classes="inspectorSection" Padding="10,7">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Titlovi" Classes="eyebrow" VerticalAlignment="Center" />
+        <Button Classes="cta" Content="Automatski tekst" Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}"
+                ToolTip.Tip="Prepoznaje govor/pesmu i dodaje uređive titlove na timeline." />
+        <Button Classes="ghost" Content="Karaoke" Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        <Button Classes="ghost" Content="Prekini" Command="{Binding CancelCaptionGenerationCommand}" IsVisible="{Binding IsGeneratingCaptions}" />
+      </StackPanel>
+    </Border>
+
+    <Expander Grid.Column="1" Header="Tačan tekst pesme" VerticalAlignment="Center">
+      <Border Classes="inspectorSection" Padding="12" MinWidth="420">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="ghost" Content="Učitaj TXT / RTF" Command="{Binding LoadVerifiedLyricsCommand}" />
+            <TextBlock Text="{Binding VerifiedLyricsFileName}" Classes="subtle" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBox Text="{Binding VerifiedLyricsText}" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                   Watermark="Nalepi kompletan tačan tekst pesme, red po red..." />
+          <Button Classes="cta" Content="Sinhronizuj sa pesmom" HorizontalAlignment="Left"
+                  Command="{Binding SyncVerifiedLyricsCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
+        </StackPanel>
+      </Border>
+    </Expander>
+
+    <TextBlock Grid.Column="2" Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
+               IsVisible="{Binding CaptionsStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+    <Border Grid.Column="3" Classes="inspectorSection" Padding="10,7">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Pregled" Classes="eyebrow" VerticalAlignment="Center" />
+        <Button Classes="ghost" Content="15 s oko plejheda" Command="{Binding RenderRealPreviewAroundPlayheadCommand}" IsEnabled="{Binding !IsRenderingRealPreview}" />
+        <Button Classes="ghost" Content="Cela traka" Command="{Binding RenderRealPreviewCommand}" IsEnabled="{Binding !IsRenderingRealPreview}" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
