@@ -19,7 +19,19 @@ $expectedPayload = @(
     'Tools\ai-worker\install-song-ai.ps1',
     'libvlc\win-x64\libvlc.dll',
     'libvlc\win-x64\libvlccore.dll',
-    'runtimes\win-x64\whisper.dll'
+    'runtimes\win-x64\whisper.dll',
+    'THIRD_PARTY_NOTICES.md',
+    'Licenses\Apache-2.0-Serilog.txt',
+    'Licenses\GPLv3-FFmpeg.txt',
+    'Licenses\LGPL-2.1-LibVLC.txt',
+    'Licenses\MIT-Avalonia.txt',
+    'Licenses\MIT-CommunityToolkit.Mvvm.txt',
+    'Licenses\MIT-Microsoft.Data.Sqlite.txt',
+    'Licenses\MIT-Microsoft.Extensions.DependencyInjection.txt',
+    'Licenses\MIT-Whisper.net.txt',
+    'Licenses\MIT-whisper.cpp.txt',
+    'Licenses\PublicDomain-SQLite.txt',
+    'Licenses\Unlicense-yt-dlp.txt'
 )
 
 function Invoke-SetupInstall([int]$pass) {
@@ -31,6 +43,7 @@ function Invoke-SetupInstall([int]$pass) {
     foreach ($relative in $expectedPayload) {
         $full = Join-Path $installDir $relative
         if (-not (Test-Path $full -PathType Leaf)) { throw "Install pass $pass nema obavezni payload: $relative" }
+        if ((Get-Item $full).Length -eq 0) { throw "Install pass $pass ima prazan obavezni payload: $relative" }
     }
     $assoc = Get-ItemPropertyValue -Path 'Registry::HKEY_CURRENT_USER\Software\Classes\.npvsproject' -Name '(default)' -ErrorAction SilentlyContinue
     if ($assoc -ne 'NPVideoStudioProject') { throw "Install pass $pass nije registrovao .npvsproject za trenutnog korisnika." }
@@ -146,4 +159,4 @@ $project2 = Assert-InstalledAppProjectRender 2
 Assert-GuiLaunch 2 $project2
 Invoke-Uninstall 2
 
-Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> FFmpeg infrastructure render -> NPVideoStudio.exe save/reload real .npvsproject -> production RenderService video+audio export -> GUI opens that project/responds -> uninstall -> second clean install -> repeat full NP project render/open gate -> uninstall.'
+Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime/legal payload -> FFmpeg infrastructure render -> NPVideoStudio.exe save/reload real .npvsproject -> production RenderService video+audio export -> GUI opens that project/responds -> uninstall -> second clean install -> repeat full NP project render/open gate -> uninstall.'
