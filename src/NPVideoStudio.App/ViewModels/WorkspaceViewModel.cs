@@ -30,6 +30,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly ISubtitleGeneratorService _subtitleGeneratorService;
     private readonly IAiWorkerClient? _aiWorkerClient;
     private readonly IRenderService _renderService;
+    private readonly IProxyGeneratorService? _proxyGeneratorService;
 
     private readonly ILogger _logger;
     private CancellationTokenSource? _framePreviewCts;
@@ -215,7 +216,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private static readonly (string Name, string[] Extensions) AudioFilter = ("Audio", new[] { "mp3", "wav", "aac", "m4a", "flac", "ogg", "wma" });
     private static readonly (string Name, string[] Extensions) ImageFilter = ("Slike", new[] { "jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff", "tif" });
 
-    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IAiWorkerClient? aiWorkerClient = null)
+    public WorkspaceViewModel(Project project, IProjectRepository projectRepository, IMediaProbeService mediaProbeService, IStorageService storageService, IFramePreviewService framePreviewService, ISubtitleGeneratorService subtitleGeneratorService, IRenderService renderService, ILogger logger, IAiWorkerClient? aiWorkerClient = null, IProxyGeneratorService? proxyGeneratorService = null)
     {
         Project = project;
         _projectRepository = projectRepository;
@@ -225,6 +226,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _subtitleGeneratorService = subtitleGeneratorService;
         _aiWorkerClient = aiWorkerClient;
         _renderService = renderService;
+        _proxyGeneratorService = proxyGeneratorService;
         _logger = logger.ForContext("SourceContext", nameof(WorkspaceViewModel));
         RefreshFormatSummaryLabel();
         PlayerAspectRatio = ProjectAspectRatio;
@@ -275,7 +277,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         var cts = new CancellationTokenSource();
         _framePreviewCts = cts;
 
-        var request = TimelinePreviewResolver.Resolve(Timeline.CurrentTracks, Project.MediaLibrary, playheadSeconds);
+        var request = TimelinePreviewResolver.Resolve(Timeline.CurrentTracks, BuildPreviewMediaLibrary(Project.MediaLibrary), playheadSeconds);
         if (request is null)
         {
             Player.CurrentFrameBitmap = null;
@@ -284,7 +286,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
 
         UpdatePlayerAspectRatio(Project.MediaLibrary.FirstOrDefault(a =>
-            string.Equals(a.FilePath, request.Value.SourceFilePath, StringComparison.OrdinalIgnoreCase)));
+            string.Equals(a.FilePath, request.Value.SourceFilePath, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a.ProxyFilePath, request.Value.SourceFilePath, StringComparison.OrdinalIgnoreCase)));
 
         _ = ExtractAndApplyFrameAsync(request.Value, cts.Token);
     }
@@ -412,7 +415,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // see anything. VideoSurface has no native window at all, so that constraint is gone, and with
         // it the reason this screen had several players instead of one.
         UpdatePlayerAspectRatio(asset.Asset);
-        await RealPreview.LoadAndPlayAsync(asset.Asset.FilePath);
+        await RealPreview.LoadAndPlayAsync(ResolvePreviewSourcePath(asset.Asset));
 
         RaisePlayerTransportChanged();
 
@@ -499,7 +502,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var outputPath = await _renderService.RenderAsync(Project, job);
+            var outputPath = await _renderService.RenderAsync(CreatePreviewRenderProject(Project.Timeline), job);
             PlayerAspectRatio = ProjectAspectRatio;
             await RealPreview.LoadAndPlayAsync(outputPath);
             RealPreviewStatusMessage = "Pravi pregled je spreman i pušta se, sa zvukom.";
@@ -557,7 +560,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         RealPreviewStatusMessage = FormattableString.Invariant($"Renderovanje dela pregleda ({rangeStart:0.0}s-{rangeEnd:0.0}s) u toku...");
 
         var rangeTimeline = FfmpegFilterGraphBuilder.ExtractRangeTimeline(Project.Timeline, rangeStart, rangeEnd);
-        var previewProject = new Project { Name = Project.Name, Format = Project.Format, MediaLibrary = Project.MediaLibrary, Timeline = rangeTimeline };
+        var previewProject = CreatePreviewRenderProject(rangeTimeline);
         var previewPath = Path.Combine(AppSettings.PreviewCacheFolder(), $"{Project.Id}-range-preview.mp4");
         var job = new RenderJob
         {
@@ -590,6 +593,59 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>Preview-only source resolver. A ready proxy is preferred only when its file is still
+    /// present. The original MediaAsset.FilePath is never mutated, so export remains full quality.</summary>
+    public static string ResolvePreviewSourcePath(MediaAsset asset) =>
+        asset.ProxyStatus == MediaProxyStatus.Ready &&
+        !string.IsNullOrWhiteSpace(asset.ProxyFilePath) &&
+        File.Exists(asset.ProxyFilePath)
+            ? asset.ProxyFilePath
+            : asset.FilePath;
+
+    /// <summary>Creates a preview-only media library with identical IDs/metadata but proxy-aware paths.
+    /// FfmpegFilterGraphBuilder therefore resolves timeline foreign keys normally while reading lower
+    /// resolution media only for preview. The real project media library is not modified.</summary>
+    public static IReadOnlyList<MediaAsset> BuildPreviewMediaLibrary(IEnumerable<MediaAsset> assets) => assets.Select(asset => new MediaAsset
+    {
+        Id = asset.Id,
+        FilePath = ResolvePreviewSourcePath(asset),
+        Kind = asset.Kind,
+        Duration = asset.Duration,
+        Width = asset.Width,
+        Height = asset.Height,
+        Fps = asset.Fps,
+        VideoCodec = asset.VideoCodec,
+        AudioCodec = asset.AudioCodec,
+        HasVideoStream = asset.HasVideoStream,
+        HasAudioStream = asset.HasAudioStream,
+        FileSizeBytes = asset.FileSizeBytes,
+        IsFavorite = asset.IsFavorite,
+        FolderTag = asset.FolderTag,
+        ImportedAt = asset.ImportedAt,
+        IsMissing = asset.IsMissing,
+        ProbeError = asset.ProbeError,
+        ProxyStatus = asset.ProxyStatus,
+        ProxyFilePath = asset.ProxyFilePath,
+        ProxyError = asset.ProxyError
+    }).ToList();
+
+    private Project CreatePreviewRenderProject(Timeline timeline) => new()
+    {
+        Id = Project.Id,
+        Name = Project.Name,
+        Format = Project.Format,
+        TargetPlatform = Project.TargetPlatform,
+        MediaLibrary = BuildPreviewMediaLibrary(Project.MediaLibrary).ToList(),
+        Timeline = timeline
+    };
+
+    private async Task PersistProxyStateAsync()
+    {
+        if (string.IsNullOrEmpty(Project.ProjectFilePath)) return;
+        Timeline.SaveToProject();
+        await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
+    }
+
     private MediaAssetViewModel CreateItemViewModel(Domain.MediaAsset asset)
     {
         var item = new MediaAssetViewModel(asset);
@@ -598,6 +654,84 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             asset.IsFavorite = !asset.IsFavorite;
             item.NotifyAssetChanged();
         });
+        item.GenerateProxyCommand = new AsyncRelayCommand(async () =>
+        {
+            if (_proxyGeneratorService is null)
+            {
+                StatusMessage = "Proxy servis nije dostupan u ovoj instalaciji.";
+                return;
+            }
+            if (!asset.HasVideoStream || !File.Exists(asset.FilePath))
+            {
+                StatusMessage = $"Proxy nije moguće napraviti za „{asset.FileName}“ jer originalni video nije dostupan.";
+                return;
+            }
+
+            Directory.CreateDirectory(AppSettings.ProxyCacheFolder());
+            var outputPath = Path.Combine(AppSettings.ProxyCacheFolder(), $"{Project.Id}-{asset.Id}.proxy.mp4");
+            asset.ProxyStatus = MediaProxyStatus.Generating;
+            asset.ProxyError = null;
+            item.NotifyAssetChanged();
+            StatusMessage = $"Generišem proxy za „{asset.FileName}“...";
+
+            try
+            {
+                asset.ProxyFilePath = await _proxyGeneratorService.GenerateProxyAsync(asset.FilePath, outputPath);
+                asset.ProxyStatus = MediaProxyStatus.Ready;
+                asset.ProxyError = null;
+                StatusMessage = $"Proxy za „{asset.FileName}“ je spreman. Preview sada koristi proxy, export i dalje koristi original.";
+                RefreshPreviewFrame(Player.CurrentTimeSeconds);
+            }
+            catch (OperationCanceledException)
+            {
+                asset.ProxyStatus = MediaProxyStatus.Original;
+                asset.ProxyError = null;
+                throw;
+            }
+            catch (Exception ex)
+            {
+                asset.ProxyStatus = MediaProxyStatus.Failed;
+                asset.ProxyError = ex.Message;
+                StatusMessage = $"Proxy za „{asset.FileName}“ nije napravljen: {ex.Message}";
+                _logger.Warning(ex, "Proxy generation failed for {Path}", asset.FilePath);
+            }
+            finally
+            {
+                item.NotifyAssetChanged();
+                await PersistProxyStateAsync();
+            }
+        });
+        item.RemoveProxyCommand = new AsyncRelayCommand(async () =>
+        {
+            if (!string.IsNullOrWhiteSpace(asset.ProxyFilePath) && File.Exists(asset.ProxyFilePath))
+            {
+                File.Delete(asset.ProxyFilePath);
+            }
+            asset.ProxyFilePath = null;
+            asset.ProxyStatus = MediaProxyStatus.Original;
+            asset.ProxyError = null;
+            item.NotifyAssetChanged();
+            await PersistProxyStateAsync();
+            RefreshPreviewFrame(Player.CurrentTimeSeconds);
+            StatusMessage = $"Proxy za „{asset.FileName}“ je uklonjen. Preview koristi original.";
+        });
+        item.OpenProxyFolderCommand = new RelayCommand(() =>
+        {
+            var folder = !string.IsNullOrWhiteSpace(asset.ProxyFilePath)
+                ? Path.GetDirectoryName(asset.ProxyFilePath)
+                : AppSettings.ProxyCacheFolder();
+            if (string.IsNullOrWhiteSpace(folder)) return;
+            Directory.CreateDirectory(folder);
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Proxy folder nije moguće otvoriti: {ex.Message}";
+            }
+        });
+
         item.RemoveCommand = new RelayCommand(() =>
         {
             // MediaAssetId is the persisted foreign key used by timeline clips. Removing an asset while
