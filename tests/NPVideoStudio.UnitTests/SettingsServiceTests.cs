@@ -25,7 +25,7 @@ public class SettingsServiceTests : IDisposable
         await service.LoadAsync();
 
         Assert.True(File.Exists(_settingsPath));
-        Assert.Equal(AppTheme.DarkCinematic, service.Current.Theme);
+        Assert.Equal(AppTheme.Studio2026, service.Current.Theme);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class SettingsServiceTests : IDisposable
 
         await service.LoadAsync();
 
-        Assert.Equal(AppTheme.DarkCinematic, service.Current.Theme);
+        Assert.Equal(AppTheme.Studio2026, service.Current.Theme);
     }
 
     [Fact]
@@ -66,5 +66,6 @@ public class SettingsServiceTests : IDisposable
         await service.ResetToDefaultsAsync();
 
         Assert.True(service.Current.AutoSaveEnabled);
+        Assert.Equal(AppTheme.Studio2026, service.Current.Theme);
     }
 }
