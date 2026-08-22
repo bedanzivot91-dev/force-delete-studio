@@ -63,6 +63,30 @@ public sealed class CacheFolderProxyConsistencyTests
     }
 
     [Fact]
+    public async Task InvalidManuallyTypedCachePath_DoesNotCrashSettingsSaveAndFallsBackSafely()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"npvs-cache-invalid-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(root, "settings.json");
+
+        try
+        {
+            var service = new SettingsService(settingsPath);
+            service.Current.CacheFolder = "bad\0cache";
+
+            await service.SaveAsync();
+
+            Assert.Equal(Path.GetFullPath(AppSettings.DefaultCacheFolder()), AppSettings.ActiveCacheFolder());
+            Assert.Equal(Path.Combine(Path.GetFullPath(AppSettings.DefaultCacheFolder()), "Proxies"), AppSettings.ProxyCacheFolder());
+            Assert.True(File.Exists(settingsPath));
+        }
+        finally
+        {
+            AppSettings.ConfigureRuntimeCacheFolder(AppSettings.DefaultCacheFolder());
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MediaRemoval_UsesSameCustomProxyRootButStillProtectsExternalFiles()
     {
         var root = Path.Combine(Path.GetTempPath(), $"npvs-cache-cleanup-{Guid.NewGuid():N}");
