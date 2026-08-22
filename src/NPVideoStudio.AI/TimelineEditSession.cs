@@ -542,6 +542,64 @@ public sealed class TimelineEditSession
     }
 
     /// <summary>
+    /// Applies the renderable part of a caption-style gallery preset to one real Caption/Text clip in a
+    /// single undo step. The gallery catalog also describes granularity and named animation ideas; those
+    /// are intentionally not faked here. This method changes only fields that the current FFmpeg renderer
+    /// actually consumes: text color, outline/shadow and optional panel background.
+    /// </summary>
+    public bool ApplyCaptionStylePreset(string clipId, CaptionStylePreset preset)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.TextContent is null)
+        {
+            return false;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.TextColor = preset.TextColorHex;
+        liveClip.TextOutlineWidthPx = Math.Max(2, liveClip.TextOutlineWidthPx);
+        liveClip.TextShadowOffsetPx = Math.Max(2, liveClip.TextShadowOffsetPx);
+
+        if (preset.Animation == CaptionAnimationKind.Shadow)
+        {
+            liveClip.TextOutlineColor = null;
+            liveClip.TextShadowColor = preset.OutlineOrShadowColorHex;
+        }
+        else
+        {
+            // Outline is also the safe static fallback for Glow/Pop/Slide/etc. until their temporal
+            // animation engines exist; unlike the old gallery this still produces a visible exported change.
+            liveClip.TextOutlineColor = preset.OutlineOrShadowColorHex;
+            liveClip.TextShadowColor = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(preset.PanelColorHex))
+        {
+            liveClip.HasTextBackground = true;
+            var panel = preset.PanelColorHex!;
+            if (panel.Length == 9 && panel[0] == '#')
+            {
+                // Avalonia catalog colors use #AARRGGBB. FFmpeg drawtext expects RGB plus a separate
+                // opacity, so split the alpha instead of passing an invalid 8-digit color through.
+                liveClip.TextBackgroundOpacity = Math.Clamp(Convert.ToInt32(panel.Substring(1, 2), 16) / 255.0, 0, 1);
+                liveClip.TextBackgroundColor = "#" + panel.Substring(3, 6);
+            }
+            else
+            {
+                liveClip.TextBackgroundColor = panel;
+                liveClip.TextBackgroundOpacity = Math.Clamp(liveClip.TextBackgroundOpacity, 0.15, 1);
+            }
+        }
+        else
+        {
+            liveClip.HasTextBackground = false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// "Primeni na sve titlove na ovoj traci" - copies every text style field (font/size/color/position
     /// plus everything <see cref="SetTextAdvancedStyle"/> covers) from one clip onto every other Caption/
     /// Text clip on the same track, so styling a batch of auto-generated captions doesn't mean re-clicking
