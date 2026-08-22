@@ -51,6 +51,11 @@ Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\DefaultIcon"; ValueTyp
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Modules\Video\NPVideoStudio.exe"" ""%1"""; Tasks: associate
 
 [Run]
+; The Suno module and the unified native shell are WebView2 applications. The same Microsoft-signed
+; Evergreen Standalone x64 installer verified by the Suno full-offline build is carried inside the suite.
+; Running it unconditionally is safe: Microsoft WebView2 Evergreen performs an in-place/no-op update when
+; the same or a newer runtime already exists. This keeps a clean Windows machine fully offline-capable.
+Filename: "{app}\Modules\Suno\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "Instaliranje Microsoft WebView2 Runtime-a..."; Flags: waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Pokreni {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
