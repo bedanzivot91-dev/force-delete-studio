@@ -600,6 +600,20 @@ public static class FfmpegFilterGraphBuilder
         StabilizationSmoothing = clip.StabilizationSmoothing,
         StabilizationZoomPercent = clip.StabilizationZoomPercent,
         StabilizationOptimalZoom = clip.StabilizationOptimalZoom,
+        TrackingRegionCenterX = clip.TrackingRegionCenterX,
+        TrackingRegionCenterY = clip.TrackingRegionCenterY,
+        TrackingRegionWidth = clip.TrackingRegionWidth,
+        TrackingRegionHeight = clip.TrackingRegionHeight,
+        MotionTrackingPoints = clip.MotionTrackingPoints.Select(point => new MotionTrackingPoint
+        {
+            SourceTimeSeconds = point.SourceTimeSeconds,
+            CenterX = point.CenterX,
+            CenterY = point.CenterY,
+            Width = point.Width,
+            Height = point.Height,
+            Confidence = point.Confidence
+        }).ToList(),
+        AutoReframeEnabled = clip.AutoReframeEnabled,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
@@ -750,6 +764,7 @@ public static class FfmpegFilterGraphBuilder
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
             prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
+            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));
             prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(BuildTransformFilters(clip));
