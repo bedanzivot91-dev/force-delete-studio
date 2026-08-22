@@ -2,65 +2,68 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 
-def replace_once(path, old, new):
+
+def replace_once(path: str, old: str, new: str) -> None:
     p = root / path
-    text = p.read_text(encoding='utf-8')
+    text = p.read_text(encoding="utf-8")
     count = text.count(old)
     if count != 1:
-        raise SystemExit(f'{path}: expected one anchor, found {count}')
-    p.write_text(text.replace(old, new, 1), encoding='utf-8')
+        raise SystemExit(f"{path}: expected one anchor, found {count}")
+    p.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-def replace_count(path, old, new, expected):
-    p = root / path
-    text = p.read_text(encoding='utf-8')
-    count = text.count(old)
-    if count != expected:
-        raise SystemExit(f'{path}: expected {expected} anchors, found {count}')
-    p.write_text(text.replace(old, new), encoding='utf-8')
 
-# Auto Reframe coordinates describe original source frames. Crop first, then run vidstabtransform over
-# exactly the same reframed geometry that vidstabdetect sees in its first pass.
-replace_count(
-    'src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs',
-    '''            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));\n            videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));''',
-    '''            videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));\n            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));''',
-    1)
-replace_count(
-    'src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs',
-    '''            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));\n            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));''',
-    '''            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));\n            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));''',
-    1)
-
-# The stabilization pre-pass must analyze the exact same reframed pixels/dimensions as final render.
+# 1) Session-level defensive validation: never accept a path that does not cover the whole trimmed clip.
 replace_once(
-    'src/NPVideoStudio.Media/VideoStabilizationPrepass.cs',
-    '''                await RunDetectAsync(ffmpegPath, asset.FilePath, clip, transformPath, cancellationToken)\n                    .ConfigureAwait(false);''',
-    '''                await RunDetectAsync(\n                        ffmpegPath, asset.FilePath, clip, transformPath,\n                        project.Format.Width, project.Format.Height, cancellationToken)\n                    .ConfigureAwait(false);''')
-replace_once(
-    'src/NPVideoStudio.Media/VideoStabilizationPrepass.cs',
-    '''        TimelineClip clip,\n        string transformPath,\n        CancellationToken cancellationToken)''',
-    '''        TimelineClip clip,\n        string transformPath,\n        int targetWidth,\n        int targetHeight,\n        CancellationToken cancellationToken)''')
-replace_once(
-    'src/NPVideoStudio.Media/VideoStabilizationPrepass.cs',
-    '''        startInfo.ArgumentList.Add(\n            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness={Math.Clamp(clip.StabilizationShakiness, 1, 10)}:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}");''',
-    '''        var detectFilter =\n            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness={Math.Clamp(clip.StabilizationShakiness, 1, 10)}:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}";\n        if (clip.AutoReframeEnabled)\n        {\n            // The final graph resets PTS before Auto Reframe, and the tracking expression uses clip-local\n            // time. Do the same here so vidstabdetect and vidstabtransform operate on identical frames.\n            detectFilter = "setpts=PTS-STARTPTS" +\n                           FfmpegFilterGraphBuilder.BuildAutoReframeFilter(clip, targetWidth, targetHeight) +\n                           "," + detectFilter;\n        }\n        startInfo.ArgumentList.Add(detectFilter);''')
+    "src/NPVideoStudio.AI/TimelineEditSession.cs",
+    """        if (ordered.Count < 2) return false;\n\n        SaveSnapshot();""",
+    """        if (ordered.Count < 2) return false;\n        const double endpointToleranceSeconds = 0.05;\n        if (ordered[0].SourceTimeSeconds > clip.SourceTrimInSeconds + endpointToleranceSeconds ||\n            ordered[^1].SourceTimeSeconds < clip.SourceTrimOutSeconds - endpointToleranceSeconds)\n        {\n            return false;\n        }\n\n        SaveSnapshot();""",
+)
 
-# A partial path must never silently become a successful Auto Reframe result.
+# Loaded/legacy project data can bypass ApplyMotionTrackingResult. Refuse enabling Auto Reframe unless
+# the persisted path itself covers the complete current trim range.
 replace_once(
-    'src/NPVideoStudio.AI/TimelineEditSession.cs',
-    '''        if (ordered.Count < 2) return false;\n\n        SaveSnapshot();''',
-    '''        if (ordered.Count < 2) return false;\n        const double endpointToleranceSeconds = 0.05;\n        if (ordered[0].SourceTimeSeconds > clip.SourceTrimInSeconds + endpointToleranceSeconds ||\n            ordered[^1].SourceTimeSeconds < clip.SourceTrimOutSeconds - endpointToleranceSeconds)\n        {\n            return false;\n        }\n\n        SaveSnapshot();''')
+    "src/NPVideoStudio.AI/TimelineEditSession.cs",
+    """        if (enabled && (clip.IsReversed || clip.IsFreezeFrame || clip.MotionTrackingPoints.Count < 2)) return;""",
+    """        if (enabled && (clip.IsReversed || clip.IsFreezeFrame || clip.MotionTrackingPoints.Count < 2 ||\n            clip.MotionTrackingPoints.Min(p => p.SourceTimeSeconds) > clip.SourceTrimInSeconds + 0.05 ||\n            clip.MotionTrackingPoints.Max(p => p.SourceTimeSeconds) < clip.SourceTrimOutSeconds - 0.05)) return;""",
+)
 
-# Ship the tracker itself in the executable payload, not only in source control.
+# 2) Final render order must match stabilization pre-pass: crop/reframe first, then vidstabtransform.
 replace_once(
-    'src/NPVideoStudio.App/NPVideoStudio.App.csproj',
-    '''    <None Include="..\\..\\ai-worker\\ai_worker.py" Link="Tools\\ai-worker\\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />\n    <None Include="..\\..\\ai-worker\\requirements.txt" Link="Tools\\ai-worker\\requirements.txt" CopyToOutputDirectory="PreserveNewest" />''',
-    '''    <None Include="..\\..\\ai-worker\\ai_worker.py" Link="Tools\\ai-worker\\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />\n    <None Include="..\\..\\ai-worker\\motion_tracker.py" Link="Tools\\ai-worker\\motion_tracker.py" CopyToOutputDirectory="PreserveNewest" />\n    <None Include="..\\..\\ai-worker\\requirements.txt" Link="Tools\\ai-worker\\requirements.txt" CopyToOutputDirectory="PreserveNewest" />''')
-
-# Packaging cannot go green unless the installed payload really contains the tracker script.
+    "src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs",
+    """            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));\n            videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));""",
+    """            videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));\n            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));""",
+)
 replace_once(
-    'scripts/build-release.ps1',
-    '''    'Tools\\ai-worker\\ai_worker.py',\n    'Tools\\ai-worker\\install-song-ai.ps1' ''',
-    '''    'Tools\\ai-worker\\ai_worker.py',\n    'Tools\\ai-worker\\motion_tracker.py',\n    'Tools\\ai-worker\\install-song-ai.ps1' ''')
+    "src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs",
+    """            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));\n            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));""",
+    """            prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));\n            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));""",
+)
 
-print('Final tracking correctness/payload gaps materialized.')
+# Render-time guard too: malformed persisted data must fail loudly instead of freezing the crop at an edge.
+replace_once(
+    "src/NPVideoStudio.Media/FfmpegFilterGraphBuilder.cs",
+    """        if (clip.MotionTrackingPoints.Count < 2)\n            throw new InvalidOperationException(\"Auto Reframe je uključen, ali klip nema kompletnu Motion Tracking putanju.\");\n\n        var x = BuildTrackingValueExpression(clip, point => point.CenterX);""",
+    """        if (clip.MotionTrackingPoints.Count < 2)\n            throw new InvalidOperationException(\"Auto Reframe je uključen, ali klip nema kompletnu Motion Tracking putanju.\");\n        var firstTrackingTime = clip.MotionTrackingPoints.Min(point => point.SourceTimeSeconds);\n        var lastTrackingTime = clip.MotionTrackingPoints.Max(point => point.SourceTimeSeconds);\n        if (firstTrackingTime > clip.SourceTrimInSeconds + 0.05 ||\n            lastTrackingTime < clip.SourceTrimOutSeconds - 0.05)\n        {\n            throw new InvalidOperationException(\"Auto Reframe putanja ne pokriva ceo trenutno isečeni klip. Pokrenite Motion Tracking ponovo.\");\n        }\n\n        var x = BuildTrackingValueExpression(clip, point => point.CenterX);""",
+)
+
+# 3) Dependency-manager test now reflects the actual product contract: a fully installed advanced AI toolset
+# includes the CSRT tracker too. This is not weakening the production check; it makes the positive fixture complete.
+replace_once(
+    "tests/NPVideoStudio.UnitTests/DependencyManagerServiceTests.cs",
+    """    public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperDemucsAndLyricAlign_ReportsInstalled()""",
+    """    public async Task GetDependenciesAsync_AiWorkerWithFasterWhisperDemucsLyricAlignAndOpenCv_ReportsInstalled()""",
+)
+replace_once(
+    "tests/NPVideoStudio.UnitTests/DependencyManagerServiceTests.cs",
+    """            DemucsAvailable = true,\n            LyricAlignAvailable = true\n        };""",
+    """            DemucsAvailable = true,\n            LyricAlignAvailable = true,\n            OpenCvAvailable = true\n        };""",
+)
+
+# Add explicit malformed persisted-path coverage for render-time defense.
+replace_once(
+    "tests/NPVideoStudio.UnitTests/MotionTrackingAutoReframeTests.cs",
+    """    [Fact]\n    public void RangePreview_PreservesTrackingPathAndAutoReframe()""",
+    """    [Fact]\n    public void AutoReframeFilter_RejectsPersistedPartialTrackingPath()\n    {\n        var clip = NewTrackedClip();\n        clip.MotionTrackingPoints.RemoveAt(0);\n\n        var error = Assert.Throws<InvalidOperationException>(() =>\n            FfmpegFilterGraphBuilder.BuildAutoReframeFilter(clip, 1080, 1920));\n\n        Assert.Contains(\"ceo\", error.Message, StringComparison.OrdinalIgnoreCase);\n    }\n\n    [Fact]\n    public void RangePreview_PreservesTrackingPathAndAutoReframe()""",
+)
+
+print("Tracking final correctness fixes materialized.")
