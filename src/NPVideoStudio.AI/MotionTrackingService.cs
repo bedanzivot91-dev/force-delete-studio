@@ -116,14 +116,7 @@ public sealed class MotionTrackingService : IMotionTrackingService
                         : stderr.Trim()));
             }
 
-            var points = response?.TrackingPoints ?? new List<MotionTrackingPoint>();
-            if (points.Count < 2)
-            {
-                throw new InvalidOperationException("Motion Tracking nije vratio dovoljno tačaka za putanju.");
-            }
-
-            progress?.Report(100);
-            return points
+            var points = (response?.TrackingPoints ?? new List<MotionTrackingPoint>())
                 .OrderBy(point => point.SourceTimeSeconds)
                 .Select(point => new MotionTrackingPoint
                 {
@@ -135,6 +128,24 @@ public sealed class MotionTrackingService : IMotionTrackingService
                     Confidence = Math.Clamp(point.Confidence, 0, 1)
                 })
                 .ToList();
+            if (points.Count < 2)
+            {
+                throw new InvalidOperationException("Motion Tracking nije vratio dovoljno tačaka za putanju.");
+            }
+
+            // Never freeze the last known coordinate across an untracked tail. The Python worker already
+            // treats an early CSRT loss as an error; this second process-boundary check protects the app
+            // against malformed/older worker output too.
+            const double endpointToleranceSeconds = 0.05;
+            if (points[0].SourceTimeSeconds > normalized.SourceStartSeconds + endpointToleranceSeconds ||
+                points[^1].SourceTimeSeconds < normalized.SourceEndSeconds - endpointToleranceSeconds)
+            {
+                throw new InvalidOperationException(
+                    "Motion Tracking putanja nije kompletna od početka do kraja izabranog klipa.");
+            }
+
+            progress?.Report(100);
+            return points;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
