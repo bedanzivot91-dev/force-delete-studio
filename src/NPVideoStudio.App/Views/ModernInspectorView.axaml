@@ -171,6 +171,34 @@
         </ScrollViewer>
       </TabItem>
 
+      <TabItem Header="Boja" IsVisible="{Binding IsPictureClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Ton" Classes="section" />
+                <TextBlock Text="Exposure (stops)" Classes="subtle"/>
+                <Slider Minimum="-3" Maximum="3" Value="{Binding ExposureStops}" TickFrequency="0.1"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Highlights" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Highlights}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Shadows" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Shadows}"/></StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="White Balance" Classes="section" />
+                <TextBlock Text="Temperature  •  hladno ↔ toplo" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Temperature}"/>
+                <TextBlock Text="Tint  •  zeleno ↔ magenta" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Tint}"/>
+                <TextBlock Text="Neutralno je 0. Sve vrednosti se čuvaju u projektu i ulaze u preview/export preko FFmpeg-a." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
       <TabItem Header="Audio" IsVisible="{Binding IsAudioClip}">
         <ScrollViewer>
           <Border Classes="inspectorSection" Margin="2,10,2,2">

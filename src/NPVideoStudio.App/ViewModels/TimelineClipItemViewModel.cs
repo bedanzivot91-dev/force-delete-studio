@@ -33,6 +33,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>(clipId, effect, brightness, contrast, saturation, speed) - routed through the session so
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
+    private readonly Action<string, ClipColorGradingSettings>? _onColorGradingChanged;
     private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
     private readonly Action<string, bool, int, int, double>? _onStabilizationChanged;
     private readonly Action<string, MotionTrackingRegion>? _onTrackingRegionChanged;
@@ -210,6 +211,38 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     {
         get => Clip.Saturation;
         set { if (Math.Abs(Clip.Saturation - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, value, SpeedMultiplier); }
+    }
+
+    private void PushColorGrading(Func<ClipColorGradingSettings, ClipColorGradingSettings> mutate)
+    {
+        var current = new ClipColorGradingSettings(ExposureStops, Highlights, Shadows, Temperature, Tint);
+        _onColorGradingChanged?.Invoke(Clip.Id, mutate(current));
+    }
+
+    public double ExposureStops
+    {
+        get => Clip.ExposureStops;
+        set { if (Math.Abs(Clip.ExposureStops - value) < 1e-6) return; PushColorGrading(s => s with { ExposureStops = value }); }
+    }
+    public double Highlights
+    {
+        get => Clip.Highlights;
+        set { if (Math.Abs(Clip.Highlights - value) < 1e-6) return; PushColorGrading(s => s with { Highlights = value }); }
+    }
+    public double Shadows
+    {
+        get => Clip.Shadows;
+        set { if (Math.Abs(Clip.Shadows - value) < 1e-6) return; PushColorGrading(s => s with { Shadows = value }); }
+    }
+    public double Temperature
+    {
+        get => Clip.Temperature;
+        set { if (Math.Abs(Clip.Temperature - value) < 1e-6) return; PushColorGrading(s => s with { Temperature = value }); }
+    }
+    public double Tint
+    {
+        get => Clip.Tint;
+        set { if (Math.Abs(Clip.Tint - value) < 1e-6) return; PushColorGrading(s => s with { Tint = value }); }
     }
 
     /// <summary>0.5 = slow motion, 2 = double speed. Changing it explicitly disables a velocity curve.</summary>
@@ -860,9 +893,11 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, bool, int, int, double>? onStabilizationChanged = null,
         Action<string, MotionTrackingRegion>? onTrackingRegionChanged = null,
         Action<string, MotionTrackingRegion>? onMotionTrackingRequested = null,
-        Action<string, bool>? onAutoReframeChanged = null)
+        Action<string, bool>? onAutoReframeChanged = null,
+        Action<string, ClipColorGradingSettings>? onColorGradingChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
+        _onColorGradingChanged = onColorGradingChanged;
         _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
         _onStabilizationChanged = onStabilizationChanged;
         _onTrackingRegionChanged = onTrackingRegionChanged;

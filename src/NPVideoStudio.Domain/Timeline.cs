@@ -105,6 +105,16 @@ public readonly record struct ClipStabilizationSettings(
     double ZoomPercent,
     int OptimalZoom);
 
+/// <summary>Professional per-clip tone/white-balance controls. Neutral values are all zero.
+/// The renderer maps them to real FFmpeg LUT/curves/colorbalance filters; this is persisted project data,
+/// not preview-only UI state.</summary>
+public readonly record struct ClipColorGradingSettings(
+    double ExposureStops,
+    double Highlights,
+    double Shadows,
+    double Temperature,
+    double Tint);
+
 public enum ClipMaskType
 {
     None,
@@ -307,6 +317,18 @@ public sealed class TimelineClip
 
     /// <summary>Manual colour saturation, 0..3, 1 = unchanged. 0 is fully grey.</summary>
     public double Saturation { get; set; } = 1.0;
+
+    // --- Advanced color grading -----------------------------------------------------------------
+    /// <summary>Exposure compensation in stops, -3..+3. Zero is neutral.</summary>
+    public double ExposureStops { get; set; }
+    /// <summary>Upper-tone curve adjustment, -1..+1. Zero is neutral.</summary>
+    public double Highlights { get; set; }
+    /// <summary>Lower-tone curve adjustment, -1..+1. Zero is neutral.</summary>
+    public double Shadows { get; set; }
+    /// <summary>White-balance temperature, -1 (cool) .. +1 (warm). Zero is neutral.</summary>
+    public double Temperature { get; set; }
+    /// <summary>White-balance tint, -1 (green) .. +1 (magenta). Zero is neutral.</summary>
+    public double Tint { get; set; }
 
     /// <summary>Playback speed, 0.25..4. Used when no velocity curve is active.</summary>
     public double SpeedMultiplier { get; set; } = 1.0;
