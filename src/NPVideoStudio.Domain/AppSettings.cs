@@ -3,6 +3,9 @@ namespace NPVideoStudio.Domain;
 /// <summary>Application-wide settings, persisted locally. No telemetry, no remote sync.</summary>
 public sealed class AppSettings
 {
+    private static readonly object RuntimePathLock = new();
+    private static string? _runtimeCacheFolder;
+
     public AppTheme Theme { get; set; } = AppTheme.Studio2026;
     public string Language { get; set; } = "sr-Latn";
 
@@ -47,12 +50,35 @@ public sealed class AppSettings
 
     public static string ModelsFolder() => Path.Combine(AppDataRoot(), "Models");
 
+    /// <summary>
+    /// Updates the process-wide cache root after persisted settings are loaded or saved. Centralising this
+    /// here prevents proxy generation, proxy-folder navigation and ownership cleanup from silently using
+    /// different roots after the user changes Settings -> Cache folder.
+    /// </summary>
+    public static void ConfigureRuntimeCacheFolder(string? cacheFolder)
+    {
+        var normalized = string.IsNullOrWhiteSpace(cacheFolder) ? DefaultCacheFolder() : Path.GetFullPath(cacheFolder.Trim());
+        lock (RuntimePathLock)
+        {
+            _runtimeCacheFolder = normalized;
+        }
+    }
+
+    public static string ActiveCacheFolder()
+    {
+        lock (RuntimePathLock)
+        {
+            return string.IsNullOrWhiteSpace(_runtimeCacheFolder) ? DefaultCacheFolder() : _runtimeCacheFolder;
+        }
+    }
+
     /// <summary>App-owned lower-resolution media proxies. Proxies are disposable cache data and never
-    /// replace the original source path stored in a project.</summary>
-    public static string ProxyCacheFolder() => Path.Combine(DefaultCacheFolder(), "Proxies");
+    /// replace the original source path stored in a project. This follows the active user-selected cache
+    /// root rather than always falling back to the factory default.</summary>
+    public static string ProxyCacheFolder() => Path.Combine(ActiveCacheFolder(), "Proxies");
 
     /// <summary>Where the real-audio-video-preview render (workspace "Pravi pregled sa zvukom") writes
-    /// its temporary output file - separate from <see cref="DefaultCacheFolder"/>/<see cref="CacheFolder"/>
-    /// (proxy/thumbnail cache) since this is regenerated per-render, not a long-lived cache.</summary>
+    /// its temporary output file - separate from the configurable long-lived cache because this is
+    /// regenerated per render.</summary>
     public static string PreviewCacheFolder() => Path.Combine(AppDataRoot(), "PreviewCache");
 }
