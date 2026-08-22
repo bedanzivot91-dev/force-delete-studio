@@ -46,6 +46,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("final 2026 navigation grouping", core.WEB_DIR / "modern_2026_navigation_final.js"),
         ("five genuinely different application layouts", core.WEB_DIR / "real_theme_layouts_extension.js"),
         ("standalone Suno-only runtime guard", core.WEB_DIR / "suno_only_runtime_extension.js"),
+        ("single-owner Suno workspace redesign", core.WEB_DIR / "suno_workspace_redesign_extension.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:
