@@ -40,7 +40,7 @@
                   <TextBlock Classes="subtle" Text="{Binding AnimationLabel}" FontSize="12.5" />
                 </StackPanel>
 
-                <Border CornerRadius="6" Background="#1A1A1A" Padding="14" MinHeight="70">
+                <Border CornerRadius="6" Background="{DynamicResource ThemePlayerBrush}" Padding="14" MinHeight="70">
                   <Panel>
                     <Border Background="{Binding PanelBrush}" CornerRadius="4" Padding="8" IsVisible="{Binding HasPanel}"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
