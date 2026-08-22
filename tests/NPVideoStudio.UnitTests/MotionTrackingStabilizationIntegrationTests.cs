@@ -60,7 +60,14 @@ public sealed class MotionTrackingStabilizationIntegrationTests
             var project = new Project
             {
                 Name = "Tracking + stabilization proof",
-                Format = new ProjectFormat { Width = 108, Height = 192, FrameRate = 30 }
+                Format = new ProjectFormat
+                {
+                    AspectRatio = AspectRatioPreset.Vertical9x16,
+                    Width = 108,
+                    Height = 192,
+                    FrameRate = FrameRatePreset.Fps30,
+                    Fps = 30
+                }
             };
             project.MediaLibrary.Add(new MediaAsset
             {
