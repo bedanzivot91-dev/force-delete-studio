@@ -69,11 +69,6 @@ jobs:
         # specified" for `tesseract` despite the install step reporting success).
         run: echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
 
-      - name: Install OpenCV CSRT tracking test dependency
-        # Motion Tracking is an optional app-owned runtime dependency for users, but CI must install it
-        # explicitly so tests execute the real CSRT algorithm instead of merely checking JSON/string wiring.
-        run: python -m pip install --disable-pip-version-check --upgrade opencv-contrib-python-headless
-
       - name: Restore
         run: dotnet restore NPVideoStudio.sln
 
