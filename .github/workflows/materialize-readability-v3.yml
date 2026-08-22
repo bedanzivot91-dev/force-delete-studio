@@ -1,0 +1,30 @@
+name: Materialize readability v3
+
+on:
+  push:
+    branches:
+      - agent/readability-core-v3
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/readability-core-v3
+          fetch-depth: 0
+      - name: Apply clean readability diff onto latest development
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin agent/readability-core-v2
+          git diff --binary e8f3f6cc27411261e213411f6cd7fc056ad20212 1bb1597d2db7405f0a2b305d8fe3018f27b3e4b2 -- src/NPVideoStudio.App/App.axaml src/NPVideoStudio.App/ViewModels/SettingsViewModel.cs src/NPVideoStudio.App/Views/SettingsView.axaml tests/NPVideoStudio.UnitTests/ReadabilityCoreContractTests.cs > /tmp/readability.patch
+          git apply --3way --index /tmp/readability.patch
+          git commit -m "Raise core readability on latest development"
+          git push origin HEAD:agent/readability-core-v3
