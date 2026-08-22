@@ -89,6 +89,15 @@ public sealed partial class TimelineViewModel : ViewModelBase
 
     /// <summary>Raised after any edit that could change <see cref="TotalDurationSeconds"/>, so the owning player can retarget.</summary>
     public event Action? TimelineChanged;
+    public event Action<string, MotionTrackingRegion>? MotionTrackingRequested;
+
+    public bool ApplyMotionTrackingResult(string clipId, MotionTrackingRegion region, IReadOnlyList<MotionTrackingPoint> points)
+    {
+        if (!_session.ApplyMotionTrackingResult(clipId, region, points)) return false;
+        RefreshFromSession();
+        SelectedClipId = clipId;
+        return true;
+    }
 
     public TimelineViewModel(Project project, ObservableCollection<MediaAssetViewModel> availableMedia, Func<double> getPlayhead)
     {
@@ -385,6 +394,18 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetClipStabilization(clipId, enabled, smoothing, accuracy, zoom);
             RefreshFromSession();
         }
+        void OnTrackingRegionChanged(string clipId, MotionTrackingRegion region)
+        {
+            _session.SetMotionTrackingRegion(clipId, region);
+            RefreshFromSession();
+        }
+        void OnMotionTrackingRequested(string clipId, MotionTrackingRegion region) =>
+            MotionTrackingRequested?.Invoke(clipId, region);
+        void OnAutoReframeChanged(string clipId, bool enabled)
+        {
+            _session.SetAutoReframeEnabled(clipId, enabled);
+            RefreshFromSession();
+        }
 
         void OnTransformChanged(string clipId, ClipTransformSettings settings)
         {
@@ -416,7 +437,8 @@ public sealed partial class TimelineViewModel : ViewModelBase
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
-            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged)
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged,
+            OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

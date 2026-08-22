@@ -74,6 +74,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<ISongRecognitionService>(sp =>
             new SongRecognitionService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
         services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
+        services.AddSingleton<IMotionTrackingService, MotionTrackingService>();
         services.AddSingleton<IVideoLayoutAnalysisService>(sp =>
         {
             var mediaProbe = sp.GetRequiredService<IMediaProbeService>();
