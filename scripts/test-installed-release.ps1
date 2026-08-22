@@ -87,10 +87,49 @@ function Assert-FunctionalMediaRender([int]$pass) {
     Write-Host "Functional media render pass ${pass}: $((Get-Item $output).Length) bytes; streams=$($types -join ',')"
 }
 
-function Assert-GuiLaunch([int]$pass) {
-    Write-Host "== GUI launch/responding pass $pass =="
+function Assert-InstalledAppProjectRender([int]$pass) {
+    Write-Host "== Installed NPVideoStudio project save -> reload -> production render pass $pass =="
     $exe = Join-Path $installDir 'NPVideoStudio.exe'
-    $p = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
+    $ffprobe = Join-Path $installDir 'Tools\ffmpeg\ffprobe.exe'
+    $workDir = Join-Path $env:RUNNER_TEMP "npvs-installed-app-e2e-$pass"
+    if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+
+    $p = Start-Process -FilePath $exe -WorkingDirectory $installDir -ArgumentList @('--self-test-project-render', $workDir) -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        throw "Instalirani NPVideoStudio.exe production project E2E je pao (pass $pass), exit=$($p.ExitCode)."
+    }
+
+    $project = Join-Path $workDir 'npvs-installed-e2e.npvsproject'
+    $output = Join-Path $workDir 'npvs-installed-app-render.mp4'
+    $marker = Join-Path $workDir 'npvs-installed-e2e.success.txt'
+    foreach ($required in @($project, $output, $marker)) {
+        if (-not (Test-Path $required -PathType Leaf)) { throw "NP app E2E pass $pass nema rezultat: $required" }
+    }
+    if ((Get-Item $output).Length -lt 1000) { throw "NP app production render je sumnjivo mali (pass $pass)." }
+
+    $projectJson = Get-Content -Raw -Path $project | ConvertFrom-Json
+    if ($projectJson.Name -ne 'NP Installed E2E' -or @($projectJson.Timeline.Tracks).Count -ne 2) {
+        throw "Sačuvani/ponovo učitani NP projekat nema očekivanu strukturu (pass $pass)."
+    }
+
+    $probeJson = & $ffprobe -v error -show_entries stream=codec_type -of json $output | Out-String
+    if ($LASTEXITCODE -ne 0) { throw "FFprobe nije mogao da pročita NP app render (pass $pass)." }
+    $types = @((($probeJson | ConvertFrom-Json).streams) | ForEach-Object { $_.codec_type })
+    if ('video' -notin $types -or 'audio' -notin $types) {
+        throw "NP app production render pass $pass nema video+audio. Dobijeno: $($types -join ', ')"
+    }
+
+    Write-Host "NP app project E2E pass ${pass}: project=$project; render=$((Get-Item $output).Length) bytes; streams=$($types -join ',')"
+    return $project
+}
+
+function Assert-GuiLaunch([int]$pass, [string]$projectPath) {
+    Write-Host "== GUI launch/responding + project-open pass $pass =="
+    $exe = Join-Path $installDir 'NPVideoStudio.exe'
+    $arguments = @()
+    if (-not [string]::IsNullOrWhiteSpace($projectPath)) { $arguments = @($projectPath) }
+    $p = Start-Process -FilePath $exe -WorkingDirectory $installDir -ArgumentList $arguments -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds(35)
     try {
         do {
@@ -102,7 +141,7 @@ function Assert-GuiLaunch([int]$pass) {
         $p.Refresh()
         if ($p.MainWindowHandle -eq 0) { throw "Instalirana aplikacija nije otvorila pravi Windows GUI prozor u roku od 35 s (pass $pass)." }
         if (-not $p.Responding) { throw "Instalirani GUI ne odgovara na Windows message pump (pass $pass)." }
-        Write-Host "GUI pass ${pass}: PID=$($p.Id), HWND=$($p.MainWindowHandle), Responding=$($p.Responding)"
+        Write-Host "GUI/project-open pass ${pass}: PID=$($p.Id), HWND=$($p.MainWindowHandle), Responding=$($p.Responding), project=$projectPath"
     }
     finally {
         if (-not $p.HasExited) {
@@ -126,12 +165,14 @@ function Invoke-Uninstall([int]$pass) {
 Invoke-SetupInstall 1
 Assert-BundledTools 1
 Assert-FunctionalMediaRender 1
-Assert-GuiLaunch 1
+$project1 = Assert-InstalledAppProjectRender 1
+Assert-GuiLaunch 1 $project1
 Invoke-Uninstall 1
 Invoke-SetupInstall 2
 Assert-BundledTools 2
 Assert-FunctionalMediaRender 2
-Assert-GuiLaunch 2
+$project2 = Assert-InstalledAppProjectRender 2
+Assert-GuiLaunch 2 $project2
 Invoke-Uninstall 2
 
-Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> functional FFmpeg render+FFprobe -> GUI window/responding -> uninstall -> second clean install -> tools/runtime -> functional render -> GUI -> uninstall.'
+Write-Host 'REAL INSTALL GATE PASSED: install -> bundled tools/runtime payload -> FFmpeg infrastructure render -> NPVideoStudio.exe save/reload real .npvsproject -> production RenderService video+audio export -> GUI opens that project/responds -> uninstall -> second clean install -> repeat full NP project render/open gate -> uninstall.'
