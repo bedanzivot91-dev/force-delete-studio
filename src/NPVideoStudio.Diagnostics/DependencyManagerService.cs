@@ -30,52 +30,27 @@ public sealed class DependencyManagerService : IDependencyManagerService
         return new List<DependencyInfo>
         {
             await CheckToolAsync(
-                "FFmpeg",
-                FfmpegLocator.ResolveFfmpegPath(_settingsService.Current.FfmpegPath),
-                "-version",
+                "FFmpeg", FfmpegLocator.ResolveFfmpegPath(_settingsService.Current.FfmpegPath), "-version",
                 "Neophodan za uvoz, analizu i obradu video/audio fajlova.",
-                minimumMajorVersion: 6,
-                expectedVersion: "6+",
-                license: "GPLv3 build — vidi THIRD_PARTY_NOTICES.md",
-                cancellationToken).ConfigureAwait(false),
+                6, "6+", "GPLv3 build — vidi THIRD_PARTY_NOTICES.md", cancellationToken).ConfigureAwait(false),
             await CheckToolAsync(
-                "FFprobe",
-                FfmpegLocator.ResolveFfprobePath(_settingsService.Current.FfprobePath),
-                "-version",
+                "FFprobe", FfmpegLocator.ResolveFfprobePath(_settingsService.Current.FfprobePath), "-version",
                 "Neophodan za analizu trajanja, rezolucije i kodeka medijskih fajlova.",
-                minimumMajorVersion: 6,
-                expectedVersion: "6+",
-                license: "FFmpeg project — vidi THIRD_PARTY_NOTICES.md",
-                cancellationToken).ConfigureAwait(false),
+                6, "6+", "FFmpeg project — vidi THIRD_PARTY_NOTICES.md", cancellationToken).ConfigureAwait(false),
             await CheckToolAsync(
-                "yt-dlp",
-                FfmpegLocator.ResolveYtDlpPath(_settingsService.Current.YtDlpPath),
-                "--version",
+                "yt-dlp", FfmpegLocator.ResolveYtDlpPath(_settingsService.Current.YtDlpPath), "--version",
                 "Potreban samo za alat „Preuzmi sa YouTube-a“ - ostatak programa radi i bez njega.",
-                minimumMajorVersion: null,
-                expectedVersion: null,
-                license: "Unlicense — vidi Licenses folder",
-                cancellationToken).ConfigureAwait(false),
+                null, null, "Unlicense — vidi Licenses folder", cancellationToken).ConfigureAwait(false),
             await CheckToolAsync(
-                "fpcalc (Chromaprint)",
-                FfmpegLocator.ResolveFpcalcPath(null),
-                "-version",
+                "fpcalc (Chromaprint)", FfmpegLocator.ResolveFpcalcPath(null), "-version",
                 "Potreban samo za prepoznavanje pesama u „Moje pesme“ (otisak pesme) - ostatak programa radi i bez njega.",
-                minimumMajorVersion: 1,
-                expectedVersion: "1.1+",
-                license: "Chromaprint/LGPL 2.1 — vidi THIRD_PARTY_NOTICES.md",
-                cancellationToken).ConfigureAwait(false),
+                1, "1.1+", "Chromaprint/LGPL 2.1 — vidi THIRD_PARTY_NOTICES.md", cancellationToken).ConfigureAwait(false),
             CheckWhisperModel(),
             await CheckAiWorkerAsync(cancellationToken).ConfigureAwait(false),
             await CheckToolAsync(
-                "Tesseract OCR",
-                FfmpegLocator.ResolveTesseractPath(null),
-                "--version",
+                "Tesseract OCR", FfmpegLocator.ResolveTesseractPath(null), "--version",
                 "Potreban samo za analizu rasporeda videa (prepoznavanje postojećeg teksta u kadru) - ostatak programa radi i bez njega.",
-                minimumMajorVersion: 5,
-                expectedVersion: "5+",
-                license: "Apache 2.0 / Leptonica BSD — vidi Licenses folder",
-                cancellationToken).ConfigureAwait(false)
+                5, "5+", "Apache 2.0 / Leptonica BSD — vidi Licenses folder", cancellationToken).ConfigureAwait(false)
         };
     }
 
@@ -89,19 +64,19 @@ public sealed class DependencyManagerService : IDependencyManagerService
         string? license,
         CancellationToken cancellationToken)
     {
-        var concreteFileExists = Path.IsPathFullyQualified(path) && File.Exists(path);
+        var concretePath = ResolveConcreteExecutablePath(path);
+        var concreteFileExists = concretePath is not null;
         var (found, version) = await FfmpegLocator.TryGetVersionAsync(path, versionArgument, cancellationToken).ConfigureAwait(false);
 
         DependencyStatus status;
         string details;
         if (!found)
         {
-            // If NP resolved a concrete file and that file exists but its real version command cannot
-            // run successfully, reporting "not installed" hides a damaged/wrong executable. A bare PATH
-            // command that cannot be started is simply absent from the machine.
+            // A concrete file that exists but cannot execute its real version command is damaged/wrong,
+            // not "missing". This includes both explicit user paths and executables resolved through PATH.
             status = concreteFileExists ? DependencyStatus.Corrupt : DependencyStatus.NotInstalled;
             details = concreteFileExists
-                ? $"Fajl postoji, ali provera verzije nije uspela: {path}"
+                ? $"Fajl postoji, ali provera verzije nije uspela: {concretePath}"
                 : $"Tražena putanja/komanda: {path}";
         }
         else if (minimumMajorVersion is int requiredMajor)
@@ -111,19 +86,19 @@ public sealed class DependencyManagerService : IDependencyManagerService
             {
                 status = DependencyStatus.Incompatible;
                 details = actualMajor is null
-                    ? $"Alat radi, ali verziju nije moguće pouzdano protumačiti. Potrebno: {expectedVersion}. Putanja: {path}"
-                    : $"Pronađena glavna verzija {actualMajor}; potrebno {expectedVersion}. Putanja: {path}";
+                    ? $"Alat radi, ali verziju nije moguće pouzdano protumačiti. Potrebno: {expectedVersion}. Putanja: {concretePath ?? path}"
+                    : $"Pronađena glavna verzija {actualMajor}; potrebno {expectedVersion}. Putanja: {concretePath ?? path}";
             }
             else
             {
                 status = DependencyStatus.Installed;
-                details = $"Putanja: {path}";
+                details = $"Putanja: {concretePath ?? path}";
             }
         }
         else
         {
             status = DependencyStatus.Installed;
-            details = $"Putanja: {path}";
+            details = $"Putanja: {concretePath ?? path}";
         }
 
         return new DependencyInfo
@@ -132,18 +107,43 @@ public sealed class DependencyManagerService : IDependencyManagerService
             Status = status,
             Version = version,
             ExpectedVersion = expectedVersion,
-            Path = found || concreteFileExists ? path : null,
+            Path = concretePath ?? (found ? path : null),
             WhyItMatters = whyItMatters,
-            CanOpenFolder = concreteFileExists,
+            CanOpenFolder = concretePath is not null,
             License = license,
             LastCheckedUtc = DateTimeOffset.UtcNow,
             TechnicalDetails = details
         };
     }
 
+    /// <summary>Resolves either a full path or a PATH command to the actual file on disk, without
+    /// executing it. This is used only for folder navigation and to distinguish a broken existing file
+    /// from an entirely absent command; the Installed state still requires the real version command.</summary>
+    private static string? ResolveConcreteExecutablePath(string path)
+    {
+        try
+        {
+            if (Path.IsPathFullyQualified(path))
+            {
+                return File.Exists(path) ? Path.GetFullPath(path) : null;
+            }
+
+            var pathValue = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            foreach (var directory in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var candidate = Path.Combine(directory, path);
+                if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+            }
+        }
+        catch
+        {
+            // An invalid PATH entry must not make the dependency screen itself fail.
+        }
+        return null;
+    }
+
     /// <summary>Extracts the first conventional dotted-version major component from real command output.
-    /// FFmpeg emits "ffmpeg version 9.0.1", Tesseract emits "tesseract 5.x", and fpcalc emits a 1.x
-    /// version. We deliberately do not apply this policy to yt-dlp's date-style version.</summary>
+    /// We deliberately do not apply this policy to yt-dlp's date-style version.</summary>
     private static int? ExtractMajorVersion(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
