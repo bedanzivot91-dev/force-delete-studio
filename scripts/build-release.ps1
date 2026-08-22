@@ -65,9 +65,48 @@ try {
     Remove-Item $ffmpegZip, $ffmpegExtractDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "FFmpeg i FFprobe spakovani u Tools\ffmpeg\." -ForegroundColor Green
 } catch {
-    $bundledToolsOk = $false
-    Write-Host "UPOZORENJE: Preuzimanje FFmpeg-a nije uspelo ($_)." -ForegroundColor Yellow
-    Write-Host "Program ce i dalje raditi ako korisnik sam instalira FFmpeg (scripts\check-dependencies.ps1)." -ForegroundColor Yellow
+    Write-Host "Primarni FFmpeg download nije uspeo ($_). Trazim stvarne lokalne binarije koje su vec instalirane na build masini..." -ForegroundColor Yellow
+    $ffmpegToolsDir = Join-Path $toolsDir 'ffmpeg'
+    New-Item -ItemType Directory -Force -Path $ffmpegToolsDir | Out-Null
+
+    $ffmpegSearchRoots = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:ChocolateyInstall)) {
+        $ffmpegSearchRoots += (Join-Path $env:ChocolateyInstall 'lib\ffmpeg')
+    }
+    $ffmpegSearchRoots += 'C:\ProgramData\chocolatey\lib\ffmpeg'
+
+    $ffmpegCandidates = @()
+    $ffmpegCommand = Get-Command 'ffmpeg.exe' -ErrorAction SilentlyContinue
+    if ($null -ne $ffmpegCommand -and -not [string]::IsNullOrWhiteSpace($ffmpegCommand.Source) -and (Test-Path $ffmpegCommand.Source -PathType Leaf)) {
+        $ffmpegCandidates += Get-Item $ffmpegCommand.Source
+    }
+    foreach ($searchRoot in ($ffmpegSearchRoots | Select-Object -Unique)) {
+        if (Test-Path $searchRoot) {
+            $ffmpegCandidates += Get-ChildItem -Path $searchRoot -Filter 'ffmpeg.exe' -File -Recurse -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Chocolatey PATH entry is often only a tiny shim. Never package that as the offline runtime.
+    $realFfmpeg = $ffmpegCandidates |
+        Where-Object { $_.Length -gt 1MB } |
+        Sort-Object Length -Descending |
+        Select-Object -First 1
+
+    if ($null -eq $realFfmpeg) {
+        $bundledToolsOk = $false
+        throw "FFmpeg download nije uspeo, a pravi lokalni ffmpeg.exe (ne shim) nije pronadjen."
+    }
+
+    $realBinDir = $realFfmpeg.Directory.FullName
+    foreach ($toolName in @('ffmpeg.exe','ffprobe.exe','ffplay.exe')) {
+        $sourceTool = Join-Path $realBinDir $toolName
+        if (-not (Test-Path $sourceTool -PathType Leaf) -or (Get-Item $sourceTool).Length -le 1MB) {
+            $bundledToolsOk = $false
+            throw "Lokalni FFmpeg direktorijum nije kompletan: $sourceTool"
+        }
+        Copy-Item -Path $sourceTool -Destination $ffmpegToolsDir -Force
+    }
+    Write-Host "FFmpeg download fallback: spakovani su pravi lokalni FFmpeg/FFprobe/FFplay binariji iz $realBinDir." -ForegroundColor Green
 }
 
 try {
