@@ -38,7 +38,7 @@ function Invoke-SetupInstall([int]$pass) {
 
 function Assert-BundledTool([int]$pass, [string]$relativePath, [string[]]$arguments) {
     $exe = Join-Path $installDir $relativePath
-    Write-Host "== Tool smoke pass $pass: $relativePath $($arguments -join ' ') =="
+    Write-Host "== Tool smoke pass ${pass}: $relativePath $($arguments -join ' ') =="
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru -NoNewWindow
     if ($p.ExitCode -ne 0) {
         throw "Bundled alat $relativePath nije funkcionalan nakon instalacije (pass $pass), exit=$($p.ExitCode)."
