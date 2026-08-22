@@ -452,6 +452,26 @@ public sealed class TimelineEditSession
         live.Tint = tint;
     }
 
+    public void SetClipAudioEnhancement(string clipId, ClipAudioEnhancementSettings settings)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.MediaAssetId is null) return;
+
+        var strength = Math.Clamp(settings.NoiseReductionStrength, 0, 1);
+        if (clip.AudioNoiseReductionEnabled == settings.NoiseReductionEnabled &&
+            Math.Abs(clip.AudioNoiseReductionStrength - strength) < 1e-9 &&
+            clip.AudioEnhanceVoiceEnabled == settings.EnhanceVoiceEnabled &&
+            clip.AudioLoudnessNormalizationEnabled == settings.LoudnessNormalizationEnabled)
+            return;
+
+        SaveSnapshot();
+        var live = FindClipWithTrack(clipId).Clip!;
+        live.AudioNoiseReductionEnabled = settings.NoiseReductionEnabled;
+        live.AudioNoiseReductionStrength = strength;
+        live.AudioEnhanceVoiceEnabled = settings.EnhanceVoiceEnabled;
+        live.AudioLoudnessNormalizationEnabled = settings.LoudnessNormalizationEnabled;
+    }
+
     public void SetSpeedCurvePreset(string clipId, SpeedCurvePreset preset)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -1125,6 +1145,10 @@ public sealed class TimelineEditSession
         TransitionInDurationSeconds = clip.TransitionInDurationSeconds,
         IsMuted = clip.IsMuted,
         Volume = clip.Volume,
+        AudioNoiseReductionEnabled = clip.AudioNoiseReductionEnabled,
+        AudioNoiseReductionStrength = clip.AudioNoiseReductionStrength,
+        AudioEnhanceVoiceEnabled = clip.AudioEnhanceVoiceEnabled,
+        AudioLoudnessNormalizationEnabled = clip.AudioLoudnessNormalizationEnabled,
         ScalePercent = clip.ScalePercent,
         PositionXPercent = clip.PositionXPercent,
         PositionYPercent = clip.PositionYPercent,

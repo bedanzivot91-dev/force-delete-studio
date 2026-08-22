@@ -115,6 +115,14 @@ public readonly record struct ClipColorGradingSettings(
     double Temperature,
     double Tint);
 
+/// <summary>Persisted, non-destructive audio cleanup controls. These values are applied by the real
+/// FFmpeg render/preview chain to source audio; the original media file is never modified.</summary>
+public readonly record struct ClipAudioEnhancementSettings(
+    bool NoiseReductionEnabled,
+    double NoiseReductionStrength,
+    bool EnhanceVoiceEnabled,
+    bool LoudnessNormalizationEnabled);
+
 public enum ClipMaskType
 {
     None,
@@ -279,6 +287,13 @@ public sealed class TimelineClip
 
     public bool IsMuted { get; set; }
     public double Volume { get; set; } = 1.0;
+
+    // --- Audio enhancement ---------------------------------------------------------------
+    public bool AudioNoiseReductionEnabled { get; set; }
+    /// <summary>0..1 strength mapped to a conservative FFmpeg afftdn reduction amount.</summary>
+    public double AudioNoiseReductionStrength { get; set; } = 0.5;
+    public bool AudioEnhanceVoiceEnabled { get; set; }
+    public bool AudioLoudnessNormalizationEnabled { get; set; }
 
     // --- Layer compositing (CapCut-style picture-in-picture / stickers / logo) -------------------
     // Only meaningful for clips on an overlay layer - i.e. any Video track after the first, or an
