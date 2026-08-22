@@ -32,8 +32,11 @@ public sealed class RenderService : IRenderService
         job.Status = RenderJobStatus.Running;
         job.StartedAt = DateTimeOffset.Now;
 
+        using var stabilization = await VideoStabilizationPrepass.PrepareAsync(project, _ffmpegPath, cancellationToken)
+            .ConfigureAwait(false);
         var plan = FfmpegFilterGraphBuilder.Build(
-            project.Timeline, project.MediaLibrary, project.Format.Width, project.Format.Height, project.Format.Fps);
+            project.Timeline, project.MediaLibrary, project.Format.Width, project.Format.Height, project.Format.Fps,
+            stabilization.TransformFiles);
 
         var directory = Path.GetDirectoryName(settings.OutputFilePath);
         if (!string.IsNullOrEmpty(directory))

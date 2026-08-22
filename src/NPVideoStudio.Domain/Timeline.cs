@@ -72,6 +72,7 @@ public readonly record struct TextAdvancedStyle(
     bool IsItalic,
     TextCaseTransform TextCase,
     int LineSpacingPx);
+
 /// <summary>
 /// Persisted picture-transform controls shared by base video and overlay/image clips.
 /// Percent values keep projects resolution-independent; all values are rendered by FFmpeg, not UI-only.
@@ -90,6 +91,19 @@ public readonly record struct ClipTransformSettings(
     string ChromaKeyColor,
     double ChromaKeySimilarity,
     double ChromaKeyBlend);
+
+/// <summary>
+/// Persisted libvidstab controls for one real media clip. Detection and transformation are deliberately
+/// separate because FFmpeg/libvidstab is a genuine two-pass stabilizer: pass 1 measures motion and writes
+/// a transform file, pass 2 consumes that file while the normal render graph applies every other edit.
+/// </summary>
+public readonly record struct ClipStabilizationSettings(
+    bool Enabled,
+    int Shakiness,
+    int Accuracy,
+    int Smoothing,
+    double ZoomPercent,
+    int OptimalZoom);
 
 public enum ClipMaskType
 {
@@ -298,6 +312,7 @@ public sealed class TimelineClip
 
     /// <summary>Absolute source-time control points for the active velocity curve.</summary>
     public List<SpeedCurvePoint> SpeedCurvePoints { get; set; } = new();
+
     // --- Transform / temporal / green-screen ----------------------------------------------------
     public double RotationDegrees { get; set; }
     public bool FlipHorizontal { get; set; }
@@ -312,6 +327,17 @@ public sealed class TimelineClip
     public string ChromaKeyColor { get; set; } = "#00FF00";
     public double ChromaKeySimilarity { get; set; } = 0.12;
     public double ChromaKeyBlend { get; set; } = 0.02;
+
+    // --- Two-pass video stabilization ------------------------------------------------------------
+    /// <summary>Runs FFmpeg/libvidstab analysis for this clip before export/real preview, then applies the
+    /// resulting transforms in the normal render graph. Originals are never rewritten.</summary>
+    public bool StabilizationEnabled { get; set; }
+    public int StabilizationShakiness { get; set; } = 5;
+    public int StabilizationAccuracy { get; set; } = 15;
+    public int StabilizationSmoothing { get; set; } = 15;
+    public double StabilizationZoomPercent { get; set; }
+    /// <summary>libvidstab optzoom: 0=off, 1=static optimal zoom, 2=adaptive optimal zoom.</summary>
+    public int StabilizationOptimalZoom { get; set; } = 1;
 
     // --- Overlay mask + blend -------------------------------------------------------------------
     public ClipMaskType MaskType { get; set; } = ClipMaskType.None;

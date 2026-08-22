@@ -34,6 +34,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
+    private readonly Action<string, bool, int, int, double>? _onStabilizationChanged;
     private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
     private readonly Action<string, ClipCompositingSettings>? _onCompositingChanged;
     private readonly Func<double>? _getPlayheadSeconds;
@@ -224,6 +225,44 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         {
             if (Clip.SpeedCurvePreset == value) return;
             _onSpeedCurvePresetChanged?.Invoke(Clip.Id, value);
+        }
+    }
+
+    public bool CanUseStabilization => HasSourceMedia && IsVideoClip && !Clip.IsReversed && !Clip.IsFreezeFrame;
+    public bool StabilizationEnabled
+    {
+        get => Clip.StabilizationEnabled;
+        set
+        {
+            if (Clip.StabilizationEnabled == value) return;
+            _onStabilizationChanged?.Invoke(Clip.Id, value, StabilizationSmoothingFrames, StabilizationAccuracy, StabilizationZoomPercent);
+        }
+    }
+    public int StabilizationSmoothingFrames
+    {
+        get => Clip.StabilizationSmoothing;
+        set
+        {
+            if (Clip.StabilizationSmoothing == value) return;
+            _onStabilizationChanged?.Invoke(Clip.Id, StabilizationEnabled, value, StabilizationAccuracy, StabilizationZoomPercent);
+        }
+    }
+    public int StabilizationAccuracy
+    {
+        get => Clip.StabilizationAccuracy;
+        set
+        {
+            if (Clip.StabilizationAccuracy == value) return;
+            _onStabilizationChanged?.Invoke(Clip.Id, StabilizationEnabled, StabilizationSmoothingFrames, value, StabilizationZoomPercent);
+        }
+    }
+    public double StabilizationZoomPercent
+    {
+        get => Clip.StabilizationZoomPercent;
+        set
+        {
+            if (Math.Abs(Clip.StabilizationZoomPercent - value) < 1e-6) return;
+            _onStabilizationChanged?.Invoke(Clip.Id, StabilizationEnabled, StabilizationSmoothingFrames, StabilizationAccuracy, value);
         }
     }
 
@@ -774,10 +813,12 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         double sourceMediaDurationSeconds = 0,
         Action<string, double>? onTrimInChanged = null,
         Action<string, double>? onTrimOutChanged = null,
-        Action<string, SpeedCurvePreset>? onSpeedCurvePresetChanged = null)
+        Action<string, SpeedCurvePreset>? onSpeedCurvePresetChanged = null,
+        Action<string, bool, int, int, double>? onStabilizationChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
+        _onStabilizationChanged = onStabilizationChanged;
         _onTransformChanged = onTransformChanged;
         _onCompositingChanged = onCompositingChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;
