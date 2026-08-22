@@ -47,6 +47,10 @@ public sealed class AppSettings
 
     public static string ModelsFolder() => Path.Combine(AppDataRoot(), "Models");
 
+    /// <summary>App-owned lower-resolution media proxies. Proxies are disposable cache data and never
+    /// replace the original source path stored in a project.</summary>
+    public static string ProxyCacheFolder() => Path.Combine(DefaultCacheFolder(), "Proxies");
+
     /// <summary>Where the real-audio-video-preview render (workspace "Pravi pregled sa zvukom") writes
     /// its temporary output file - separate from <see cref="DefaultCacheFolder"/>/<see cref="CacheFolder"/>
     /// (proxy/thumbnail cache) since this is regenerated per-render, not a long-lived cache.</summary>

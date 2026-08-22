@@ -242,7 +242,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<ISubtitleGeneratorService>(),
             _services.GetRequiredService<IRenderService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
-            _services.GetRequiredService<IAiWorkerClient>());
+            _services.GetRequiredService<IAiWorkerClient>(),
+            _services.GetRequiredService<IProxyGeneratorService>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
         // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search
         // page the song library already opens, so the file is already selected when it appears.
