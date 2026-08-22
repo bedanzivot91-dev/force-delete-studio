@@ -65,7 +65,9 @@ Name: "{group}\Deinstaliraj {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-Root: HKA; Subkey: "Software\Classes\{#MyProjectFileExt}"; ValueType: string; ValueName: ""; ValueData: "NPVideoStudioProject"; Tasks: associate; Flags: uninsdeletevalue
+; Delete the whole extension key on uninstall. uninsdeletevalue only removed the default
+; value and left an empty Software\Classes\.npvsproject key behind, which is not a clean uninstall.
+Root: HKA; Subkey: "Software\Classes\{#MyProjectFileExt}"; ValueType: string; ValueName: ""; ValueData: "NPVideoStudioProject"; Tasks: associate; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject"; ValueType: string; ValueName: ""; ValueData: "NP Video Studio projekat"; Tasks: associate; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associate
 Root: HKA; Subkey: "Software\Classes\NPVideoStudioProject\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associate
@@ -96,9 +98,12 @@ begin
   AppDataDir := ExpandConstant('{localappdata}\NP Video Studio');
   if DirExists(AppDataDir) then
   begin
-    Response := MsgBox('Da li želite da obrišete i sačuvana podešavanja, logove i keš NP Video Studio programa?' + #13#10 +
+    { SuppressibleMsgBox is deliberate: /VERYSILENT /SUPPRESSMSGBOXES must never hang an automated or
+      enterprise uninstall. IDNO is the safe silent default so user data/projects are never deleted merely
+      because no human is present to answer the prompt. }
+    Response := SuppressibleMsgBox('Da li želite da obrišete i sačuvana podešavanja, logove i keš NP Video Studio programa?' + #13#10 +
       '(Vaši projekti se NE brišu ovom opcijom - oni ostaju na disku gde god da ste ih sačuvali.)',
-      mbConfirmation, MB_YESNO);
+      mbConfirmation, MB_YESNO, IDNO);
     if Response = IDYES then
       DelTree(AppDataDir, True, True, True);
   end;
