@@ -53,7 +53,7 @@ function Wait-ResponsiveWindow([System.Diagnostics.Process]$process, [int]$secon
     $process.Refresh()
     if ($process.MainWindowHandle -eq 0) { throw "$label nije otvorio pravi Windows GUI prozor u roku od $seconds s." }
     if (-not $process.Responding) { throw "$label GUI ne odgovara na Windows message pump." }
-    Write-Host "$label: PID=$($process.Id), HWND=$($process.MainWindowHandle), Responding=$($process.Responding)"
+    Write-Host "${label}: PID=$($process.Id), HWND=$($process.MainWindowHandle), Responding=$($process.Responding)"
 }
 
 function Invoke-Install([int]$pass) {
