@@ -1,16 +1,42 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import cv2
-import numpy as np
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    # Keep the repository's trusted Actions workflow unchanged. On GitHub's Windows runner this test
+    # installs only the optional runtime it is explicitly validating; local developers who don't use
+    # Motion Tracking are not forced to download OpenCV just to run unrelated tests.
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--upgrade",
+             "opencv-contrib-python-headless"],
+            check=True,
+        )
+        import cv2
+        import numpy as np
+    else:
+        cv2 = None
+        np = None
 
 
 class MotionTrackerRegressionTests(unittest.TestCase):
     def test_csrt_tracks_real_moving_target_across_synthetic_video(self):
+        if cv2 is None or np is None:
+            self.skipTest("OpenCV contrib nije instaliran u lokalnom test okruženju.")
+
+        creator = getattr(cv2, "TrackerCSRT_create", None)
+        if creator is None:
+            legacy = getattr(cv2, "legacy", None)
+            creator = getattr(legacy, "TrackerCSRT_create", None) if legacy is not None else None
+        self.assertIsNotNone(creator, "Instalirani OpenCV nema CSRT tracker.")
+
         repo = Path(__file__).resolve().parents[2]
         worker = repo / "ai-worker" / "motion_tracker.py"
         self.assertTrue(worker.is_file(), worker)
