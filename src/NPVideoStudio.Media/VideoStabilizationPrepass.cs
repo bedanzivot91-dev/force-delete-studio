@@ -148,7 +148,7 @@ public static class VideoStabilizationPrepass
         startInfo.ArgumentList.Add("-an");
         startInfo.ArgumentList.Add("-vf");
         startInfo.ArgumentList.Add(
-            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness=5:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}");
+            $"vidstabdetect=result='{FfmpegFilterGraphBuilder.EscapeFilterPath(transformPath)}':shakiness={Math.Clamp(clip.StabilizationShakiness, 1, 10)}:accuracy={Math.Clamp(clip.StabilizationAccuracy, 1, 15)}");
         startInfo.ArgumentList.Add("-f");
         startInfo.ArgumentList.Add("null");
         startInfo.ArgumentList.Add("-");

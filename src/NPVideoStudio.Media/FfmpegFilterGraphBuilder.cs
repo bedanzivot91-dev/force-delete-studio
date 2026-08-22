@@ -594,9 +594,11 @@ public static class FfmpegFilterGraphBuilder
             SpeedMultiplier = point.SpeedMultiplier
         }).ToList(),
         StabilizationEnabled = clip.StabilizationEnabled,
-        StabilizationSmoothingFrames = clip.StabilizationSmoothingFrames,
+        StabilizationShakiness = clip.StabilizationShakiness,
         StabilizationAccuracy = clip.StabilizationAccuracy,
+        StabilizationSmoothing = clip.StabilizationSmoothing,
         StabilizationZoomPercent = clip.StabilizationZoomPercent,
+        StabilizationOptimalZoom = clip.StabilizationOptimalZoom,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
@@ -859,10 +861,11 @@ public static class FfmpegFilterGraphBuilder
         }
 
         var escapedPath = EscapeFilterPath(transformPath);
-        var smoothing = Math.Clamp(clip.StabilizationSmoothingFrames, 0, 120);
+        var smoothing = Math.Clamp(clip.StabilizationSmoothing, 0, 120);
         var zoom = Math.Clamp(clip.StabilizationZoomPercent, 0, 30);
+        var optimalZoom = Math.Clamp(clip.StabilizationOptimalZoom, 0, 2);
         return FormattableString.Invariant(
-            $",vidstabtransform=input='{escapedPath}':smoothing={smoothing}:zoom={zoom}:optzoom=0:interpol=bicubic");
+            $",vidstabtransform=input='{escapedPath}':smoothing={smoothing}:zoom={zoom}:optzoom={optimalZoom}:interpol=bicubic");
     }
 
     public static string EscapeFilterPath(string path)
