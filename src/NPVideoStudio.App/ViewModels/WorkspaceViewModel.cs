@@ -129,6 +129,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private string? _realPreviewStatusMessage;
 
     public event Action? ExportRequested;
+    public event Action? CaptionStyleGalleryRequested;
 
     [ObservableProperty]
     private bool _isImporting;
@@ -752,6 +753,42 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             StatusMessage = $"Medij „{asset.FileName}“ je uklonjen iz projekta.";
         });
         return item;
+    }
+
+    [RelayCommand]
+    private void OpenCaptionStyleGallery()
+    {
+        if (Timeline.SelectedClip is not { IsTextClip: true })
+        {
+            StatusMessage = "Izaberite titl ili tekst klip na timeline-u, pa ponovo otvorite Stilove titlova.";
+            return;
+        }
+
+        // Keep every live timeline edit in the project model before navigating away from the workspace.
+        Timeline.SaveToProject();
+        CaptionStyleGalleryRequested?.Invoke();
+    }
+
+    public async Task<string> ApplyCaptionStylePresetAsync(CaptionStylePreset preset)
+    {
+        if (!Timeline.ApplyCaptionStylePresetToSelected(preset))
+        {
+            return "Preset nije primenjen: izabrani klip više nije titl/tekst klip.";
+        }
+
+        Timeline.SaveToProject();
+        if (!string.IsNullOrEmpty(Project.ProjectFilePath))
+        {
+            await _projectRepository.SaveAsync(Project, Project.ProjectFilePath);
+        }
+
+        RefreshPreviewFrame(Player.CurrentTimeSeconds);
+        RaiseCaptionPreviewChanged();
+
+        var message = $"Stil „{preset.Name}“ je primenjen i sačuvan. Boja/kontura-senka/panel ulaze u finalni FFmpeg render. " +
+                      $"Deklarisana animacija {preset.Animation} i granularnost {preset.Granularity} nisu lažno označene kao primenjene dok njihov renderer ne bude dodat.";
+        StatusMessage = message;
+        return message;
     }
 
     [RelayCommand]

@@ -1,9 +1,11 @@
+using System.Windows.Input;
 using Avalonia.Media;
+using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.App.ViewModels;
 
-/// <summary>Wraps a <see cref="CaptionStylePreset"/> with its colors pre-parsed to real Avalonia brushes, for the style gallery's static preview cards.</summary>
+/// <summary>One caption-preset card plus an optional real-project apply command.</summary>
 public sealed class CaptionStylePresetItemViewModel
 {
     public CaptionStylePreset Preset { get; }
@@ -14,6 +16,8 @@ public sealed class CaptionStylePresetItemViewModel
     public IBrush OutlineOrShadowBrush { get; }
     public IBrush? PanelBrush { get; }
     public bool HasPanel => PanelBrush is not null;
+    public ICommand? ApplyCommand { get; }
+    public bool CanApply => ApplyCommand is not null;
 
     public string GranularityLabel => Preset.Granularity switch
     {
@@ -37,12 +41,13 @@ public sealed class CaptionStylePresetItemViewModel
         _ => Preset.Animation.ToString()
     };
 
-    public CaptionStylePresetItemViewModel(CaptionStylePreset preset)
+    public CaptionStylePresetItemViewModel(CaptionStylePreset preset, Func<Task>? applyAsync = null)
     {
         Preset = preset;
         TextBrush = Brush.Parse(preset.TextColorHex);
         AccentBrush = Brush.Parse(preset.AccentColorHex);
         OutlineOrShadowBrush = Brush.Parse(preset.OutlineOrShadowColorHex);
         PanelBrush = preset.PanelColorHex is null ? null : Brush.Parse(preset.PanelColorHex);
+        ApplyCommand = applyAsync is null ? null : new AsyncRelayCommand(applyAsync);
     }
 }
