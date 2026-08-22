@@ -59,6 +59,40 @@ public sealed class MotionTrackingAutoReframeTests
     }
 
     [Fact]
+    public void ApplyTrackingResult_RejectsPartialPathInsteadOfFreezingLastKnownPosition()
+    {
+        var clip = new TimelineClip
+        {
+            Id = "clip",
+            MediaAssetId = "media",
+            SourceTrimInSeconds = 1,
+            SourceTrimOutSeconds = 5
+        };
+        var session = new TimelineEditSession(new[]
+        {
+            new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { clip } }
+        });
+
+        var missingStart = new List<MotionTrackingPoint>
+        {
+            new() { SourceTimeSeconds = 2, CenterX = 0.3, CenterY = 0.5 },
+            new() { SourceTimeSeconds = 5, CenterX = 0.7, CenterY = 0.5 }
+        };
+        var missingEnd = new List<MotionTrackingPoint>
+        {
+            new() { SourceTimeSeconds = 1, CenterX = 0.3, CenterY = 0.5 },
+            new() { SourceTimeSeconds = 4, CenterX = 0.7, CenterY = 0.5 }
+        };
+
+        Assert.False(session.ApplyMotionTrackingResult(
+            "clip", new MotionTrackingRegion(0.3, 0.5, 0.2, 0.3), missingStart));
+        Assert.False(session.ApplyMotionTrackingResult(
+            "clip", new MotionTrackingRegion(0.3, 0.5, 0.2, 0.3), missingEnd));
+        Assert.False(session.Tracks.Single().Clips.Single().AutoReframeEnabled);
+        Assert.Empty(session.Tracks.Single().Clips.Single().MotionTrackingPoints);
+    }
+
+    [Fact]
     public void ChangingTrackingRegion_InvalidatesStalePathAndDisablesAutoReframe()
     {
         var clip = NewTrackedClip();
@@ -111,6 +145,18 @@ public sealed class MotionTrackingAutoReframeTests
     }
 
     [Fact]
+    public void AppAndReleaseGate_RequireBundledMotionTrackerScript()
+    {
+        var root = FindRepositoryRoot();
+        var project = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "NPVideoStudio.App.csproj"));
+        var release = File.ReadAllText(Path.Combine(root, "scripts", "build-release.ps1"));
+
+        Assert.Contains("ai-worker\\motion_tracker.py", project, StringComparison.Ordinal);
+        Assert.Contains("Tools\\ai-worker\\motion_tracker.py", project, StringComparison.Ordinal);
+        Assert.Contains("'Tools\\ai-worker\\motion_tracker.py'", release, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AutoReframeCrop_RunsInRealWindowsFfmpeg()
     {
         if (!OperatingSystem.IsWindows()) return;
@@ -151,5 +197,12 @@ public sealed class MotionTrackingAutoReframeTests
         var stderr = process!.StandardError.ReadToEnd();
         process.WaitForExit();
         Assert.True(process.ExitCode == 0, stderr + Environment.NewLine + filter);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "NPVideoStudio.sln"))) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("Repository root not found.");
     }
 }
