@@ -16,3 +16,13 @@ public partial class ModernInspectorView : UserControl
 {
     public ModernInspectorView() => InitializeComponent();
 }
+
+public partial class ModernMediaLibraryView : UserControl
+{
+    public ModernMediaLibraryView() => InitializeComponent();
+}
+
+public partial class ModernTimelineView : UserControl
+{
+    public ModernTimelineView() => InitializeComponent();
+}
