@@ -20,7 +20,7 @@ public sealed class Project
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
     public DateTimeOffset LastModifiedAt { get; set; } = DateTimeOffset.Now;
 
-    public List<MediaAsset> MediaLibrary { get; set; } = new();
+    public MediaAssetCollection MediaLibrary { get; set; } = new();
 
     public Timeline Timeline { get; set; } = new();
 
