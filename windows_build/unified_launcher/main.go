@@ -3,120 +3,120 @@
 package main
 
 import (
-    "fmt"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "strings"
-    "syscall"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
 
-    webview2 "github.com/jchv/go-webview2"
+	webview2 "github.com/jchv/go-webview2"
 )
 
 const (
-    productName = "NP Suno Unified Studio"
-    windowTitle = "NP Suno Unified Studio 2026"
+	productName = "NP Suno Unified Studio"
+	windowTitle = "NP Suno Unified Studio 2026"
 )
 
 type moduleInfo struct {
-    Key         string `json:"key"`
-    Name        string `json:"name"`
-    Description string `json:"description"`
-    Ready       bool   `json:"ready"`
-    Path        string `json:"path"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Ready       bool   `json:"ready"`
+	Path        string `json:"path"`
 }
 
 func rootDir() (string, error) {
-    exe, err := os.Executable()
-    if err != nil {
-        return "", err
-    }
-    return filepath.Dir(exe), nil
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(exe), nil
 }
 
 func moduleExecutable(root, key string) (string, error) {
-    switch strings.ToLower(strings.TrimSpace(key)) {
-    case "suno":
-        return filepath.Join(root, "Modules", "Suno", "Suno Pesme Studio.exe"), nil
-    case "video":
-        return filepath.Join(root, "Modules", "Video", "NPVideoStudio.exe"), nil
-    default:
-        return "", fmt.Errorf("nepoznat modul: %s", key)
-    }
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "suno":
+		return filepath.Join(root, "Modules", "Suno", "Suno Pesme Studio.exe"), nil
+	case "video":
+		return filepath.Join(root, "Modules", "Video", "NPVideoStudio.exe"), nil
+	default:
+		return "", fmt.Errorf("nepoznat modul: %s", key)
+	}
 }
 
 func fileReady(path string) bool {
-    st, err := os.Stat(path)
-    return err == nil && !st.IsDir() && st.Size() > 0
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir() && st.Size() > 0
 }
 
 func modules(root string) []moduleInfo {
-    suno, _ := moduleExecutable(root, "suno")
-    video, _ := moduleExecutable(root, "video")
-    return []moduleInfo{
-        {
-            Key:         "suno",
-            Name:        "Suno / Biblioteka / YouTube",
-            Description: "Pesme, biblioteka, Shorts prepoznavanje, YouTube analiza i Suno alati.",
-            Ready:       fileReady(suno),
-            Path:        suno,
-        },
-        {
-            Key:         "video",
-            Name:        "NP Video Studio",
-            Description: "Kompletan video editor: timeline, tekst, titlovi, efekti, render i AI alati.",
-            Ready:       fileReady(video),
-            Path:        video,
-        },
-    }
+	suno, _ := moduleExecutable(root, "suno")
+	video, _ := moduleExecutable(root, "video")
+	return []moduleInfo{
+		{
+			Key:         "suno",
+			Name:        "Suno / Biblioteka / YouTube",
+			Description: "Pesme, biblioteka, Shorts prepoznavanje, YouTube analiza i Suno alati.",
+			Ready:       fileReady(suno),
+			Path:        suno,
+		},
+		{
+			Key:         "video",
+			Name:        "NP Video Studio",
+			Description: "Kompletan video editor: timeline, tekst, titlovi, efekti, render i AI alati.",
+			Ready:       fileReady(video),
+			Path:        video,
+		},
+	}
 }
 
 func selfTest(root string) error {
-    missing := []string{}
-    for _, m := range modules(root) {
-        if !m.Ready {
-            missing = append(missing, m.Path)
-        }
-    }
+	missing := []string{}
+	for _, m := range modules(root) {
+		if !m.Ready {
+			missing = append(missing, m.Path)
+		}
+	}
 
-    // A launcher-only existence check is not enough. Verify several payload files
-    // whose absence would make the child apps look installed but fail immediately.
-    required := []string{
-        filepath.Join(root, "Modules", "Suno", "app", "server.py"),
-        filepath.Join(root, "Modules", "Suno", "app", "youtube_match_recovery.py"),
-        filepath.Join(root, "Modules", "Suno", "app", "web", "modern_2026_shell_extension.js"),
-        filepath.Join(root, "Modules", "Suno", "tools", "ffmpeg", "bin", "ffmpeg.exe"),
-        filepath.Join(root, "Modules", "Video", "Tools", "ffmpeg", "ffmpeg.exe"),
-        filepath.Join(root, "Modules", "Video", "Tools", "yt-dlp", "yt-dlp.exe"),
-        filepath.Join(root, "Modules", "Video", "Tools", "fpcalc", "fpcalc.exe"),
-        filepath.Join(root, "Modules", "Video", "Tools", "tesseract", "tesseract.exe"),
-    }
-    for _, path := range required {
-        if !fileReady(path) {
-            missing = append(missing, path)
-        }
-    }
-    if len(missing) > 0 {
-        return fmt.Errorf("unified paket nije kompletan; nedostaje %d fajl(ova):\n%s", len(missing), strings.Join(missing, "\n"))
-    }
-    return nil
+	// A launcher-only existence check is not enough. Verify several payload files
+	// whose absence would make the child apps look installed but fail immediately.
+	required := []string{
+		filepath.Join(root, "Modules", "Suno", "app", "server.py"),
+		filepath.Join(root, "Modules", "Suno", "app", "youtube_match_recovery.py"),
+		filepath.Join(root, "Modules", "Suno", "app", "web", "modern_2026_shell_extension.js"),
+		filepath.Join(root, "Modules", "Suno", "tools", "ffmpeg", "bin", "ffmpeg.exe"),
+		filepath.Join(root, "Modules", "Video", "Tools", "ffmpeg", "ffmpeg.exe"),
+		filepath.Join(root, "Modules", "Video", "Tools", "yt-dlp", "yt-dlp.exe"),
+		filepath.Join(root, "Modules", "Video", "Tools", "fpcalc", "fpcalc.exe"),
+		filepath.Join(root, "Modules", "Video", "Tools", "tesseract", "tesseract.exe"),
+	}
+	for _, path := range required {
+		if !fileReady(path) {
+			missing = append(missing, path)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("unified paket nije kompletan; nedostaje %d fajl(ova):\n%s", len(missing), strings.Join(missing, "\n"))
+	}
+	return nil
 }
 
 func launchModule(root, key string) error {
-    exe, err := moduleExecutable(root, key)
-    if err != nil {
-        return err
-    }
-    if !fileReady(exe) {
-        return fmt.Errorf("modul nije instaliran ili je oštećen: %s", exe)
-    }
-    cmd := exec.Command(exe)
-    cmd.Dir = filepath.Dir(exe)
-    cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: false}
-    if err := cmd.Start(); err != nil {
-        return fmt.Errorf("modul nije mogao da se pokrene: %w", err)
-    }
-    return nil
+	exe, err := moduleExecutable(root, key)
+	if err != nil {
+		return err
+	}
+	if !fileReady(exe) {
+		return fmt.Errorf("modul nije instaliran ili je oštećen: %s", exe)
+	}
+	cmd := exec.Command(exe)
+	cmd.Dir = filepath.Dir(exe)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: false}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("modul nije mogao da se pokrene: %w", err)
+	}
+	return nil
 }
 
 const shellHTML = `<!doctype html>
@@ -171,69 +171,69 @@ window.addEventListener('load',refresh);
 </html>`
 
 func runUI(root string) error {
-    w := webview2.NewWithOptions(webview2.WebViewOptions{
-        Debug:     false,
-        AutoFocus: true,
-        WindowOptions: webview2.WindowOptions{
-            Title:  windowTitle,
-            Width:  1180,
-            Height: 760,
-            Center: true,
-        },
-    })
-    if w == nil {
-        return fmt.Errorf("WebView2 runtime nije dostupan")
-    }
-    defer w.Destroy()
+	w := webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug:     false,
+		AutoFocus: true,
+		WindowOptions: webview2.WindowOptions{
+			Title:  windowTitle,
+			Width:  1180,
+			Height: 760,
+			Center: true,
+		},
+	})
+	if w == nil {
+		return fmt.Errorf("WebView2 runtime nije dostupan")
+	}
+	defer w.Destroy()
 
-    if err := w.Bind("unifiedStatus", func() []moduleInfo { return modules(root) }); err != nil {
-        return err
-    }
-    if err := w.Bind("launchUnifiedModule", func(key string) error { return launchModule(root, key) }); err != nil {
-        return err
-    }
-    w.SetHtml(shellHTML)
-    w.Run()
-    return nil
+	if err := w.Bind("unifiedStatus", func() []moduleInfo { return modules(root) }); err != nil {
+		return err
+	}
+	if err := w.Bind("launchUnifiedModule", func(key string) error { return launchModule(root, key) }); err != nil {
+		return err
+	}
+	w.SetHtml(shellHTML)
+	w.Run()
+	return nil
 }
 
 func main() {
-    root, err := rootDir()
-    if err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(2)
-    }
+	root, err := rootDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
-    if len(os.Args) > 1 {
-        switch os.Args[1] {
-        case "--self-test":
-            if err := selfTest(root); err != nil {
-                fmt.Fprintln(os.Stderr, err)
-                os.Exit(2)
-            }
-            return
-        case "--launch-suno":
-            if err := launchModule(root, "suno"); err != nil {
-                fmt.Fprintln(os.Stderr, err)
-                os.Exit(3)
-            }
-            return
-        case "--launch-video":
-            if err := launchModule(root, "video"); err != nil {
-                fmt.Fprintln(os.Stderr, err)
-                os.Exit(4)
-            }
-            return
-        }
-    }
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--self-test":
+			if err := selfTest(root); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+			return
+		case "--launch-suno":
+			if err := launchModule(root, "suno"); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(3)
+			}
+			return
+		case "--launch-video":
+			if err := launchModule(root, "video"); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(4)
+			}
+			return
+		}
+	}
 
-    if err := selfTest(root); err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        // Still open the shell: it will clearly show which module is missing
-        // instead of silently doing nothing.
-    }
-    if err := runUI(root); err != nil {
-        fmt.Fprintln(os.Stderr, err)
-        os.Exit(5)
-    }
+	if err := selfTest(root); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		// Still open the shell: it will clearly show which module is missing
+		// instead of silently doing nothing.
+	}
+	if err := runUI(root); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(5)
+	}
 }

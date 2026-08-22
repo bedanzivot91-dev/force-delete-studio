@@ -282,8 +282,13 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var toggleSolo = new RelayCommand(() => { _session.SetTrackSolo(track.Id, !track.IsSolo); RefreshFromSession(); });
         var removeTrack = new RelayCommand(() => { _session.RemoveTrack(track.Id); RefreshFromSession(); });
         var addClip = new RelayCommand(() => AddClipToTrack(track));
+        void OnTrackVolumeChanged(string trackId, double volume)
+        {
+            _session.SetTrackVolume(trackId, volume);
+            RefreshFromSession();
+        }
 
-        var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip);
+        var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip, OnTrackVolumeChanged);
         foreach (var clip in track.Clips.OrderBy(c => c.TimelineStartSeconds))
         {
             trackItem.Clips.Add(CreateClipItem(clip, track));
