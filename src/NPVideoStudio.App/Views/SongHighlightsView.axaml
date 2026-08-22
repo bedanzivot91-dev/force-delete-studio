@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.SongHighlightsView"
+             x:DataType="vm:SongHighlightsViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="820">
+      <StackPanel Spacing="2">
+        <TextBlock Text="ALAT ZA PESME" Classes="eyebrow" />
+        <TextBlock Text="Isečci iz pesme za Shorts najavu" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Učitajte pesmu, program analizira glasnoću kroz celu numeru i predloži najglasnije delove kao kratke isečke (30-50 sek) - dobra polazna tačka za najavu pesme na YouTube Shorts, TikTok ili Reels. Ovo je heuristika po glasnoći, ne prepoznavanje refrena - uvek preslušajte isečak pre upotrebe." />
+
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Pesma" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding SelectedFileName}" IsReadOnly="True" Watermark="Nijedna pesma nije izabrana" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi pesmu..." Command="{Binding PickSongCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <Grid ColumnDefinitions="*,*,*">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Min. trajanje (sek)" Classes="subtle" />
+              <NumericUpDown Value="{Binding MinDurationSeconds}" Minimum="10" Maximum="120" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="6" Margin="10,0,0,0">
+              <TextBlock Text="Maks. trajanje (sek)" Classes="subtle" />
+              <NumericUpDown Value="{Binding MaxDurationSeconds}" Minimum="10" Maximum="180" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="6" Margin="10,0,0,0">
+              <TextBlock Text="Broj isečaka" Classes="subtle" />
+              <NumericUpDown Value="{Binding ClipCount}" Minimum="1" Maximum="10" />
+            </StackPanel>
+          </Grid>
+
+          <Button Classes="cta" Content="Analiziraj pesmu" Command="{Binding AnalyzeCommand}"
+                  IsEnabled="{Binding !IsAnalyzing}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <StackPanel Spacing="10" IsVisible="{Binding HasHighlights}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Predloženi isečci" Classes="section" />
+          <Button Grid.Column="1" Classes="ghost" Content="Izvezi sve" Command="{Binding ExportAllCommand}" IsEnabled="{Binding !IsExportingAll}" />
+        </Grid>
+
+        <ItemsControl ItemsSource="{Binding Highlights}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SongHighlightItemViewModel">
+              <Border Classes="panel" Padding="16" Margin="0,0,0,10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource ThemeAccentSubtleBrush}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Index}" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="2">
+                    <TextBlock>
+                      <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0} – {1}  ({2}, prosečna glasnoća {3})">
+                          <Binding Path="StartLabel" />
+                          <Binding Path="EndLabel" />
+                          <Binding Path="DurationLabel" />
+                          <Binding Path="LoudnessLabel" />
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                    <TextBlock Classes="subtle" Text="{Binding StatusMessage}" IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Classes="ghost" Content="Otvori" Command="{Binding OpenExportedCommand}" IsVisible="{Binding IsExported}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

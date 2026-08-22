@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Modern creator/editor palette: neutral dark surfaces, restrained cyan accent, high contrast text.
+       Deliberately avoids glossy gradients and oversized rounded cards so the workspace reads like a
+       contemporary NLE instead of a generic desktop form application. -->
+  <Color x:Key="ThemeBackgroundColor">#0D0D0F</Color>
+  <Color x:Key="ThemeSurfaceColor">#121216</Color>
+  <Color x:Key="ThemePanelColor">#18181D</Color>
+  <Color x:Key="ThemeHoverColor">#24242B</Color>
+  <Color x:Key="ThemePressedColor">#2E2E36</Color>
+  <Color x:Key="ThemeInputColor">#101014</Color>
+  <Color x:Key="ThemeAccentColor">#21D4C2</Color>
+  <Color x:Key="ThemeAccentHoverColor">#4BE2D2</Color>
+  <Color x:Key="ThemeAccentSubtleColor">#2921D4C2</Color>
+  <Color x:Key="ThemeTextColor">#F5F5F7</Color>
+  <Color x:Key="ThemeSubtleTextColor">#96969F</Color>
+  <Color x:Key="ThemeBorderColor">#292930</Color>
+  <Color x:Key="ThemeDangerColor">#FF5A67</Color>
+  <Color x:Key="ThemeTimelineColor">#111115</Color>
+  <Color x:Key="ThemePlayerColor">#060607</Color>
+
+  <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
+  <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
+  <SolidColorBrush x:Key="ThemePanelBrush" Color="{StaticResource ThemePanelColor}" />
+  <SolidColorBrush x:Key="ThemeHoverBrush" Color="{StaticResource ThemeHoverColor}" />
+  <SolidColorBrush x:Key="ThemePressedBrush" Color="{StaticResource ThemePressedColor}" />
+  <SolidColorBrush x:Key="ThemeInputBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemeAccentBrush" Color="{StaticResource ThemeAccentColor}" />
+  <SolidColorBrush x:Key="ThemeAccentHoverBrush" Color="{StaticResource ThemeAccentHoverColor}" />
+  <SolidColorBrush x:Key="ThemeAccentSubtleBrush" Color="{StaticResource ThemeAccentSubtleColor}" />
+  <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
+  <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
+  <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+  <SolidColorBrush x:Key="ThemeDangerBrush" Color="{StaticResource ThemeDangerColor}" />
+  <SolidColorBrush x:Key="ThemeTimelineBrush" Color="{StaticResource ThemeTimelineColor}" />
+  <SolidColorBrush x:Key="ThemePlayerBrush" Color="{StaticResource ThemePlayerColor}" />
+
+  <CornerRadius x:Key="ThemeCornerRadius">6</CornerRadius>
+  <CornerRadius x:Key="ThemeCardCornerRadius">9</CornerRadius>
+  <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+</ResourceDictionary>

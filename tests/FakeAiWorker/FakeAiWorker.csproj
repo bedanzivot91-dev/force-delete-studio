@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>FakeAiWorker</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <!-- Test-only stand-in for the real Python ai_worker.py (Phase 5): speaks the exact same JSON-
+         request-file-in / JSONL-events-out protocol, so AiWorkerClient's process orchestration, JSONL
+         parsing, and cancellation can be exercised against a real process without requiring Python or
+         any ML package - same "mock process, not a fake in test code alone" pattern as FakeYtDlp/FakeFpcalc. -->
+  </PropertyGroup>
+
+</Project>

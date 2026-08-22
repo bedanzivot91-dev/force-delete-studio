@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>FakeYtDlp</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <!-- Test-only stand-in for the real yt-dlp CLI, used to exercise YouTubeDownloadService's process
+         orchestration (argument parsing, JSON output, output file naming) without a real network call
+         or the real tool installed - matches the master spec's "yt-dlp servis sa mock procesom" ask. -->
+  </PropertyGroup>
+
+</Project>
