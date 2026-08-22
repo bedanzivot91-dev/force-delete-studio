@@ -1,0 +1,111 @@
+name: Materialize readability core v2
+
+on:
+  push:
+    branches:
+      - agent/readability-core-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/readability-core-v2
+      - name: Materialize readability production changes and tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_required(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Missing anchor {label}: {path}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          app = 'src/NPVideoStudio.App/App.axaml'
+          for old, new, label in [
+              ('<Setter Property="FontSize" Value="13.5" />', '<Setter Property="FontSize" Value="14.5" />', 'window font'),
+              ('<Setter Property="FontSize" Value="12.5" />\n    </Style>\n    <Style Selector="TextBlock.micro">', '<Setter Property="FontSize" Value="13.5" />\n    </Style>\n    <Style Selector="TextBlock.micro">', 'subtle font'),
+              ('<Setter Property="FontSize" Value="9.5" />', '<Setter Property="FontSize" Value="12.5" />', 'micro font'),
+              ('<Setter Property="FontSize" Value="15.5" />', '<Setter Property="FontSize" Value="16.5" />', 'section font'),
+              ('<Setter Property="FontSize" Value="10" />', '<Setter Property="FontSize" Value="13" />', 'eyebrow font')
+          ]:
+              replace_required(app, old, new, label)
+
+          vm = 'src/NPVideoStudio.App/ViewModels/SettingsViewModel.cs'
+          replace_required(vm,
+              '    public IReadOnlyList<AppTheme> AvailableThemes { get; } = Enum.GetValues<AppTheme>();\n',
+              '    public IReadOnlyList<AppTheme> AvailableThemes { get; } = Enum.GetValues<AppTheme>();\n'
+              '    public int AvailableThemeCount => AvailableThemes.Count;\n',
+              'theme count property')
+
+          settings = 'src/NPVideoStudio.App/Views/SettingsView.axaml'
+          replace_required(settings,
+              '            <TextBlock Classes="subtle" TextWrapping="Wrap"\n                       Text="Trenutno su dostupne 3 od planiranih 10 tema. Ostale dolaze u narednim fazama." />',
+              '            <TextBlock Classes="subtle" TextWrapping="Wrap"\n'
+              '                       Text="{Binding AvailableThemeCount, StringFormat=Trenutno je dostupno {0} tema. Izbor se čuva u podešavanjima.}" />',
+              'dynamic theme count')
+
+          test = Path('tests/NPVideoStudio.UnitTests/ReadabilityCoreContractTests.cs')
+          test.write_text(r'''using System.Text.RegularExpressions;
+          using Xunit;
+
+          namespace NPVideoStudio.UnitTests;
+
+          public class ReadabilityCoreContractTests
+          {
+              [Fact]
+              public void GlobalTypography_HasReadableMinimumsForSemanticTextStyles()
+              {
+                  var root = FindRepositoryRoot();
+                  var xaml = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "App.axaml"));
+                  AssertStyleFontAtLeast(xaml, "TextBlock.subtle", 13.5);
+                  AssertStyleFontAtLeast(xaml, "TextBlock.micro", 12.5);
+                  AssertStyleFontAtLeast(xaml, "TextBlock.eyebrow", 13.0);
+                  AssertStyleFontAtLeast(xaml, "TextBlock.section", 16.0);
+              }
+
+              [Fact]
+              public void SettingsThemeCount_IsDerivedFromRealEnumList_NotHardCodedRoadmapText()
+              {
+                  var root = FindRepositoryRoot();
+                  var view = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "Views", "SettingsView.axaml"));
+                  var vm = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "ViewModels", "SettingsViewModel.cs"));
+                  Assert.Contains("AvailableThemeCount", view);
+                  Assert.Contains("AvailableThemeCount => AvailableThemes.Count", vm);
+                  Assert.DoesNotContain("3 od planiranih 10", view);
+              }
+
+              private static void AssertStyleFontAtLeast(string xaml, string selector, double minimum)
+              {
+                  var match = Regex.Match(xaml, $"<Style Selector=\\\"{Regex.Escape(selector)}\\\">(?<body>.*?)</Style>", RegexOptions.Singleline);
+                  Assert.True(match.Success, $"Style {selector} missing.");
+                  var size = Regex.Match(match.Groups["body"].Value, "FontSize\\\" Value=\\\"(?<size>[0-9.]+)\\\"");
+                  Assert.True(size.Success, $"FontSize missing for {selector}.");
+                  Assert.True(double.Parse(size.Groups["size"].Value, System.Globalization.CultureInfo.InvariantCulture) >= minimum,
+                      $"{selector} is below {minimum}px.");
+              }
+
+              private static string FindRepositoryRoot()
+              {
+                  var dir = new DirectoryInfo(AppContext.BaseDirectory);
+                  while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "NPVideoStudio.sln"))) dir = dir.Parent;
+                  return dir?.FullName ?? throw new InvalidOperationException("Repository root not found.");
+              }
+          }
+          '''.replace('          ', ''), encoding='utf-8')
+      - name: Commit materialized files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NPVideoStudio.App/App.axaml src/NPVideoStudio.App/ViewModels/SettingsViewModel.cs src/NPVideoStudio.App/Views/SettingsView.axaml tests/NPVideoStudio.UnitTests/ReadabilityCoreContractTests.cs
+          git commit -m "Raise core UI readability and derive real theme count"
+          git push origin HEAD:agent/readability-core-v2
