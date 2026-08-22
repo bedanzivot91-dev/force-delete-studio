@@ -123,7 +123,7 @@ public sealed class AudioEnhancementIntegrationTests
     [Fact]
     public void SilentBaseVideo_GeneratesSilenceInsteadOfReferencingMissingAudioPad()
     {
-        var video = new MediaAsset { Id = "v", FilePath = "silent.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
+        var video = new MediaAsset { Id = "v", FilePath = "silent.mp4", HasVideoStream = true, HasAudioStream = false, VideoCodec = "h264", Duration = TimeSpan.FromSeconds(1) };
         var timeline = new Timeline
         {
             Tracks = new List<TimelineTrack>
@@ -139,8 +139,8 @@ public sealed class AudioEnhancementIntegrationTests
     [Fact]
     public void StandaloneAudioTrack_RejectsMediaWithoutAudioStreamClearly()
     {
-        var baseVideo = new MediaAsset { Id = "v", FilePath = "base.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
-        var silent = new MediaAsset { Id = "s", FilePath = "not-audio.mp4", HasVideoStream = true, HasAudioStream = false, Duration = TimeSpan.FromSeconds(1) };
+        var baseVideo = new MediaAsset { Id = "v", FilePath = "base.mp4", HasVideoStream = true, HasAudioStream = false, VideoCodec = "h264", Duration = TimeSpan.FromSeconds(1) };
+        var silent = new MediaAsset { Id = "s", FilePath = "not-audio.mp4", HasVideoStream = true, HasAudioStream = false, VideoCodec = "h264", Duration = TimeSpan.FromSeconds(1) };
         var timeline = new Timeline
         {
             Tracks = new List<TimelineTrack>
@@ -151,6 +151,22 @@ public sealed class AudioEnhancementIntegrationTests
         };
         var ex = Assert.Throws<InvalidOperationException>(() => FfmpegFilterGraphBuilder.Build(timeline, new[] { baseVideo, silent }, 320, 180, 30));
         Assert.Contains("bez audio stream-a", ex.Message);
+    }
+
+    [Fact]
+    public void LegacyUnknownStreamMetadata_PreservesHistoricalEmbeddedAudioBehavior()
+    {
+        var legacy = new MediaAsset { Id = "legacy", FilePath = "legacy.mp4" };
+        var timeline = new Timeline
+        {
+            Tracks = new List<TimelineTrack>
+            {
+                new() { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { new() { MediaAssetId = "legacy", SourceTrimOutSeconds = 2, SpeedMultiplier = 2 } } }
+            }
+        };
+        var plan = FfmpegFilterGraphBuilder.Build(timeline, new[] { legacy }, 320, 180, 30);
+        Assert.Contains("[0:a]", plan.FilterComplexArgument);
+        Assert.Contains("atempo=2", plan.FilterComplexArgument);
     }
 
     [Fact]

@@ -160,7 +160,7 @@ public static class FfmpegFilterGraphBuilder
                     $"{animatedCanvas}{animatedSource}overlay=x='{x}':y='{y}':shortest=1:format=auto,format=yuv420p,setsar=1{vLabel}"));
             }
 
-            if (asset.HasAudioStream)
+            if (!IsConfirmedSilentVideo(asset))
             {
                 var audioFilter = new StringBuilder();
                 var volume = clip.IsMuted ? 0 : clip.Volume;
@@ -405,10 +405,10 @@ public static class FfmpegFilterGraphBuilder
                     throw new InvalidOperationException(
                         $"Audio traka referencira medij koji ne postoji u biblioteci projekta (Id: {clip.MediaAssetId}).");
                 }
-                if (!asset.HasAudioStream)
+                if (IsConfirmedSilentVideo(asset))
                 {
                     throw new InvalidOperationException(
-                        $"Audio traka referencira medij bez audio stream-a: {asset.FileName}.");
+                        $"Audio traka referencira potvrđeno analiziran video bez audio stream-a: {asset.FileName}.");
                 }
 
                 var inputIndex = inputs.Count;
@@ -1402,6 +1402,17 @@ public static class FfmpegFilterGraphBuilder
             ? string.Empty
             : "," + string.Join(",", stages.Select(s => FormattableString.Invariant($"atempo={s}")));
     }
+
+    /// <summary>Backward-compatible stream-state check. Historical project files and many pure graph
+    /// tests predate HasAudioStream and deserialize/default that bool to false. Treating every false as
+    /// authoritative would silently strip valid embedded audio from older projects. A video is considered
+    /// confirmed silent only after probe metadata proves a real video stream (HasVideoStream + VideoCodec)
+    /// while HasAudioStream remains false. Current FfprobeService always fills VideoCodec for a probed video.</summary>
+    private static bool IsConfirmedSilentVideo(MediaAsset asset) =>
+        asset.HasVideoStream &&
+        !asset.HasAudioStream &&
+        !string.IsNullOrWhiteSpace(asset.VideoCodec) &&
+        asset.ProbeError is null;
 
     /// <summary>Real per-clip audio cleanup. The chain intentionally uses only filters present in the
     /// bundled Windows FFmpeg build and returns an empty string for neutral settings.</summary>
