@@ -83,13 +83,16 @@ def main() -> int:
             raise RuntimeError("Ne mogu da pročitam početni kadar za Motion Tracking.")
 
         height, width = frame.shape[:2]
-        box_w = max(2.0, rw * width)
-        box_h = max(2.0, rh * height)
-        box_x = clamp(cx * width - box_w / 2.0, 0.0, max(0.0, width - box_w))
-        box_y = clamp(cy * height - box_h / 2.0, 0.0, max(0.0, height - box_h))
+        # OpenCV 5's Python CSRT binding requires an integer Rect bounding box. Older OpenCV builds
+        # accepted floats here, so normalise once to a strict pixel rectangle that works on both APIs.
+        box_w = min(width, max(2, int(round(rw * width))))
+        box_h = min(height, max(2, int(round(rh * height))))
+        box_x = int(round(clamp(cx * width - box_w / 2.0, 0.0, max(0.0, width - box_w))))
+        box_y = int(round(clamp(cy * height - box_h / 2.0, 0.0, max(0.0, height - box_h))))
+        initial_box = (box_x, box_y, box_w, box_h)
 
         tracker = create_csrt(cv2)
-        init_result = tracker.init(frame, (box_x, box_y, box_w, box_h))
+        init_result = tracker.init(frame, initial_box)
         if init_result is False:
             raise RuntimeError("CSRT nije prihvatio početni region objekta.")
 
@@ -105,7 +108,7 @@ def main() -> int:
                 "confidence": 1.0,
             }
 
-        current_box = (box_x, box_y, box_w, box_h)
+        current_box = initial_box
         points = [point(start, current_box)]
         next_sample = start + interval
         last_frame_time = start
