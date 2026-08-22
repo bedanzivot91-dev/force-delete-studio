@@ -310,6 +310,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetTextStyle(clipId, font, size, color, position);
             RefreshFromSession();
         }
+        void OnTextFontChanged(string clipId, CaptionFontChoice legacy, string? family, string? filePath)
+        {
+            _session.SetTextFont(clipId, legacy, family, filePath);
+            RefreshFromSession();
+        }
         void OnTransitionChanged(string clipId, ClipTransitionType type, double duration)
         {
             _session.SetTransition(clipId, type, duration);
@@ -362,7 +367,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
-            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove)
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };
