@@ -67,28 +67,20 @@ def main() -> int:
                         page.on('requestfailed',lambda r: failed.append(f'{r.method} {r.url}: {r.failure}'))
                         page.goto(f'http://127.0.0.1:{PORT}/',wait_until='networkidle',timeout=30000)
                         page.locator('#pageTitle').wait_for(timeout=10000)
-                        expected_groups = {
-                            'SUNO I BIBLIOTEKA': ('import','library','download','folders','smart','versions','stats'),
-                            'AUDIO': ('recognition','audio'),
-                            'YOUTUBE I OBJAVA': ('release','tools'),
-                            'SISTEM': ('logs','settings'),
-                        }
-                        sections = page.locator('.sidebar nav > .sps-nav-section')
-                        assert sections.count() == 4, 'Navigacija nema tačno četiri završne funkcionalne grupe.'
-                        for index, (title, views) in enumerate(expected_groups.items()):
-                            section = sections.nth(index)
-                            assert section.locator(':scope > .sps-nav-section-title').inner_text().strip() == title
-                            actual = section.locator(':scope > .nav-item').evaluate_all(
-                                "nodes => nodes.map(node => node.dataset.view)"
-                            )
-                            assert actual == list(views), f'Pogrešan raspored grupe {title}: {actual}'
-
-                        all_views = tuple(view for views in expected_groups.values() for view in views)
-                        assert page.locator('.sidebar nav .nav-item[data-view]').count() == len(all_views)
-                        for view in all_views:
-                            page.locator(f'[data-view="{view}"]').click(); page.wait_for_timeout(100)
+                        main_views = ('home','library','import','recognition','tools','settings')
+                        actual = page.locator('.sidebar nav > .nav-item').evaluate_all(
+                            "nodes => nodes.map(node => node.dataset.view)"
+                        )
+                        assert actual == list(main_views), f'Glavni meni nije jednostavan i logičan: {actual}'
+                        assert page.locator('.sidebar nav > .sps-nav-section:visible').count() == 0
+                        assert page.locator('.suno-tools-drawer').count() == 1
+                        for view in main_views:
+                            page.locator(f'.sidebar nav > [data-view="{view}"]').click(); page.wait_for_timeout(100)
                             assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
-                            assert page.locator(f'#view-{view} > .sps-view-kicker').count() == 1
+                        for view in ('download','folders','audio','smart','versions','release','stats','logs'):
+                            page.locator('.suno-tools-drawer').evaluate('node => node.open = true')
+                            page.locator(f'[data-open-view="{view}"]').first.click(); page.wait_for_timeout(100)
+                            assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
                         assert page.locator('[data-view="production"]').count() == 0
                         assert page.locator('#view-production').count() == 0
                         for theme in ('aurora-flow','graphite-console','vinyl-loft','signal-grid','paper-studio'):
