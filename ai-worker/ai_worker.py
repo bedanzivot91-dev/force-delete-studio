@@ -58,6 +58,7 @@ def run_capability_check() -> int:
     check_engine("whisperx", "whisperx")
     check_engine("demucs", "demucs")
     check_engine("lyric_align", "lyric_align")
+    check_engine("cv2", "opencv")
     emit({"type": "Done"})
     return 0
 
