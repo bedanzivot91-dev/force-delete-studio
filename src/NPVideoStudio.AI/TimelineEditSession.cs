@@ -489,6 +489,32 @@ public sealed class TimelineEditSession
         liveClip.TextPosition = position;
     }
 
+    /// <summary>Selects either a legacy preset or a real installed font file. This is its own undo step
+    /// and deliberately keeps family + path so projects can be moved to another Windows installation.</summary>
+    public void SetTextFont(string clipId, CaptionFontChoice legacyChoice, string? installedFamilyName, string? installedFilePath)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null || clip.TextContent is null)
+        {
+            return;
+        }
+
+        var family = string.IsNullOrWhiteSpace(installedFamilyName) ? null : installedFamilyName.Trim();
+        var path = string.IsNullOrWhiteSpace(installedFilePath) ? null : installedFilePath.Trim();
+        if (clip.FontChoice == legacyChoice &&
+            string.Equals(clip.TextFontFamilyName, family, StringComparison.Ordinal) &&
+            string.Equals(clip.TextFontFilePath, path, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SaveSnapshot();
+        var liveClip = FindClipWithTrack(clipId).Clip!;
+        liveClip.FontChoice = legacyChoice;
+        liveClip.TextFontFamilyName = family;
+        liveClip.TextFontFilePath = path;
+    }
+
     /// <summary>The extra text style knobs beyond font/size/color/position - outline, shadow, background
     /// on/off/color/opacity, horizontal alignment, bold/italic, case transform, line spacing.</summary>
     public void SetTextAdvancedStyle(string clipId, TextAdvancedStyle style)
@@ -541,6 +567,8 @@ public sealed class TimelineEditSession
         foreach (var target in track.Clips.Where(c => c.Id != sourceClipId && c.TextContent is not null))
         {
             target.FontChoice = source.FontChoice;
+            target.TextFontFamilyName = source.TextFontFamilyName;
+            target.TextFontFilePath = source.TextFontFilePath;
             target.FontSizePx = source.FontSizePx;
             target.TextColor = source.TextColor;
             target.TextPosition = source.TextPosition;
@@ -809,6 +837,8 @@ public sealed class TimelineEditSession
         MediaAssetId = clip.MediaAssetId,
         TextContent = clip.TextContent,
         FontChoice = clip.FontChoice,
+        TextFontFamilyName = clip.TextFontFamilyName,
+        TextFontFilePath = clip.TextFontFilePath,
         FontSizePx = clip.FontSizePx,
         TextColor = clip.TextColor,
         TextPosition = clip.TextPosition,

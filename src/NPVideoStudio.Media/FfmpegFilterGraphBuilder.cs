@@ -281,7 +281,7 @@ public static class FfmpegFilterGraphBuilder
                     TextHorizontalAlign.Right => "w-text_w-w*0.05",
                     _ => "(w-text_w)/2"
                 };
-            var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip.FontChoice, clip.IsTextBold, clip.IsTextItalic);
+            var fontFilePath = CaptionFontResolver.ResolveFontFilePath(clip);
             var fontFileArgument = fontFilePath is null ? string.Empty : $":fontfile='{EscapeDrawtext(fontFilePath)}'";
             var renderedStart = MapToRenderedTime(clip.TimelineStartSeconds);
             var renderedEnd = MapToRenderedTime(clip.TimelineEndSeconds);
@@ -543,6 +543,8 @@ public static class FfmpegFilterGraphBuilder
         MediaAssetId = clip.MediaAssetId,
         TextContent = clip.TextContent,
         FontChoice = clip.FontChoice,
+        TextFontFamilyName = clip.TextFontFamilyName,
+        TextFontFilePath = clip.TextFontFilePath,
         FontSizePx = clip.FontSizePx,
         TextColor = clip.TextColor,
         TextPosition = clip.TextPosition,

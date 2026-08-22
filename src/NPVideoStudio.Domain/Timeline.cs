@@ -18,11 +18,9 @@ public enum CaptionTextPosition
 }
 
 /// <summary>
-/// A small set of common, always-present Windows system fonts (this app is Windows-only - see
-/// CLAUDE.md) rather than an open-ended font picker: resolving an arbitrary font name to a real
-/// installed file is unreliable, but these ship with every Windows install. <see cref="Default"/> uses
-/// whatever ffmpeg's own default font is (no fontfile passed), matching the burned-in text's look before
-/// this per-clip styling existed.
+/// Legacy built-in font choices retained for backward compatibility with existing project files.
+/// New clips may additionally select a real installed font through <see cref="TimelineClip.TextFontFamilyName"/>
+/// and <see cref="TimelineClip.TextFontFilePath"/>.
 /// </summary>
 public enum CaptionFontChoice
 {
@@ -193,6 +191,15 @@ public sealed class TimelineClip
     /// actually reaches the exported video via <c>FfmpegFilterGraphBuilder</c> (unlike the 24 "Stilovi
     /// titlova" gallery presets, which are a preview-only color swatch today and do not affect export).</summary>
     public CaptionFontChoice FontChoice { get; set; } = CaptionFontChoice.Default;
+
+    /// <summary>Family name of a real installed font selected from <c>SystemFontCatalog</c>. Kept alongside
+    /// the exact file path so a project copied to another PC can resolve the same family there.</summary>
+    public string? TextFontFamilyName { get; set; }
+
+    /// <summary>Exact installed font file selected by the user. If it no longer exists, the renderer falls
+    /// back to <see cref="TextFontFamilyName"/> and then the legacy <see cref="FontChoice"/>.</summary>
+    public string? TextFontFilePath { get; set; }
+
     public int FontSizePx { get; set; } = 36;
 
     /// <summary>Hex color, e.g. "#FFFFFF" - passed straight through to ffmpeg's drawtext fontcolor.</summary>
