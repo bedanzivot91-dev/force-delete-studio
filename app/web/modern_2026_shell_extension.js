@@ -266,48 +266,12 @@
     brand.appendChild(tag);
   }
 
-  if (nav && !nav.querySelector('.sps-nav-section')) {
-    const groups = [
-      ['SUNO I BIBLIOTEKA', ['import','library','download','folders','smart','versions']],
-      ['AUDIO I VIDEO', ['audio','production','release']],
-      ['YOUTUBE', ['recognition','tools']],
-      ['SISTEM', ['stats','logs','settings']],
-    ];
-    const buttons = [...nav.querySelectorAll('.nav-item[data-view]')];
-    const byView = new Map(buttons.map(button => [button.dataset.view, button]));
-    const frag = document.createDocumentFragment();
-    const used = new Set();
-    for (const [title, views] of groups) {
-      const section = document.createElement('div');
-      section.className = 'sps-nav-section';
-      const heading = document.createElement('div');
-      heading.className = 'sps-nav-section-title';
-      heading.textContent = title;
-      section.appendChild(heading);
-      for (const view of views) {
-        const button = byView.get(view);
-        if (!button) continue;
-        section.appendChild(button); // MOVE the original button/listener.
-        used.add(button);
-      }
-      if (section.querySelector('.nav-item')) frag.appendChild(section);
-    }
-    const leftovers = buttons.filter(button => !used.has(button));
-    if (leftovers.length) {
-      const section = document.createElement('div');
-      section.className = 'sps-nav-section';
-      const heading = document.createElement('div');
-      heading.className = 'sps-nav-section-title';
-      heading.textContent = 'OSTALO';
-      section.appendChild(heading);
-      leftovers.forEach(button => section.appendChild(button));
-      frag.appendChild(section);
-    }
-    // Keep details/nav-more elements after the primary grouped workflow.
-    const extras = [...nav.children].filter(node => !node.classList?.contains('nav-item') && !node.classList?.contains('sps-nav-section'));
-    nav.prepend(frag);
-    extras.forEach(node => nav.appendChild(node));
-  }
+  // Navigation has one owner: modern_2026_navigation_final.js, loaded after
+  // this shell. An older duplicate here used a different assignment for
+  // Recognition, Release and Statistics, so the sidebar moved twice during
+  // startup and briefly showed the wrong information architecture. The shell
+  // now supplies only layout/styling; the final navigation module performs
+  // one deterministic move of the original buttons and their listeners.
 
   if (topbar) {
     const actions = topbar.querySelector('.top-actions') || topbar;
