@@ -19,6 +19,7 @@ public sealed class SettingsService : ISettingsService
     public SettingsService(string settingsFilePath)
     {
         _settingsFilePath = settingsFilePath;
+        AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
     }
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
@@ -32,6 +33,7 @@ public sealed class SettingsService : ISettingsService
         if (!File.Exists(_settingsFilePath))
         {
             Current = new AppSettings();
+            AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
             await SaveAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -48,10 +50,14 @@ public sealed class SettingsService : ISettingsService
             // fall back to defaults and let the diagnostics screen surface the problem.
             Current = new AppSettings();
         }
+
+        AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
     }
 
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
+        AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
+
         var directory = Path.GetDirectoryName(_settingsFilePath);
         if (!string.IsNullOrEmpty(directory))
         {
@@ -77,6 +83,7 @@ public sealed class SettingsService : ISettingsService
     public Task ResetToDefaultsAsync(CancellationToken cancellationToken = default)
     {
         Current = new AppSettings();
+        AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
         return SaveAsync(cancellationToken);
     }
 }
