@@ -491,7 +491,7 @@ public static class FfmpegFilterGraphBuilder
 
                 var newClip = CloneClipForRange(clip);
                 newClip.TimelineStartSeconds = overlapStart - rangeStartSeconds;
-                var sourceRate = clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+                var sourceRate = clip.IsFreezeFrame ? 1.0 : SpeedCurveMath.ClampSpeed(clip.SpeedMultiplier);
                 if (clip.IsFreezeFrame)
                 {
                     var visibleDuration = Math.Max(0.05, overlapEnd - overlapStart);
@@ -505,6 +505,12 @@ public static class FfmpegFilterGraphBuilder
                         newClip.SourceTrimInSeconds = clip.SourceTrimInSeconds;
                         newClip.SourceTrimOutSeconds = Math.Min(clip.SourceTrimOutSeconds, clip.SourceTrimInSeconds + visibleDuration);
                     }
+                }
+                else if (SpeedCurveMath.HasCurve(clip) && !clip.IsReversed)
+                {
+                    newClip.SourceTrimInSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(clip, trimmedFromStart);
+                    newClip.SourceTrimOutSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(
+                        clip, Math.Max(0, clip.TimelineDurationSeconds - trimmedFromEnd));
                 }
                 else if (clip.IsReversed)
                 {
@@ -578,6 +584,13 @@ public static class FfmpegFilterGraphBuilder
         Contrast = clip.Contrast,
         Saturation = clip.Saturation,
         SpeedMultiplier = clip.SpeedMultiplier,
+        SpeedCurvePreset = clip.SpeedCurvePreset,
+        SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
+        {
+            Id = point.Id,
+            SourceTimeSeconds = point.SourceTimeSeconds,
+            SpeedMultiplier = point.SpeedMultiplier
+        }).ToList(),
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,
@@ -1089,18 +1102,51 @@ public static class FfmpegFilterGraphBuilder
     /// </summary>
     public static string BuildSpeedFilter(TimelineClip clip)
     {
-        var speed = clip.IsFreezeFrame ? 1.0 : Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+        if (clip.IsFreezeFrame)
+        {
+            return string.Empty;
+        }
+
+        if (SpeedCurveMath.HasCurve(clip))
+        {
+            if (clip.IsReversed)
+            {
+                throw new InvalidOperationException("Velocity / Speed Curve ne može istovremeno sa Reverse. Isključite Reverse ili uklonite krivu brzine.");
+            }
+
+            var segments = SpeedCurveMath.BuildRenderSegments(clip);
+            if (segments.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            // trim+setpts before this filter makes PTS*TB clip-local source time. Each exact-duration
+            // renderer cell maps that source interval to its cumulative output clock.
+            string SegmentValue(SpeedCurveRenderSegment segment) =>
+                $"({F(segment.OutputStartSeconds)}+((PTS*TB)-{F(segment.SourceStartSeconds - clip.SourceTrimInSeconds)})/{F(segment.SpeedMultiplier)})/TB";
+
+            var expression = SegmentValue(segments[^1]);
+            for (var i = segments.Count - 2; i >= 0; i--)
+            {
+                var segment = segments[i];
+                var endLocal = segment.SourceEndSeconds - clip.SourceTrimInSeconds;
+                expression = $"if(lt(PTS*TB,{F(endLocal)}),{SegmentValue(segment)},{expression})";
+            }
+            return $",setpts='{expression}'";
+        }
+
+        var speed = SpeedCurveMath.ClampSpeed(clip.SpeedMultiplier);
         if (Math.Abs(speed - 1) < 1e-6)
         {
             return string.Empty;
         }
 
-        // Higher speed = shorter presentation timestamps, hence dividing by the multiplier.
         return FormattableString.Invariant($",setpts=PTS/{speed}");
     }
 
-    /// <summary>FFmpeg audio-tempo chain matching <see cref="BuildSpeedFilter"/>. Chained 0.5..2.0
-    /// stages work across the full UI range 0.25x..4x without pitch-shifting the audio.</summary>
+    /// <summary>Audio timing matching <see cref="BuildSpeedFilter"/>. Constant speed keeps the proven
+    /// atempo chain. Velocity curves drive one named librubberband instance through asendcmd at the same
+    /// source-time cell boundaries used by video, preserving pitch while tempo changes.</summary>
     public static string BuildAudioSpeedFilter(TimelineClip clip)
     {
         if (clip.IsFreezeFrame)
@@ -1108,7 +1154,31 @@ public static class FfmpegFilterGraphBuilder
             return string.Empty;
         }
 
-        var remaining = Math.Clamp(clip.SpeedMultiplier, 0.25, 4);
+        if (SpeedCurveMath.HasCurve(clip))
+        {
+            if (clip.IsReversed)
+            {
+                throw new InvalidOperationException("Velocity / Speed Curve ne može istovremeno sa Reverse. Isključite Reverse ili uklonite krivu brzine.");
+            }
+
+            var segments = SpeedCurveMath.BuildRenderSegments(clip);
+            if (segments.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var initial = F(segments[0].SpeedMultiplier);
+            if (segments.Count == 1)
+            {
+                return $",rubberband@npvsspeed=tempo={initial}";
+            }
+
+            var commands = segments.Skip(1).Select(segment =>
+                $"{F(segment.SourceStartSeconds - clip.SourceTrimInSeconds)} rubberband@npvsspeed tempo {F(segment.SpeedMultiplier)}");
+            return $",asendcmd=c='{string.Join(";", commands)}',rubberband@npvsspeed=tempo={initial}";
+        }
+
+        var remaining = SpeedCurveMath.ClampSpeed(clip.SpeedMultiplier);
         if (Math.Abs(remaining - 1) < 1e-6)
         {
             return string.Empty;

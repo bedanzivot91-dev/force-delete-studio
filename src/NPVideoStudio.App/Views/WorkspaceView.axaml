@@ -304,6 +304,11 @@
               <TextBlock Text="AUDIO" Classes="eyebrow" />
               <TextBlock Text="Brzina" Classes="subtle"/>
               <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <StackPanel Name="InspectorAudioSpeedCurvePanel" Spacing="4" IsVisible="{Binding CanUseSpeedCurve}">
+                <TextBlock Text="Velocity / Speed Curve" Classes="subtle"/>
+                <ComboBox Name="InspectorAudioSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                <TextBlock Text="Promena obične brzine vraća klip na konstantnu brzinu." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
             </StackPanel>
             <StackPanel Spacing="8" IsVisible="{Binding IsPictureClip}">
               <TextBlock Text="VIDEO / SLIKA" Classes="eyebrow" />
@@ -312,6 +317,11 @@
               <TextBlock Text="Kontrast" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Contrast}"/>
               <TextBlock Text="Zasićenost" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Saturation}"/>
               <TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <StackPanel Name="InspectorVideoSpeedCurvePanel" Spacing="4" IsVisible="{Binding CanUseSpeedCurve}">
+                <TextBlock Text="VELOCITY / SPEED CURVE" Classes="eyebrow" Margin="0,6,0,0"/>
+                <ComboBox Name="InspectorVideoSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                <TextBlock Text="Montage / Hero / Bullet / JumpCut / FlashIn / FlashOut menjaju stvarni FFmpeg video i audio timing. Ručna Brzina iznad isključuje krivu." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
               <TextBlock Text="TRANSFORMACIJA" Classes="eyebrow" Margin="0,8,0,0" />
               <TextBlock Text="Rotacija (stepeni)" Classes="subtle"/><NumericUpDown Value="{Binding RotationDegrees}" Minimum="-360" Maximum="360" Increment="1"/>
               <WrapPanel Orientation="Horizontal">
