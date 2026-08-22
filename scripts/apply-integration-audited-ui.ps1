@@ -14,15 +14,17 @@ function Replace-Required([string]$Path, [string]$Old, [string]$New, [string]$La
     Write-Utf8 $Path $text
 }
 
-# Preserve the later real track-volume workflow that landed after the font-renderer branch point.
+# Preserve the real track-volume workflow. It may already be present because this repair is intentionally idempotent.
 $timeline = 'src/NPVideoStudio.App/ViewModels/TimelineViewModel.cs'
-$oldTrackBlock = @'
+$timelineText = Read-Utf8 $timeline
+if (-not $timelineText.Contains('void OnTrackVolumeChanged(string trackId, double volume)')) {
+    $oldTrackBlock = @'
         var removeTrack = new RelayCommand(() => { _session.RemoveTrack(track.Id); RefreshFromSession(); });
         var addClip = new RelayCommand(() => AddClipToTrack(track));
 
         var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip);
 '@
-$newTrackBlock = @'
+    $newTrackBlock = @'
         var removeTrack = new RelayCommand(() => { _session.RemoveTrack(track.Id); RefreshFromSession(); });
         var addClip = new RelayCommand(() => AddClipToTrack(track));
         void OnTrackVolumeChanged(string trackId, double volume)
@@ -33,16 +35,19 @@ $newTrackBlock = @'
 
         var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip, OnTrackVolumeChanged);
 '@
-Replace-Required $timeline $oldTrackBlock $newTrackBlock 'later track-volume workflow'
+    Replace-Required $timeline $oldTrackBlock $newTrackBlock 'later track-volume workflow'
+}
 
-# Materialize the audited readability/theme corrections from the former PR #13 into real XAML.
+# Materialize audited readability/theme corrections into the real XAML source.
 $app = 'src/NPVideoStudio.App/App.axaml'
-Replace-Required $app '<Setter Property="FontSize" Value="13.5" />' '<Setter Property="FontSize" Value="14.5" />' 'window base font'
-Replace-Required $app '<Setter Property="FontSize" Value="12.5" />' '<Setter Property="FontSize" Value="13.5" />' 'global compact text floor'
-Replace-Required $app '<Setter Property="FontSize" Value="9.5" />' '<Setter Property="FontSize" Value="12.5" />' 'micro text'
-Replace-Required $app '<Setter Property="FontSize" Value="22" />' '<Setter Property="FontSize" Value="24" />' 'heading'
-Replace-Required $app '<Setter Property="FontSize" Value="15.5" />' '<Setter Property="FontSize" Value="17" />' 'section'
-Replace-Required $app '<Setter Property="FontSize" Value="10" />' '<Setter Property="FontSize" Value="12.5" />' 'eyebrow'
+$appText = Read-Utf8 $app
+$appText = $appText.Replace('<Setter Property="FontSize" Value="13.5" />', '<Setter Property="FontSize" Value="14.5" />')
+$appText = $appText.Replace('<Setter Property="FontSize" Value="12.5" />', '<Setter Property="FontSize" Value="13.5" />')
+$appText = $appText.Replace('<Setter Property="FontSize" Value="9.5" />', '<Setter Property="FontSize" Value="12.5" />')
+$appText = $appText.Replace('<Setter Property="FontSize" Value="22" />', '<Setter Property="FontSize" Value="24" />')
+$appText = $appText.Replace('<Setter Property="FontSize" Value="15.5" />', '<Setter Property="FontSize" Value="17" />')
+$appText = $appText.Replace('<Setter Property="FontSize" Value="10" />', '<Setter Property="FontSize" Value="12.5" />')
+Write-Utf8 $app $appText
 
 $settings = 'src/NPVideoStudio.App/Views/SettingsView.axaml'
 $settingsText = Read-Utf8 $settings
