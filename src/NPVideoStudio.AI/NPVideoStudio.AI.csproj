@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Media\NPVideoStudio.Media.csproj" />
+  </ItemGroup>
+
+</Project>

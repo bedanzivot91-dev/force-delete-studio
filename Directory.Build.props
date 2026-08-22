@@ -1,0 +1,8 @@
+<Project>
+  <!-- Single source of truth for the app version. Keep installer/NPVideoStudio.iss's MyAppVersion
+       and scripts/build-release.ps1's portable zip name in sync with this value by hand when bumping -
+       full cross-tool (MSBuild + Inno Setup) version sync is more automation than this phase needs. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.CaptionEditorView"
+             x:DataType="vm:CaptionEditorViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="1100">
+      <StackPanel Spacing="2">
+        <TextBlock Text="TITLOVI" Classes="eyebrow" />
+        <TextBlock Text="Uređivač titlova" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Uređivanje transkripta na nivou reči: podela/spajanje reči, pomeranje tajminga, pretraga i zamena, ćirilica/latinica, sa undo/redo. Uvoz i izvoz u SRT, WebVTT, ASS, obični tekst, JSON i LRC." />
+
+      <Border Classes="panel" Padding="20">
+        <StackPanel Spacing="14">
+          <WrapPanel>
+            <Button Classes="cta" Content="Nov dokument" Command="{Binding NewDocumentCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Otvori..." Command="{Binding OpenCommand}" Margin="0,0,8,8" />
+            <ComboBox ItemsSource="{Binding AvailableFormats}" SelectedItem="{Binding SelectedFormat}" MinWidth="140" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Sačuvaj kao..." Command="{Binding SaveAsCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Dodaj reč" Command="{Binding AddWordCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="Obriši izabrane" Command="{Binding DeleteSelectedCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="→ Ćirilica" Command="{Binding ConvertToCyrillicCommand}" Margin="0,0,8,8" />
+            <Button Classes="ghost" Content="→ Latinica" Command="{Binding ConvertToLatinCommand}" Margin="0,0,8,8" />
+            <Button Classes="cta" Content="Proveri kvalitet titlova" Command="{Binding CheckQualityCommand}" Margin="0,0,8,8"
+                    ToolTip.Tip="Traži preklapanja, prazne titlove, prebrz tekst i preširoke redove." />
+            <Button Classes="ghost" Content="Automatski ispravi vreme" Command="{Binding FixQualityProblemsCommand}" Margin="0,0,8,8"
+                    ToolTip.Tip="Ispravlja preklapanja i prekratke titlove. Ne menja tekst. Undo vraća prethodno stanje." />
+          </WrapPanel>
+
+          <!-- Only appears after a check has actually been run, so an untouched editor doesn't show a
+               misleading empty "everything is fine" box before anything was verified. -->
+          <Border Classes="surface" CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="14,12"
+                  IsVisible="{Binding HasRunQualityCheck}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Rezultat provere kvaliteta" FontWeight="SemiBold" />
+              <TextBlock Text="Nema pronađenih problema - titlovi su spremni."
+                         Classes="subtle"
+                         IsVisible="{Binding !QualityProblems.Count}" />
+              <ItemsControl ItemsSource="{Binding QualityProblems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" Classes="subtle" TextWrapping="Wrap" Margin="0,0,0,2" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Watermark="Pronađi..." Text="{Binding FindText}" Width="200" />
+            <TextBox Watermark="Zameni sa..." Text="{Binding ReplaceText}" Width="200" />
+            <Button Classes="ghost" Content="Zameni sve" Command="{Binding FindReplaceCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap"
+                 IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <StackPanel Spacing="10" IsVisible="{Binding HasDocument}">
+        <TextBlock Text="Reči" FontWeight="SemiBold" />
+        <ItemsControl ItemsSource="{Binding Words}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CaptionWordItemViewModel">
+              <Border Classes="panel" Padding="12" Margin="0,0,0,6">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" VerticalAlignment="Center">
+                  <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Margin="0,0,10,0" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBox Text="{Binding Text}" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBlock Classes="subtle" Text="{Binding TimingLabel}" FontSize="13.5" />
+                      <TextBlock Classes="subtle" Text="{Binding SourceLabel}" FontSize="13.5" />
+                      <TextBlock Classes="subtle" Text="{Binding VerificationLabel}" FontSize="13.5" />
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="10,0">
+                    <Button Classes="ghost" Content="◀" ToolTip.Tip="Pomeri ranije 0.1s" Command="{Binding NudgeEarlierCommand}" />
+                    <Button Classes="ghost" Content="▶" ToolTip.Tip="Pomeri kasnije 0.1s" Command="{Binding NudgeLaterCommand}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" Margin="0,0,10,0">
+                    <Button Classes="ghost" Content="Podeli" Command="{Binding SplitCommand}" />
+                    <Button Classes="ghost" Content="Spoji →" Command="{Binding MergeWithNextCommand}" />
+                    <ToggleButton Content="Kraj reda" IsChecked="{Binding EndsLine, Mode=OneWay}" Command="{Binding ToggleLineBreakCommand}" />
+                  </StackPanel>
+                  <Button Grid.Column="4" Classes="ghost" Content="✕" ToolTip.Tip="Obriši reč" Command="{Binding DeleteCommand}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <TextBlock Text="Nema otvorenog dokumenta - napravite nov ili otvorite postojeći fajl titlova."
+                 Classes="subtle" IsVisible="{Binding !HasDocument}" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

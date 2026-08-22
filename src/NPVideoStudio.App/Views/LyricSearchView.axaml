@@ -1,0 +1,94 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.LyricSearchView"
+             x:DataType="vm:LyricSearchViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="820">
+      <StackPanel Spacing="2">
+        <TextBlock Text="ALAT ZA PESME" Classes="eyebrow" />
+        <TextBlock Text="Pronađi tekst u pesmi" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="Ukucajte deo teksta pesme, program transkribuje pevanje lokalno (Whisper) i pokaže gde misli da se taj tekst peva. Prepoznavanje pevanja je manje pouzdano od govora - svaki rezultat ima procenu tačnosti, uvek preslušajte pre upotrebe." />
+
+      <Border Classes="panel" Padding="20" IsVisible="{Binding !IsModelReady}"
+              Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Potreban je lokalni model za prepoznavanje govora" FontWeight="SemiBold" />
+          <TextBlock Classes="subtle" Text="{Binding ModelSizeLabel}" TextWrapping="Wrap" />
+          <TextBlock Classes="subtle" Text="{Binding ModelStatusMessage}" TextWrapping="Wrap"
+                     IsVisible="{Binding ModelStatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+          <Button Classes="cta" Content="Preuzmi model" Command="{Binding DownloadModelCommand}"
+                  IsEnabled="{Binding !IsDownloadingModel}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Pesma" Classes="subtle" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding SelectedFileName}" IsReadOnly="True" Watermark="Nijedna pesma nije izabrana" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="Izaberi pesmu..." Command="{Binding PickSongCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Tekst koji se traži" Classes="subtle" />
+            <TextBox Text="{Binding SearchPhrase}" Watermark="npr. volim te draga moja" />
+          </StackPanel>
+
+          <Button Classes="cta" Content="Pronađi u pesmi" Command="{Binding SearchCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+      <StackPanel Spacing="10" IsVisible="{Binding HasMatches}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Pronađena mesta" Classes="section" />
+          <Button Grid.Column="1" Classes="ghost" Content="Izvezi sve" Command="{Binding ExportAllCommand}" />
+        </Grid>
+
+        <ItemsControl ItemsSource="{Binding Matches}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LyricMatchItemViewModel">
+              <Border Classes="panel" Padding="16" Margin="0,0,0,10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource ThemeAccentSubtleBrush}" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding Index}" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="3">
+                    <TextBlock>
+                      <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0} – {1}  ({2})">
+                          <Binding Path="StartLabel" />
+                          <Binding Path="EndLabel" />
+                          <Binding Path="ConfidenceLabel" />
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                    <TextBlock Classes="subtle" TextWrapping="Wrap" FontStyle="Italic">
+                      <TextBlock.Text>
+                        <MultiBinding StringFormat="Prepoznato: „{0}“">
+                          <Binding Path="RecognizedText" />
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                    <TextBlock Classes="subtle" Text="{Binding StatusMessage}" IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Classes="ghost" Content="Otvori" Command="{Binding OpenExportedCommand}" IsVisible="{Binding IsExported}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
