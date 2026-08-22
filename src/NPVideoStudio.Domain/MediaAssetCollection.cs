@@ -51,45 +51,82 @@ public sealed class MediaAssetCollection : Collection<MediaAsset>
     }
 }
 
+public enum ProxyRemovalResult
+{
+    NoProxy,
+    DeletedOwnedProxy,
+    DetachedExternalReference,
+    FailedToDeleteOwnedProxy
+}
+
 public static class ProxyCacheCleanup
 {
-    public static bool TryDeleteOwnedProxy(MediaAsset asset)
+    public static bool IsOwnedProxyPath(string? proxyFilePath)
     {
-        ArgumentNullException.ThrowIfNull(asset);
-        if (string.IsNullOrWhiteSpace(asset.ProxyFilePath))
+        if (string.IsNullOrWhiteSpace(proxyFilePath)) return false;
+        try
+        {
+            var proxyPath = Path.GetFullPath(proxyFilePath);
+            var root = Path.GetFullPath(AppSettings.ProxyCacheFolder());
+            var relative = Path.GetRelativePath(root, proxyPath);
+            return !Path.IsPathRooted(relative) &&
+                   !relative.Equals("..", StringComparison.Ordinal) &&
+                   !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
+                   !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+        }
+        catch
         {
             return false;
         }
+    }
+
+    public static bool TryDeleteOwnedProxy(MediaAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (!IsOwnedProxyPath(asset.ProxyFilePath)) return false;
 
         try
         {
-            var proxyPath = Path.GetFullPath(asset.ProxyFilePath);
-            var root = Path.GetFullPath(AppSettings.ProxyCacheFolder());
-            var relative = Path.GetRelativePath(root, proxyPath);
-            var outsideRoot = Path.IsPathRooted(relative) ||
-                              relative.Equals("..", StringComparison.Ordinal) ||
-                              relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-                              relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
-            if (outsideRoot)
-            {
-                return false;
-            }
-
-            if (File.Exists(proxyPath))
-            {
-                File.Delete(proxyPath);
-            }
-
-            asset.ProxyFilePath = null;
-            asset.ProxyStatus = MediaProxyStatus.Original;
-            asset.ProxyError = null;
+            var proxyPath = Path.GetFullPath(asset.ProxyFilePath!);
+            if (File.Exists(proxyPath)) File.Delete(proxyPath);
+            ResetProxyMetadata(asset);
             return true;
         }
         catch
         {
-            // Cache cleanup must never delete the original asset or make project removal crash. If a
-            // disposable proxy is temporarily locked, normal cache maintenance can remove it later.
+            // A locked/unavailable app-owned cache file is not silently detached. Keeping its persisted
+            // path lets the user retry later and prevents an orphaned file we can no longer identify.
             return false;
         }
+    }
+
+    /// <summary>Safe semantics for the explicit UI "Remove proxy" action. App-owned cache files are
+    /// deleted. A persisted path outside NP's active proxy root is NEVER deleted; it is only detached
+    /// from the project. A failure deleting an app-owned file leaves the metadata intact for retry.</summary>
+    public static ProxyRemovalResult RemoveProxyReferenceSafely(MediaAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(asset.ProxyFilePath))
+        {
+            ResetProxyMetadata(asset);
+            return ProxyRemovalResult.NoProxy;
+        }
+
+        if (!IsOwnedProxyPath(asset.ProxyFilePath))
+        {
+            ResetProxyMetadata(asset);
+            return ProxyRemovalResult.DetachedExternalReference;
+        }
+
+        return TryDeleteOwnedProxy(asset)
+            ? ProxyRemovalResult.DeletedOwnedProxy
+            : ProxyRemovalResult.FailedToDeleteOwnedProxy;
+    }
+
+    private static void ResetProxyMetadata(MediaAsset asset)
+    {
+        asset.ProxyFilePath = null;
+        asset.ProxyStatus = MediaProxyStatus.Original;
+        asset.ProxyError = null;
     }
 }

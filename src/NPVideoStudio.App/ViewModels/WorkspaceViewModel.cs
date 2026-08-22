@@ -765,17 +765,20 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         });
         item.RemoveProxyCommand = new AsyncRelayCommand(async () =>
         {
-            if (!string.IsNullOrWhiteSpace(asset.ProxyFilePath) && File.Exists(asset.ProxyFilePath))
-            {
-                File.Delete(asset.ProxyFilePath);
-            }
-            asset.ProxyFilePath = null;
-            asset.ProxyStatus = MediaProxyStatus.Original;
-            asset.ProxyError = null;
+            var result = ProxyCacheCleanup.RemoveProxyReferenceSafely(asset);
             item.NotifyAssetChanged();
+
+            if (result == ProxyRemovalResult.FailedToDeleteOwnedProxy)
+            {
+                StatusMessage = $"Proxy za „{asset.FileName}“ nije uklonjen jer je fajl trenutno zaključan ili nedostupan. Zatvorite program koji ga koristi i pokušajte ponovo.";
+                return;
+            }
+
             await PersistProxyStateAsync();
             RefreshPreviewFrame(Player.CurrentTimeSeconds);
-            StatusMessage = $"Proxy za „{asset.FileName}“ je uklonjen. Preview koristi original.";
+            StatusMessage = result == ProxyRemovalResult.DetachedExternalReference
+                ? $"Proxy veza za „{asset.FileName}“ je uklonjena. Spoljni fajl nije obrisan jer nije u NP Video Studio proxy folderu."
+                : $"Proxy za „{asset.FileName}“ je uklonjen. Preview koristi original.";
         });
         item.OpenProxyFolderCommand = new RelayCommand(() =>
         {
