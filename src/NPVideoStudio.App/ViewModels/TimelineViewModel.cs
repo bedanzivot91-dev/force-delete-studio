@@ -282,13 +282,8 @@ public sealed partial class TimelineViewModel : ViewModelBase
         var toggleSolo = new RelayCommand(() => { _session.SetTrackSolo(track.Id, !track.IsSolo); RefreshFromSession(); });
         var removeTrack = new RelayCommand(() => { _session.RemoveTrack(track.Id); RefreshFromSession(); });
         var addClip = new RelayCommand(() => AddClipToTrack(track));
-        void OnTrackVolumeChanged(string trackId, double volume)
-        {
-            _session.SetTrackVolume(trackId, volume);
-            RefreshFromSession();
-        }
 
-        var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip, OnTrackVolumeChanged);
+        var trackItem = new TimelineTrackItemViewModel(track, toggleLock, toggleHide, toggleMute, toggleSolo, removeTrack, addClip);
         foreach (var clip in track.Clips.OrderBy(c => c.TimelineStartSeconds))
         {
             trackItem.Clips.Add(CreateClipItem(clip, track));
@@ -313,6 +308,11 @@ public sealed partial class TimelineViewModel : ViewModelBase
         void OnTextStyleChanged(string clipId, CaptionFontChoice font, int size, string color, CaptionTextPosition position)
         {
             _session.SetTextStyle(clipId, font, size, color, position);
+            RefreshFromSession();
+        }
+        void OnTextFontChanged(string clipId, CaptionFontChoice legacy, string? family, string? filePath)
+        {
+            _session.SetTextFont(clipId, legacy, family, filePath);
             RefreshFromSession();
         }
         void OnTransitionChanged(string clipId, ClipTransitionType type, double duration)
@@ -367,7 +367,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
-            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove)
+            _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };

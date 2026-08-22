@@ -2,29 +2,56 @@ using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.Media;
 
-/// <summary>
-/// Maps a <see cref="CaptionFontChoice"/> (+ optional bold/italic toggles) to a real font file ffmpeg's
-/// drawtext can load via <c>fontfile=</c>. Deliberately a fixed, small set of standard Windows system
-/// fonts (this app is Windows-only) rather than an open-ended font name lookup, which would need
-/// fontconfig - not guaranteed present in the bundled gyan.dev ffmpeg build (see CLAUDE.md).
-/// </summary>
+/// <summary>Resolves either a real installed font chosen by the user or a legacy built-in font preset to
+/// the exact file ffmpeg drawtext should load. Paths are preferred, but family-name fallback keeps a
+/// project portable between Windows machines whose font file locations differ.</summary>
 public static class CaptionFontResolver
 {
     private static readonly string WindowsFontsDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
 
-    /// <summary>Null for <see cref="CaptionFontChoice.Default"/> (ffmpeg's built-in default font, same
-    /// look as before per-clip font choice existed) or when the font file genuinely isn't on disk (e.g.
-    /// this method running outside Windows, or a stripped-down Windows install) - callers should omit
-    /// <c>fontfile=</c> entirely in that case rather than pass a bad path.
-    ///
-    /// <paramref name="isBold"/>/<paramref name="isItalic"/> are independent per-clip toggles, separate
-    /// from the "already permanently bold" <see cref="CaptionFontChoice.ArialBold"/>/
-    /// <see cref="CaptionFontChoice.ComicSansBold"/> presets - either source can make the effective weight
-    /// bold, so an existing ArialBold clip stays bold with the toggle off (backward compatible), while the
-    /// toggle can also make a plain Arial/Georgia clip bold without switching font choice.</summary>
-    public static string? ResolveFontFilePath(CaptionFontChoice choice, bool isBold = false, bool isItalic = false)
+    private static readonly Lazy<IReadOnlyList<InstalledFont>> InstalledFonts = new(
+        () => SystemFontCatalog.ListInstalledFonts(),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    public static string? ResolveFontFilePath(TimelineClip clip) => ResolveFontFilePath(
+        clip.FontChoice,
+        clip.IsTextBold,
+        clip.IsTextItalic,
+        clip.TextFontFilePath,
+        clip.TextFontFamilyName);
+
+    /// <summary>Returns a real readable font file or null. A custom exact path wins. If it disappeared
+    /// (for example the project was moved to another PC), the resolver looks up the saved family and the
+    /// closest bold/italic variant. Only then does it fall back to the legacy enum mapping.</summary>
+    public static string? ResolveFontFilePath(
+        CaptionFontChoice choice,
+        bool isBold = false,
+        bool isItalic = false,
+        string? installedFontFilePath = null,
+        string? installedFontFamilyName = null)
     {
+        if (!string.IsNullOrWhiteSpace(installedFontFilePath) && File.Exists(installedFontFilePath))
+        {
+            return installedFontFilePath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(installedFontFamilyName))
+        {
+            var candidates = InstalledFonts.Value
+                .Where(f => string.Equals(f.FamilyName, installedFontFamilyName, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f.IsBold == isBold ? 0 : 1)
+                .ThenBy(f => f.IsItalic == isItalic ? 0 : 1)
+                .ThenBy(f => f.FilePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var matchingInstalled = candidates.FirstOrDefault();
+            if (matchingInstalled is not null && File.Exists(matchingInstalled.FilePath))
+            {
+                return matchingInstalled.FilePath;
+            }
+        }
+
         var (family, choiceIsBold) = choice switch
         {
             CaptionFontChoice.Arial => ("Arial", false),

@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Media;
 
 namespace NPVideoStudio.App.ViewModels;
 
@@ -13,6 +14,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// session's own SetTextStyle call would make its undo snapshot capture the *new* value as if it were
     /// the "before" state, silently breaking undo for style edits.</summary>
     private readonly Action<string, CaptionFontChoice, int, string, CaptionTextPosition>? _onTextStyleChanged;
+    private readonly Action<string, CaptionFontChoice, string?, string?>? _onTextFontChanged;
 
     /// <summary>(clipId, transitionType, durationSeconds) - same reasoning as <see cref="_onTextStyleChanged"/>
     /// above: goes through the owning session's SetTransition so undo captures the correct "before" state.</summary>
@@ -467,13 +469,50 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>These four are real, working per-clip text style controls - unlike the 24 "Stilovi
     /// titlova" gallery presets (color-swatch preview only), changing these actually changes what
     /// <c>FfmpegFilterGraphBuilder</c> burns into the exported video for this exact clip.</summary>
-    public CaptionFontChoice FontChoice
+    private static readonly Lazy<IReadOnlyList<object>> FontPickerChoices = new(() =>
+        Enum.GetValues<CaptionFontChoice>().Cast<object>()
+            .Concat(SystemFontCatalog.ListFontsUsableForSerbian().Cast<object>())
+            .ToList());
+
+    /// <summary>The same property name keeps the existing inspector binding intact, but it now accepts
+    /// both legacy enum presets and real InstalledFont entries from SystemFontCatalog.</summary>
+    public object FontChoice
     {
-        get => Clip.FontChoice;
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Clip.TextFontFilePath))
+            {
+                var exact = AvailableFontChoices.OfType<InstalledFont>().FirstOrDefault(f =>
+                    string.Equals(f.FilePath, Clip.TextFontFilePath, StringComparison.OrdinalIgnoreCase));
+                if (exact is not null) return exact;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Clip.TextFontFamilyName))
+            {
+                var family = AvailableFontChoices.OfType<InstalledFont>().FirstOrDefault(f =>
+                    string.Equals(f.FamilyName, Clip.TextFontFamilyName, StringComparison.OrdinalIgnoreCase));
+                if (family is not null) return family;
+            }
+
+            return Clip.FontChoice;
+        }
         set
         {
-            if (Clip.FontChoice == value) return;
-            _onTextStyleChanged?.Invoke(Clip.Id, value, FontSizePx, TextColor, TextPosition);
+            if (value is CaptionFontChoice legacy)
+            {
+                if (Clip.FontChoice == legacy && Clip.TextFontFamilyName is null && Clip.TextFontFilePath is null) return;
+                if (_onTextFontChanged is not null)
+                    _onTextFontChanged(Clip.Id, legacy, null, null);
+                else
+                    _onTextStyleChanged?.Invoke(Clip.Id, legacy, FontSizePx, TextColor, TextPosition);
+                return;
+            }
+
+            if (value is InstalledFont installed)
+            {
+                if (string.Equals(Clip.TextFontFilePath, installed.FilePath, StringComparison.OrdinalIgnoreCase)) return;
+                _onTextFontChanged?.Invoke(Clip.Id, CaptionFontChoice.Default, installed.FamilyName, installed.FilePath);
+            }
         }
     }
 
@@ -483,7 +522,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set
         {
             if (Clip.FontSizePx == value) return;
-            _onTextStyleChanged?.Invoke(Clip.Id, FontChoice, value, TextColor, TextPosition);
+            _onTextStyleChanged?.Invoke(Clip.Id, Clip.FontChoice, value, TextColor, TextPosition);
         }
     }
 
@@ -493,7 +532,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set
         {
             if (Clip.TextColor == value || string.IsNullOrWhiteSpace(value)) return;
-            _onTextStyleChanged?.Invoke(Clip.Id, FontChoice, FontSizePx, value, TextPosition);
+            _onTextStyleChanged?.Invoke(Clip.Id, Clip.FontChoice, FontSizePx, value, TextPosition);
         }
     }
 
@@ -503,11 +542,11 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set
         {
             if (Clip.TextPosition == value) return;
-            _onTextStyleChanged?.Invoke(Clip.Id, FontChoice, FontSizePx, TextColor, value);
+            _onTextStyleChanged?.Invoke(Clip.Id, Clip.FontChoice, FontSizePx, TextColor, value);
         }
     }
 
-    public IReadOnlyList<CaptionFontChoice> AvailableFontChoices { get; } = Enum.GetValues<CaptionFontChoice>();
+    public IReadOnlyList<object> AvailableFontChoices => FontPickerChoices.Value;
     public IReadOnlyList<CaptionTextPosition> AvailablePositions { get; } = Enum.GetValues<CaptionTextPosition>();
     public IReadOnlyList<TextHorizontalAlign> AvailableHorizontalAligns { get; } = Enum.GetValues<TextHorizontalAlign>();
     public IReadOnlyList<TextCaseTransform> AvailableTextCases { get; } = Enum.GetValues<TextCaseTransform>();
@@ -681,7 +720,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         bool isAudioClip = false,
         Func<double>? getPlayheadSeconds = null,
         Action<string, ClipKeyframeProperty, double, double, ClipKeyframeEasing>? onKeyframeUpsert = null,
-        Action<string, ClipKeyframeProperty, double>? onKeyframeRemove = null)
+        Action<string, ClipKeyframeProperty, double>? onKeyframeRemove = null,
+        Action<string, CaptionFontChoice, string?, string?>? onTextFontChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onTransformChanged = onTransformChanged;
@@ -706,6 +746,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ToggleFadeOutCommand = toggleFadeOutCommand;
         ApplyStyleToAllOnTrackCommand = applyStyleToAllOnTrackCommand;
         _onTextStyleChanged = onTextStyleChanged;
+        _onTextFontChanged = onTextFontChanged;
         _onTransitionChanged = onTransitionChanged;
         _onTextContentChanged = onTextContentChanged;
         _onAdvancedStyleChanged = onAdvancedStyleChanged;
