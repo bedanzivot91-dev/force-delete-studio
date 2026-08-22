@@ -33,6 +33,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>(clipId, effect, brightness, contrast, saturation, speed) - routed through the session so
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
+    private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
     private readonly Action<string, ClipTransformSettings>? _onTransformChanged;
     private readonly Action<string, ClipCompositingSettings>? _onCompositingChanged;
     private readonly Func<double>? _getPlayheadSeconds;
@@ -207,11 +208,23 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         set { if (Math.Abs(Clip.Saturation - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, value, SpeedMultiplier); }
     }
 
-    /// <summary>0.5 = slow motion, 2 = double speed.</summary>
+    /// <summary>0.5 = slow motion, 2 = double speed. Changing it explicitly disables a velocity curve.</summary>
     public double SpeedMultiplier
     {
         get => Clip.SpeedMultiplier;
         set { if (Math.Abs(Clip.SpeedMultiplier - value) < 1e-6) return; _onEffectsChanged?.Invoke(Clip.Id, Effect, Brightness, Contrast, Saturation, value); }
+    }
+
+    public IReadOnlyList<SpeedCurvePreset> AvailableSpeedCurvePresets { get; } = Enum.GetValues<SpeedCurvePreset>();
+    public bool CanUseSpeedCurve => HasSourceMedia && !IsTextClip && !Clip.IsReversed && !Clip.IsFreezeFrame;
+    public SpeedCurvePreset SpeedCurvePreset
+    {
+        get => Clip.SpeedCurvePreset;
+        set
+        {
+            if (Clip.SpeedCurvePreset == value) return;
+            _onSpeedCurvePresetChanged?.Invoke(Clip.Id, value);
+        }
     }
 
     private ClipTransformSettings CurrentTransform() => new(
@@ -760,9 +773,11 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, CaptionFontChoice, string?, string?>? onTextFontChanged = null,
         double sourceMediaDurationSeconds = 0,
         Action<string, double>? onTrimInChanged = null,
-        Action<string, double>? onTrimOutChanged = null)
+        Action<string, double>? onTrimOutChanged = null,
+        Action<string, SpeedCurvePreset>? onSpeedCurvePresetChanged = null)
     {
         _onEffectsChanged = onEffectsChanged;
+        _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
         _onTransformChanged = onTransformChanged;
         _onCompositingChanged = onCompositingChanged;
         _onLayerPlacementChanged = onLayerPlacementChanged;

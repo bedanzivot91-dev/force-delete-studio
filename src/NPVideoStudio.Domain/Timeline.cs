@@ -234,7 +234,9 @@ public sealed class TimelineClip
     public double SourceTrimOutSeconds { get; set; }
 
     public double TimelineStartSeconds { get; set; }
-    public double TimelineDurationSeconds => Math.Max(0, SourceTrimOutSeconds - SourceTrimInSeconds) / (IsFreezeFrame ? 1.0 : Math.Clamp(SpeedMultiplier, 0.25, 4));
+    public double TimelineDurationSeconds => IsFreezeFrame
+        ? Math.Max(0, SourceTrimOutSeconds - SourceTrimInSeconds)
+        : SpeedCurveMath.OutputDuration(this);
     public double TimelineEndSeconds => TimelineStartSeconds + TimelineDurationSeconds;
 
     public double FadeInSeconds { get; set; }
@@ -288,8 +290,14 @@ public sealed class TimelineClip
     /// <summary>Manual colour saturation, 0..3, 1 = unchanged. 0 is fully grey.</summary>
     public double Saturation { get; set; } = 1.0;
 
-    /// <summary>Playback speed, 0.25..4. 1 = normal, 0.5 = slow motion, 2 = double speed.</summary>
+    /// <summary>Playback speed, 0.25..4. Used when no velocity curve is active.</summary>
     public double SpeedMultiplier { get; set; } = 1.0;
+
+    /// <summary>Optional CapCut-style variable velocity preset. None keeps constant speed.</summary>
+    public SpeedCurvePreset SpeedCurvePreset { get; set; } = SpeedCurvePreset.None;
+
+    /// <summary>Absolute source-time control points for the active velocity curve.</summary>
+    public List<SpeedCurvePoint> SpeedCurvePoints { get; set; } = new();
     // --- Transform / temporal / green-screen ----------------------------------------------------
     public double RotationDegrees { get; set; }
     public bool FlipHorizontal { get; set; }
