@@ -1,0 +1,40 @@
+name: Windows real install smoke
+
+on:
+  pull_request:
+    branches:
+      - claude/np-video-studio-desktop-po139q
+  push:
+    branches:
+      - claude/np-video-studio-desktop-po139q
+  workflow_dispatch:
+
+jobs:
+  real-install:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install release toolchain
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          choco install yt-dlp -y --no-progress
+          choco install chromaprint -y --no-progress
+          choco install tesseract -y --no-progress
+          choco install innosetup -y --no-progress
+          echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+
+      - name: Build real Setup and Portable release
+        shell: pwsh
+        run: pwsh -File scripts/build-release.ps1
+
+      - name: Real install, GUI responsiveness, second clean install and uninstall
+        shell: pwsh
+        run: pwsh -File scripts/test-installed-release.ps1
