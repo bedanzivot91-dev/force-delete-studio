@@ -52,6 +52,18 @@
          falls back to the always-available Tesseract path when it's not installed. -->
     <None Include="..\..\easyocr-helper\ocr_frame.py" Link="Tools\easyocr-helper\ocr_frame.py" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\easyocr-helper\requirements.txt" Link="Tools\easyocr-helper\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- Legal/compliance payload is part of the product, not source-only documentation. Every build,
+         portable package and installed copy must carry the third-party notice plus the corresponding
+         license texts next to the application. -->
+    <None Include="..\..\THIRD_PARTY_NOTICES.md"
+          Link="THIRD_PARTY_NOTICES.md"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\Licenses\**\*"
+          Link="Licenses\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
