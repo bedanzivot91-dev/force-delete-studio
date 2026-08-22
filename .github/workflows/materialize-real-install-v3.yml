@@ -1,0 +1,30 @@
+name: Materialize real install v3
+
+on:
+  push:
+    branches:
+      - agent/windows-real-install-v3
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/windows-real-install-v3
+          fetch-depth: 0
+      - name: Apply strengthened real-install gate onto latest development
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin agent/windows-real-install-v2
+          git diff --binary e8f3f6cc27411261e213411f6cd7fc056ad20212 764163fbeb1de2f5a41f6ec16629a8c7df8fd495 -- .github/workflows/windows-real-install-smoke.yml installer/NPVideoStudio.iss scripts/test-installed-release.ps1 > /tmp/real-install.patch
+          git apply --3way --index /tmp/real-install.patch
+          git commit -m "Gate latest development with real Windows install checks"
+          git push origin HEAD:agent/windows-real-install-v3
