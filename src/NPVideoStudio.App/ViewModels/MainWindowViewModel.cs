@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using NPVideoStudio.Core.Services;
 using NPVideoStudio.Domain;
+using NPVideoStudio.Infrastructure.Persistence;
 
 namespace NPVideoStudio.App.ViewModels;
 
@@ -15,7 +16,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ViewModelBase? _currentPage;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCurrentProject))]
     private Project? _currentProject;
+
+    public bool HasCurrentProject => CurrentProject is not null;
 
     public event Action<AppTheme>? ThemeChanged;
 
@@ -168,7 +172,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
-    private ViewModelBase CreateNewProjectPage(TargetPlatform? platform, ProjectTemplate? template = null)
+    private ViewModelBase CreateNewProjectPage(
+        TargetPlatform? platform,
+        ProjectTemplate? template = null,
+        UserTemplate? userTemplate = null)
     {
         var vm = new NewProjectViewModel(
             _services.GetRequiredService<IProjectRepository>(),
@@ -176,15 +183,37 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<ISettingsService>(),
             _services.GetRequiredService<Serilog.ILogger>(),
             platform,
-            template);
+            template,
+            userTemplate);
         vm.ProjectCreated += project => CurrentPage = OpenWorkspace(project);
         return vm;
     }
 
     private TemplateGalleryViewModel CreateTemplateGalleryPage()
     {
-        var vm = _services.GetRequiredService<TemplateGalleryViewModel>();
-        vm.TemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        // Repository is intentionally real disk persistence, not a second in-memory list. Separate
+        // instances point at the same app-owned Templates folder and therefore stay in sync.
+        var vm = new TemplateGalleryViewModel(new UserTemplateRepository());
+        vm.BuiltInTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        vm.UserTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, userTemplate: template);
+        return vm;
+    }
+
+    private SaveTemplateViewModel CreateSaveTemplatePage()
+    {
+        if (CurrentProject is null)
+        {
+            throw new InvalidOperationException("Nema otvorenog projekta koji može da se sačuva kao šablon.");
+        }
+
+        var vm = new SaveTemplateViewModel(CurrentProject, new UserTemplateRepository());
+        vm.BackRequested += () =>
+        {
+            if (CurrentProject is not null)
+            {
+                CurrentPage = OpenWorkspace(CurrentProject);
+            }
+        };
         return vm;
     }
 
@@ -249,6 +278,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     private async Task GoHomeAsync() => await ShowStartScreenAsync();
+
+    [RelayCommand]
+    private void GoToSaveTemplate()
+    {
+        if (CurrentProject is not null)
+        {
+            CurrentPage = CreateSaveTemplatePage();
+        }
+    }
 
     [RelayCommand]
     private void GoToSettings() => CurrentPage = CreateSettingsPage();

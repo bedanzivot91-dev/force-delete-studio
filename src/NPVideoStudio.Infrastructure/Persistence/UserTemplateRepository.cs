@@ -17,10 +17,12 @@ public sealed class UserTemplate
     public List<TimelineTrackKind> StarterTrackKinds { get; set; } = new();
 
     /// <summary>Export format saved with the template, so "my TikTok setup" restores 1080x1920 at the
-    /// right frame rate too - not just the track layout.</summary>
+    /// right frame rate too - not just the track layout. Fps is stored separately because a Custom preset
+    /// can be 23.976/29.97/etc. and the enum alone cannot reconstruct that value.</summary>
     public int Width { get; set; } = 1920;
     public int Height { get; set; } = 1080;
     public FrameRatePreset FrameRate { get; set; } = FrameRatePreset.Fps30;
+    public double Fps { get; set; } = 30.0;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
@@ -74,6 +76,18 @@ public sealed class UserTemplateRepository
         return templates.OrderByDescending(t => t.CreatedAt).ToList();
     }
 
+    /// <summary>Checks the same sanitized path Save/Delete use, so names like "9:16" are treated
+    /// consistently and the UI can require an explicit overwrite confirmation.</summary>
+    public bool Exists(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        return File.Exists(PathFor(name));
+    }
+
     /// <summary>Saves (or overwrites) a template under its name. Returns the file path written.</summary>
     public string Save(UserTemplate template)
     {
@@ -83,7 +97,7 @@ public sealed class UserTemplateRepository
         }
 
         Directory.CreateDirectory(_folder);
-        var path = Path.Combine(_folder, $"{SanitizeFileName(template.Name)}.json");
+        var path = PathFor(template.Name);
 
         // Write to a temp file then move: a crash mid-write leaves the previous template intact instead
         // of a truncated file that LoadAll would have to skip.
@@ -97,7 +111,7 @@ public sealed class UserTemplateRepository
     /// <summary>True if a template with that name existed and was deleted.</summary>
     public bool Delete(string name)
     {
-        var path = Path.Combine(_folder, $"{SanitizeFileName(name)}.json");
+        var path = PathFor(name);
         if (!File.Exists(path))
         {
             return false;
@@ -105,6 +119,44 @@ public sealed class UserTemplateRepository
 
         File.Delete(path);
         return true;
+    }
+
+    /// <summary>Renames a saved template without silently replacing another one unless overwrite is
+    /// explicitly requested by the caller. The JSON name and filename are updated together.</summary>
+    public UserTemplate Rename(string oldName, string newName, bool overwrite = false)
+    {
+        if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
+        {
+            throw new ArgumentException("Staro i novo ime šablona moraju biti uneti.");
+        }
+
+        var oldPath = PathFor(oldName);
+        if (!File.Exists(oldPath))
+        {
+            throw new FileNotFoundException("Šablon koji želite da preimenujete više ne postoji.", oldPath);
+        }
+
+        var newPath = PathFor(newName);
+        if (!string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase) && File.Exists(newPath) && !overwrite)
+        {
+            throw new IOException("Šablon sa tim imenom već postoji.");
+        }
+
+        var template = JsonSerializer.Deserialize<UserTemplate>(File.ReadAllText(oldPath), JsonOptions)
+            ?? throw new InvalidDataException("Šablon nije moguće pročitati.");
+        template.Name = newName.Trim();
+
+        Directory.CreateDirectory(_folder);
+        var tempPath = newPath + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(template, JsonOptions));
+        File.Move(tempPath, newPath, overwrite: true);
+
+        if (!string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase) && File.Exists(oldPath))
+        {
+            File.Delete(oldPath);
+        }
+
+        return template;
     }
 
     /// <summary>Builds a template from a project the user has already set up - the "save what I have as a
@@ -117,8 +169,11 @@ public sealed class UserTemplateRepository
         StarterTrackKinds = project.Timeline.Tracks.Select(t => t.Kind).ToList(),
         Width = project.Format.Width,
         Height = project.Format.Height,
-        FrameRate = project.Format.FrameRate
+        FrameRate = project.Format.FrameRate,
+        Fps = project.Format.Fps
     };
+
+    private string PathFor(string name) => Path.Combine(_folder, $"{SanitizeFileName(name)}.json");
 
     /// <summary>Names come from a free-text box, so anything Windows forbids in a file name has to go -
     /// otherwise saving a template called "9:16" would throw instead of saving.</summary>
