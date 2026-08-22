@@ -19,7 +19,6 @@ public sealed class SettingsService : ISettingsService
     public SettingsService(string settingsFilePath)
     {
         _settingsFilePath = settingsFilePath;
-        AppSettings.ConfigureRuntimeCacheFolder(Current.CacheFolder);
     }
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
