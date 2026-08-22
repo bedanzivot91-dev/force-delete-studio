@@ -165,7 +165,8 @@ jobs:
               'spsWorkspaceGenerationBadge',
               'sps-shell-2026',
               'spsFinalNav2026Marker',
-              'productionWorkspace',
+              'sunoOnlyRuntimeMarker',
+              'spsRealThemeLayouts',
               'youtubeAudioMaxVideos'
             )
             foreach ($marker in $requiredMarkers) {
