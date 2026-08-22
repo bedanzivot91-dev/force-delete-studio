@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NPVideoStudio.Domain;
+using Xunit;
 
 namespace NPVideoStudio.UnitTests;
 
