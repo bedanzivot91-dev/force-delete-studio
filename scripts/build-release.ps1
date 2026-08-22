@@ -172,7 +172,19 @@ $requiredReleaseFiles = @(
     'Tools\whisper-models\ggml-tiny.bin',
     'Tools\ai-worker\ai_worker.py',
     'Tools\ai-worker\motion_tracker.py',
-    'Tools\ai-worker\install-song-ai.ps1'
+    'Tools\ai-worker\install-song-ai.ps1',
+    'THIRD_PARTY_NOTICES.md',
+    'Licenses\Apache-2.0-Serilog.txt',
+    'Licenses\GPLv3-FFmpeg.txt',
+    'Licenses\LGPL-2.1-LibVLC.txt',
+    'Licenses\MIT-Avalonia.txt',
+    'Licenses\MIT-CommunityToolkit.Mvvm.txt',
+    'Licenses\MIT-Microsoft.Data.Sqlite.txt',
+    'Licenses\MIT-Microsoft.Extensions.DependencyInjection.txt',
+    'Licenses\MIT-Whisper.net.txt',
+    'Licenses\MIT-whisper.cpp.txt',
+    'Licenses\PublicDomain-SQLite.txt',
+    'Licenses\Unlicense-yt-dlp.txt'
 )
 $missingReleaseFiles = @($requiredReleaseFiles | Where-Object {
     $file = Join-Path $publishDir $_
