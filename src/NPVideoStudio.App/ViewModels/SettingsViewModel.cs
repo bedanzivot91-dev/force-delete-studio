@@ -14,6 +14,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly ILogger _logger;
 
     public IReadOnlyList<AppTheme> AvailableThemes { get; } = Enum.GetValues<AppTheme>();
+    public string ThemeAvailabilityLabel => $"Dostupno je {AvailableThemes.Count} tema. Sve ponuđene teme koriste isti skup semantičkih UI resursa.";
     public IReadOnlyList<ToolUpdatePolicy> AvailableToolUpdatePolicies { get; } = Enum.GetValues<ToolUpdatePolicy>();
 
     [ObservableProperty]
