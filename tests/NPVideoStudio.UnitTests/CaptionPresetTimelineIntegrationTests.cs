@@ -8,7 +8,7 @@ namespace NPVideoStudio.UnitTests;
 public sealed class CaptionPresetTimelineIntegrationTests
 {
     [Fact]
-    public void ApplySelectedCaptionPreset_PersistsVisualStyleIntoProjectTimeline()
+    public void ApplySelectedCaptionPreset_CommandPersistsVisualStyleIntoProjectTimeline()
     {
         var caption = new TimelineClip
         {
@@ -38,7 +38,8 @@ public sealed class CaptionPresetTimelineIntegrationTests
         vm.SelectedClipId = caption.Id;
         vm.SelectedCaptionPresetChoice = vm.CaptionPresetChoices.Single(x => x.Preset.Name == "Stakleni panel");
 
-        vm.ApplySelectedCaptionPreset();
+        Assert.NotNull(vm.ApplySelectedCaptionPresetCommand);
+        vm.ApplySelectedCaptionPresetCommand.Execute(null);
         vm.SaveToProject();
 
         var saved = project.Timeline.Tracks.Single().Clips.Single();
@@ -51,7 +52,7 @@ public sealed class CaptionPresetTimelineIntegrationTests
     }
 
     [Fact]
-    public void ApplySelectedCaptionPreset_RefusesNonTextSelection()
+    public void ApplySelectedCaptionPreset_CommandRefusesNonTextSelection()
     {
         var video = new TimelineClip
         {
@@ -80,7 +81,7 @@ public sealed class CaptionPresetTimelineIntegrationTests
         var vm = new TimelineViewModel(project, new ObservableCollection<MediaAssetViewModel>(), () => 0);
         vm.SelectedClipId = video.Id;
 
-        vm.ApplySelectedCaptionPreset();
+        vm.ApplySelectedCaptionPresetCommand.Execute(null);
 
         Assert.Contains("tekst/titl", vm.CaptionPresetStatusMessage, StringComparison.OrdinalIgnoreCase);
     }

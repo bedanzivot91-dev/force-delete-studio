@@ -11,8 +11,13 @@
         <Button Classes="cta" Content="Automatski tekst" Command="{Binding GenerateCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}"
                 ToolTip.Tip="Prepoznaje govor/pesmu i dodaje uređive titlove na timeline." />
         <Button Classes="ghost" Content="Karaoke" Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
-        <Button Classes="ghost" Content="Stilovi titla" Command="{Binding OpenCaptionStyleGalleryCommand}"
-                ToolTip.Tip="Izaberi tekst/titl klip na timeline-u i primeni stil koji se čuva u projektu i ulazi u export." />
+        <ComboBox ItemsSource="{Binding Timeline.CaptionPresetChoices}"
+                  SelectedItem="{Binding Timeline.SelectedCaptionPresetChoice}"
+                  MinWidth="190"
+                  ToolTip.Tip="Izaberi gotov vizuelni stil za trenutno izabrani tekst/titl klip." />
+        <Button Classes="ghost" Content="Primeni stil" Command="{Binding Timeline.ApplySelectedCaptionPresetCommand}"
+                ToolTip.Tip="Primenjuje izabrani stil na tekst/titl klip kroz timeline session; promena se čuva u projektu i ulazi u export." />
+        <TextBlock Text="{Binding Timeline.CaptionPresetStatusMessage}" Classes="subtle" VerticalAlignment="Center" MaxWidth="260" TextWrapping="Wrap" />
         <Button Classes="ghost" Content="Prekini" Command="{Binding CancelCaptionGenerationCommand}" IsVisible="{Binding IsGeneratingCaptions}" />
       </StackPanel>
     </Border>

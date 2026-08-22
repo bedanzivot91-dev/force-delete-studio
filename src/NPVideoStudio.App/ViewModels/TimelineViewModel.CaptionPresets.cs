@@ -60,6 +60,7 @@ public sealed partial class TimelineViewModel
     /// clip is selected. The preset's named animation is NOT marked as implemented here because the
     /// current renderer has no caption-animation/keyframe model yet.
     /// </summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
     public void ApplySelectedCaptionPreset()
     {
         var choice = SelectedCaptionPresetChoice;
