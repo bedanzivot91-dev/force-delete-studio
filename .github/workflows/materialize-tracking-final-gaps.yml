@@ -35,3 +35,5 @@ jobs:
           git diff --cached --check
           git commit -m 'Finish tracking stabilization consistency and release payload'
           git push origin HEAD:agent/motion-tracking-auto-reframe
+
+# Triggered through a technical PR so GitHub Actions receives a real push on the target feature branch.
