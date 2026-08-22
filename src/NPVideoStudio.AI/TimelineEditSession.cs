@@ -476,7 +476,7 @@ public sealed class TimelineEditSession
         var clampedAccuracy = Math.Clamp(accuracy, 1, 15);
         var zoom = Math.Clamp(zoomPercent, 0, 30);
         if (clip.StabilizationEnabled == enabled &&
-            clip.StabilizationSmoothingFrames == smoothing &&
+            clip.StabilizationSmoothing == smoothing &&
             clip.StabilizationAccuracy == clampedAccuracy &&
             Math.Abs(clip.StabilizationZoomPercent - zoom) < 1e-9)
         {
@@ -486,7 +486,7 @@ public sealed class TimelineEditSession
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.StabilizationEnabled = enabled;
-        liveClip.StabilizationSmoothingFrames = smoothing;
+        liveClip.StabilizationSmoothing = smoothing;
         liveClip.StabilizationAccuracy = clampedAccuracy;
         liveClip.StabilizationZoomPercent = zoom;
         return true;
@@ -1041,9 +1041,11 @@ public sealed class TimelineEditSession
             SpeedMultiplier = point.SpeedMultiplier
         }).ToList(),
         StabilizationEnabled = clip.StabilizationEnabled,
-        StabilizationSmoothingFrames = clip.StabilizationSmoothingFrames,
+        StabilizationShakiness = clip.StabilizationShakiness,
         StabilizationAccuracy = clip.StabilizationAccuracy,
+        StabilizationSmoothing = clip.StabilizationSmoothing,
         StabilizationZoomPercent = clip.StabilizationZoomPercent,
+        StabilizationOptimalZoom = clip.StabilizationOptimalZoom,
         RotationDegrees = clip.RotationDegrees,
         FlipHorizontal = clip.FlipHorizontal,
         FlipVertical = clip.FlipVertical,

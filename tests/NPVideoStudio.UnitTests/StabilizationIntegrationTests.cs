@@ -24,7 +24,7 @@ public sealed class StabilizationIntegrationTests
         Assert.True(session.SetClipStabilization("stab", true, 500, 99, 80));
         var applied = SingleClip(session);
         Assert.True(applied.StabilizationEnabled);
-        Assert.Equal(120, applied.StabilizationSmoothingFrames);
+        Assert.Equal(120, applied.StabilizationSmoothing);
         Assert.Equal(15, applied.StabilizationAccuracy);
         Assert.Equal(30, applied.StabilizationZoomPercent, 6);
 
@@ -32,7 +32,7 @@ public sealed class StabilizationIntegrationTests
         Assert.False(SingleClip(session).StabilizationEnabled);
         session.Redo();
         Assert.True(SingleClip(session).StabilizationEnabled);
-        Assert.Equal(120, SingleClip(session).StabilizationSmoothingFrames);
+        Assert.Equal(120, SingleClip(session).StabilizationSmoothing);
 
         session.SetClipTransform("stab", new ClipTransformSettings(
             0, false, false, 0, 0, 0, 0,
@@ -52,7 +52,7 @@ public sealed class StabilizationIntegrationTests
             SourceTrimInSeconds = 1,
             SourceTrimOutSeconds = 9,
             StabilizationEnabled = true,
-            StabilizationSmoothingFrames = 27,
+            StabilizationSmoothing = 27,
             StabilizationAccuracy = 13,
             StabilizationZoomPercent = 7
         };
@@ -60,7 +60,7 @@ public sealed class StabilizationIntegrationTests
         var json = JsonSerializer.Serialize(clip);
         var loaded = JsonSerializer.Deserialize<TimelineClip>(json)!;
         Assert.True(loaded.StabilizationEnabled);
-        Assert.Equal(27, loaded.StabilizationSmoothingFrames);
+        Assert.Equal(27, loaded.StabilizationSmoothing);
         Assert.Equal(13, loaded.StabilizationAccuracy);
         Assert.Equal(7, loaded.StabilizationZoomPercent, 6);
 
@@ -71,7 +71,7 @@ public sealed class StabilizationIntegrationTests
         Assert.All(split, c =>
         {
             Assert.True(c.StabilizationEnabled);
-            Assert.Equal(27, c.StabilizationSmoothingFrames);
+            Assert.Equal(27, c.StabilizationSmoothing);
             Assert.Equal(13, c.StabilizationAccuracy);
             Assert.Equal(7, c.StabilizationZoomPercent, 6);
         });
@@ -87,7 +87,7 @@ public sealed class StabilizationIntegrationTests
             SourceTrimInSeconds = 0,
             SourceTrimOutSeconds = 4,
             StabilizationEnabled = true,
-            StabilizationSmoothingFrames = 22,
+            StabilizationSmoothing = 22,
             StabilizationAccuracy = 11,
             StabilizationZoomPercent = 4
         };
@@ -162,7 +162,7 @@ public sealed class StabilizationIntegrationTests
                 SourceTrimInSeconds = 0,
                 SourceTrimOutSeconds = 3,
                 StabilizationEnabled = true,
-                StabilizationSmoothingFrames = 10,
+                StabilizationSmoothing = 10,
                 StabilizationAccuracy = 15,
                 StabilizationZoomPercent = 0
             };

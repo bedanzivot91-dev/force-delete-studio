@@ -240,10 +240,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     }
     public int StabilizationSmoothingFrames
     {
-        get => Clip.StabilizationSmoothingFrames;
+        get => Clip.StabilizationSmoothing;
         set
         {
-            if (Clip.StabilizationSmoothingFrames == value) return;
+            if (Clip.StabilizationSmoothing == value) return;
             _onStabilizationChanged?.Invoke(Clip.Id, StabilizationEnabled, value, StabilizationAccuracy, StabilizationZoomPercent);
         }
     }
