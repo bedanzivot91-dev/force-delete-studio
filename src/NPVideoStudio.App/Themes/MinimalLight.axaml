@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="ThemeBackgroundColor">#F4F5F7</Color>
+  <Color x:Key="ThemeSurfaceColor">#FFFFFF</Color>
+  <Color x:Key="ThemePanelColor">#FFFFFF</Color>
+  <Color x:Key="ThemeHoverColor">#EEF1F6</Color>
+  <Color x:Key="ThemePressedColor">#E3E8F0</Color>
+  <Color x:Key="ThemeInputColor">#F7F8FA</Color>
+  <Color x:Key="ThemeAccentColor">#3B6DF7</Color>
+  <Color x:Key="ThemeAccentHoverColor">#5C85F9</Color>
+  <Color x:Key="ThemeAccentSubtleColor">#1F3B6DF7</Color>
+  <Color x:Key="ThemeTextColor">#1B1E27</Color>
+  <Color x:Key="ThemeSubtleTextColor">#6B7180</Color>
+  <Color x:Key="ThemeBorderColor">#E3E5EB</Color>
+
+  <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
+  <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
+  <SolidColorBrush x:Key="ThemePanelBrush" Color="{StaticResource ThemePanelColor}" />
+  <SolidColorBrush x:Key="ThemeHoverBrush" Color="{StaticResource ThemeHoverColor}" />
+  <SolidColorBrush x:Key="ThemePressedBrush" Color="{StaticResource ThemePressedColor}" />
+  <SolidColorBrush x:Key="ThemeInputBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemeAccentBrush" Color="{StaticResource ThemeAccentColor}" />
+  <SolidColorBrush x:Key="ThemeAccentHoverBrush" Color="{StaticResource ThemeAccentHoverColor}" />
+  <SolidColorBrush x:Key="ThemeAccentSubtleBrush" Color="{StaticResource ThemeAccentSubtleColor}" />
+  <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
+  <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
+  <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+
+  <CornerRadius x:Key="ThemeCornerRadius">10</CornerRadius>
+  <CornerRadius x:Key="ThemeCardCornerRadius">16</CornerRadius>
+  <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+</ResourceDictionary>

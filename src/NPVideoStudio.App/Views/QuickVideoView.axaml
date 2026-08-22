@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.QuickVideoView"
+             x:DataType="vm:QuickVideoViewModel">
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="surface" Padding="24,16" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Brzi video od slike i pesme" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="ghost" Content="← Nazad" Command="{Binding BackCommand}" />
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Margin="24" Spacing="20" MaxWidth="700">
+        <Border Classes="panel" Padding="20">
+          <StackPanel Spacing="14">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Slika:" VerticalAlignment="Center" Width="110" />
+              <TextBlock Text="{Binding ImageFilePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="330" />
+              <Button Classes="ghost" Content="Izaberi sliku" Command="{Binding PickImageCommand}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Pesma:" VerticalAlignment="Center" Width="110" />
+              <TextBlock Text="{Binding SongFilePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="330" />
+              <Button Classes="ghost" Content="Izaberi pesmu" Command="{Binding PickSongCommand}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Izlazni fajl:" VerticalAlignment="Center" Width="110" />
+              <TextBlock Text="{Binding OutputFilePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="330" />
+              <Button Classes="ghost" Content="Sačuvaj kao" Command="{Binding PickOutputFileCommand}" />
+            </StackPanel>
+
+            <CheckBox Content="Automatski dodaj titlove (prepoznavanje govora, lokalni Whisper)" IsChecked="{Binding AutoCaptions}" />
+
+            <StackPanel Spacing="8" IsVisible="{Binding NeedsModelDownload}">
+              <TextBlock Classes="subtle" TextWrapping="Wrap">
+                <TextBlock.Text>
+                  <MultiBinding StringFormat="Model za prepoznavanje govora još nije preuzet (~{0}). Potreban je za automatske titlove.">
+                    <Binding Path="ModelSizeLabel" />
+                  </MultiBinding>
+                </TextBlock.Text>
+              </TextBlock>
+              <Button Classes="ghost" Content="Preuzmi model" Command="{Binding DownloadModelCommand}" IsEnabled="{Binding !IsDownloadingModel}" />
+              <TextBlock Text="{Binding ModelStatusMessage}" Classes="subtle" IsVisible="{Binding IsDownloadingModel}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+              <TextBlock Text="{Binding StatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="400" />
+              <Button Classes="cta" Content="Napravi video" Command="{Binding StartCommand}" />
+            </StackPanel>
+
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" Height="6" IsVisible="{Binding IsRunning}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

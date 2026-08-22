@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="ThemeBackgroundColor">#EFFAFC</Color>
+  <Color x:Key="ThemeSurfaceColor">#FAFEFF</Color>
+  <Color x:Key="ThemePanelColor">#E5FFFFFF</Color>
+  <Color x:Key="ThemeHoverColor">#E5F5F8</Color>
+  <Color x:Key="ThemePressedColor">#D7EFF3</Color>
+  <Color x:Key="ThemeInputColor">#F2FBFC</Color>
+  <Color x:Key="ThemeAccentColor">#0098B2</Color>
+  <Color x:Key="ThemeAccentHoverColor">#23AFC7</Color>
+  <Color x:Key="ThemeAccentSubtleColor">#330098B2</Color>
+  <Color x:Key="ThemeTextColor">#12323A</Color>
+  <Color x:Key="ThemeSubtleTextColor">#5C7980</Color>
+  <Color x:Key="ThemeBorderColor">#B9DEE4</Color>
+
+  <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
+  <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
+  <SolidColorBrush x:Key="ThemePanelBrush" Color="{StaticResource ThemePanelColor}" />
+  <SolidColorBrush x:Key="ThemeHoverBrush" Color="{StaticResource ThemeHoverColor}" />
+  <SolidColorBrush x:Key="ThemePressedBrush" Color="{StaticResource ThemePressedColor}" />
+  <SolidColorBrush x:Key="ThemeInputBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemeAccentBrush" Color="{StaticResource ThemeAccentColor}" />
+  <SolidColorBrush x:Key="ThemeAccentHoverBrush" Color="{StaticResource ThemeAccentHoverColor}" />
+  <SolidColorBrush x:Key="ThemeAccentSubtleBrush" Color="{StaticResource ThemeAccentSubtleColor}" />
+  <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
+  <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
+  <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+
+  <CornerRadius x:Key="ThemeCornerRadius">14</CornerRadius>
+  <CornerRadius x:Key="ThemeCardCornerRadius">20</CornerRadius>
+  <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+</ResourceDictionary>

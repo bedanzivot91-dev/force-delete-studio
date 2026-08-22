@@ -1,0 +1,11 @@
+# Optional local AI worker dependencies (Phase 5 - Balanced/MostAccurate profiles and local video AI).
+# The "Fast" speech profile and ordinary editing work without these installed; capability checks report
+# missing engines honestly and tracking/transcription jobs fail clearly rather than fabricating results.
+#
+# Keep this list equal to install-song-ai.ps1. WhisperX remains optional because the current lyrics
+# pipeline does not call it; installing a large unused package would waste disk space and create a false
+# green status.
+faster-whisper
+demucs
+lyric-align
+opencv-contrib-python-headless

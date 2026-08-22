@@ -1,0 +1,308 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using NPVideoStudio.Core.Services;
+using NPVideoStudio.Domain;
+using NPVideoStudio.Infrastructure.Persistence;
+
+namespace NPVideoStudio.App.ViewModels;
+
+public sealed partial class MainWindowViewModel : ViewModelBase
+{
+    private readonly IServiceProvider _services;
+    private readonly IAutoSaveService _autoSaveService;
+
+    [ObservableProperty]
+    private ViewModelBase? _currentPage;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCurrentProject))]
+    private Project? _currentProject;
+
+    public bool HasCurrentProject => CurrentProject is not null;
+
+    public event Action<AppTheme>? ThemeChanged;
+
+    public MainWindowViewModel(IServiceProvider services, IAutoSaveService autoSaveService)
+    {
+        _services = services;
+        _autoSaveService = autoSaveService;
+        _autoSaveService.Start(() => CurrentProject);
+    }
+
+    public async Task InitializeAsync()
+    {
+        await ShowStartScreenAsync();
+    }
+
+    /// <summary>
+    /// Nothing called Dispose() on navigation before this - an open WorkspaceViewModel's
+    /// DispatcherTimer/frame-preview CancellationTokenSource, or a RenderQueueViewModel's polling timer,
+    /// kept running in the background after the user left the page (via "Početni ekran", "Podešavanja",
+    /// or "Dijagnostika" in the persistent top navbar - all reachable from any page, not just via each
+    /// page's own in-context "Nazad" button). The one deliberate exception: Workspace -> RenderQueue is
+    /// not an abandonment, it's a "Nazad" hands the exact same live workspace back.
+    /// </summary>
+    partial void OnCurrentPageChanging(ViewModelBase? oldValue, ViewModelBase? newValue)
+    {
+        var keepWorkspaceAlive = oldValue is WorkspaceViewModel &&
+            newValue is RenderQueueViewModel or CaptionStyleGalleryViewModel;
+        if (oldValue is IDisposable disposable && !keepWorkspaceAlive)
+        {
+            disposable.Dispose();
+        }
+    }
+
+    public async Task ShowStartScreenAsync()
+    {
+        // Periodic autosave can be up to one configured interval old. Do not clear CurrentProject until
+        // the latest live state has had one explicit recovery-save attempt.
+        if (CurrentProject is not null)
+        {
+            await _autoSaveService.TriggerNowAsync();
+        }
+
+        CurrentProject = null;
+        var vm = _services.GetRequiredService<StartScreenViewModel>();
+        vm.ProjectOpened += project => CurrentPage = OpenWorkspace(project);
+        vm.NewProjectRequested += platform => CurrentPage = CreateNewProjectPage(platform);
+        vm.SettingsRequested += () => CurrentPage = CreateSettingsPage();
+        vm.DiagnosticsRequested += () => CurrentPage = CreateDiagnosticsPage();
+        vm.SongHighlightsRequested += () => CurrentPage = _services.GetRequiredService<SongHighlightsViewModel>();
+        vm.LyricSearchRequested += () => CurrentPage = _services.GetRequiredService<LyricSearchViewModel>();
+        vm.YouTubeDownloadRequested += () => CurrentPage = CreateYouTubeDownloadPage();
+        vm.SubtitleGeneratorRequested += () => CurrentPage = CreateSubtitleGeneratorPage();
+        vm.DependencyManagerRequested += () => CurrentPage = CreateDependencyManagerPage();
+        vm.MySongsRequested += () => CurrentPage = CreateMySongsPage();
+        vm.CaptionEditorRequested += () => CurrentPage = CreateCaptionEditorPage();
+        vm.CaptionStyleGalleryRequested += () => CurrentPage = _services.GetRequiredService<CaptionStyleGalleryViewModel>();
+        vm.VideoLayoutAnalyzerRequested += () => CurrentPage = _services.GetRequiredService<VideoLayoutAnalyzerViewModel>();
+        vm.TemplateGalleryRequested += () => CurrentPage = CreateTemplateGalleryPage();
+        vm.QuickVideoRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: false);
+        vm.QuickVideoWithCaptionsRequested += () => CurrentPage = CreateQuickVideoPage(initialAutoCaptions: true);
+        vm.AddTextToVideoRequested += () => _ = OpenWorkspaceForAddingTextAsync();
+
+        CurrentPage = vm;
+        await vm.InitializeAsync();
+    }
+
+    /// <summary>Home-screen "Dodaj tekst u video" shortcut. Unlike the old in-memory-only path, this
+    /// creates a normal project file first so Save, Recent Projects and AutoSave all work from the first
+    /// edit onward.</summary>
+    private async Task OpenWorkspaceForAddingTextAsync()
+    {
+        try
+        {
+            var project = new Project { Name = "Video sa tekstom" };
+            var settings = _services.GetRequiredService<ISettingsService>();
+            var projectRepository = _services.GetRequiredService<IProjectRepository>();
+            var recentProjects = _services.GetRequiredService<IRecentProjectsService>();
+
+            var folderName = $"Video-sa-tekstom-{DateTime.Now:yyyyMMdd-HHmmss}-{project.Id[..6]}";
+            var projectDir = Path.Combine(settings.Current.ProjectsFolder, folderName);
+            var projectFilePath = Path.Combine(projectDir, "Video sa tekstom.npvsproject");
+            Directory.CreateDirectory(projectDir);
+            await projectRepository.SaveAsync(project, projectFilePath);
+            await recentProjects.RegisterOpenedAsync(project);
+
+            var workspace = OpenWorkspace(project);
+            CurrentPage = workspace;
+            await workspace.StartAddTextToVideoFlowAsync();
+        }
+        catch (Exception ex)
+        {
+            _services.GetRequiredService<Serilog.ILogger>().Error(ex, "Pokretanje bezbednog 'Dodaj tekst u video' toka nije uspelo");
+            await ShowStartScreenAsync();
+        }
+    }
+
+    private DependencyManagerViewModel CreateDependencyManagerPage()
+    {
+        var vm = _services.GetRequiredService<DependencyManagerViewModel>();
+        _ = vm.InitializeAsync();
+        return vm;
+    }
+
+    private MySongsViewModel CreateMySongsPage()
+    {
+        var vm = _services.GetRequiredService<MySongsViewModel>();
+        _ = vm.InitializeAsync();
+        return vm;
+    }
+
+    private YouTubeDownloadViewModel CreateYouTubeDownloadPage()
+    {
+        var vm = _services.GetRequiredService<YouTubeDownloadViewModel>();
+        vm.OpenInHighlightsRequested += path => CurrentPage = CreateSongHighlightsPage(path);
+        vm.OpenInLyricSearchRequested += path => CurrentPage = CreateLyricSearchPage(path);
+        vm.OpenInSubtitleGeneratorRequested += path => CurrentPage = CreateSubtitleGeneratorPage(path);
+        return vm;
+    }
+
+    private SongHighlightsViewModel CreateSongHighlightsPage(string preloadedFilePath)
+    {
+        var vm = _services.GetRequiredService<SongHighlightsViewModel>();
+        vm.LoadFile(preloadedFilePath);
+        return vm;
+    }
+
+    private LyricSearchViewModel CreateLyricSearchPage(string preloadedFilePath)
+    {
+        var vm = _services.GetRequiredService<LyricSearchViewModel>();
+        vm.LoadFile(preloadedFilePath);
+        return vm;
+    }
+
+    private SubtitleGeneratorViewModel CreateSubtitleGeneratorPage(string? preloadedFilePath = null)
+    {
+        var vm = _services.GetRequiredService<SubtitleGeneratorViewModel>();
+        if (preloadedFilePath is not null)
+        {
+            vm.LoadFile(preloadedFilePath);
+        }
+        vm.OpenInCaptionEditorRequested += words => CurrentPage = CreateCaptionEditorPage(words, "Generiši titlove (SRT)");
+        return vm;
+    }
+
+    private CaptionEditorViewModel CreateCaptionEditorPage(IEnumerable<CaptionWord>? preloadedWords = null, string? sourceLabel = null)
+    {
+        var vm = _services.GetRequiredService<CaptionEditorViewModel>();
+        if (preloadedWords is not null)
+        {
+            vm.LoadWords(preloadedWords, sourceLabel);
+        }
+        return vm;
+    }
+
+    private CaptionStyleGalleryViewModel CreateCaptionStyleGalleryPage(WorkspaceViewModel workspace)
+    {
+        var vm = new CaptionStyleGalleryViewModel(workspace.ApplyCaptionStylePresetAsync);
+        vm.BackRequested += () => CurrentPage = workspace;
+        return vm;
+    }
+
+    private ViewModelBase CreateNewProjectPage(
+        TargetPlatform? platform,
+        ProjectTemplate? template = null,
+        UserTemplate? userTemplate = null)
+    {
+        var vm = new NewProjectViewModel(
+            _services.GetRequiredService<IProjectRepository>(),
+            _services.GetRequiredService<IRecentProjectsService>(),
+            _services.GetRequiredService<ISettingsService>(),
+            _services.GetRequiredService<Serilog.ILogger>(),
+            platform,
+            template,
+            userTemplate);
+        vm.ProjectCreated += project => CurrentPage = OpenWorkspace(project);
+        return vm;
+    }
+
+    private TemplateGalleryViewModel CreateTemplateGalleryPage()
+    {
+        // Repository is intentionally real disk persistence, not a second in-memory list. Separate
+        // instances point at the same app-owned Templates folder and therefore stay in sync.
+        var vm = new TemplateGalleryViewModel(new UserTemplateRepository());
+        vm.BuiltInTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, template: template);
+        vm.UserTemplateSelected += template => CurrentPage = CreateNewProjectPage(platform: null, userTemplate: template);
+        return vm;
+    }
+
+    private SaveTemplateViewModel CreateSaveTemplatePage()
+    {
+        if (CurrentProject is null)
+        {
+            throw new InvalidOperationException("Nema otvorenog projekta koji može da se sačuva kao šablon.");
+        }
+
+        var vm = new SaveTemplateViewModel(CurrentProject, new UserTemplateRepository());
+        vm.BackRequested += () =>
+        {
+            if (CurrentProject is not null)
+            {
+                CurrentPage = OpenWorkspace(CurrentProject);
+            }
+        };
+        return vm;
+    }
+
+    private QuickVideoViewModel CreateQuickVideoPage(bool initialAutoCaptions)
+    {
+        var vm = new QuickVideoViewModel(
+            _services.GetRequiredService<IQuickVideoService>(),
+            _services.GetRequiredService<ISubtitleGeneratorService>(),
+            _services.GetRequiredService<IMediaProbeService>(),
+            _services.GetRequiredService<Services.IStorageService>(),
+            _services.GetRequiredService<Serilog.ILogger>(),
+            initialAutoCaptions);
+        vm.BackRequested += async () => await ShowStartScreenAsync();
+        return vm;
+    }
+
+    private WorkspaceViewModel OpenWorkspace(Project project)
+    {
+        CurrentProject = project;
+        var workspace = new WorkspaceViewModel(
+            project,
+            _services.GetRequiredService<IProjectRepository>(),
+            _services.GetRequiredService<IMediaProbeService>(),
+            _services.GetRequiredService<Services.IStorageService>(),
+            _services.GetRequiredService<IFramePreviewService>(),
+            _services.GetRequiredService<ISubtitleGeneratorService>(),
+            _services.GetRequiredService<IRenderService>(),
+            _services.GetRequiredService<Serilog.ILogger>(),
+            _services.GetRequiredService<IAiWorkerClient>(),
+            _services.GetRequiredService<IProxyGeneratorService>(),
+            _services.GetRequiredService<IMotionTrackingService>());
+        workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
+        workspace.CaptionStyleGalleryRequested += () => CurrentPage = CreateCaptionStyleGalleryPage(workspace);
+        // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search
+        // page the song library already opens, so the file is already selected when it appears.
+        return workspace;
+    }
+
+    private RenderQueueViewModel CreateRenderQueuePage(WorkspaceViewModel workspace)
+    {
+        var vm = new RenderQueueViewModel(
+            workspace.Project,
+            _services.GetRequiredService<IRenderService>(),
+            _services.GetRequiredService<Services.IStorageService>(),
+            _services.GetRequiredService<Serilog.ILogger>());
+        // OnCurrentPageChanging disposes vm here automatically (and specifically skips disposing
+        // workspace on this transition, since it's the exact same live instance being handed back).
+        vm.BackRequested += () => CurrentPage = workspace;
+        return vm;
+    }
+
+    private SettingsViewModel CreateSettingsPage()
+    {
+        var vm = _services.GetRequiredService<SettingsViewModel>();
+        vm.ThemeChanged += theme => ThemeChanged?.Invoke(theme);
+        return vm;
+    }
+
+    private DiagnosticsViewModel CreateDiagnosticsPage()
+    {
+        var vm = _services.GetRequiredService<DiagnosticsViewModel>();
+        _ = vm.RunChecksAsync();
+        return vm;
+    }
+
+    [RelayCommand]
+    private async Task GoHomeAsync() => await ShowStartScreenAsync();
+
+    [RelayCommand]
+    private void GoToSaveTemplate()
+    {
+        if (CurrentProject is not null)
+        {
+            CurrentPage = CreateSaveTemplatePage();
+        }
+    }
+
+    [RelayCommand]
+    private void GoToSettings() => CurrentPage = CreateSettingsPage();
+
+    [RelayCommand]
+    private void GoToDiagnostics() => CurrentPage = CreateDiagnosticsPage();
+}

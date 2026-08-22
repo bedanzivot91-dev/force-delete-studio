@@ -1,0 +1,127 @@
+name: Windows build (installer + portable + tests)
+
+# Builds NP Video Studio on a real Windows runner (Linux dev environments cannot compile a Windows
+# installer). Runs the full test suite, then produces the actual .exe installer and the portable ZIP, and
+# uploads both as downloadable workflow artifacts when the account's Actions artifact storage quota
+# allows it - a quota hit there is continue-on-error and must not fail an otherwise-green build/test run.
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            Write-Host "Chocolatey nije isporučio FFmpeg; preuzimam rezervni Windows build sa GitHub-a."
+            $zip = Join-Path $env:RUNNER_TEMP "ffmpeg.zip"
+            $dir = Join-Path $env:RUNNER_TEMP "ffmpeg"
+            Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile $zip
+            Expand-Archive -Path $zip -DestinationPath $dir -Force
+            $bin = (Get-ChildItem -Path $dir -Filter ffmpeg.exe -Recurse | Select-Object -First 1).Directory.FullName
+            if (-not $bin) { throw "Rezervni FFmpeg paket ne sadrži ffmpeg.exe." }
+            $bin >> $env:GITHUB_PATH
+            $env:PATH = "$bin;$env:PATH"
+          }
+          ffmpeg -version
+          ffprobe -version
+
+      - name: Install yt-dlp
+        run: choco install yt-dlp -y --no-progress
+
+      - name: Install Chromaprint (fpcalc)
+        # Release-completeness gate requires this in the clean-install payload.
+        run: choco install chromaprint -y --no-progress
+
+      - name: Install Tesseract OCR
+        # Release-completeness gate requires this in the clean-install payload.
+        run: choco install tesseract -y --no-progress
+
+      - name: Add Tesseract to PATH
+        # Unlike ffmpeg/yt-dlp/chromaprint (installed as Chocolatey shims into a directory already on
+        # PATH), Tesseract's installer writes straight to Program Files and updates machine PATH via the
+        # registry - a change later `run:` steps in this same job never see, since each step's process
+        # inherits the job's initial environment rather than re-reading the registry. Appending to
+        # $GITHUB_PATH is the supported way to make it visible to the "Run tests" step below (real CI
+        # failure hit once: RenderServiceTests's OCR assertions got Win32Exception "cannot find the file
+        # specified" for `tesseract` despite the install step reporting success).
+        run: echo "C:\Program Files\Tesseract-OCR" >> $env:GITHUB_PATH
+
+      - name: Restore
+        run: dotnet restore NPVideoStudio.sln
+
+      - name: Build (solution)
+        run: dotnet build NPVideoStudio.sln -c Release --no-restore
+
+      - name: Run .NET tests
+        run: dotnet test tests/NPVideoStudio.UnitTests/NPVideoStudio.UnitTests.csproj -c Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Run AI worker Python regression tests
+        run: python -m unittest discover -s tests/python -p "test_*.py" -v
+
+      - name: Upload test results
+        # Diagnostic-only, not a build deliverable - must never fail the whole job on its own. Real CI
+        # failure hit despite the actual build+tests genuinely passing (306/306): the account's GitHub
+        # Actions artifact storage quota was hit, which fails this upload step independently of anything
+        # this repo's code does, and without continue-on-error that turns an otherwise-green run red.
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/NPVideoStudio.UnitTests/TestResults/**/*.trx
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build release (publish + portable ZIP + installer)
+        shell: pwsh
+        run: pwsh -File scripts/build-release.ps1
+
+      - name: Upload Windows installer
+        # continue-on-error: the "Build release" step above already proves the installer genuinely builds
+        # for real on Windows - that's the actual verification. This step only makes the .exe downloadable
+        # from the Actions UI, and must not fail an otherwise-green run when the account's GitHub Actions
+        # artifact storage quota is hit (real, repeated CI failure - four separate runs across 24+ hours
+        # all hit the same "Artifact storage quota has been hit" error independent of any code change).
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: NPVideoStudio-Setup
+          path: dist/NPVideoStudio-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Upload portable build
+        # Uploads the extracted folder, not dist/NPVideoStudio-Portable-x64-*.zip - actions/upload-artifact
+        # always zips whatever it's given for download, so zipping our own output first would make a
+        # user's download a zip-of-a-zip. The real distributable NPVideoStudio-Portable-x64-<version>.zip
+        # made by build-release.ps1 is for manual releases, not this CI artifact.
+        # continue-on-error: same artifact-storage-quota reasoning as "Upload Windows installer" above.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: NPVideoStudio-Portable
+          path: dist/NPVideoStudio-Portable-x64/**
+          if-no-files-found: error

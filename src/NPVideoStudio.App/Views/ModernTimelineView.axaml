@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             x:Class="NPVideoStudio.App.Views.ModernTimelineView"
+             x:DataType="vm:TimelineViewModel">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="4,2,4,12" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
+      <StackPanel Spacing="9">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2">
+            <TextBlock Text="Timeline" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="Dodavanje i raspored klipova" Classes="subtle" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Button Classes="ghost" Content="Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Ctrl+Z" />
+            <Button Classes="ghost" Content="Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Ctrl+Y" />
+          </StackPanel>
+        </Grid>
+
+        <Grid ColumnDefinitions="2*,Auto,Auto">
+          <Border Classes="inspectorSection" Padding="9,7" Margin="0,0,8,0">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+              <TextBlock Text="DODAJ" Classes="eyebrow" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableMedia}" SelectedItem="{Binding SelectedMediaAsset}" MinWidth="180" PlaceholderText="Izaberi medij">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MediaAssetViewModel">
+                    <TextBlock Text="{Binding FileName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Grid.Column="2" Classes="cta" Content="Video na kraj" Command="{Binding AppendSelectedVideoCommand}" Margin="8,0,0,0"
+                      ToolTip.Tip="Dodaje izabrani video odmah posle poslednjeg video klipa." />
+              <Button Grid.Column="3" Classes="ghost" Content="Tekst na plejhed" Command="{Binding AddTextAtPlayheadCommand}" Margin="6,0,0,0" />
+            </Grid>
+          </Border>
+
+          <Expander Grid.Column="1" Header="+ Traka" VerticalAlignment="Center" Margin="0,0,8,0">
+            <Border Classes="inspectorSection" Padding="8" MinWidth="180">
+              <StackPanel Spacing="5">
+                <Button Classes="ghost" Content="Video traka" Command="{Binding AddVideoTrackCommand}" HorizontalContentAlignment="Left" />
+                <Button Classes="ghost" Content="Audio traka" Command="{Binding AddAudioTrackCommand}" HorizontalContentAlignment="Left" />
+                <Button Classes="ghost" Content="Titl traka" Command="{Binding AddCaptionTrackCommand}" HorizontalContentAlignment="Left" />
+                <Button Classes="ghost" Content="Tekst traka" Command="{Binding AddTextTrackCommand}" HorizontalContentAlignment="Left" />
+                <Button Classes="ghost" Content="Slika / overlay" Command="{Binding AddImageOverlayTrackCommand}" HorizontalContentAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </Expander>
+
+          <Border Grid.Column="2" Classes="inspectorSection" Padding="9,7">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <TextBlock Text="PRIKAZ" Classes="eyebrow" VerticalAlignment="Center" Margin="0,0,4,0" />
+              <Button Classes="ghost" Content="−" Command="{Binding ZoomOutCommand}" />
+              <Slider Minimum="10" Maximum="300" Width="120" Value="{Binding ZoomPixelsPerSecond}" />
+              <Button Classes="ghost" Content="+" Command="{Binding ZoomInCommand}" />
+              <Button Classes="ghost" Content="Vrati" Command="{Binding ResetZoomCommand}" />
+              <TextBlock Text="{Binding ZoomLabel}" Classes="subtle" VerticalAlignment="Center" MinWidth="58" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Tracks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:TimelineTrackItemViewModel">
+            <Border Classes="inspectorSection" Padding="9" Margin="0,8,0,0">
+              <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Background="{DynamicResource ThemeAccentSubtleBrush}" CornerRadius="8" Padding="8,5" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding KindLabel}" Foreground="{DynamicResource ThemeAccentBrush}" FontWeight="SemiBold" FontSize="12.5" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="10,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Border IsVisible="{Binding HasVolumeControl}" Background="{DynamicResource ThemePanelBrush}" CornerRadius="8" Padding="8,4">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Jačina" Classes="subtle" VerticalAlignment="Center" />
+                        <Slider Minimum="0" Maximum="200" Width="110" Value="{Binding VolumePercent, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding VolumeLabel}" Classes="subtle" VerticalAlignment="Center" MinWidth="40" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <ToggleButton Content="🔒" ToolTip.Tip="Zaključaj traku" IsChecked="{Binding IsLocked, Mode=OneWay}" Command="{Binding ToggleLockCommand}" />
+                    <ToggleButton Content="👁" ToolTip.Tip="Sakrij traku" IsChecked="{Binding IsHidden, Mode=OneWay}" Command="{Binding ToggleHideCommand}" />
+                    <ToggleButton Content="🔇" ToolTip.Tip="Utišaj traku" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+                    <ToggleButton Content="S" ToolTip.Tip="Solo" IsChecked="{Binding IsSolo, Mode=OneWay}" Command="{Binding ToggleSoloCommand}" />
+                    <Button Classes="ghost" Content="+ Klip" Command="{Binding AddClipAtPlayheadCommand}" />
+                    <Button Classes="ghost" Content="Obriši traku" Command="{Binding RemoveTrackCommand}" />
+                  </StackPanel>
+                </Grid>
+
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding Clips}" Height="54" Width="{Binding LaneWidth}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <Canvas Height="54" Background="{DynamicResource ThemeTimelineBrush}" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.Styles>
+                      <Style Selector="Border.cliplane.selected">
+                        <Setter Property="BorderThickness" Value="3" />
+                      </Style>
+                      <Style Selector="ContentPresenter" x:DataType="vm:TimelineClipItemViewModel">
+                        <Setter Property="Canvas.Left" Value="{Binding PixelLeft}" />
+                        <Setter Property="Canvas.Top" Value="6" />
+                      </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TimelineClipItemViewModel">
+                        <Border Classes="cliplane" Classes.selected="{Binding IsSelected}"
+                                Width="{Binding PixelWidth}" Height="42"
+                                Background="{DynamicResource ThemeAccentSubtleBrush}"
+                                BorderBrush="{DynamicResource ThemeAccentBrush}" BorderThickness="1"
+                                CornerRadius="8" ClipToBounds="True" Tag="{Binding}"
+                                ToolTip.Tip="Klikni za izbor. Prevuci po vremenu ili na drugu kompatibilnu traku.">
+                          <Grid RowDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Label}" Margin="8,4,8,0" FontSize="12.5" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Text="{Binding TimingLabel}" Margin="8,0,8,3" FontSize="11.5"
+                                       Foreground="{DynamicResource ThemeSubtleTextBrush}" TextTrimming="CharacterEllipsis" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>
