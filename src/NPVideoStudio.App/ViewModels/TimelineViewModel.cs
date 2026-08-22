@@ -65,6 +65,25 @@ public sealed partial class TimelineViewModel : ViewModelBase
     /// <see cref="Project.Timeline"/>.Tracks, this reflects edits before <see cref="SaveToProject"/> runs.</summary>
     public IReadOnlyList<TimelineTrack> CurrentTracks => _session.Tracks;
 
+    /// <summary>Applies one gallery preset to the currently selected real text/caption clip.</summary>
+    public bool ApplyCaptionStylePresetToSelected(CaptionStylePreset preset)
+    {
+        var selectedId = SelectedClipId;
+        if (selectedId is null || SelectedClip is not { IsTextClip: true })
+        {
+            return false;
+        }
+
+        if (!_session.ApplyCaptionStylePreset(selectedId, preset))
+        {
+            return false;
+        }
+
+        RefreshFromSession();
+        SelectedClipId = selectedId;
+        return true;
+    }
+
     public double TotalDurationSeconds =>
         _session.Tracks.SelectMany(t => t.Clips).Select(c => (double?)c.TimelineEndSeconds).DefaultIfEmpty(0).Max() ?? 0;
 

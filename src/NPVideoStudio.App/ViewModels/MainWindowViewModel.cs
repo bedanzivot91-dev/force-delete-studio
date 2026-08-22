@@ -45,7 +45,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     partial void OnCurrentPageChanging(ViewModelBase? oldValue, ViewModelBase? newValue)
     {
-        if (oldValue is IDisposable disposable && !(oldValue is WorkspaceViewModel && newValue is RenderQueueViewModel))
+        var keepWorkspaceAlive = oldValue is WorkspaceViewModel &&
+            newValue is RenderQueueViewModel or CaptionStyleGalleryViewModel;
+        if (oldValue is IDisposable disposable && !keepWorkspaceAlive)
         {
             disposable.Dispose();
         }
@@ -172,6 +174,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return vm;
     }
 
+    private CaptionStyleGalleryViewModel CreateCaptionStyleGalleryPage(WorkspaceViewModel workspace)
+    {
+        var vm = new CaptionStyleGalleryViewModel(workspace.ApplyCaptionStylePresetAsync);
+        vm.BackRequested += () => CurrentPage = workspace;
+        return vm;
+    }
+
     private ViewModelBase CreateNewProjectPage(
         TargetPlatform? platform,
         ProjectTemplate? template = null,
@@ -245,6 +254,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _services.GetRequiredService<IAiWorkerClient>(),
             _services.GetRequiredService<IProxyGeneratorService>());
         workspace.ExportRequested += () => CurrentPage = CreateRenderQueuePage(workspace);
+        workspace.CaptionStyleGalleryRequested += () => CurrentPage = CreateCaptionStyleGalleryPage(workspace);
         // "Prepoznaj tekst pesme" from inside the player window - reuses the same preloaded lyric-search
         // page the song library already opens, so the file is already selected when it appears.
         return workspace;
