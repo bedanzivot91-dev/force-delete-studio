@@ -87,6 +87,49 @@ public sealed class CacheFolderProxyConsistencyTests
     }
 
     [Fact]
+    public void ExplicitRemoveProxy_DeletesOwnedFileButOnlyDetachesExternalReference()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"npvs-explicit-proxy-{Guid.NewGuid():N}");
+        var customCache = Path.Combine(root, "Cache");
+        var proxyRoot = Path.Combine(customCache, "Proxies");
+        Directory.CreateDirectory(proxyRoot);
+        var ownedPath = Path.Combine(proxyRoot, "owned.proxy.mp4");
+        var externalPath = Path.Combine(root, "external-important.mp4");
+        File.WriteAllBytes(ownedPath, new byte[] { 1, 2, 3 });
+        File.WriteAllBytes(externalPath, new byte[] { 9, 8, 7 });
+
+        try
+        {
+            AppSettings.ConfigureRuntimeCacheFolder(customCache);
+            var owned = new MediaAsset { FilePath = "original.mp4", ProxyFilePath = ownedPath, ProxyStatus = MediaProxyStatus.Ready };
+            Assert.Equal(ProxyRemovalResult.DeletedOwnedProxy, ProxyCacheCleanup.RemoveProxyReferenceSafely(owned));
+            Assert.False(File.Exists(ownedPath));
+            Assert.Null(owned.ProxyFilePath);
+            Assert.Equal(MediaProxyStatus.Original, owned.ProxyStatus);
+
+            var external = new MediaAsset { FilePath = "original2.mp4", ProxyFilePath = externalPath, ProxyStatus = MediaProxyStatus.Ready };
+            Assert.Equal(ProxyRemovalResult.DetachedExternalReference, ProxyCacheCleanup.RemoveProxyReferenceSafely(external));
+            Assert.True(File.Exists(externalPath));
+            Assert.Null(external.ProxyFilePath);
+            Assert.Equal(MediaProxyStatus.Original, external.ProxyStatus);
+        }
+        finally
+        {
+            AppSettings.ConfigureRuntimeCacheFolder(AppSettings.DefaultCacheFolder());
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WorkspaceRemoveProxyCommand_DoesNotDirectlyDeletePersistedArbitraryPath()
+    {
+        var root = FindRepoRoot();
+        var source = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "ViewModels", "WorkspaceViewModel.cs"));
+        Assert.DoesNotContain("File.Delete(asset.ProxyFilePath)", source);
+        Assert.Contains("ProxyCacheCleanup.RemoveProxyReferenceSafely(asset)", source);
+    }
+
+    [Fact]
     public void MediaRemoval_UsesSameCustomProxyRootButStillProtectsExternalFiles()
     {
         var root = Path.Combine(Path.GetTempPath(), $"npvs-cache-cleanup-{Guid.NewGuid():N}");
@@ -132,5 +175,16 @@ public sealed class CacheFolderProxyConsistencyTests
             AppSettings.ConfigureRuntimeCacheFolder(AppSettings.DefaultCacheFolder());
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "NPVideoStudio.sln"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+        throw new DirectoryNotFoundException("NPVideoStudio.sln nije pronađen iz test output foldera.");
     }
 }
