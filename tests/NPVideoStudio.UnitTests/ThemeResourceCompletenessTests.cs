@@ -20,7 +20,7 @@ public class ThemeResourceCompletenessTests
 
     private static readonly string[] ExpectedThemeFiles =
     {
-        "DarkCinematic.axaml", "MinimalLight.axaml", "ProfessionalStudio.axaml",
+        "Studio2026.axaml", "DarkCinematic.axaml", "MinimalLight.axaml", "ProfessionalStudio.axaml",
         "ObsidianNeon.axaml", "ArcticGlass.axaml", "CrimsonCyber.axaml", "MidnightPro.axaml", "OceanGlass.axaml"
     };
 
@@ -41,7 +41,7 @@ public class ThemeResourceCompletenessTests
     }
 
     [Fact]
-    public void ExactlyEightThemeFilesExist()
+    public void EveryExpectedThemeFileExists_AndNoUntrackedThemeIsPresent()
     {
         var themesFolder = FindThemesFolder();
         var actual = Directory.GetFiles(themesFolder, "*.axaml").Select(Path.GetFileName).OrderBy(x => x).ToArray();
