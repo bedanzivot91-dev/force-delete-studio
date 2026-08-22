@@ -11,7 +11,7 @@ public static class CaptionFontResolver
         Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
 
     private static readonly Lazy<IReadOnlyList<InstalledFont>> InstalledFonts = new(
-        SystemFontCatalog.ListInstalledFonts,
+        () => SystemFontCatalog.ListInstalledFonts(),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
     public static string? ResolveFontFilePath(TimelineClip clip) => ResolveFontFilePath(
