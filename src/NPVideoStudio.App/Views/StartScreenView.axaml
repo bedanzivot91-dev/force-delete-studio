@@ -5,227 +5,163 @@
              x:DataType="vm:StartScreenViewModel">
 
   <ScrollViewer>
-    <StackPanel Margin="32,28,32,32" Spacing="24" MaxWidth="1180" HorizontalAlignment="Stretch">
+    <StackPanel Margin="36,30,36,40" Spacing="26" MaxWidth="1240" HorizontalAlignment="Stretch">
 
-      <StackPanel Spacing="2">
-        <TextBlock Text="DOBRODOŠLI" Classes="eyebrow" />
-        <TextBlock Text="Šta pravimo danas?" Classes="heading" />
-      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="4">
+          <TextBlock Text="NP VIDEO STUDIO" Classes="eyebrow" />
+          <TextBlock Text="Kreiraj. Uredi. Objavi." Classes="heading" />
+          <TextBlock Text="Izaberi šta želiš da uradiš — program otvara direktno odgovarajući tok rada." Classes="subtle" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="cta" Content="+ Novi projekat" Command="{Binding NewProjectCommand}" VerticalAlignment="Center" />
+      </Grid>
 
       <Border Classes="panel" Padding="18" IsVisible="{Binding HasRecoveryMessage}"
               Background="{DynamicResource ThemeAccentSubtleBrush}" BorderBrush="{DynamicResource ThemeAccentBrush}">
-        <StackPanel Spacing="10">
-          <TextBlock Text="{Binding RecoveryMessage}" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Classes="cta" Content="Nastavi od automatskog čuvanja" Command="{Binding RecoverAutoSaveCommand}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding RecoveryMessage}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="14,0,0,0">
+            <Button Classes="cta" Content="Nastavi" Command="{Binding RecoverAutoSaveCommand}" />
             <Button Classes="ghost" Content="Zanemari" Command="{Binding DismissRecoveryCommand}" />
           </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- QUICK START: project creation belongs together instead of being mixed with utilities. -->
+      <Border Classes="panel" Padding="18">
+        <StackPanel Spacing="14">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2">
+              <TextBlock Text="BRZI POČETAK" Classes="eyebrow" />
+              <TextBlock Text="Projekti i formati" Classes="section" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="ghost" Content="Otvori postojeći projekat" Command="{Binding OpenProjectCommand}" />
+          </Grid>
+          <WrapPanel>
+            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewYouTubeVideoCommand}">
+              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="16:9" FontSize="12" /></Border><TextBlock Text="YouTube video" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1920×1080 · 30 fps"/></StackPanel>
+            </Button>
+            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewYouTubeShortsCommand}">
+              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="YouTube Shorts" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
+            </Button>
+            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewTikTokCommand}">
+              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="TikTok video" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
+            </Button>
+            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewInstagramReelCommand}">
+              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="Instagram Reel" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
+            </Button>
+            <Button Classes="tile" Width="210" Margin="0,0,12,12" Command="{Binding NewFacebookReelCommand}">
+              <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="9:16" FontSize="12" /></Border><TextBlock Text="Facebook Reel" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="1080×1920 · 30 fps"/></StackPanel>
+            </Button>
+          </WrapPanel>
         </StackPanel>
       </Border>
 
-      <TextBlock Text="Novi projekat" Classes="section" />
-      <WrapPanel>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewProjectCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="+" /></Border>
-            <TextBlock Text="Novi projekat" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Izaberite format ručno" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenProjectCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="📂" /></Border>
-            <TextBlock Text="Otvori projekat" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Iz .npvsproject fajla" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewYouTubeVideoCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="▶" /></Border>
-            <TextBlock Text="YouTube video" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="16:9 · 1920x1080 · 30 fps" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewYouTubeShortsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="⚡" /></Border>
-            <TextBlock Text="YouTube Shorts" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewTikTokCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="♪" /></Border>
-            <TextBlock Text="TikTok video" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewInstagramReelCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="◎" /></Border>
-            <TextBlock Text="Instagram Reel" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding NewFacebookReelCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="f" FontWeight="Bold" /></Border>
-            <TextBlock Text="Facebook Reel" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="9:16 · 1080x1920 · 30 fps" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-      </WrapPanel>
+      <!-- CREATE: direct outcomes, not implementation/tool names. -->
+      <StackPanel Spacing="12">
+        <StackPanel Spacing="2"><TextBlock Text="KREIRAJ" Classes="eyebrow"/><TextBlock Text="Najčešći tokovi rada" Classes="section"/></StackPanel>
+        <WrapPanel>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding AddTextToVideoCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="T" /></Border><TextBlock Text="Dodaj tekst u video" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Video → tekst → font, boja, položaj i stil" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenQuickVideoCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="▶" /></Border><TextBlock Text="Brzi video od slike i pesme" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Slika + audio → gotov video" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenQuickVideoWithCaptionsCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="CC" FontSize="11" /></Border><TextBlock Text="Video sa automatskim titlovima" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Slika + pesma + automatski utisnuti titlovi" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenTemplateGalleryCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="▦" /></Border><TextBlock Text="Kreiraj iz šablona" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Pokreni projekat sa unapred pripremljenim trakama" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+        </WrapPanel>
+      </StackPanel>
 
-      <TextBlock Text="Alati" Classes="section" />
-      <WrapPanel>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding AddTextToVideoCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🔤" /></Border>
-            <TextBlock Text="Dodaj tekst u video" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Izaberi video i odmah dodaj/uredi tekst - font, veličina, boja, položaj" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenSongHighlightsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="✂" /></Border>
-            <TextBlock Text="Isečci iz pesme" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="3 najglasnija dela pesme za Shorts najavu" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenLyricSearchCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🔍" /></Border>
-            <TextBlock Text="Pronađi tekst u pesmi" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Ukucaj stih, program ga nađe u pesmi (lokalni Whisper)" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenYouTubeDownloadCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="⬇" /></Border>
-            <TextBlock Text="Preuzmi sa YouTube-a" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Preuzmi kompletnu pesmu sa svog kanala" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenSubtitleGeneratorCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="💬" /></Border>
-            <TextBlock Text="Generiši titlove (SRT)" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Automatski titlovi iz govora/pevanja (lokalni Whisper)" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenMySongsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🎵" /></Border>
-            <TextBlock Text="Moje pesme" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Biblioteka pesama sa prepoznavanjem otiska (fingerprint)" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenCaptionEditorCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="📝" /></Border>
-            <TextBlock Text="Uređivač titlova" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Uređivanje na nivou reči, undo/redo, SRT/VTT/ASS/TXT/JSON/LRC" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenCaptionStyleGalleryCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🎨" /></Border>
-            <TextBlock Text="Stilovi titlova" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="24 gotova stila - 3+ po temi (red/reč/karaoke)" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenVideoLayoutAnalyzerCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🔍" /></Border>
-            <TextBlock Text="Analiza rasporeda videa" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="OCR pronalazi postojeći tekst u kadru za postavljanje titla" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenTemplateGalleryCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="▦" /></Border>
-            <TextBlock Text="Kreiraj video iz šablona" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Novi projekat sa unapred dodatim trakama" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenQuickVideoCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🖼" /></Border>
-            <TextBlock Text="Brzi video od slike i pesme" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Slika + pesma = gotov video za nekoliko minuta" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenQuickVideoWithCaptionsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="💬" /></Border>
-            <TextBlock Text="Automatski video sa titlovima" FontWeight="SemiBold" />
-            <TextBlock Classes="subtle" Text="Slika + pesma, sa automatski utisnutim titlovima (Whisper)" TextWrapping="Wrap" />
-          </StackPanel>
-        </Button>
-      </WrapPanel>
+      <!-- TEXT / CAPTIONS: everything about words on screen is now in one place. -->
+      <StackPanel Spacing="12">
+        <StackPanel Spacing="2"><TextBlock Text="TEKST I TITLOVI" Classes="eyebrow"/><TextBlock Text="Prepoznavanje, uređivanje i stil" Classes="section"/></StackPanel>
+        <WrapPanel>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenSubtitleGeneratorCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="CC" FontSize="11" /></Border><TextBlock Text="Generiši titlove" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Automatski SRT iz govora ili pevanja" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenCaptionEditorCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="Aa" FontSize="12" /></Border><TextBlock Text="Uređivač titlova" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Ispravi reči, vreme i formate titla" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenCaptionStyleGalleryCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="✦" /></Border><TextBlock Text="Stilovi titlova" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Primeni gotov izgled na tekst/titl klip" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenVideoLayoutAnalyzerCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="⌗" /></Border><TextBlock Text="Analiza rasporeda videa" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Nađi slobodan prostor za čitljiv titl" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+        </WrapPanel>
+      </StackPanel>
 
-      <TextBlock Text="Nedavni projekti" Classes="section" />
-      <Border Classes="panel" Padding="20" IsVisible="{Binding !HasRecentProjects}">
-        <TextBlock Classes="subtle" Text="Još nema nedavnih projekata. Napravite novi ili otvorite postojeći iznad." />
+      <!-- MUSIC / LYRICS: audio-related utilities no longer live beside unrelated video tools. -->
+      <StackPanel Spacing="12">
+        <StackPanel Spacing="2"><TextBlock Text="PESMA I TEKST PESME" Classes="eyebrow"/><TextBlock Text="Analiza i rad sa muzikom" Classes="section"/></StackPanel>
+        <WrapPanel>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenSongHighlightsCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="✂" /></Border><TextBlock Text="Isečci iz pesme" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Pronađi najjače delove za kratku najavu" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenLyricSearchCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="⌕" /></Border><TextBlock Text="Pronađi stih u pesmi" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Ukucaj stih i pronađi gde se nalazi u audio fajlu" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenMySongsCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="♪" /></Border><TextBlock Text="Moje pesme" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Biblioteka pesama i audio fingerprint" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+          <Button Classes="tile" Width="282" Margin="0,0,14,14" Command="{Binding OpenYouTubeDownloadCommand}">
+            <StackPanel Spacing="3"><Border Classes="iconBadge"><TextBlock Text="↓" /></Border><TextBlock Text="Preuzmi sa YouTube-a" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="Preuzmi sadržaj svog kanala za obradu" TextWrapping="Wrap"/></StackPanel>
+          </Button>
+        </WrapPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="12">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2"><TextBlock Text="PROJEKTI" Classes="eyebrow"/><TextBlock Text="Nedavno otvarano" Classes="section"/></StackPanel>
+          <Button Grid.Column="1" Classes="ghost" Content="Otvori drugi projekat" Command="{Binding OpenProjectCommand}" VerticalAlignment="Center" />
+        </Grid>
+        <Border Classes="panel" Padding="20" IsVisible="{Binding !HasRecentProjects}">
+          <TextBlock Classes="subtle" Text="Još nema nedavnih projekata." />
+        </Border>
+        <ItemsControl ItemsSource="{Binding RecentProjects}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:RecentProjectItemViewModel">
+              <Border Classes="panel" Padding="16,13" Margin="0,0,0,8">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                  <StackPanel Spacing="2"><TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold"/><TextBlock Classes="subtle" Text="{Binding AspectRatioLabel}"/></StackPanel>
+                  <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="8,0" Text="Fajl nije pronađen" IsVisible="{Binding IsMissing}" Foreground="{DynamicResource ThemeDangerBrush}" FontSize="12.5" />
+                  <Button Grid.Column="2" Classes="cta" Content="Otvori" Margin="8,0" Command="{Binding OpenCommand}" IsEnabled="{Binding !IsMissing}" />
+                  <Button Grid.Column="3" Classes="ghost" Content="Ukloni" Command="{Binding RemoveCommand}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <Border Classes="panel" Padding="16">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2">
+            <TextBlock Text="PROGRAM" Classes="eyebrow" />
+            <TextBlock Text="Podešavanja, alati i dijagnostika" Classes="subtle" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+            <Button Classes="ghost" Content="Podešavanja" Command="{Binding OpenSettingsCommand}" />
+            <Button Classes="ghost" Content="Alati i modeli" Command="{Binding OpenDependencyManagerCommand}" />
+            <Button Classes="ghost" Content="Dijagnostika" Command="{Binding OpenDiagnosticsCommand}" />
+          </StackPanel>
+        </Grid>
       </Border>
-      <ItemsControl ItemsSource="{Binding RecentProjects}">
+
+      <ItemsControl ItemsSource="{Binding PlannedFeatures}">
+        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:RecentProjectItemViewModel">
-            <Border Classes="panel" Padding="16,14" Margin="0,0,0,10">
-              <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" />
-                  <TextBlock Classes="subtle" Text="{Binding AspectRatioLabel}" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="8,0"
-                           Text="Fajl nije pronađen" IsVisible="{Binding IsMissing}" Foreground="#E06060" FontSize="12.5" />
-                <Button Grid.Column="2" Classes="cta" Content="Otvori" Margin="8,0" Padding="14,8"
-                        Command="{Binding OpenCommand}" IsEnabled="{Binding !IsMissing}" />
-                <Button Grid.Column="3" Classes="ghost" Content="Ukloni" Command="{Binding RemoveCommand}" />
-              </Grid>
+          <DataTemplate x:DataType="x:String">
+            <Border Background="{DynamicResource ThemeInputBrush}" BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,7" Margin="0,0,8,8" Opacity="0.65">
+              <TextBlock Text="{Binding, StringFormat=U razvoju · {0}}" Classes="subtle" />
             </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-
-      <TextBlock Text="Ostale funkcije" Classes="section" />
-      <WrapPanel>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenSettingsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="⚙" /></Border>
-            <TextBlock Text="Podešavanja" FontWeight="SemiBold" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenDiagnosticsCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="✓" /></Border>
-            <TextBlock Text="Dijagnostika sistema" FontWeight="SemiBold" />
-          </StackPanel>
-        </Button>
-        <Button Classes="tile" Width="216" Margin="0,0,14,14" Command="{Binding OpenDependencyManagerCommand}">
-          <StackPanel Spacing="2">
-            <Border Classes="iconBadge"><TextBlock Text="🧩" /></Border>
-            <TextBlock Text="Alati i modeli" FontWeight="SemiBold" />
-          </StackPanel>
-        </Button>
-        <ItemsControl ItemsSource="{Binding PlannedFeatures}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <Button Classes="tile" Width="216" Margin="0,0,14,14" IsEnabled="False">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="{Binding}" FontWeight="SemiBold" />
-                  <TextBlock Classes="subtle" Text="Uskoro — u razvoju" />
-                </StackPanel>
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </WrapPanel>
 
     </StackPanel>
   </ScrollViewer>
