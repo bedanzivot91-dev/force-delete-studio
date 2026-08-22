@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHELL = ROOT / "app" / "web" / "modern_2026_shell_extension.js"
 NAV_FINAL = ROOT / "app" / "web" / "modern_2026_navigation_final.js"
+INDEX = ROOT / "app" / "web" / "index.html"
 BACKEND = ROOT / "app" / "workspace_backend.py"
 
 
@@ -17,11 +18,7 @@ def main() -> None:
     assert "sps-shell-2026" in shell
     assert "2026 WORKSPACE · MATCH RECOVERY" in shell
     assert "data.uiGeneration" in shell or "dataset.uiGeneration" in shell
-    assert "SUNO I BIBLIOTEKA" in shell
-    assert "AUDIO I VIDEO" in shell
-    assert "YOUTUBE" in shell
-    assert "SISTEM" in shell
-    assert "section.appendChild(button)" in shell, "navigation must MOVE existing controls, not clone them"
+    assert "const groups = [" not in shell, "shell must not perform a second, conflicting navigation layout"
     assert "stage.appendChild(view)" in shell, "views must be moved as the same DOM nodes"
     assert "Segoe UI Variable" in shell
     assert "#productionWorkspace" in shell
@@ -37,8 +34,11 @@ def main() -> None:
     # YouTube/publication. Existing nav buttons are moved, never cloned.
     assert "['AUDIO I VIDEO', ['recognition','audio','production']]" in nav_final
     assert "['YOUTUBE I OBJAVA', ['release','tools']]" in nav_final
+    assert "['SUNO I BIBLIOTEKA', ['import','library','download','folders','smart','versions','stats']]" in nav_final
+    assert "['SISTEM', ['logs','settings']]" in nav_final
     assert "section.appendChild(button)" in nav_final
     assert "spsFinalNav2026Marker" in nav_final
+    assert 'data-view="production"><span>⚡</span> Video Studio' in INDEX.read_text(encoding="utf-8")
 
     legibility_pos = backend.index('modern_2026_legibility_extension.js')
     shell_pos = backend.index('modern_2026_shell_extension.js')
