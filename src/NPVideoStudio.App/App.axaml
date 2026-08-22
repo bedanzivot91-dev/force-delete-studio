@@ -20,7 +20,7 @@
     </Style>
     <Style Selector="TextBlock.micro">
       <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}" />
-      <Setter Property="FontSize" Value="13.5" />
+      <Setter Property="FontSize" Value="14.5" />
       <Setter Property="LetterSpacing" Value="0.8" />
     </Style>
     <Style Selector="TextBlock.heading">
