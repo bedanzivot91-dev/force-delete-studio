@@ -124,6 +124,13 @@
                     <ComboBox ItemsSource="{Binding AvailableTransitions}" SelectedItem="{Binding TransitionInType}"/>
                   </StackPanel>
                 </Grid>
+                <Border Name="ModernVideoSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
+                    <ComboBox Name="ModernVideoSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                    <TextBlock Text="Montage / Hero / Bullet / JumpCut / FlashIn / FlashOut menjaju stvarni video i audio timing. Ručna Brzina iznad vraća klip na konstantnu brzinu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
                 <StackPanel Spacing="4" IsVisible="{Binding IsVideoClip}">
                   <TextBlock Text="Trajanje prelaza (s)" Classes="subtle"/>
                   <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>
@@ -141,6 +148,13 @@
               <TextBlock Text="Audio klip" Classes="section" />
               <TextBlock Text="Brzina" Classes="subtle"/>
               <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+              <Border Name="ModernAudioSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
+                  <ComboBox Name="ModernAudioSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                  <TextBlock Text="Kriva menja tempo uz očuvanje visine tona. Ručna Brzina iznad isključuje aktivnu krivu." Classes="subtle" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Border>
               <TextBlock Text="Utišavanje i fade kontrole su uvek dostupne u zaglavlju inspektora." Classes="subtle" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
