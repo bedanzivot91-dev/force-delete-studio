@@ -39,6 +39,67 @@
       <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
     </Style>
 
+    <!-- Real modern shell: layout identity changes, not only palette values. -->
+    <Style Selector="Border.sidebar">
+      <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+    </Style>
+    <Style Selector="Border.commandbar">
+      <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+    </Style>
+    <Style Selector="Border.brandMark">
+      <Setter Property="Width" Value="40"/>
+      <Setter Property="Height" Value="40"/>
+      <Setter Property="CornerRadius" Value="13"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}"/>
+      <Setter Property="BoxShadow" Value="0 8 24 0 #33000000"/>
+    </Style>
+    <Style Selector="TextBlock.navCaption">
+      <Setter Property="FontSize" Value="10.5"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="LetterSpacing" Value="1.4"/>
+      <Setter Property="Foreground" Value="{DynamicResource ThemeSubtleTextBrush}"/>
+    </Style>
+    <Style Selector="TextBlock.navIcon">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.sidenav">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="11"/>
+      <Setter Property="Padding" Value="11,10"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Button.sidenav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}"/>
+    </Style>
+    <Style Selector="Border.sidebarFooter">
+      <Setter Property="CornerRadius" Value="13"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.livePill">
+      <Setter Property="CornerRadius" Value="999"/>
+      <Setter Property="Padding" Value="9,4"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentSubtleBrush}"/>
+    </Style>
+    <Style Selector="Border.livePill > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}"/>
+    </Style>
+    <Style Selector="Button.commandButton">
+      <Setter Property="Background" Value="{DynamicResource ThemeInputBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="12,7"/>
+      <Setter Property="MinHeight" Value="34"/>
+    </Style>
+
     <!-- Surfaces -->
     <Style Selector="Border.appbar">
       <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}" />
