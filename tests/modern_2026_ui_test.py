@@ -10,6 +10,8 @@ ISOLATION = ROOT / "app" / "web" / "modern_2026_isolation_extension.js"
 LEGIBILITY = ROOT / "app" / "web" / "modern_2026_legibility_extension.js"
 IA = ROOT / "app" / "web" / "information_architecture_2026_extension.js"
 BACKEND = ROOT / "app" / "workspace_backend.py"
+LAYOUTS = ROOT / "app" / "web" / "real_theme_layouts_extension.js"
+SUNO_ONLY = ROOT / "app" / "web" / "suno_only_runtime_extension.js"
 
 
 def main() -> None:
@@ -33,8 +35,7 @@ def main() -> None:
 
     for token in (
         ".songs-grid", ".settings-grid", ".tools-tabs", ".youtube-oauth-connect",
-        ".youtube-action-card", ".organized-workflow", "#productionWorkspace",
-        ".pws-timeline-panel", ".stat-card", ".log-row",
+        ".youtube-action-card", ".stat-card", ".log-row",
     ):
         assert token in skin, token
 
@@ -42,12 +43,17 @@ def main() -> None:
     for view_id in (
         "#view-library", "#view-folders", "#view-audio", "#view-download", "#view-import",
         "#view-recognition", "#view-smart", "#view-versions", "#view-release", "#view-tools",
-        "#view-production", "#view-stats", "#view-logs", "#view-settings",
+        "#view-stats", "#view-logs", "#view-settings",
     ):
         assert view_id in surfaces, view_id
 
-    for token in ("Aurora Studio", "Graphite Pro", "Midnight Signal", "modernSkinQuickSelect", "sps-modern-2026-skin"):
+    for token in ("Aurora Flow", "Graphite Console", "Vinyl Loft", "Signal Grid", "Paper Studio", "modernSkinQuickSelect", "sps-modern-2026-skin"):
         assert token in skin, token
+    layouts = LAYOUTS.read_text(encoding="utf-8")
+    suno_only = SUNO_ONLY.read_text(encoding="utf-8")
+    for theme in ("aurora-flow", "graphite-console", "vinyl-loft", "signal-grid", "paper-studio"):
+        assert theme in layouts, theme
+    assert 'productionView?.remove()' in suno_only
 
     assert "modernLegacyThemes" in compat
     assert "details.appendChild(legacy)" in compat
@@ -74,19 +80,22 @@ def main() -> None:
         assert token in ia, token
 
     ordered = (
-        'core.WEB_DIR / "workflow_cleanup_extension.js"',
         'core.WEB_DIR / "information_architecture_2026_extension.js"',
         'core.WEB_DIR / "modern_2026_skin_extension.js"',
         'core.WEB_DIR / "modern_2026_surface_coverage_extension.js"',
         'core.WEB_DIR / "modern_2026_compat_extension.js"',
         'core.WEB_DIR / "modern_2026_isolation_extension.js"',
         'core.WEB_DIR / "modern_2026_legibility_extension.js"',
+        'core.WEB_DIR / "real_theme_layouts_extension.js"',
+        'core.WEB_DIR / "suno_only_runtime_extension.js"',
     )
     for ref in ordered:
         assert ref in backend, ref
     positions = [backend.index(ref) for ref in ordered]
     assert positions == sorted(positions), positions
-    assert "_workspace_complete_bundle_v9" in backend
+    assert "_workspace_complete_bundle_v10" in backend
+    assert 'production_workspace_extension.js' not in backend
+    assert 'studio_functionality_extension.js' not in backend
 
     print("modern 2026 UI + every-page coverage + layout + isolation + legibility: OK")
 

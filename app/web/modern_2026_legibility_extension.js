@@ -60,7 +60,6 @@
     body.sps-modern-2026 .matrix-status,body.sps-modern-2026 .matrix-open-video,body.sps-modern-2026 .matrix-open-suno,body.sps-modern-2026 .matrix-search-video{font-size:12.5px!important}
     body.sps-modern-2026 .youtube-matrix-table thead th{font-size:13px!important}
 
-    body.sps-modern-2026 #productionWorkspace{font-size:14px}
     body.sps-modern-2026 .pws-head h2{font-size:21px}
     body.sps-modern-2026 .pws-song-sub,body.sps-modern-2026 .pws-controls label,body.sps-modern-2026 .pws-status,body.sps-modern-2026 .pws-timeline-toolbar{font-size:13px}
     body.sps-modern-2026 .pws-track-label,body.sps-modern-2026 .pws-editor-head,body.sps-modern-2026 .pws-tick{font-size:12.5px}

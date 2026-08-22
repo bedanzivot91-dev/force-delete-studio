@@ -104,7 +104,12 @@ def check_dom_references(parser: AuditHtml, js: str, issues: list[str], notes: l
         "spsModern2026Style", "spsModern2026CompatStyle", "spsModern2026IsolationStyle",
         "spsModern2026SurfaceCoverage", "spsIa2026Style",
     }
-    missing = [item for item in missing if item not in allow]
+    # Legacy v3 production handlers remain dormant for database compatibility,
+    # but their entire view is intentionally absent from the standalone Suno UI.
+    missing = [item for item in missing if item not in allow and not item.startswith("v3") and item not in {
+        "choosePanakoJarBtn", "installPanakoBtn", "panakoInstallOutput",
+        "panakoInstallStatus", "panakoJarPath", "view-production",
+    }]
     if missing:
         issues.append("JS traži DOM ID koji audit ne nalazi u HTML/dinamičkom UI-ju: " + ", ".join(missing))
     notes.append(f"DOM reference: provereno {len(refs)} direktnih ID referenci i {len(dynamic_ids)} dinamičkih ID-jeva.")
@@ -137,17 +142,8 @@ def check_information_architecture(issues: list[str], notes: list[str]) -> None:
         for token in tokens:
             if token not in ia:
                 issues.append(f"IA 2026: {group} nema očekivano grupisanje: {token}")
-    for title in (
-        "Zaključavanje programa", "Instalacija, rollback i potpis", "Integritet i duplikati",
-        "Automatska organizacija foldera", "Zaštita pesama i rollback",
-        "Panako (opcioni dodatni fingerprint motor)",
-    ):
-        if title not in organized:
-            issues.append(f"Video Studio maintenance nije eksplicitno premešten: {title}")
-    if "advanced-systems-panel" not in cleanup or "body.appendChild(advanced)" not in cleanup:
-        issues.append("Napredni sistemski panel nije premešten iz YouTube centra u Podešavanja.")
-    if "oldLyric.classList.add('hidden')" not in organized:
-        issues.append("Stari duplirani lyric-video panel nije sakriven iz Video Studija.")
+    if 'production_workspace_extension.js' in BACKEND.read_text(encoding="utf-8"):
+        issues.append("Video/NP production modul se i dalje pakuje u Suno aplikaciju.")
     if "['library-tools', 'system']" not in ia:
         issues.append("Stari YouTube tabovi za Library/System nisu uklonjeni iz primarnog YouTube toka.")
     if "count.id = 'recognitionHistoryCount'" not in ia:
@@ -163,8 +159,8 @@ def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: 
     backend = BACKEND.read_text(encoding="utf-8")
     for token in (
         "document.querySelectorAll('.view').forEach", ".sidebar", ".topbar", ".panel", ".songs-grid",
-        "#productionWorkspace", ".youtube-action-card", ".settings-grid",
-        "Aurora Studio", "Graphite Pro", "Midnight Signal",
+        ".youtube-action-card", ".settings-grid",
+        "Aurora Flow", "Graphite Console", "Vinyl Loft", "Signal Grid", "Paper Studio",
     ):
         if token not in skin:
             issues.append(f"Moderni skin ne pokriva očekivanu globalnu površinu/token: {token}")
@@ -205,16 +201,17 @@ def check_modern_ui_and_legibility(parser: AuditHtml, issues: list[str], notes: 
     if sizes and min(sizes) < 12.5:
         issues.append(f"Finalni legibility sloj još sadrži font manji od 12.5px: minimum {min(sizes)}px")
     order = [
-        "workflow_cleanup_extension.js", "information_architecture_2026_extension.js",
+        "information_architecture_2026_extension.js",
         "modern_2026_skin_extension.js", "modern_2026_surface_coverage_extension.js",
         "modern_2026_compat_extension.js", "modern_2026_isolation_extension.js",
-        "modern_2026_legibility_extension.js",
+        "modern_2026_legibility_extension.js", "real_theme_layouts_extension.js",
+        "suno_only_runtime_extension.js",
     ]
     positions = [backend.find(name) for name in order]
     if any(pos < 0 for pos in positions) or positions != sorted(positions):
         issues.append("Finalni UI bundle redosled nije cleanup -> IA -> skin -> surfaces -> compatibility -> isolation -> legibility.")
-    if "_workspace_complete_bundle_v9" not in backend:
-        issues.append("Backend nije prebačen na bundle v9 sa page-by-page UI pokrivenošću.")
+    if "_workspace_complete_bundle_v10" not in backend:
+        issues.append("Backend nije prebačen na Suno-only bundle v10.")
     notes.append(f"Tipografija: finalni override ima {len(sizes)} eksplicitnih veličina; minimum {min(sizes) if sizes else 'n/a'}px. Eksplicitno stilizovano {len(parser.views)} routed stranica.")
 
 

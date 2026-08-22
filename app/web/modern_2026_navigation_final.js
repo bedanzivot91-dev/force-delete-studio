@@ -26,7 +26,7 @@
 
   const groups = [
     ['SUNO I BIBLIOTEKA', ['import','library','download','folders','smart','versions','stats']],
-    ['AUDIO I VIDEO', ['recognition','audio','production']],
+    ['AUDIO', ['recognition','audio']],
     ['YOUTUBE I OBJAVA', ['release','tools']],
     ['SISTEM', ['logs','settings']],
   ];

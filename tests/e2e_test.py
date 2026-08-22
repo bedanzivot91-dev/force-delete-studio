@@ -69,7 +69,7 @@ def main() -> int:
                         page.locator('#pageTitle').wait_for(timeout=10000)
                         expected_groups = {
                             'SUNO I BIBLIOTEKA': ('import','library','download','folders','smart','versions','stats'),
-                            'AUDIO I VIDEO': ('recognition','audio','production'),
+                            'AUDIO': ('recognition','audio'),
                             'YOUTUBE I OBJAVA': ('release','tools'),
                             'SISTEM': ('logs','settings'),
                         }
@@ -89,7 +89,11 @@ def main() -> int:
                             page.locator(f'[data-view="{view}"]').click(); page.wait_for_timeout(100)
                             assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
                             assert page.locator(f'#view-{view} > .sps-view-kicker').count() == 1
-                        assert page.locator('[data-view="production"]').inner_text().strip().endswith('Video Studio')
+                        assert page.locator('[data-view="production"]').count() == 0
+                        assert page.locator('#view-production').count() == 0
+                        for theme in ('aurora-flow','graphite-console','vinyl-loft','signal-grid','paper-studio'):
+                            page.locator('#modernSkinQuickSelect').select_option(theme)
+                            assert page.locator('body').get_attribute('data-sps-skin') == theme
                         assert not errors, f'JavaScript greške: {errors}'
                         local_failed=[x for x in failed if f'127.0.0.1:{PORT}' in x]
                         assert not local_failed, f'Lokalni zahtevi nisu uspeli: {local_failed}'
