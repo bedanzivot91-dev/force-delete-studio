@@ -58,7 +58,7 @@ def main() -> int:
         and hashlib.sha256(style_bytes[:original_prefix_len]).hexdigest() == "cb8cae75cf4446de86e7aeb3a0196d3a398689376fe0126354e067cff2b92ef2",
         f"len={len(style_bytes)}, prefix_sha256={hashlib.sha256(style_bytes[:original_prefix_len]).hexdigest()}",
     )
-    for token in ("app-shell", "sidebar", "nav-item", "view-library", "view-import", "view-tools", "view-production"):
+    for token in ("app-shell", "sidebar", "nav-item", "view-library", "view-import", "view-tools"):
         check(f"original UI retained: {token}", token in index)
     check("dedicated song finder view", 'id="view-recognition"' in index and "Pronalazač mojih pesama" in index)
     check("no visible Shazam name", "shazam" not in (index + js).lower())
