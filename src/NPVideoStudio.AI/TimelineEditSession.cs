@@ -526,6 +526,12 @@ public sealed class TimelineEditSession
             .Select(CloneTrackingPoint)
             .ToList();
         if (ordered.Count < 2) return false;
+        const double endpointToleranceSeconds = 0.05;
+        if (ordered[0].SourceTimeSeconds > clip.SourceTrimInSeconds + endpointToleranceSeconds ||
+            ordered[^1].SourceTimeSeconds < clip.SourceTrimOutSeconds - endpointToleranceSeconds)
+        {
+            return false;
+        }
 
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
@@ -543,7 +549,9 @@ public sealed class TimelineEditSession
     {
         var (_, clip) = FindClipWithTrack(clipId);
         if (clip is null || clip.AutoReframeEnabled == enabled) return;
-        if (enabled && (clip.IsReversed || clip.IsFreezeFrame || clip.MotionTrackingPoints.Count < 2)) return;
+        if (enabled && (clip.IsReversed || clip.IsFreezeFrame || clip.MotionTrackingPoints.Count < 2 ||
+            clip.MotionTrackingPoints.Min(p => p.SourceTimeSeconds) > clip.SourceTrimInSeconds + 0.05 ||
+            clip.MotionTrackingPoints.Max(p => p.SourceTimeSeconds) < clip.SourceTrimOutSeconds - 0.05)) return;
         SaveSnapshot();
         FindClipWithTrack(clipId).Clip!.AutoReframeEnabled = enabled;
     }

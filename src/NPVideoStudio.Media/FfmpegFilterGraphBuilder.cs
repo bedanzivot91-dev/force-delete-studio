@@ -103,8 +103,8 @@ public static class FfmpegFilterGraphBuilder
             var videoFilter = new StringBuilder();
             videoFilter.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
-            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             videoFilter.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));
+            videoFilter.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             videoFilter.Append(BuildTemporalVideoFilters(clip, duration));
             videoFilter.Append(BuildSpeedFilter(clip));
             videoFilter.Append(BuildTransformFilters(clip));
@@ -763,8 +763,8 @@ public static class FfmpegFilterGraphBuilder
             prepared.Append(FormattableString.Invariant(
                 $"[{inputIndex}:v]trim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},setpts=PTS-STARTPTS"));
             // -1 keeps the source aspect ratio; the overlay is sized by width only.
-            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             prepared.Append(BuildAutoReframeFilter(clip, targetWidth, targetHeight));
+            prepared.Append(BuildStabilizationFilter(clip, stabilizationTransforms));
             prepared.Append(BuildTemporalVideoFilters(clip, clip.TimelineDurationSeconds));
             prepared.Append(BuildSpeedFilter(clip));
             prepared.Append(BuildTransformFilters(clip));
@@ -893,6 +893,13 @@ public static class FfmpegFilterGraphBuilder
             throw new InvalidOperationException("Auto Reframe nije podržan zajedno sa Reverse/Freeze Frame.");
         if (clip.MotionTrackingPoints.Count < 2)
             throw new InvalidOperationException("Auto Reframe je uključen, ali klip nema kompletnu Motion Tracking putanju.");
+        var firstTrackingTime = clip.MotionTrackingPoints.Min(point => point.SourceTimeSeconds);
+        var lastTrackingTime = clip.MotionTrackingPoints.Max(point => point.SourceTimeSeconds);
+        if (firstTrackingTime > clip.SourceTrimInSeconds + 0.05 ||
+            lastTrackingTime < clip.SourceTrimOutSeconds - 0.05)
+        {
+            throw new InvalidOperationException("Auto Reframe putanja ne pokriva ceo trenutno isečeni klip. Pokrenite Motion Tracking ponovo.");
+        }
 
         var x = BuildTrackingValueExpression(clip, point => point.CenterX);
         var y = BuildTrackingValueExpression(clip, point => point.CenterY);

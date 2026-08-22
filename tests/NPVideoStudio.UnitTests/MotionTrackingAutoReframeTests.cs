@@ -123,6 +123,18 @@ public sealed class MotionTrackingAutoReframeTests
     }
 
     [Fact]
+    public void AutoReframeFilter_RejectsPersistedPartialTrackingPath()
+    {
+        var clip = NewTrackedClip();
+        clip.MotionTrackingPoints.RemoveAt(0);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            FfmpegFilterGraphBuilder.BuildAutoReframeFilter(clip, 1080, 1920));
+
+        Assert.Contains("ceo", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void RangePreview_PreservesTrackingPathAndAutoReframe()
     {
         var clip = NewTrackedClip();
