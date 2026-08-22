@@ -1,0 +1,27 @@
+name: Materialize proxy removal cleanup
+
+on:
+  push:
+    branches:
+      - agent/proxy-remove-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/proxy-remove-cleanup
+      - run: python tools/materialize_proxy_cleanup.py
+      - shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/NPVideoStudio.App/ViewModels/WorkspaceViewModel.cs tests/NPVideoStudio.UnitTests/ProxyWorkspaceIntegrationTests.cs
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: clean owned proxy when removing media"
+            git push origin HEAD:agent/proxy-remove-cleanup
+          fi
