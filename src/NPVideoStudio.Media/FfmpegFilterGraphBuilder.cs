@@ -1116,6 +1116,7 @@ public static class FfmpegFilterGraphBuilder
             ClipVideoEffect.Vignette => "vignette",
             ClipVideoEffect.Sharpen => "unsharp=5:5:1.0:5:5:0.0",
             ClipVideoEffect.Invert => "negate",
+            ClipVideoEffect.SmoothSlowMotion => "minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:me=epzs:vsbmc=1",
             ClipVideoEffect.Mirror => "hflip",
             _ => null
         };
