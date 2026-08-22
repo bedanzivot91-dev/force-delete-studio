@@ -1,0 +1,33 @@
+name: Materialize Release Fallback Destination Fix
+
+on:
+  push:
+    branches:
+      - agent/release-ffmpeg-fallback-destination-fix
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/release-ffmpeg-fallback-destination-fix
+          fetch-depth: 0
+      - name: Apply release fix
+        run: python .github/scripts/materialize_release_fallback_destination_fix.py
+      - name: Commit production/test changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Fix FFmpeg fallback destination initialization"
+          git push origin HEAD:agent/release-ffmpeg-fallback-destination-fix
