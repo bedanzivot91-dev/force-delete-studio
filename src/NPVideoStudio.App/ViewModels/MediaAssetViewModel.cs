@@ -9,6 +9,9 @@ public sealed class MediaAssetViewModel : ViewModelBase
 
     public ICommand? ToggleFavoriteCommand { get; set; }
     public ICommand? RemoveCommand { get; set; }
+    public ICommand? GenerateProxyCommand { get; set; }
+    public ICommand? RemoveProxyCommand { get; set; }
+    public ICommand? OpenProxyFolderCommand { get; set; }
 
     public MediaAssetViewModel(MediaAsset asset)
     {
@@ -33,6 +36,27 @@ public sealed class MediaAssetViewModel : ViewModelBase
     public string? ErrorMessage => Asset.ProbeError;
     public bool IsFavorite => Asset.IsFavorite;
 
-    /// <summary>Call after mutating <see cref="Asset"/> directly (e.g. toggling favorite) to refresh bindings.</summary>
-    public void NotifyAssetChanged() => OnPropertyChanged(nameof(IsFavorite));
+    public bool CanGenerateProxy => Asset.HasVideoStream && Asset.ProxyStatus is not MediaProxyStatus.Generating;
+    public bool HasReadyProxy => Asset.ProxyStatus == MediaProxyStatus.Ready &&
+                                 !string.IsNullOrWhiteSpace(Asset.ProxyFilePath) &&
+                                 File.Exists(Asset.ProxyFilePath);
+    public bool IsProxyGenerating => Asset.ProxyStatus == MediaProxyStatus.Generating;
+    public string ProxyStatusLabel => Asset.ProxyStatus switch
+    {
+        MediaProxyStatus.Generating => "Proxy: generisanje...",
+        MediaProxyStatus.Ready when HasReadyProxy => "Proxy: spreman (preview)",
+        MediaProxyStatus.Ready => "Proxy: fajl nedostaje",
+        MediaProxyStatus.Failed => $"Proxy: greška{(string.IsNullOrWhiteSpace(Asset.ProxyError) ? string.Empty : $" — {Asset.ProxyError}")}",
+        _ => "Proxy: original"
+    };
+
+    /// <summary>Call after mutating <see cref="Asset"/> directly to refresh media-library bindings.</summary>
+    public void NotifyAssetChanged()
+    {
+        OnPropertyChanged(nameof(IsFavorite));
+        OnPropertyChanged(nameof(CanGenerateProxy));
+        OnPropertyChanged(nameof(HasReadyProxy));
+        OnPropertyChanged(nameof(IsProxyGenerating));
+        OnPropertyChanged(nameof(ProxyStatusLabel));
+    }
 }
