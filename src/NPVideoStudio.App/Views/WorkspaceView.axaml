@@ -246,6 +246,19 @@
               <Button Name="InspectorDeleteButton" Classes="ghost" Content="Obriši klip" Command="{Binding DeleteCommand}" />
             </WrapPanel>
 
+            <Grid Name="InspectorTrimPanel" ColumnDefinitions="*,*" IsVisible="{Binding HasSourceMedia}">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Trim početak izvora (s)" Classes="subtle" />
+                <NumericUpDown Name="InspectorTrimIn" Value="{Binding TrimInSeconds}" Minimum="0" Maximum="{Binding MaxTrimInSeconds}" Increment="0.1" FormatString="0.00"
+                               ToolTip.Tip="Pomera početak izvornog medija. Promena je nedestruktivna, čuva se u projektu i podržava Undo/Redo." />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0">
+                <TextBlock Text="Trim kraj izvora (s)" Classes="subtle" />
+                <NumericUpDown Name="InspectorTrimOut" Value="{Binding TrimOutSeconds}" Minimum="{Binding MinTrimOutSeconds}" Maximum="{Binding SourceDurationSeconds}" Increment="0.1" FormatString="0.00"
+                               ToolTip.Tip="Pomera kraj izvornog medija i ne može preći stvarno trajanje fajla. Promena podržava Undo/Redo." />
+              </StackPanel>
+            </Grid>
+
             <StackPanel Spacing="8" IsVisible="{Binding IsTextClip}">
               <TextBlock Text="TEKST" Classes="eyebrow" />
               <TextBox Text="{Binding TextContent}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
