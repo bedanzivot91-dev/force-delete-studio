@@ -182,6 +182,10 @@ public enum ClipVideoEffect
     /// <summary>Colour negative (<c>negate</c>).</summary>
     Invert,
 
+    /// <summary>Real FFmpeg motion-compensated frame interpolation. Use together with a speed below 1x
+    /// or a Velocity curve for smooth slow motion rather than repeated/held source frames.</summary>
+    SmoothSlowMotion,
+
     /// <summary>Mirrored left-to-right (<c>hflip</c>) - the usual fix for selfie-camera footage.</summary>
     Mirror
 }
