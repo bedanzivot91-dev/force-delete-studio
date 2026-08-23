@@ -73,7 +73,7 @@
     }
     grid.batchUpdate();
     [...gridElement.children].forEach((item, index) => { const p = positions[index]; grid.update(item,{x:p[0],y:p[1],w:p[2],h:p[3]}); });
-    grid.commit();
+    grid.batchUpdate(false);
   };
   const setEditing = value => {
     editing = value; grid.enableMove(value); grid.enableResize(value);
