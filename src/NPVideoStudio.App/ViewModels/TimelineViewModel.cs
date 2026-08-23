@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.AI;
 using NPVideoStudio.Domain;
 using NPVideoStudio.App.Services;
+using NPVideoStudio.Media;
 
 namespace NPVideoStudio.App.ViewModels;
 
@@ -32,6 +33,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
     private readonly Func<double> _getPlayhead;
     private readonly TimelineEditSession _session;
     private readonly IStorageService? _storageService;
+    private readonly IAudioWaveformService _waveformService = new AudioWaveformService();
 
     public ObservableCollection<TimelineTrackItemViewModel> Tracks { get; } = new();
 
@@ -463,7 +465,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             ?? (clip.MediaAssetId is null ? 0 : Math.Max(clip.SourceTrimOutSeconds, 0));
         var hasAudioStream = sourceAsset?.HasAudioStream == true;
 
-        return new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
+        var item = new TimelineClipItemViewModel(clip, track.Id, ResolveClipLabel(clip), track.Kind == TimelineTrackKind.Video,
             split, delete, duplicate, nudgeEarlier, nudgeLater, toggleMute, toggleFadeIn, toggleFadeOut, applyStyleToAllOnTrack,
             OnTextStyleChanged, OnTransitionChanged, OnTextContentChanged, OnAdvancedStyleChanged,
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
@@ -473,6 +475,9 @@ public sealed partial class TimelineViewModel : ViewModelBase
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };
+        if (hasAudioStream && sourceAsset is not null)
+            _ = item.LoadWaveformAsync(_waveformService, sourceAsset.FilePath);
+        return item;
     }
 
     private void AddClipToTrack(TimelineTrack track)
