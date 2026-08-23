@@ -9,7 +9,8 @@ public enum ClipKeyframeProperty
     PositionY,
     Scale,
     Rotation,
-    Opacity
+    Opacity,
+    Volume
 }
 
 /// <summary>Interpolation used while travelling from the previous keyframe into this keyframe.</summary>
@@ -42,6 +43,7 @@ public static class ClipKeyframeEvaluator
         ClipKeyframeProperty.Scale => Math.Clamp(value, 1, 1000),
         ClipKeyframeProperty.Rotation => Math.Clamp(value, -3600, 3600),
         ClipKeyframeProperty.Opacity => Math.Clamp(value, 0, 1),
+        ClipKeyframeProperty.Volume => Math.Clamp(value, 0, 2),
         _ => value
     };
 
@@ -52,6 +54,7 @@ public static class ClipKeyframeEvaluator
         ClipKeyframeProperty.Scale => clip.ScalePercent,
         ClipKeyframeProperty.Rotation => clip.RotationDegrees,
         ClipKeyframeProperty.Opacity => clip.Opacity,
+        ClipKeyframeProperty.Volume => clip.Volume,
         _ => 0
     };
 
