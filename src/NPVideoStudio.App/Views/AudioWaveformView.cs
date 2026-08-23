@@ -9,9 +9,13 @@ public sealed class AudioWaveformView : Control
     public static readonly StyledProperty<IReadOnlyList<double>?> PeaksProperty =
         AvaloniaProperty.Register<AudioWaveformView, IReadOnlyList<double>?>(nameof(Peaks));
 
-    static AudioWaveformView() => AffectsRender<AudioWaveformView>(PeaksProperty);
+    public static readonly StyledProperty<IReadOnlyList<double>?> BeatPositionsProperty =
+        AvaloniaProperty.Register<AudioWaveformView, IReadOnlyList<double>?>(nameof(BeatPositions));
+
+    static AudioWaveformView() => AffectsRender<AudioWaveformView>(PeaksProperty, BeatPositionsProperty);
 
     public IReadOnlyList<double>? Peaks { get => GetValue(PeaksProperty); set => SetValue(PeaksProperty, value); }
+    public IReadOnlyList<double>? BeatPositions { get => GetValue(BeatPositionsProperty); set => SetValue(BeatPositionsProperty, value); }
 
     public override void Render(DrawingContext context)
     {
@@ -26,6 +30,15 @@ public sealed class AudioWaveformView : Control
             var amplitude = Math.Clamp(Peaks[i], 0, 1) * (center - 1);
             var x = (i + 0.5) * step;
             context.DrawLine(pen, new Point(x, center - amplitude), new Point(x, center + amplitude));
+        }
+        if (BeatPositions is { Count: > 0 })
+        {
+            var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(230, 255, 195, 45)), 1.5);
+            foreach (var position in BeatPositions)
+            {
+                var x = Math.Clamp(position, 0, 1) * Bounds.Width;
+                context.DrawLine(beatPen, new Point(x, 0), new Point(x, Bounds.Height));
+            }
         }
     }
 }
