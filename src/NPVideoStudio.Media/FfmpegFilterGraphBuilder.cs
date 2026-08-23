@@ -327,6 +327,11 @@ public static class FfmpegFilterGraphBuilder
                 var opacity = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Opacity, textLocalTime, 1);
                 textAlpha = $"({textAlpha})*({opacity})";
             }
+            var presetAlpha = BuildCaptionAnimationAlpha(clip, renderedStart, renderedEnd);
+            if (presetAlpha != "1")
+            {
+                textAlpha = $"({textAlpha})*({presetAlpha})";
+            }
             if (textAlpha != "1")
             {
                 extraArguments.Append($":alpha='{textAlpha}'");
@@ -334,13 +339,33 @@ public static class FfmpegFilterGraphBuilder
 
             var fontSize = HasKeyframes(clip, ClipKeyframeProperty.Scale)
                 ? $"'{clip.FontSizePx}*({BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Scale, textLocalTime, 100)})/100'"
-                : clip.FontSizePx.ToString(CultureInfo.InvariantCulture);
+                : BuildCaptionAnimationFontSize(clip, renderedStart);
 
-            var drawTextX = HasKeyframes(clip, ClipKeyframeProperty.PositionX) ? $"'{x}'" : x;
+            var animatedX = BuildCaptionAnimationX(clip, x, renderedStart);
+            var drawTextX = HasKeyframes(clip, ClipKeyframeProperty.PositionX) || animatedX != x ? $"'{animatedX}'" : x;
             var drawTextY = HasKeyframes(clip, ClipKeyframeProperty.PositionY) ? $"'{y}'" : y;
-            filterLines.Add(FormattableString.Invariant(
-                $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x={drawTextX}:y={drawTextY}:fontsize={fontSize}:fontcolor={clip.TextColor}{fontFileArgument}{extraArguments}{nextLabel}"));
-            currentTextVideoLabel = nextLabel;
+            var words = displayText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (clip.CaptionGranularity == CaptionGranularity.LineByLine || words.Length <= 1)
+            {
+                filterLines.Add(FormattableString.Invariant(
+                    $"{currentTextVideoLabel}drawtext=text='{escapedText}':enable='between(t,{renderedStart},{renderedEnd})':x={drawTextX}:y={drawTextY}:fontsize={fontSize}:fontcolor={clip.TextColor}{fontFileArgument}{extraArguments}{nextLabel}"));
+                currentTextVideoLabel = nextLabel;
+                continue;
+            }
+
+            var wordDuration = Math.Max(0.001, (renderedEnd - renderedStart) / words.Length);
+            for (var wordIndex = 0; wordIndex < words.Length; wordIndex++)
+            {
+                var wordStart = renderedStart + wordIndex * wordDuration;
+                var wordEnd = wordIndex == words.Length - 1 ? renderedEnd : wordStart + wordDuration;
+                var wordLabel = $"[vtext{i}_{wordIndex}]";
+                var wordColor = clip.CaptionGranularity == CaptionGranularity.Karaoke
+                    ? clip.CaptionAccentColor
+                    : clip.TextColor;
+                filterLines.Add(FormattableString.Invariant(
+                    $"{currentTextVideoLabel}drawtext=text='{EscapeDrawtext(words[wordIndex])}':enable='between(t,{wordStart},{wordEnd})':x={drawTextX}:y={drawTextY}:fontsize={fontSize}:fontcolor={wordColor}{fontFileArgument}{extraArguments}{wordLabel}"));
+                currentTextVideoLabel = wordLabel;
+            }
         }
 
         // Separate music/voice-over tracks get mixed over the video track's own audio here, last, so the
@@ -588,6 +613,9 @@ public static class FfmpegFilterGraphBuilder
         IsTextItalic = clip.IsTextItalic,
         TextCase = clip.TextCase,
         LineSpacingPx = clip.LineSpacingPx,
+        CaptionAnimation = clip.CaptionAnimation,
+        CaptionGranularity = clip.CaptionGranularity,
+        CaptionAccentColor = clip.CaptionAccentColor,
         SourceTrimInSeconds = clip.SourceTrimInSeconds,
         SourceTrimOutSeconds = clip.SourceTrimOutSeconds,
         TimelineStartSeconds = clip.TimelineStartSeconds,
@@ -1525,6 +1553,43 @@ public static class FfmpegFilterGraphBuilder
         TextCaseTransform.TitleCase => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(text.ToLowerInvariant()),
         _ => text
     };
+
+    public static string BuildCaptionAnimationAlpha(TimelineClip clip, double renderedStart, double renderedEnd)
+    {
+        var local = FormattableString.Invariant($"(t-{renderedStart})");
+        return clip.CaptionAnimation switch
+        {
+            CaptionAnimationKind.Fade => FormattableString.Invariant(
+                $"min(min(1,max(0,{local}/0.18)),min(1,max(0,({renderedEnd}-t)/0.18)))"),
+            CaptionAnimationKind.Glow => $"(0.88+0.12*sin(2*PI*{local}*2))",
+            _ => "1"
+        };
+    }
+
+    public static string BuildCaptionAnimationFontSize(TimelineClip clip, double renderedStart)
+    {
+        var size = clip.FontSizePx.ToString(CultureInfo.InvariantCulture);
+        var progress = FormattableString.Invariant($"min(1,max(0,(t-{renderedStart})/0.18))");
+        return clip.CaptionAnimation switch
+        {
+            CaptionAnimationKind.Pop => $"'{size}*(0.72+0.28*{progress})'",
+            CaptionAnimationKind.Scale => $"'{size}*(0.55+0.45*{progress})'",
+            CaptionAnimationKind.Bounce => FormattableString.Invariant(
+                $"'{size}*if(lt(t-{renderedStart},0.55),1+0.18*sin((t-{renderedStart})/0.55*PI),1)'"),
+            _ => size
+        };
+    }
+
+    public static string BuildCaptionAnimationX(TimelineClip clip, string baseX, double renderedStart)
+    {
+        if (clip.CaptionAnimation != CaptionAnimationKind.Slide)
+        {
+            return baseX;
+        }
+
+        var progress = FormattableString.Invariant($"min(1,max(0,(t-{renderedStart})/0.24))");
+        return $"({baseX})-w*0.18*(1-{progress})";
+    }
 
     /// <summary>
     /// Real fade-in/fade-out for a Caption/Text clip's own text, via drawtext's `alpha` option - which
