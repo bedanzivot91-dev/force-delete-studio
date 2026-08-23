@@ -473,6 +473,16 @@ public sealed class TimelineEditSession
         live.HighlightRed = hr; live.HighlightGreen = hg; live.HighlightBlue = hb;
     }
 
+    public void SetClipLut(string clipId, string? lutFilePath)
+    {
+        var (_, clip) = FindClipWithTrack(clipId);
+        if (clip is null) return;
+        var normalized = string.IsNullOrWhiteSpace(lutFilePath) ? null : Path.GetFullPath(lutFilePath);
+        if (string.Equals(clip.LutFilePath, normalized, StringComparison.OrdinalIgnoreCase)) return;
+        SaveSnapshot();
+        FindClipWithTrack(clipId).Clip!.LutFilePath = normalized;
+    }
+
     public void SetClipAudioEnhancement(string clipId, ClipAudioEnhancementSettings settings)
     {
         var (_, clip) = FindClipWithTrack(clipId);
@@ -1194,6 +1204,7 @@ public sealed class TimelineEditSession
         HighlightRed = clip.HighlightRed,
         HighlightGreen = clip.HighlightGreen,
         HighlightBlue = clip.HighlightBlue,
+        LutFilePath = clip.LutFilePath,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint

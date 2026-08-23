@@ -34,6 +34,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// one undo takes the whole effect change back.</summary>
     private readonly Action<string, ClipVideoEffect, double, double, double, double>? _onEffectsChanged;
     private readonly Action<string, ClipColorGradingSettings>? _onColorGradingChanged;
+    private readonly Func<string, Task>? _onPickLutRequested;
+    private readonly Action<string>? _onClearLutRequested;
     private readonly Action<string, ClipAudioEnhancementSettings>? _onAudioEnhancementChanged;
     private readonly Action<string, SpeedCurvePreset>? _onSpeedCurvePresetChanged;
     private readonly Action<string, bool, int, int, double>? _onStabilizationChanged;
@@ -268,6 +270,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public double HighlightRed { get => Clip.HighlightRed; set { if (Math.Abs(Clip.HighlightRed-value)<1e-6) return; PushColorGrading(s=>s with { HighlightRed=value }); } }
     public double HighlightGreen { get => Clip.HighlightGreen; set { if (Math.Abs(Clip.HighlightGreen-value)<1e-6) return; PushColorGrading(s=>s with { HighlightGreen=value }); } }
     public double HighlightBlue { get => Clip.HighlightBlue; set { if (Math.Abs(Clip.HighlightBlue-value)<1e-6) return; PushColorGrading(s=>s with { HighlightBlue=value }); } }
+    public string LutLabel => string.IsNullOrWhiteSpace(Clip.LutFilePath) ? "Nema izabranog LUT-a" : Path.GetFileName(Clip.LutFilePath);
+    public bool HasLut => !string.IsNullOrWhiteSpace(Clip.LutFilePath);
+    public ICommand PickLutCommand { get; }
+    public ICommand ClearLutCommand { get; }
 
     private void PushAudioEnhancement(Func<ClipAudioEnhancementSettings, ClipAudioEnhancementSettings> mutate)
     {
@@ -961,11 +967,15 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         Action<string, bool>? onAutoReframeChanged = null,
         Action<string, ClipColorGradingSettings>? onColorGradingChanged = null,
         bool hasAudioStream = false,
-        Action<string, ClipAudioEnhancementSettings>? onAudioEnhancementChanged = null)
+        Action<string, ClipAudioEnhancementSettings>? onAudioEnhancementChanged = null,
+        Func<string, Task>? onPickLutRequested = null,
+        Action<string>? onClearLutRequested = null)
     {
         _onEffectsChanged = onEffectsChanged;
         _onColorGradingChanged = onColorGradingChanged;
         _onAudioEnhancementChanged = onAudioEnhancementChanged;
+        _onPickLutRequested = onPickLutRequested;
+        _onClearLutRequested = onClearLutRequested;
         _onSpeedCurvePresetChanged = onSpeedCurvePresetChanged;
         _onStabilizationChanged = onStabilizationChanged;
         _onTrackingRegionChanged = onTrackingRegionChanged;
@@ -1009,6 +1019,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         AddKeyframeAtPlayheadCommand = new RelayCommand(AddKeyframeAtPlayhead);
         RemoveKeyframeAtPlayheadCommand = new RelayCommand(RemoveKeyframeAtPlayhead);
         TrackMotionCommand = new RelayCommand(() => _onMotionTrackingRequested?.Invoke(Clip.Id, CurrentTrackingRegion()));
+        PickLutCommand = new AsyncRelayCommand(() => _onPickLutRequested?.Invoke(Clip.Id) ?? Task.CompletedTask);
+        ClearLutCommand = new RelayCommand(() => _onClearLutRequested?.Invoke(Clip.Id));
     }
 
     private static string FormatTime(double seconds)

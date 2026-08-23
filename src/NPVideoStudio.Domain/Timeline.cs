@@ -368,6 +368,8 @@ public sealed class TimelineClip
     public double HighlightRed { get; set; }
     public double HighlightGreen { get; set; }
     public double HighlightBlue { get; set; }
+    /// <summary>Optional user-selected standard .cube 3D LUT applied after manual grading.</summary>
+    public string? LutFilePath { get; set; }
 
     /// <summary>Playback speed, 0.25..4. Used when no velocity curve is active.</summary>
     public double SpeedMultiplier { get; set; } = 1.0;

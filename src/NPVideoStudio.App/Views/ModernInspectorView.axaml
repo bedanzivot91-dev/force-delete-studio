@@ -228,6 +228,17 @@
                 </Grid>
               </StackPanel>
             </Border>
+            <Border Name="LutImportPanel" Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="3D LUT" Classes="section" />
+                <TextBlock Text="{Binding LutLabel}" Classes="subtle" TextWrapping="Wrap" />
+                <WrapPanel>
+                  <Button Classes="cta" Content="Izaberi .cube LUT" Command="{Binding PickLutCommand}" Margin="0,0,8,4" />
+                  <Button Classes="ghost" Content="Ukloni LUT" Command="{Binding ClearLutCommand}" IsVisible="{Binding HasLut}" />
+                </WrapPanel>
+                <TextBlock Text="LUT se čuva uz izabrani klip i primenjuje u stvarnom preview-u i exportu." Classes="subtle" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

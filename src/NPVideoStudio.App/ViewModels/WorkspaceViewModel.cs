@@ -243,7 +243,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         MediaLibrary.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasMedia));
 
         Player = new PlayerViewModel(totalDurationSeconds: ComputeInitialDuration(project));
-        Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds);
+        Timeline = new TimelineViewModel(project, MediaLibrary, () => Player.CurrentTimeSeconds, _storageService);
         Timeline.MotionTrackingRequested += (clipId, region) => _ = TrackMotionAndEnableReframeAsync(clipId, region);
         Timeline.PropertyChanged += (_, e) =>
         {
