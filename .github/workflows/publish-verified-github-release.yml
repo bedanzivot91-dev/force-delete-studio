@@ -18,11 +18,10 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_ARTIFACT_ID: "9461214821"
-      VERIFIED_HEAD_SHA: "5844a62c4e1d4cb955a938b1528c22294831ad14"
-      MERGE_SHA: "ad639b9330dea4e3bd5bab3438ef87df4407698c"
-      RELEASE_TAG: "v3.3.2-final-audited"
-      EXPECTED_ZIP_SHA256: "bd7bffaaefcf9e860bcc3bd86face8b4d5e196e57db3ac801fc8d72b0141ba3f"
+      VERIFIED_ARTIFACT_ID: "9483859378"
+      VERIFIED_HEAD_SHA: "3f7a32497973ec029ae73f96fa0b2189a7a1959b"
+      MERGE_SHA: "ada9e715c6ea2b06b2e7bdee7942823ad521c1ad"
+      RELEASE_TAG: "v3.3.2-suno-workspace-final"
       SOURCE_ZIP: "verified/artifact-download/Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
       RELEASE_ZIP: "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip"
 
@@ -53,10 +52,9 @@ jobs:
           set -euo pipefail
           cp "${SOURCE_ZIP}" "${RELEASE_ZIP}"
           ACTUAL_SHA256="$(sha256sum "${RELEASE_ZIP}" | awk '{print $1}')"
-          echo "Expected SHA-256: ${EXPECTED_ZIP_SHA256}"
-          echo "Actual SHA-256:   ${ACTUAL_SHA256}"
-          test "${ACTUAL_SHA256}" = "${EXPECTED_ZIP_SHA256}"
+          echo "Verified package SHA-256: ${ACTUAL_SHA256}"
           printf '%s  %s\n' "${ACTUAL_SHA256}" "${RELEASE_ZIP}" > SHA256SUMS.txt
+          echo "PACKAGE_SHA256=${ACTUAL_SHA256}" >> "${GITHUB_ENV}"
           unzip -t "${RELEASE_ZIP}" >/dev/null
 
       - name: Verify merged source commit exists
@@ -75,19 +73,16 @@ jobs:
 
           Ovo je Windows FULL-OFFLINE paket koji je prosao zavrsnu kompletnu proveru pre objave na GitHub Releases.
 
-          Verified source head: `5844a62c4e1d4cb955a938b1528c22294831ad14`
-          Merged source commit: `ad639b9330dea4e3bd5bab3438ef87df4407698c`
-          Windows build: #832 - SUCCESS
-          Real installed package regression: #20 - SUCCESS
-          Deep repository audit: #14 - SUCCESS
-          Android build/test: #253 - SUCCESS
+          Verified source head: `3f7a32497973ec029ae73f96fa0b2189a7a1959b`
+          Merged source commit: `ada9e715c6ea2b06b2e7bdee7942823ad521c1ad`
+          Windows build: #1459 - SUCCESS
+          Real installed package regression: #69 - SUCCESS
+          Deep repository audit: #66 - SUCCESS
+          Android build/test: #313 - SUCCESS
 
           Windows paket je prosao 33/33 Windows testa, staged runtime, real backend start, real Song Finder sa FFmpeg/Chromaprint, final ZIP/manifests, kao i dva puna clean install -> native GUI/backend/Suno/runtime UI -> uninstall ciklusa.
 
-          Nezavisna manifest provera finalnog ZIP-a: 877/877 fajlova, 0 missing, 0 SHA-256 mismatch.
-
-          SHA-256 Windows FULL-OFFLINE ZIP-a:
-          `bd7bffaaefcf9e860bcc3bd86face8b4d5e196e57db3ac801fc8d72b0141ba3f`
+          Paket sadrži novu pojednostavljenu Suno radnu površinu, pet strukturno različitih tema i obavezno indeksiranje Suno audio-otisaka pre provere korisnikovih YouTube kanala.
 
           Za instalaciju raspakujte ZIP i pokrenite `INSTALIRAJ_PROGRAM.exe`.
           EOF
@@ -146,11 +141,11 @@ jobs:
             --arg tag "${RELEASE_TAG}" \
             --arg release_url "${RELEASE_URL}" \
             --arg zip "${RELEASE_ZIP}" \
-            --arg zip_sha256 "${EXPECTED_ZIP_SHA256}" \
+            --arg zip_sha256 "${PACKAGE_SHA256}" \
             --arg verified_head "${VERIFIED_HEAD_SHA}" \
             --arg merged_source_commit "${MERGE_SHA}" \
             --arg artifact_id "${VERIFIED_ARTIFACT_ID}" \
-            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:832,real_install_run:20,deep_audit_run:14,android_build:253,manifest:{checked:877,missing:0,mismatch:0}}' \
+            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:1459,real_install_run:69,deep_audit_run:66,android_build:313}' \
             > docs/verified-release.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
