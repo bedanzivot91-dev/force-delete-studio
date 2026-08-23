@@ -65,7 +65,7 @@ from audio_match import (
     AudioMatchCancelled, AudioMatchError, ALGORITHM_VERSION as AUDIO_MATCH_VERSION,
     analyze_audio_pair, closest_duration_candidates, compare_signatures, cleanup_youtube_audio_cache,
     download_youtube_audio, ensure_ytdlp, ensure_deno, search_youtube_with_ytdlp, extract_signature, inspect_youtube_video, pack_signature,
-    SHORT_CLIP_MIN_MATCH_SECONDS, source_identity, unpack_signature, ytdlp_status, ytdlp_path,
+    SHORT_CLIP_MIN_MATCH_SECONDS, PHASE_SEARCH_BELOW_SECONDS, source_identity, unpack_signature, ytdlp_status, ytdlp_path,
     extract_query_signatures, required_match_seconds,
 )
 from advanced_features import (
@@ -1417,6 +1417,18 @@ def _analyse_video_against_songs(
         youtube_audio = download_youtube_audio(video_url, dl_progress, lambda: task.cancel_event.is_set(), reuse_cache=reuse_cache, cookie_browser=youtube_cookie_browser())
         DB.update_youtube_video_audio_cache(video_id, str(youtube_audio), _sha256(youtube_audio))
     video_signature = _signature_for_source("youtube", video_id, youtube_audio, task, str(video.get("title") or video_id), force=force)
+    video_signatures = [video_signature]
+    # The local one-file finder already searches several Chromaprint grid
+    # phases because an arbitrary Shorts cut can lower the same song from a
+    # strong match to a false miss. Owned-channel scanning used to skip that
+    # recovery entirely. Apply the same proven phase search to short videos;
+    # long videos keep the cached single signature for performance.
+    video_duration = float(video_signature.get("duration") or video.get("duration") or 0)
+    if 0 < video_duration < PHASE_SEARCH_BELOW_SECONDS:
+        try:
+            video_signatures = extract_query_signatures(youtube_audio)
+        except AudioMatchError:
+            video_signatures = [video_signature]
 
     # A Shorts title often has no relation to the song title.  The previous
     # implementation selected only title/duration candidates and therefore
@@ -1448,7 +1460,15 @@ def _analyse_video_against_songs(
             continue
         try:
             signature = _signature_for_source("suno", str(song.get("id") or ""), source, task, str(song.get("title") or song.get("id")), force=force)
-            analysis = compare_signatures(signature, video_signature)
+            analyses = [compare_signatures(signature, variant) for variant in video_signatures]
+            analysis = max(
+                analyses,
+                key=lambda item: (
+                    float(item.get("audio_score") or 0),
+                    float(item.get("matched_seconds") or 0),
+                    float(item.get("coverage_percent") or 0),
+                ),
+            )
         except Exception as exc:
             skipped += 1
             task.log(f"Nije analiziran Suno kandidat „{song.get('title')}“: {exc}", "warning")
@@ -1458,6 +1478,39 @@ def _analyse_video_against_songs(
     if not analysed:
         task.log(f"„{video.get('title')}“: nije pronađen Suno original; preskočeno kandidata bez audio izvora: {skipped}.", "warning")
         return None
+
+    # On a weak/missed Shorts result, repeat the query at the same compensating
+    # speeds used by Pronalazač mojih pesama. This handles ordinary social-video
+    # edits that speed up or slow down the soundtrack by a few percent. It is
+    # deliberately a rescue pass, so normal strong matches pay no extra cost.
+    best_before_tempo = max(float(item["analysis"].get("audio_score") or 0) for item in analysed)
+    if 0 < video_duration <= 70 and best_before_tempo < 72:
+        tempo_variants: list[dict[str, Any]] = []
+        for tempo in SONG_FINDER_TEMPO_VARIANTS:
+            try:
+                tempo_variants.extend(extract_query_signatures(youtube_audio, tempo=tempo))
+            except AudioMatchError:
+                continue
+        if tempo_variants:
+            for item in analysed:
+                song = item["song"]
+                source = _song_audio_source_for_match(song)
+                if source is None:
+                    continue
+                try:
+                    signature = _signature_for_source(
+                        "suno", str(song.get("id") or ""), source, task,
+                        str(song.get("title") or song.get("id")), force=False,
+                    )
+                    rescue = max(
+                        (compare_signatures(signature, variant) for variant in tempo_variants),
+                        key=lambda result: (float(result.get("audio_score") or 0), float(result.get("matched_seconds") or 0)),
+                    )
+                except Exception:
+                    continue
+                if float(rescue.get("audio_score") or 0) > float(item["analysis"].get("audio_score") or 0):
+                    item["analysis"] = rescue
+                    item["combined"] = float(rescue.get("audio_score") or 0) * 0.86 + float(item["metadata"].get("score") or 0) * 0.14
 
     analysed.sort(key=lambda c: (float(c["combined"]), float(c["analysis"].get("coverage_percent") or 0), float(c["analysis"].get("matched_seconds") or 0)), reverse=True)
     primary = analysed[0]
