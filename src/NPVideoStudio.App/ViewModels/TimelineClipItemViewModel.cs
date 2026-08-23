@@ -135,6 +135,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public bool IsAudioClip { get; }
     /// <summary>True for both standalone audio and video media that actually contains an audio stream.</summary>
     public bool HasAudioStream { get; }
+    public bool ShowWaveform => HasAudioStream && WaveformPeaks.Count > 0;
+    private IReadOnlyList<double> _waveformPeaks = Array.Empty<double>();
+    public IReadOnlyList<double> WaveformPeaks
+    {
+        get => _waveformPeaks;
+        private set { _waveformPeaks = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowWaveform)); }
+    }
     public bool CanUseAudioEnhancement => HasAudioStream && !Clip.IsFreezeFrame;
     public bool SupportsKeyframes => IsPictureClip || IsTextClip || HasAudioStream;
 
@@ -1021,6 +1028,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         TrackMotionCommand = new RelayCommand(() => _onMotionTrackingRequested?.Invoke(Clip.Id, CurrentTrackingRegion()));
         PickLutCommand = new AsyncRelayCommand(() => _onPickLutRequested?.Invoke(Clip.Id) ?? Task.CompletedTask);
         ClearLutCommand = new RelayCommand(() => _onClearLutRequested?.Invoke(Clip.Id));
+    }
+
+    public async Task LoadWaveformAsync(IAudioWaveformService service, string sourceFilePath, CancellationToken cancellationToken = default)
+    {
+        if (!HasAudioStream) return;
+        WaveformPeaks = await service.ExtractPeaksAsync(sourceFilePath, Clip.SourceTrimInSeconds,
+            Math.Max(0, Clip.SourceTrimOutSeconds - Clip.SourceTrimInSeconds), cancellationToken: cancellationToken);
     }
 
     private static string FormatTime(double seconds)
