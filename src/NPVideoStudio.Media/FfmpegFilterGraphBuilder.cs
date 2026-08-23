@@ -625,6 +625,7 @@ public static class FfmpegFilterGraphBuilder
         HighlightRed = clip.HighlightRed,
         HighlightGreen = clip.HighlightGreen,
         HighlightBlue = clip.HighlightBlue,
+        LutFilePath = clip.LutFilePath,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
@@ -1337,6 +1338,19 @@ public static class FfmpegFilterGraphBuilder
         {
             parts.Add(FormattableString.Invariant(
                 $"colorbalance=rs={wheelValues[0]}:gs={wheelValues[1]}:bs={wheelValues[2]}:rm={wheelValues[3]}:gm={wheelValues[4]}:bm={wheelValues[5]}:rh={wheelValues[6]}:gh={wheelValues[7]}:bh={wheelValues[8]}:pl=1"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(clip.LutFilePath))
+        {
+            if (!File.Exists(clip.LutFilePath))
+            {
+                throw new FileNotFoundException("Izabrani LUT fajl više ne postoji.", clip.LutFilePath);
+            }
+            if (!string.Equals(Path.GetExtension(clip.LutFilePath), ".cube", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("LUT mora biti standardni .cube fajl.");
+            }
+            parts.Add($"lut3d=file='{EscapeFilterPath(clip.LutFilePath)}'");
         }
 
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
