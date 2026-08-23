@@ -8,6 +8,8 @@ setup_all = '\n'.join(
     p.read_text(encoding='utf-8')
     for p in sorted(SETUP_DIR.glob('*.go'))
 )
+ci_install = (SETUP_DIR / 'ci_install.go').read_text(encoding='utf-8')
+ci_remove = (ROOT / 'windows_build/uninstaller/ci_remove.go').read_text(encoding='utf-8')
 progress = (ROOT / 'windows_build/progress/main.go').read_text(encoding='utf-8')
 workflow = (ROOT / '.github/workflows/windows-build.yml').read_text(encoding='utf-8')
 checks = []
@@ -20,7 +22,7 @@ def ok(name, cond):
 
 # Core installer transaction/safety behavior remains in setup/main.go.
 ok('temporary stage before download', 'os.TempDir(), "SunoPesmeStudio-stage-"' in setup_main)
-ok('version stage created only after components', setup_main.index('prepareComponents(stage') < setup_main.index('versionStage := filepath.Join(versionsRoot'))
+ok('version stage created only after components', setup_main.index('prepareComponents(stage') < setup_main.index('versionStage := filepath.Join(versionsRoot')))
 ok('cross-volume handled by copy', 'copyTree(stage, versionStage)' in setup_main)
 ok('final self-test on selected disk', 'finalTest := exec.Command(filepath.Join(versionStage' in setup_main)
 ok('python actually executed', '{filepath.Join(pythonDir, "python.exe"), []string{"--version"}}' in setup_main)
@@ -49,8 +51,13 @@ ok('Deno downloaded ZIP is SHA-256 verified', 'verifyFileSHA(zipPath, expected)'
 ok('Chromaprint-capable BtbN full FFmpeg is staged', 'ffmpeg-master-latest-win64-gpl.zip' in setup_all)
 ok('FFmpeg is rejected when Chromaprint is absent', 'ffmpegHasChromaprintBinary' in setup_all and 'nema Chromaprint muxer' in setup_all)
 ok('yt-dlp current pinned release remains available', 'releases/download/2026.07.04/yt-dlp.exe' in setup_main)
-ok('yt-dlp latest fallback remains available', 'releases/latest/download/yt-dlp.exe' in setup_main)
+ok('legacy yt-dlp latest URL cannot execute without verification', 'unverified yt-dlp latest fallback is blocked' in setup_all and '/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' in setup_all)
 ok('WebView2 Evergreen Standalone is bundled for offline install', 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe' in setup_all)
+
+# The shipped EXEs contain headless regression entry points, but those switches
+# are destructive and must be usable only by the GitHub Actions environment.
+ok('ci installer destructive switch is GitHub-Actions-only', 'GITHUB_ACTIONS' in ci_install and '--ci-install is available only inside GitHub Actions' in ci_install)
+ok('ci uninstaller destructive switch is GitHub-Actions-only', 'GITHUB_ACTIONS' in ci_remove and '--ci-remove is available only inside GitHub Actions' in ci_remove)
 
 # Obsolete component references must not survive the pre-build normalizer.
 for obsolete in (
