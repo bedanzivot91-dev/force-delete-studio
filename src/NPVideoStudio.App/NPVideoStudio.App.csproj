@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyName>NPVideoStudio</AssemblyName>
+    <RootNamespace>NPVideoStudio.App</RootNamespace>
+    <!-- Only win-x64 is ever built/shipped (see build-release.ps1) - without this, VideoLAN.LibVLC.Windows
+         defaults to bundling BOTH win-x64 and win-x86 native libvlc trees (~100MB each, ~200MB total)
+         since this project's Platform is AnyCPU rather than an explicit x64. -->
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+    <!-- Needed only by VlcVideoFrameBuffer's per-row frame copy: libvlc hands over raw pointers, and a
+         pointer memcpy is what keeps a full-frame copy off the managed heap and out of the GC's way. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.1.3" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <!-- 3.10.1, not 3.9.1: 3.9.3 fixed "dispose native mediaplayer instance before freeing gcHandle",
+         which is a use-after-free during teardown - exactly the shape of an unexplained process death
+         with no managed exception and nothing in the log. LibVLCSharp.Avalonia is deliberately NOT
+         referenced any more: its VideoView is the detached native window this app replaced with
+         VideoSurface, and dropping the package removes that NativeControlHost code path from the build
+         entirely rather than leaving it available to be used again by accident. -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Serilog" Version="4.0.1" />
+    <!-- 3.0.23.1 contains two years of native VLC fixes beyond the old 3.0.21 payload. Native access
+         violations cannot be caught by C# and appear to the user as the whole program simply vanishing,
+         so the current Windows runtime is part of the crash fix, not a cosmetic package update. -->
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Real, committed AI worker script (Phase 5) - copied next to the exe so AiWorkerClient's
+         default "Tools/ai-worker/ai_worker.py" resolution finds it. Requires a user-installed Python
+         (and, for Balanced/MostAccurate, `pip install -r ai-worker/requirements.txt`) - see that file. -->
+    <None Include="..\..\ai-worker\ai_worker.py" Link="Tools\ai-worker\ai_worker.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ai-worker\requirements.txt" Link="Tools\ai-worker\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ai-worker\install-song-ai.ps1" Link="Tools\ai-worker\install-song-ai.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <!-- EasyOcrVideoLayoutAnalysisService's helper script - copied next to the exe so its default
+         "Tools/easyocr-helper/ocr_frame.py" resolution finds it. Optional: requires a user-installed
+         Python and `pip install -r easyocr-helper/requirements.txt`; CompositeVideoLayoutAnalysisService
+         falls back to the always-available Tesseract path when it's not installed. -->
+    <None Include="..\..\easyocr-helper\ocr_frame.py" Link="Tools\easyocr-helper\ocr_frame.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\easyocr-helper\requirements.txt" Link="Tools\easyocr-helper\requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NPVideoStudio.Core\NPVideoStudio.Core.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Domain\NPVideoStudio.Domain.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Infrastructure\NPVideoStudio.Infrastructure.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Media\NPVideoStudio.Media.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.AI\NPVideoStudio.AI.csproj" />
+    <ProjectReference Include="..\NPVideoStudio.Diagnostics\NPVideoStudio.Diagnostics.csproj" />
+  </ItemGroup>
+
+</Project>

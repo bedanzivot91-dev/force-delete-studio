@@ -1,0 +1,20 @@
+SQLite (native database engine bundled transitively by Microsoft.Data.Sqlite)
+Canonical source: https://www.sqlite.org/
+Canonical statement: https://www.sqlite.org/copyright.html
+
+SQLite is in the Public Domain. The SQLite project's official statement (see the canonical URL above)
+reads:
+
+    "The person or persons who have associated work with this document (the 'Dedicator' or 'Certifier')
+    hereby either (a) certifies that, to the best of his knowledge, the work of authorship identified is
+    in the public domain of the country from which the work is published, or (b) hereby dedicates
+    whatever copyright the dedicators holds in the work of authorship identified below (the 'Work') to
+    the public domain. [...] In no way are the patent or trademark rights of any person affected by CC0,
+    nor are the rights that other persons may have in the work or in how the work is used, such as
+    publicity or privacy rights. [...] The Dedicator makes this dedication for the benefit of the public
+    at large and to the detriment of the Dedicator's heirs and successors. The Dedicator intends this
+    dedication to be an overt act of relinquishment in perpetuity of all present and future rights under
+    copyright law, whether vested or contingent, in the Work."
+
+No license text/attribution requirement applies - included here purely for transparency about every
+component this application bundles.

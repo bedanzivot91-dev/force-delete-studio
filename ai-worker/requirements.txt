@@ -1,0 +1,10 @@
+# Optional local AI worker dependencies (Phase 5 - Balanced/MostAccurate profiles only).
+# The "Fast" profile and everything else in NP Video Studio works without any of these installed;
+# ai_worker.py's CapabilityCheck job honestly reports which of these are missing.
+#
+# Keep this list equal to install-song-ai.ps1. WhisperX remains optional because the current lyrics
+# pipeline does not call it; installing a large unused package would waste disk space and create a false
+# green status. The two packages below are both required and diagnostics verifies both imports.
+faster-whisper
+demucs
+lyric-align

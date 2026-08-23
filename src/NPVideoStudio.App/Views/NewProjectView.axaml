@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="using:NPVideoStudio.App.Converters"
+             xmlns:objConv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.NewProjectView"
+             x:DataType="vm:NewProjectViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="620" HorizontalAlignment="Left">
+      <StackPanel Spacing="2">
+        <TextBlock Text="NOVI PROJEKAT" Classes="eyebrow" />
+        <TextBlock Text="Podesi format projekta" Classes="heading" />
+      </StackPanel>
+
+      <Border CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="16,14" Background="{DynamicResource ThemeAccentSubtleBrush}"
+              IsVisible="{Binding TemplateInfoLabel, Converter={x:Static objConv:ObjectConverters.IsNotNull}}">
+        <TextBlock Text="{Binding TemplateInfoLabel}" TextWrapping="Wrap" />
+      </Border>
+
+      <Border Classes="panel" Padding="24">
+        <StackPanel Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Naziv projekta" Classes="subtle" />
+            <TextBox Text="{Binding ProjectName}" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Format (odnos stranica)" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Rezolucija" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding ResolutionOptions}" SelectedItem="{Binding SelectedResolution}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Spacing="6" IsVisible="{Binding IsCustomResolution}">
+            <TextBlock Text="Ručna rezolucija (širina x visina)" Classes="subtle" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <NumericUpDown Value="{Binding CustomWidth}" Minimum="16" Maximum="7680" Width="150" />
+              <TextBlock Text="×" VerticalAlignment="Center" Classes="subtle" />
+              <NumericUpDown Value="{Binding CustomHeight}" Minimum="16" Maximum="7680" Width="150" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Frame rate" Classes="subtle" />
+            <ComboBox ItemsSource="{Binding FrameRateOptions}" SelectedItem="{Binding SelectedFrameRate}" HorizontalAlignment="Stretch">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="x:Object">
+                  <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <StackPanel Spacing="6" IsVisible="{Binding IsCustomFrameRate}">
+            <TextBlock Text="Ručni FPS" Classes="subtle" />
+            <NumericUpDown Value="{Binding CustomFps}" Minimum="1" Maximum="240" Width="150" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Deliberately NOT accent-colored. This is a neutral summary of what you just picked, but the
+           app's accent is red, so on the accent-subtle background it read as an error banner - a real
+           user reported it as "ovo crveno" and asked what was wrong. Plain surface styling, same as any
+           other informational row. -->
+      <Border CornerRadius="{DynamicResource ThemeCornerRadius}" Padding="16,14" Classes="surface">
+        <TextBlock Text="{Binding PreviewLabel}" Classes="subtle" />
+      </Border>
+
+      <TextBlock Text="{Binding ErrorMessage}" Foreground="#E06060" IsVisible="{Binding HasErrorMessage}" TextWrapping="Wrap" />
+
+      <Button Classes="cta" Content="Napravi projekat" Command="{Binding CreateCommand}" HorizontalAlignment="Left" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
