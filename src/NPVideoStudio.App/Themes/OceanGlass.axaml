@@ -28,5 +28,8 @@
 
   <CornerRadius x:Key="ThemeCornerRadius">14</CornerRadius>
   <CornerRadius x:Key="ThemeCardCornerRadius">20</CornerRadius>
+  <GridLength x:Key="ThemeSidebarWidth">240</GridLength>
+  <GridLength x:Key="ThemeCommandbarHeight">76</GridLength>
+  <Thickness x:Key="ThemeWorkspaceGutter">32,12,32,22</Thickness>
   <Thickness x:Key="ThemeBorderThickness">1</Thickness>
 </ResourceDictionary>
