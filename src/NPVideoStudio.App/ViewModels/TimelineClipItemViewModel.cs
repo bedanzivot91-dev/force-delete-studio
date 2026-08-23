@@ -581,6 +581,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
             OnPropertyChanged(nameof(KeyframeValueMinimum));
             OnPropertyChanged(nameof(KeyframeValueMaximum));
             OnPropertyChanged(nameof(KeyframeValueIncrement));
+            OnPropertyChanged(nameof(SelectedPropertyKeyframes));
         }
     }
 
@@ -636,6 +637,17 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     public string KeyframeSummary => Clip.Keyframes.Count == 0
         ? "Nema keyframe-ova"
         : $"{Clip.Keyframes.Count} keyframe tačaka";
+    public IReadOnlyList<ClipKeyframe> SelectedPropertyKeyframes => Clip.Keyframes.Where(k => k.Property == SelectedKeyframeProperty).OrderBy(k => k.TimeSeconds).ToArray();
+    public double KeyframeGraphDuration => Math.Max(0.001, Clip.TimelineDurationSeconds);
+
+    public void AddKeyframeFromGraph(double normalizedX, double normalizedY)
+    {
+        if (_onKeyframeUpsert is null) return;
+        var time = Math.Clamp(normalizedX, 0, 1) * KeyframeGraphDuration;
+        var value = KeyframeValueMaximum - Math.Clamp(normalizedY, 0, 1) * (KeyframeValueMaximum - KeyframeValueMinimum);
+        _onKeyframeUpsert(Clip.Id, SelectedKeyframeProperty, time, value, SelectedKeyframeEasing);
+        OnPropertyChanged(nameof(SelectedPropertyKeyframes)); OnPropertyChanged(nameof(KeyframeSummary));
+    }
 
     public ICommand AddKeyframeAtPlayheadCommand { get; }
     public ICommand RemoveKeyframeAtPlayheadCommand { get; }
@@ -677,6 +689,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         var local = Math.Clamp(_getPlayheadSeconds() - Clip.TimelineStartSeconds, 0, Clip.TimelineDurationSeconds);
         _onKeyframeUpsert(Clip.Id, SelectedKeyframeProperty, local, KeyframeValue, SelectedKeyframeEasing);
         OnPropertyChanged(nameof(KeyframeSummary));
+        OnPropertyChanged(nameof(SelectedPropertyKeyframes));
     }
 
     private void RemoveKeyframeAtPlayhead()
@@ -689,6 +702,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         var local = Math.Clamp(_getPlayheadSeconds() - Clip.TimelineStartSeconds, 0, Clip.TimelineDurationSeconds);
         _onKeyframeRemove(Clip.Id, SelectedKeyframeProperty, local);
         OnPropertyChanged(nameof(KeyframeSummary));
+        OnPropertyChanged(nameof(SelectedPropertyKeyframes));
     }
 
     /// <summary>The clip's own words, editable - real fix for "how do I check/correct what Whisper
