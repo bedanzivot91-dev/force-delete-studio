@@ -88,6 +88,8 @@ def main() -> int:
                             assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
                         assert page.locator('[data-view="production"]').count() == 0
                         assert page.locator('#view-production').count() == 0
+                        page.locator('.sidebar nav > [data-view="home"]').click(); page.wait_for_timeout(150)
+                        assert 'active' in (page.locator('#view-home').get_attribute('class') or '')
                         themes=('aurora-flow','graphite-console','vinyl-loft','signal-grid','paper-studio','neon-stage','album-wall','mixer-desk')
                         SCREENSHOT_DIR.mkdir(parents=True,exist_ok=True)
                         signatures={}
