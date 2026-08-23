@@ -205,6 +205,29 @@
                 <TextBlock Text="Kontrole se čuvaju po klipu i primenjuju u stvarnom preview-u i finalnom exportu." Classes="subtle" TextWrapping="Wrap"/>
               </StackPanel>
             </Border>
+            <Border Name="ThreeWayColorWheelsPanel" Classes="inspectorSection">
+              <StackPanel Spacing="10">
+                <TextBlock Text="Color Wheels" Classes="section" />
+                <TextBlock Text="Senke" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowBlue}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Srednji tonovi" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneBlue}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Svetli delovi" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightBlue}"/></StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
