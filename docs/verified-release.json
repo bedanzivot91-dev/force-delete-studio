@@ -1,14 +1,14 @@
 {
   "status": "verified",
-  "tag": "v3.3.2-suno-accuracy-final",
-  "release_url": "https://github.com/bedanzivot91-dev/force-delete-studio/releases/tag/v3.3.2-suno-accuracy-final",
+  "tag": "v3.3.2-suno-workspace-ui-final",
+  "release_url": "https://github.com/bedanzivot91-dev/force-delete-studio/releases/tag/v3.3.2-suno-workspace-ui-final",
   "windows_zip": "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip",
-  "windows_zip_sha256": "d1de6afece8aa7b285ce5710f2d60d5e04b2c486e435bbacea4098a2f2e578e4",
-  "verified_head": "780c3c1961013a7e3b73dd09b3306230659cbdc1",
-  "merged_source_commit": "1734306ec3ba7e21ce623561fccadc1bbfcaefe0",
-  "verified_artifact_id": "9488821174",
-  "windows_build": 1478,
-  "real_install_run": 75,
-  "deep_audit_run": 73,
-  "android_build": 322
+  "windows_zip_sha256": "736ef3939687c79526983b42aa7867f3832ba6c1984e9f925fd66b2b3ca90e67",
+  "verified_head": "1477f2163117aca49039eb2d355e07159e17fb1b",
+  "merged_source_commit": "e9398526283cc3b6c196075bfa680482355ebc52",
+  "verified_artifact_id": "9489804845",
+  "windows_build": 1521,
+  "real_install_run": 82,
+  "deep_audit_run": 81,
+  "android_build": 332
 }
