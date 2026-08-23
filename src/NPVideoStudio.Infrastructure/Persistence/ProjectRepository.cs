@@ -4,7 +4,7 @@ using NPVideoStudio.Domain;
 
 namespace NPVideoStudio.Infrastructure.Persistence;
 
-public sealed class ProjectRepository : IProjectRepository
+public sealed class ProjectRepository : IProjectRepository, IProjectSnapshotRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -29,30 +29,70 @@ public sealed class ProjectRepository : IProjectRepository
 
     public async Task SaveAsync(Project project, string projectFilePath, CancellationToken cancellationToken = default)
     {
+        project.LastModifiedAt = DateTimeOffset.Now;
+        await WriteProjectFileAsync(project, projectFilePath, cancellationToken).ConfigureAwait(false);
+        project.ProjectFilePath = projectFilePath;
+    }
+
+    public Task SaveSnapshotAsync(Project project, string snapshotFilePath, CancellationToken cancellationToken = default) =>
+        WriteProjectFileAsync(project, snapshotFilePath, cancellationToken);
+
+    private static async Task WriteProjectFileAsync(
+        Project project,
+        string projectFilePath,
+        CancellationToken cancellationToken)
+    {
         var directory = Path.GetDirectoryName(projectFilePath)
             ?? throw new ArgumentException("Neispravna putanja projekta.", nameof(projectFilePath));
         Directory.CreateDirectory(directory);
 
-        project.LastModifiedAt = DateTimeOffset.Now;
+        // Use a unique sibling temp file. A fixed "path.tmp" lets two legitimate concurrent saves race
+        // on the same temp path and can corrupt/fail both operations before the atomic replace is reached.
+        var tempFilePath = Path.Combine(
+            directory,
+            $".{Path.GetFileName(projectFilePath)}.{Guid.NewGuid():N}.tmp");
 
-        // Atomic save: write to a temp file first, then replace the target, so a crash mid-write
-        // never leaves a truncated/corrupt .npvsproject file on disk.
-        var tempFilePath = projectFilePath + ".tmp";
-        await using (var stream = File.Create(tempFilePath))
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, project, JsonOptions, cancellationToken).ConfigureAwait(false);
-        }
+            await using (var stream = new FileStream(
+                             tempFilePath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             64 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, project, JsonOptions, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-        if (File.Exists(projectFilePath))
-        {
-            File.Replace(tempFilePath, projectFilePath, destinationBackupFileName: null);
-        }
-        else
-        {
-            File.Move(tempFilePath, projectFilePath);
-        }
+            cancellationToken.ThrowIfCancellationRequested();
 
-        project.ProjectFilePath = projectFilePath;
+            if (File.Exists(projectFilePath))
+            {
+                File.Replace(tempFilePath, projectFilePath, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(tempFilePath, projectFilePath);
+            }
+        }
+        finally
+        {
+            // Cancellation/serialization/I/O failure must not leave stale temp files in the project or
+            // autosave folder. If the move/replace succeeded this path no longer exists, so this is cheap.
+            try
+            {
+                if (File.Exists(tempFilePath))
+                {
+                    File.Delete(tempFilePath);
+                }
+            }
+            catch
+            {
+                // Cleanup failure must not hide the original save exception.
+            }
+        }
     }
 
     public Task BackupAsync(string projectFilePath, int maxBackups = 10, CancellationToken cancellationToken = default)
