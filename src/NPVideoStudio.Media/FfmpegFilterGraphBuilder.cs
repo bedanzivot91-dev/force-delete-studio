@@ -616,6 +616,15 @@ public static class FfmpegFilterGraphBuilder
         Tint = clip.Tint,
         HueDegrees = clip.HueDegrees,
         Vibrance = clip.Vibrance,
+        ShadowRed = clip.ShadowRed,
+        ShadowGreen = clip.ShadowGreen,
+        ShadowBlue = clip.ShadowBlue,
+        MidtoneRed = clip.MidtoneRed,
+        MidtoneGreen = clip.MidtoneGreen,
+        MidtoneBlue = clip.MidtoneBlue,
+        HighlightRed = clip.HighlightRed,
+        HighlightGreen = clip.HighlightGreen,
+        HighlightBlue = clip.HighlightBlue,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
@@ -1316,6 +1325,20 @@ public static class FfmpegFilterGraphBuilder
         if (Math.Abs(vibrance) > 1e-6)
         {
             parts.Add(FormattableString.Invariant($"vibrance=intensity={vibrance}"));
+        }
+
+        var wheelValues = new[]
+        {
+            Math.Clamp(clip.ShadowRed, -1, 1), Math.Clamp(clip.ShadowGreen, -1, 1), Math.Clamp(clip.ShadowBlue, -1, 1),
+            Math.Clamp(clip.MidtoneRed, -1, 1), Math.Clamp(clip.MidtoneGreen, -1, 1), Math.Clamp(clip.MidtoneBlue, -1, 1),
+            Math.Clamp(clip.HighlightRed, -1, 1), Math.Clamp(clip.HighlightGreen, -1, 1), Math.Clamp(clip.HighlightBlue, -1, 1)
+        };
+        if (wheelValues.Any(value => Math.Abs(value) > 1e-6))
+        {
+            parts.Add(FormattableString.Invariant(
+                $"colorbalance=rs={wheelValues[0]}:gs={wheelValues[1]}:bs={wheelValues[2]}:" +
+                $"rm={wheelValues[3]}:gm={wheelValues[4]}:bm={wheelValues[5]}:" +
+                $"rh={wheelValues[6]}:gh={wheelValues[7]}:bh={wheelValues[8]}:pl=1"));
         }
 
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
