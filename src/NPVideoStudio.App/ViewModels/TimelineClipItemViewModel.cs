@@ -219,7 +219,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     private void PushColorGrading(Func<ClipColorGradingSettings, ClipColorGradingSettings> mutate)
     {
-        var current = new ClipColorGradingSettings(ExposureStops, Highlights, Shadows, Temperature, Tint);
+        var current = new ClipColorGradingSettings(ExposureStops, Highlights, Shadows, Temperature, Tint, HueDegrees, Vibrance);
         _onColorGradingChanged?.Invoke(Clip.Id, mutate(current));
     }
 
@@ -247,6 +247,16 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     {
         get => Clip.Tint;
         set { if (Math.Abs(Clip.Tint - value) < 1e-6) return; PushColorGrading(s => s with { Tint = value }); }
+    }
+    public double HueDegrees
+    {
+        get => Clip.HueDegrees;
+        set { if (Math.Abs(Clip.HueDegrees - value) < 1e-6) return; PushColorGrading(s => s with { HueDegrees = value }); }
+    }
+    public double Vibrance
+    {
+        get => Clip.Vibrance;
+        set { if (Math.Abs(Clip.Vibrance - value) < 1e-6) return; PushColorGrading(s => s with { Vibrance = value }); }
     }
 
     private void PushAudioEnhancement(Func<ClipAudioEnhancementSettings, ClipAudioEnhancementSettings> mutate)
