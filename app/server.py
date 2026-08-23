@@ -213,6 +213,7 @@ globals()["_build_per_song_download_options"] = _build_per_song_download_options
 
 _ORIGINAL_SEND_FILE = _core.Handler._send_file
 _SCRIPT_EXTENSIONS = (
+    ("GridStack 13.2.0 MIT workspace engine", _core.WEB_DIR / "vendor" / "gridstack" / "gridstack-all.js"),
     ("whole-library download extension", _core.WEB_DIR / "bulk_download_extension.js"),
 )
 
