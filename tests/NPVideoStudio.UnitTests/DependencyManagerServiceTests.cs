@@ -130,7 +130,8 @@ public class DependencyManagerServiceTests : IDisposable
             LyricAlignAvailable = true,
             OpenCvAvailable = true,
             BackgroundRemovalAvailable = true,
-            TranslationAvailable = true
+            TranslationAvailable = true,
+            TextToSpeechAvailable = true
         };
 
         var results = await _service.GetDependenciesAsync();
@@ -153,7 +154,8 @@ public class DependencyManagerServiceTests : IDisposable
             LyricAlignAvailable = true,
             OpenCvAvailable = true,
             BackgroundRemovalAvailable = true,
-            TranslationAvailable = true
+            TranslationAvailable = true,
+            TextToSpeechAvailable = true
         };
 
         var results = await _service.GetDependenciesAsync();
