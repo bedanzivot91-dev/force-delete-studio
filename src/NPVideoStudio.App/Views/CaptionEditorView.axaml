@@ -58,6 +58,18 @@
             <TextBox Watermark="Zameni sa..." Text="{Binding ReplaceText}" Width="200" />
             <Button Classes="ghost" Content="Zameni sve" Command="{Binding FindReplaceCommand}" />
           </StackPanel>
+
+          <WrapPanel>
+            <TextBlock Text="Lokalni prevod:" VerticalAlignment="Center" Margin="0,0,8,8" />
+            <ComboBox ItemsSource="{Binding AvailableLanguages}" SelectedItem="{Binding SelectedSourceLanguage}"
+                      DisplayMemberBinding="{Binding Name}" MinWidth="135" Margin="0,0,8,8" />
+            <TextBlock Text="→" VerticalAlignment="Center" Margin="0,0,8,8" />
+            <ComboBox ItemsSource="{Binding AvailableLanguages}" SelectedItem="{Binding SelectedTargetLanguage}"
+                      DisplayMemberBinding="{Binding Name}" MinWidth="135" Margin="0,0,8,8" />
+            <Button Classes="cta" Content="Prevedi sve titlove" Command="{Binding TranslateDocumentCommand}" Margin="0,0,8,8"
+                    ToolTip.Tip="Prevodi lokalno. Vremena i prelomi ostaju isti, a Undo vraća original." />
+            <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsTranslating}" Margin="0,0,8,8" />
+          </WrapPanel>
         </StackPanel>
       </Border>
 
