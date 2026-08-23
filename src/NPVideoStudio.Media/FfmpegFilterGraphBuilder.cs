@@ -1336,9 +1336,7 @@ public static class FfmpegFilterGraphBuilder
         if (wheelValues.Any(value => Math.Abs(value) > 1e-6))
         {
             parts.Add(FormattableString.Invariant(
-                $"colorbalance=rs={wheelValues[0]}:gs={wheelValues[1]}:bs={wheelValues[2]}:" +
-                $"rm={wheelValues[3]}:gm={wheelValues[4]}:bm={wheelValues[5]}:" +
-                $"rh={wheelValues[6]}:gh={wheelValues[7]}:bh={wheelValues[8]}:pl=1"));
+                $"colorbalance=rs={wheelValues[0]}:gs={wheelValues[1]}:bs={wheelValues[2]}:rm={wheelValues[3]}:gm={wheelValues[4]}:bm={wheelValues[5]}:rh={wheelValues[6]}:gh={wheelValues[7]}:bh={wheelValues[8]}:pl=1"));
         }
 
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
