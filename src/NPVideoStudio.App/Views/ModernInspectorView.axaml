@@ -1,0 +1,372 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:views="using:NPVideoStudio.App.Views"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.ModernInspectorView"
+             x:DataType="vm:TimelineClipItemViewModel">
+  <Grid RowDefinitions="Auto,*">
+    <Border Classes="inspectorSection" Margin="0,0,0,10" Padding="12">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Inspektor" Classes="eyebrow" />
+          <TextBlock Text="{Binding Label}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding TimingLabel}" Classes="subtle" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
+          <Button Classes="ghost" Content="◀" Command="{Binding NudgeEarlierCommand}" ToolTip.Tip="Pomeri ranije" />
+          <Button Classes="ghost" Content="▶" Command="{Binding NudgeLaterCommand}" ToolTip.Tip="Pomeri kasnije" />
+          <Button Classes="ghost" Content="Podeli" Command="{Binding SplitAtPlayheadCommand}" />
+          <Button Classes="ghost" Content="Dupliraj" Command="{Binding DuplicateCommand}" />
+          <Button Classes="ghost" Content="Obriši" Command="{Binding DeleteCommand}" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" Margin="0,10,0,0">
+          <ToggleButton Content="Utišaj" IsChecked="{Binding IsMuted, Mode=OneWay}" Command="{Binding ToggleMuteCommand}" />
+          <ToggleButton Content="Fade in" IsChecked="{Binding HasFadeIn, Mode=OneWay}" Command="{Binding ToggleFadeInCommand}" />
+          <ToggleButton Content="Fade out" IsChecked="{Binding HasFadeOut, Mode=OneWay}" Command="{Binding ToggleFadeOutCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TabControl Grid.Row="1">
+      <TabItem Header="Osnovno">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection" IsVisible="{Binding HasSourceMedia}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Trim izvora" Classes="section" />
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Početak (s)" Classes="subtle" />
+                    <NumericUpDown Value="{Binding TrimInSeconds}" Minimum="0" Maximum="{Binding MaxTrimInSeconds}" Increment="0.1" FormatString="0.00" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0">
+                    <TextBlock Text="Kraj (s)" Classes="subtle" />
+                    <NumericUpDown Value="{Binding TrimOutSeconds}" Minimum="{Binding MinTrimOutSeconds}" Maximum="{Binding SourceDurationSeconds}" Increment="0.1" FormatString="0.00" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Tekst" IsVisible="{Binding IsTextClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Sadržaj" Classes="section" />
+                <TextBox Text="{Binding TextContent}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" />
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Tipografija" Classes="section" />
+                <TextBlock Text="Font" Classes="subtle" />
+                <ComboBox ItemsSource="{Binding AvailableFontChoices}" SelectedItem="{Binding FontChoice}" />
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Veličina" Classes="subtle"/><NumericUpDown Value="{Binding FontSizePx}" Minimum="8" Maximum="300"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Boja" Classes="subtle"/><TextBox Text="{Binding TextColor}"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Položaj" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailablePositions}" SelectedItem="{Binding TextPosition}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Poravnanje" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableHorizontalAligns}" SelectedItem="{Binding HorizontalAlign}"/></StackPanel>
+                </Grid>
+                <WrapPanel>
+                  <CheckBox Content="Podebljano" IsChecked="{Binding IsBold}" Margin="0,0,10,4"/>
+                  <CheckBox Content="Kurziv" IsChecked="{Binding IsItalic}" Margin="0,0,10,4"/>
+                  <CheckBox Content="Kontura" IsChecked="{Binding HasOutline}" Margin="0,0,10,4"/>
+                  <CheckBox Content="Senka" IsChecked="{Binding HasShadow}" Margin="0,0,10,4"/>
+                  <CheckBox Content="Pozadina" IsChecked="{Binding HasBackground}" Margin="0,0,10,4"/>
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Čitljivost" Classes="section" />
+                <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasOutline}">
+                  <StackPanel Spacing="4"><TextBlock Text="Boja konture" Classes="subtle"/><TextBox Text="{Binding OutlineColor}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Debljina" Classes="subtle"/><NumericUpDown Value="{Binding OutlineWidthPx}" Minimum="1" Maximum="20"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasShadow}">
+                  <StackPanel Spacing="4"><TextBlock Text="Boja senke" Classes="subtle"/><TextBox Text="{Binding ShadowColor}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Pomeraj" Classes="subtle"/><NumericUpDown Value="{Binding ShadowOffsetPx}" Minimum="1" Maximum="20"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" IsVisible="{Binding HasBackground}">
+                  <StackPanel Spacing="4"><TextBlock Text="Boja pozadine" Classes="subtle"/><TextBox Text="{Binding BackgroundColor}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Providnost %" Classes="subtle"/><NumericUpDown Value="{Binding BackgroundOpacityPercent}" Minimum="0" Maximum="100"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Velika / mala slova" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableTextCases}" SelectedItem="{Binding TextCase}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Razmak redova" Classes="subtle"/><NumericUpDown Value="{Binding LineSpacingPx}" Minimum="0" Maximum="40"/></StackPanel>
+                </Grid>
+                <Button Classes="cta" Content="Primeni stil na sve titlove" Command="{Binding ApplyStyleToAllOnTrackCommand}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Video" IsVisible="{Binding IsPictureClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Izgled" Classes="section" />
+                <TextBlock Text="Efekat" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableEffects}" SelectedItem="{Binding Effect}"/>
+                <TextBlock Text="Osvetljenje" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Brightness}"/>
+                <TextBlock Text="Kontrast" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Contrast}"/>
+                <TextBlock Text="Zasićenost" Classes="subtle"/><Slider Minimum="0" Maximum="3" Value="{Binding Saturation}"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Brzina" Classes="subtle"/><NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0" IsVisible="{Binding IsVideoClip}">
+                    <TextBlock Text="Prelaz iz prethodnog" Classes="subtle"/>
+                    <ComboBox ItemsSource="{Binding AvailableTransitions}" SelectedItem="{Binding TransitionInType}"/>
+                  </StackPanel>
+                </Grid>
+                <Border Name="ModernVideoSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
+                    <ComboBox Name="ModernVideoSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                    <TextBlock Text="Montage / Hero / Bullet / JumpCut / FlashIn / FlashOut menjaju stvarni video i audio timing. Ručna Brzina iznad vraća klip na konstantnu brzinu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+                <Border Name="ModernVideoStabilizationPanel" Classes="inspectorSection" IsVisible="{Binding CanUseStabilization}" Margin="0,4,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Stabilizacija (2-pass)" Classes="section"/>
+                    <ToggleButton Name="ModernVideoStabilization" Content="Uključi stabilizaciju" IsChecked="{Binding StabilizationEnabled}" HorizontalAlignment="Left"/>
+                    <Grid ColumnDefinitions="*,*,*" IsVisible="{Binding StabilizationEnabled}">
+                      <StackPanel Spacing="4"><TextBlock Text="Smoothing" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationSmoothingFrames}" Minimum="0" Maximum="120" Increment="1"/></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Accuracy" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationAccuracy}" Minimum="1" Maximum="15" Increment="1"/></StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Zoom %" Classes="subtle"/><NumericUpDown Value="{Binding StabilizationZoomPercent}" Minimum="0" Maximum="30" Increment="1"/></StackPanel>
+                    </Grid>
+                    <TextBlock Text="Export prvo analizira pomeranje kadrova (vidstabdetect), zatim primenjuje vidstabtransform. Reverse/Freeze automatski isključuju stabilizaciju." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+                <Border Name="ModernMotionTrackingPanel" Classes="inspectorSection" IsVisible="{Binding CanUseMotionTracking}" Margin="0,4,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Motion Tracking / Auto Reframe" Classes="section"/>
+                    <TextBlock Text="Početni region objekta (%)" Classes="subtle"/>
+                    <Grid ColumnDefinitions="*,*,*,*">
+                      <NumericUpDown Value="{Binding TrackingCenterXPercent}" Minimum="0" Maximum="100" Increment="1" ToolTip.Tip="Centar X"/>
+                      <NumericUpDown Grid.Column="1" Margin="6,0,0,0" Value="{Binding TrackingCenterYPercent}" Minimum="0" Maximum="100" Increment="1" ToolTip.Tip="Centar Y"/>
+                      <NumericUpDown Grid.Column="2" Margin="6,0,0,0" Value="{Binding TrackingWidthPercent}" Minimum="2" Maximum="100" Increment="1" ToolTip.Tip="Širina"/>
+                      <NumericUpDown Grid.Column="3" Margin="6,0,0,0" Value="{Binding TrackingHeightPercent}" Minimum="2" Maximum="100" Increment="1" ToolTip.Tip="Visina"/>
+                    </Grid>
+                    <WrapPanel>
+                      <Button Name="ModernTrackMotionButton" Classes="cta" Content="Prati objekat" Command="{Binding TrackMotionCommand}" Margin="0,0,8,4"/>
+                      <ToggleButton Content="Auto Reframe" IsChecked="{Binding AutoReframeEnabled}" IsEnabled="{Binding HasMotionTracking}" Margin="0,0,8,4"/>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding MotionTrackingSummary}" Classes="subtle"/>
+                    <TextBlock Text="CSRT radi lokalno. Ako tracker izgubi objekat, operacija prekida umesto da izmisli ostatak putanje. Auto Reframe koristi putanju u finalnom FFmpeg exportu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+                <StackPanel Spacing="4" IsVisible="{Binding IsVideoClip}">
+                  <TextBlock Text="Trajanje prelaza (s)" Classes="subtle"/>
+                  <NumericUpDown Value="{Binding TransitionInDurationSeconds}" Minimum="0.1" Maximum="5" Increment="0.1" FormatString="0.0"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Boja" IsVisible="{Binding IsPictureClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Ton" Classes="section" />
+                <TextBlock Text="Exposure (stops)" Classes="subtle"/>
+                <Slider Minimum="-3" Maximum="3" Value="{Binding ExposureStops}" TickFrequency="0.1"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="Highlights" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Highlights}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Shadows" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding Shadows}"/></StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="White Balance" Classes="section" />
+                <TextBlock Text="Temperature  •  hladno ↔ toplo" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Temperature}"/>
+                <TextBlock Text="Tint  •  zeleno ↔ magenta" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Tint}"/>
+                <TextBlock Text="Neutralno je 0. Sve vrednosti se čuvaju u projektu i ulaze u preview/export preko FFmpeg-a." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="HSL / Vibrance" Classes="section" />
+                <TextBlock Text="Nijansa  •  -180° ↔ +180°" Classes="subtle"/>
+                <Slider Minimum="-180" Maximum="180" Value="{Binding HueDegrees}" TickFrequency="1"/>
+                <TextBlock Text="Živost boja  •  prigušeno ↔ intenzivno" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Vibrance}" TickFrequency="0.01"/>
+                <TextBlock Text="Kontrole se čuvaju po klipu i primenjuju u stvarnom preview-u i finalnom exportu." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+            <Border Name="ThreeWayColorWheelsPanel" Classes="inspectorSection">
+              <StackPanel Spacing="10">
+                <TextBlock Text="Color Wheels" Classes="section" />
+                <TextBlock Text="Senke" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding ShadowBlue}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Srednji tonovi" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding MidtoneBlue}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Svetli delovi" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*">
+                  <StackPanel><TextBlock Text="Crvena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightRed}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="6,0"><TextBlock Text="Zelena" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightGreen}"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="Plava" Classes="subtle"/><Slider Minimum="-1" Maximum="1" Value="{Binding HighlightBlue}"/></StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Name="LutImportPanel" Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="3D LUT" Classes="section" />
+                <TextBlock Text="{Binding LutLabel}" Classes="subtle" TextWrapping="Wrap" />
+                <WrapPanel>
+                  <Button Classes="cta" Content="Izaberi .cube LUT" Command="{Binding PickLutCommand}" Margin="0,0,8,4" />
+                  <Button Classes="ghost" Content="Ukloni LUT" Command="{Binding ClearLutCommand}" IsVisible="{Binding HasLut}" />
+                </WrapPanel>
+                <TextBlock Text="LUT se čuva uz izabrani klip i primenjuje u stvarnom preview-u i exportu." Classes="subtle" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Audio" IsVisible="{Binding HasAudioStream}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection" IsVisible="{Binding IsAudioClip}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Audio klip" Classes="section" />
+                <TextBlock Text="Brzina" Classes="subtle"/>
+                <NumericUpDown Value="{Binding SpeedMultiplier}" Minimum="0.25" Maximum="4" Increment="0.25"/>
+                <Border Name="ModernAudioSpeedCurvePanel" Classes="inspectorSection" IsVisible="{Binding CanUseSpeedCurve}" Margin="0,4,0,0">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="Velocity / Speed Curve" Classes="section"/>
+                    <ComboBox Name="ModernAudioSpeedCurve" ItemsSource="{Binding AvailableSpeedCurvePresets}" SelectedItem="{Binding SpeedCurvePreset}"/>
+                    <TextBlock Text="Kriva menja tempo uz očuvanje visine tona. Ručna Brzina iznad isključuje aktivnu krivu." Classes="subtle" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+            <Border Name="ModernAudioEnhancementPanel" Classes="inspectorSection" IsVisible="{Binding CanUseAudioEnhancement}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Poboljšanje zvuka" Classes="section" />
+                <ToggleButton Name="ModernAudioNoiseReduction" Content="Smanji šum" IsChecked="{Binding AudioNoiseReductionEnabled}" HorizontalAlignment="Left"/>
+                <StackPanel Spacing="4" IsVisible="{Binding AudioNoiseReductionEnabled}">
+                  <TextBlock Text="Jačina redukcije šuma" Classes="subtle"/>
+                  <Slider Minimum="0" Maximum="1" Value="{Binding AudioNoiseReductionStrength}" TickFrequency="0.1"/>
+                </StackPanel>
+                <ToggleButton Name="ModernAudioEnhanceVoice" Content="Istakni govor" IsChecked="{Binding AudioEnhanceVoiceEnabled}" HorizontalAlignment="Left"/>
+                <ToggleButton Name="ModernAudioLoudnessNormalization" Content="Normalizuj glasnoću (-16 LUFS)" IsChecked="{Binding AudioLoudnessNormalizationEnabled}" HorizontalAlignment="Left"/>
+                <TextBlock Text="Radi i na zvuku video klipa i na zasebnoj audio traci. Originalni fajl se ne menja; obrada ulazi u pravi FFmpeg preview/export." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="Utišavanje i fade kontrole su uvek dostupne u zaglavlju inspektora." Classes="subtle" TextWrapping="Wrap"/>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Transform" IsVisible="{Binding IsPictureClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Transformacija" Classes="section" />
+                <TextBlock Text="Rotacija" Classes="subtle"/><NumericUpDown Value="{Binding RotationDegrees}" Minimum="-360" Maximum="360" Increment="1"/>
+                <WrapPanel>
+                  <ToggleButton Content="Flip horizontalno" IsChecked="{Binding FlipHorizontal}" Margin="0,0,8,4"/>
+                  <ToggleButton Content="Flip vertikalno" IsChecked="{Binding FlipVertical}" Margin="0,0,8,4"/>
+                  <ToggleButton Content="Reverse" IsChecked="{Binding IsReversed}" Margin="0,0,8,4"/>
+                  <ToggleButton Content="Freeze frame" IsChecked="{Binding IsFreezeFrame}" Margin="0,0,8,4"/>
+                </WrapPanel>
+                <TextBlock Text="Crop (%)" Classes="subtle"/>
+                <Grid ColumnDefinitions="*,*,*,*">
+                  <NumericUpDown Value="{Binding CropLeftPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Levo"/>
+                  <NumericUpDown Grid.Column="1" Margin="6,0,0,0" Value="{Binding CropTopPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Gore"/>
+                  <NumericUpDown Grid.Column="2" Margin="6,0,0,0" Value="{Binding CropRightPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Desno"/>
+                  <NumericUpDown Grid.Column="3" Margin="6,0,0,0" Value="{Binding CropBottomPercent}" Minimum="0" Maximum="45" Increment="1" ToolTip.Tip="Dole"/>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Overlay" IsVisible="{Binding IsOverlayClip}">
+        <ScrollViewer>
+          <StackPanel Spacing="10" Margin="2,10,2,2">
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="PIP / položaj" Classes="section" />
+                <TextBlock Text="Veličina (% širine)" Classes="subtle"/><NumericUpDown Value="{Binding ScalePercent}" Minimum="1" Maximum="200" Increment="5"/>
+                <Grid ColumnDefinitions="*,*">
+                  <StackPanel Spacing="4"><TextBlock Text="X (%)" Classes="subtle"/><Slider Minimum="0" Maximum="100" Value="{Binding PositionXPercent}"/></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Y (%)" Classes="subtle"/><Slider Minimum="0" Maximum="100" Value="{Binding PositionYPercent}"/></StackPanel>
+                </Grid>
+                <TextBlock Text="Providnost (%)" Classes="subtle"/><NumericUpDown Value="{Binding LayerOpacityPercent}" Minimum="0" Maximum="100" Increment="5"/>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Chroma key" Classes="section" />
+                <ToggleButton Content="Uključi Chroma Key" IsChecked="{Binding ChromaKeyEnabled}" HorizontalAlignment="Left"/>
+                <TextBlock Text="Boja" Classes="subtle"/><TextBox Text="{Binding ChromaKeyColor}" Watermark="#00FF00"/>
+                <TextBlock Text="Sličnost" Classes="subtle"/><Slider Minimum="0.01" Maximum="1" Value="{Binding ChromaKeySimilarity}"/>
+                <TextBlock Text="Feather / blend" Classes="subtle"/><Slider Minimum="0" Maximum="1" Value="{Binding ChromaKeyBlend}"/>
+              </StackPanel>
+            </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Maska i blend" Classes="section" />
+                <TextBlock Text="Oblik" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableMaskTypes}" SelectedItem="{Binding MaskType}"/>
+                <Grid ColumnDefinitions="*,*"><StackPanel Spacing="4"><TextBlock Text="Centar X" Classes="subtle"/><NumericUpDown Value="{Binding MaskCenterXPercent}" Minimum="0" Maximum="100"/></StackPanel><StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Centar Y" Classes="subtle"/><NumericUpDown Value="{Binding MaskCenterYPercent}" Minimum="0" Maximum="100"/></StackPanel></Grid>
+                <Grid ColumnDefinitions="*,*"><StackPanel Spacing="4"><TextBlock Text="Širina" Classes="subtle"/><NumericUpDown Value="{Binding MaskWidthPercent}" Minimum="1" Maximum="100"/></StackPanel><StackPanel Grid.Column="1" Spacing="4" Margin="8,0,0,0"><TextBlock Text="Visina" Classes="subtle"/><NumericUpDown Value="{Binding MaskHeightPercent}" Minimum="1" Maximum="100"/></StackPanel></Grid>
+                <TextBlock Text="Feather (%)" Classes="subtle"/><Slider Minimum="0" Maximum="50" Value="{Binding MaskFeatherPercent}"/>
+                <TextBlock Text="Ugao" Classes="subtle"/><NumericUpDown Value="{Binding MaskRotationDegrees}" Minimum="-180" Maximum="180"/>
+                <ToggleButton Content="Invertuj masku" IsChecked="{Binding MaskInvert}" HorizontalAlignment="Left"/>
+                <TextBlock Text="Blend mode" Classes="subtle"/><ComboBox ItemsSource="{Binding AvailableBlendModes}" SelectedItem="{Binding BlendMode}"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Animacija" IsVisible="{Binding SupportsKeyframes}">
+        <ScrollViewer>
+          <Border Classes="inspectorSection" Margin="2,10,2,2">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Keyframes" Classes="section" />
+              <TextBlock Text="{Binding KeyframeSummary}" Classes="subtle" />
+              <views:KeyframeGraphView Height="150" Points="{Binding SelectedPropertyKeyframes}" Duration="{Binding KeyframeGraphDuration}"
+                                       Minimum="{Binding KeyframeValueMinimum}" Maximum="{Binding KeyframeValueMaximum}"
+                                       PointRequested="OnKeyframeGraphPointRequested" ToolTip.Tip="Klikni na graf da dodaš tačku u tačnom vremenu i vrednosti." />
+              <TextBlock Text="Svojstvo" Classes="subtle" />
+              <ComboBox ItemsSource="{Binding AvailableKeyframeProperties}" SelectedItem="{Binding SelectedKeyframeProperty}" />
+              <TextBlock Text="{Binding KeyframeValueLabel}" Classes="subtle" />
+              <NumericUpDown Value="{Binding KeyframeValue}" Minimum="{Binding KeyframeValueMinimum}" Maximum="{Binding KeyframeValueMaximum}" Increment="{Binding KeyframeValueIncrement}" />
+              <TextBlock Text="Easing" Classes="subtle" />
+              <ComboBox ItemsSource="{Binding AvailableKeyframeEasings}" SelectedItem="{Binding SelectedKeyframeEasing}" />
+              <WrapPanel>
+                <Button Classes="cta" Content="Dodaj na plejhedu" Command="{Binding AddKeyframeAtPlayheadCommand}" Margin="0,0,8,4" />
+                <Button Classes="ghost" Content="Ukloni najbliži" Command="{Binding RemoveKeyframeAtPlayheadCommand}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</UserControl>

@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="using:NPVideoStudio.App.Converters"
+             x:Class="NPVideoStudio.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="36,30,36,28" MaxWidth="1040" HorizontalAlignment="Left">
+    <StackPanel Spacing="4" Margin="0,0,0,18">
+      <TextBlock Text="PODEŠAVANJA" Classes="eyebrow" />
+      <TextBlock Text="Program po tvom načinu rada" Classes="heading" />
+      <TextBlock Text="Podešavanja su grupisana po nameni — izgled, rad projekta i ugrađeni alati." Classes="subtle" />
+    </StackPanel>
+
+    <TabControl Grid.Row="1">
+      <TabItem Header="Izgled i ponašanje">
+        <ScrollViewer>
+          <Grid ColumnDefinitions="*,*" Margin="2,16,2,20">
+            <Border Classes="panel" Padding="20" Margin="0,0,10,0">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="2"><TextBlock Text="IZGLED" Classes="eyebrow"/><TextBlock Text="Tema interfejsa" Classes="section"/></StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Tema" Classes="subtle" />
+                  <ComboBox ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="x:Object"><TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{Binding AvailableThemeCount, StringFormat=Dostupno tema: {0}. Izbor se čuva automatski sa ostalim podešavanjima.}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="panel" Padding="20" Margin="10,0,0,0">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="2"><TextBlock Text="AUTOMATSKO ČUVANJE" Classes="eyebrow"/><TextBlock Text="Zaštita projekta" Classes="section"/></StackPanel>
+                <CheckBox IsChecked="{Binding AutoSaveEnabled}" Content="Automatsko čuvanje uključeno" />
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Interval čuvanja (sekunde)" Classes="subtle" />
+                  <NumericUpDown Value="{Binding AutoSaveIntervalSeconds}" Minimum="10" Maximum="3600" Width="180" HorizontalAlignment="Left" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Čuvanje logova (dana)" Classes="subtle" />
+                  <NumericUpDown Value="{Binding LogRetentionDays}" Minimum="1" Maximum="365" Width="180" HorizontalAlignment="Left" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Fajlovi i prostor">
+        <ScrollViewer>
+          <StackPanel Margin="2,16,2,20" Spacing="12">
+            <Border Classes="panel" Padding="20">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="2"><TextBlock Text="LOKACIJE" Classes="eyebrow"/><TextBlock Text="Projekti i cache" Classes="section"/></StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Folder za projekte" Classes="subtle" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding ProjectsFolder}" />
+                    <Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Content="Izaberi folder" Command="{Binding BrowseProjectsFolderCommand}" />
+                  </Grid>
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Cache folder" Classes="subtle" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding CacheFolder}" />
+                    <Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Content="Izaberi folder" Command="{Binding BrowseCacheFolderCommand}" />
+                  </Grid>
+                  <TextBlock Text="Cache sadrži privremene podatke i proxy fajlove; originalni mediji projekta se ne premeštaju." Classes="subtle" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Alati i ažuriranja">
+        <ScrollViewer>
+          <StackPanel Margin="2,16,2,20" Spacing="12">
+            <Grid ColumnDefinitions="*,*">
+              <Border Classes="panel" Padding="20" Margin="0,0,10,0">
+                <StackPanel Spacing="16">
+                  <StackPanel Spacing="2"><TextBlock Text="AŽURIRANJA" Classes="eyebrow"/><TextBlock Text="Ugrađeni alati" Classes="section"/></StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Način ažuriranja" Classes="subtle" />
+                    <ComboBox ItemsSource="{Binding AvailableToolUpdatePolicies}" SelectedItem="{Binding ToolUpdatePolicy}">
+                      <ComboBox.ItemTemplate><DataTemplate x:DataType="x:Object"><TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Interval provere (dana)" Classes="subtle" />
+                    <NumericUpDown Value="{Binding ToolUpdateIntervalDays}" Minimum="1" Maximum="90" Width="180" HorizontalAlignment="Left" />
+                  </StackPanel>
+                  <TextBlock Text="Automatski ažurira samo alate koje NP Video Studio poseduje. Ne menja Windows niti tvoje medije." Classes="subtle" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="1" Classes="panel" Padding="20" Margin="10,0,0,0">
+                <StackPanel Spacing="16">
+                  <StackPanel Spacing="2"><TextBlock Text="NAPREDNO" Classes="eyebrow"/><TextBlock Text="Ručno zadate putanje" Classes="section"/></StackPanel>
+                  <TextBlock Classes="subtle" TextWrapping="Wrap" Text="Ostavi prazno da program koristi ugrađeni alat ili ga pronađe automatski. Ručne putanje su namenjene samo kada želiš sopstvenu instalaciju." />
+
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="FFmpeg" Classes="subtle" />
+                    <Grid ColumnDefinitions="*,Auto"><TextBox Text="{Binding FfmpegPath}" Watermark="Automatski"/><Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Content="Izaberi" Command="{Binding BrowseFfmpegPathCommand}"/></Grid>
+                  </StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="FFprobe" Classes="subtle" />
+                    <Grid ColumnDefinitions="*,Auto"><TextBox Text="{Binding FfprobePath}" Watermark="Automatski"/><Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Content="Izaberi" Command="{Binding BrowseFfprobePathCommand}"/></Grid>
+                  </StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="yt-dlp" Classes="subtle" />
+                    <Grid ColumnDefinitions="*,Auto"><TextBox Text="{Binding YtDlpPath}" Watermark="Automatski"/><Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Content="Izaberi" Command="{Binding BrowseYtDlpPathCommand}"/></Grid>
+                  </StackPanel>
+                  <TextBlock Text="Promena ručne putanje važi posle ponovnog pokretanja programa." Classes="subtle" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="2" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ThemeBorderBrush}" Padding="0,14,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding StatusMessage}" Classes="subtle" IsVisible="{Binding HasStatusMessage}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Classes="ghost" Content="Vrati podrazumevano" Command="{Binding ResetToDefaultsCommand}" />
+          <Button Classes="cta" Content="Sačuvaj podešavanja" Command="{Binding SaveCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

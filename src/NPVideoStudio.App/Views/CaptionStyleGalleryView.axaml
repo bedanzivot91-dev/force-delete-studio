@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="using:NPVideoStudio.App.Converters"
+             x:Class="NPVideoStudio.App.Views.CaptionStyleGalleryView"
+             x:DataType="vm:CaptionStyleGalleryViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="1100">
+      <StackPanel Spacing="2">
+        <TextBlock Text="TITLOVI" Classes="eyebrow" />
+        <TextBlock Text="Stilovi titlova" Classes="heading" />
+      </StackPanel>
+
+      <TextBlock Classes="subtle" TextWrapping="Wrap"
+                 Text="24 gotova stila. Kada ovu galeriju otvorite iz aktivnog projekta, dugme PRIMENI menja pravi izabrani titl/tekst klip, čuva renderovane boje/konturu/senku/panel i podržava Undo/Redo. Animacije i granularnost koje renderer još nema prijavljuju se eksplicitno — nema tihog no-op ponašanja." />
+
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Classes="ghost" Content="← Nazad u projekat" Command="{Binding BackCommand}" IsVisible="{Binding CanApplyToProject}" />
+        <TextBlock Text="{Binding StatusMessage}" Classes="subtle" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="760" />
+      </StackPanel>
+
+      <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedThemeFilter}" MinWidth="180"
+                PlaceholderText="Sve teme" HorizontalAlignment="Left">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:CompileBindings="False">
+            <TextBlock Text="{Binding Converter={x:Static conv:ThemeFilterLabelConverter.Instance}}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+
+      <ItemsControl ItemsSource="{Binding Presets}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:CaptionStylePresetItemViewModel">
+            <Border Classes="panel" Padding="16" Margin="0,0,14,14" Width="240">
+              <StackPanel Spacing="10">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  <TextBlock Classes="subtle" Text="{Binding GranularityLabel}" FontSize="11" />
+                  <TextBlock Classes="subtle" Text="{Binding AnimationLabel}" FontSize="11" />
+                </StackPanel>
+
+                <Border CornerRadius="6" Background="#1A1A1A" Padding="14" MinHeight="70">
+                  <Panel>
+                    <Border Background="{Binding PanelBrush}" CornerRadius="4" Padding="8" IsVisible="{Binding HasPanel}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <StackPanel HorizontalAlignment="Center" Spacing="4">
+                        <TextBlock Text="Ovo je" Foreground="{Binding TextBrush}" HorizontalAlignment="Center" FontWeight="Bold" />
+                        <TextBlock Text="titl" Foreground="{Binding AccentBrush}" HorizontalAlignment="Center" FontWeight="Bold" />
+                      </StackPanel>
+                    </Border>
+                    <StackPanel HorizontalAlignment="Center" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding !HasPanel}">
+                      <TextBlock Text="Ovo je" Foreground="{Binding TextBrush}" HorizontalAlignment="Center" FontWeight="Bold" />
+                      <TextBlock Text="titl" Foreground="{Binding AccentBrush}" HorizontalAlignment="Center" FontWeight="Bold" />
+                    </StackPanel>
+                  </Panel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Border Width="18" Height="18" CornerRadius="4" Background="{Binding TextBrush}" ToolTip.Tip="Boja teksta" />
+                  <Border Width="18" Height="18" CornerRadius="4" Background="{Binding AccentBrush}" ToolTip.Tip="Naglašena boja" />
+                  <Border Width="18" Height="18" CornerRadius="4" Background="{Binding OutlineOrShadowBrush}" ToolTip.Tip="Kontura/senka" />
+                </StackPanel>
+                <Button Classes="cta" Content="PRIMENI NA IZABRANI TITL" Command="{Binding ApplyCommand}" IsVisible="{Binding CanApply}" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

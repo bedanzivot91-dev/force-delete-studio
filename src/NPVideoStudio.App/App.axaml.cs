@@ -1,0 +1,248 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
+using Microsoft.Extensions.DependencyInjection;
+using NPVideoStudio.AI;
+using NPVideoStudio.Core.Diagnostics;
+using NPVideoStudio.Core.Services;
+using NPVideoStudio.Diagnostics;
+using NPVideoStudio.Domain;
+using NPVideoStudio.Infrastructure.Logging;
+using NPVideoStudio.Infrastructure.Persistence;
+using NPVideoStudio.Media;
+using NPVideoStudio.App.Services;
+using NPVideoStudio.App.ViewModels;
+using NPVideoStudio.App.Views;
+using Serilog;
+
+namespace NPVideoStudio.App;
+
+public partial class App : Avalonia.Application
+{
+    private IServiceProvider? _services;
+    private ResourceInclude? _currentThemeDictionary;
+    private ILogger? _logger;
+    private IAutoSaveService? _autoSaveService;
+
+    /// <summary>Exposed for headless UI smoke tests, which need the composition root without a real desktop lifetime.</summary>
+    public IServiceProvider? Services => _services;
+
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        var settingsService = new SettingsService();
+        // Runs the load on a threadpool thread with no captured context (Task.Run), not just
+        // ConfigureAwait(false) inside SettingsService - blocking on a dispatcher-affine thread
+        // deadlocked here under Avalonia's headless test dispatcher otherwise.
+        Task.Run(() => settingsService.LoadAsync()).GetAwaiter().GetResult();
+
+        _logger = AppLogging.CreateLogger(settingsService.Current.LogRetentionDays);
+        Log.Logger = _logger;
+        _logger.Information("NP Video Studio se pokreće (verzija {Version})", ThisAssemblyVersion());
+
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            _logger.Fatal(e.ExceptionObject as Exception, "Neuhvaćen izuzetak na nivou aplikacije");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            _logger.Error(e.Exception, "Neuhvaćen izuzetak u pozadinskom zadatku");
+            e.SetObserved();
+        };
+
+        var services = new ServiceCollection();
+        services.AddSingleton(_logger);
+        services.AddSingleton<ISettingsService>(settingsService);
+        services.AddSingleton<AppDatabase>();
+        services.AddSingleton<IProjectRepository, ProjectRepository>();
+        services.AddSingleton<IRecentProjectsService, RecentProjectsService>();
+        services.AddSingleton<IAutoSaveService, AutoSaveService>();
+        services.AddSingleton<IMediaProbeService>(_ => new FfprobeService(settingsService.Current.FfprobePath));
+        services.AddSingleton<IDiagnosticsService, DiagnosticsService>();
+        services.AddSingleton<IStorageService>(sp => new StorageService(() => (Current as App)?.MainWindowRef));
+        services.AddSingleton<ISongHighlightService>(sp =>
+            new SongHighlightService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        services.AddSingleton<ILyricSearchService>(_ => new LyricSearchService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IYouTubeDownloadService>(_ =>
+            new YouTubeDownloadService(settingsService.Current.FfmpegPath, settingsService.Current.YtDlpPath));
+        services.AddSingleton<ISubtitleGeneratorService>(_ => new SubtitleGeneratorService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<ISongLibraryRepository, SongLibraryRepository>();
+        services.AddSingleton<ISongRecognitionService>(sp =>
+            new SongRecognitionService(sp.GetRequiredService<IMediaProbeService>(), settingsService.Current.FfmpegPath));
+        services.AddSingleton<IAiWorkerClient, AiWorkerClient>();
+        services.AddSingleton<IMotionTrackingService, MotionTrackingService>();
+        services.AddSingleton<IVideoLayoutAnalysisService>(sp =>
+        {
+            var mediaProbe = sp.GetRequiredService<IMediaProbeService>();
+            var tesseract = new TesseractOcrService(mediaProbe, settingsService.Current.FfmpegPath);
+            var easyOcr = new EasyOcrVideoLayoutAnalysisService(mediaProbe, settingsService.Current.FfmpegPath);
+            return new CompositeVideoLayoutAnalysisService(easyOcr, tesseract);
+        });
+        services.AddSingleton<IProxyGeneratorService>(_ => new ProxyGeneratorService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IDependencyManagerService, DependencyManagerService>();
+        services.AddSingleton<IRenderService>(_ => new RenderService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IQuickVideoService>(_ => new QuickVideoService(settingsService.Current.FfmpegPath));
+        services.AddSingleton<IFramePreviewService>(_ => new FramePreviewService(settingsService.Current.FfmpegPath));
+
+        services.AddTransient<StartScreenViewModel>();
+        services.AddTransient<SettingsViewModel>();
+        services.AddTransient<DiagnosticsViewModel>();
+        services.AddTransient<SongHighlightsViewModel>();
+        services.AddTransient<LyricSearchViewModel>();
+        services.AddTransient<YouTubeDownloadViewModel>();
+        services.AddTransient<SubtitleGeneratorViewModel>();
+        services.AddTransient<DependencyManagerViewModel>();
+        services.AddTransient<MySongsViewModel>();
+        services.AddTransient<CaptionEditorViewModel>();
+        services.AddTransient<CaptionStyleGalleryViewModel>();
+        services.AddTransient<VideoLayoutAnalyzerViewModel>();
+        services.AddTransient<TemplateGalleryViewModel>();
+        services.AddSingleton<MainWindowViewModel>();
+
+        _services = services.BuildServiceProvider();
+
+        ApplyTheme(settingsService.Current.Theme);
+
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var mainWindowViewModel = _services.GetRequiredService<MainWindowViewModel>();
+            mainWindowViewModel.ThemeChanged += ApplyTheme;
+
+            var window = new MainWindow { DataContext = mainWindowViewModel };
+            MainWindowRef = window;
+            desktop.MainWindow = window;
+
+            _autoSaveService = _services.GetRequiredService<IAutoSaveService>();
+
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                try
+                {
+                    Task.Run(async () =>
+                    {
+                        await _autoSaveService.TriggerNowAsync();
+                        await _autoSaveService.MarkCleanShutdownAsync();
+                    }).GetAwaiter().GetResult();
+                    _logger.Information("NP Video Studio se zatvara čisto posle poslednjeg autosave-a");
+                }
+                catch (Exception ex)
+                {
+                    // A failed recovery save must not be followed by a false clean-shutdown marker.
+                    _logger.Error(ex, "Poslednji autosave pri gašenju nije uspeo; clean-shutdown marker nije upisan");
+                }
+            };
+
+            _ = InitializeMainWindowAsync(mainWindowViewModel, desktop.Args);
+
+            // Optional and user-controlled. Default is NotifyOnly, so a large Python/model download is
+            // never started merely because the application opened. Automatic mode updates only the
+            // app-owned AI environment and records success; a failed attempt remains due for retry.
+            if (settingsService.Current.ToolUpdatePolicy == ToolUpdatePolicy.Automatic &&
+                IsToolUpdateDue(settingsService.Current))
+            {
+                _ = UpdateToolsInBackgroundAsync(settingsService);
+            }
+        }
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private async Task InitializeMainWindowAsync(MainWindowViewModel mainWindowViewModel, string[]? args)
+    {
+        await mainWindowViewModel.InitializeAsync();
+
+        var startupProjectPath = ResolveStartupProjectPath(args);
+        if (startupProjectPath is null)
+        {
+            return;
+        }
+
+        // ShowStartScreenAsync has already wired ProjectOpened to OpenWorkspace. Reuse that exact path
+        // instead of implementing a second file-association-only loader that could drift from normal Open.
+        if (mainWindowViewModel.CurrentPage is StartScreenViewModel startScreen)
+        {
+            await startScreen.OpenProjectPathAsync(startupProjectPath);
+        }
+    }
+
+    /// <summary>Returns the first command-line project path registered by the Windows file association.
+    /// Options and unrelated files are ignored; extension matching is case-insensitive.</summary>
+    public static string? ResolveStartupProjectPath(IEnumerable<string>? args)
+    {
+        if (args is null)
+        {
+            return null;
+        }
+
+        return args.FirstOrDefault(arg =>
+            !string.IsNullOrWhiteSpace(arg) &&
+            string.Equals(Path.GetExtension(arg), ".npvsproject", StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal Window? MainWindowRef { get; private set; }
+
+    private void ApplyTheme(AppTheme theme)
+    {
+        var fileName = theme switch
+        {
+            AppTheme.Studio2026 => "Studio2026",
+            AppTheme.DarkCinematic => "DarkCinematic",
+            AppTheme.MinimalLight => "MinimalLight",
+            AppTheme.ProfessionalStudio => "ProfessionalStudio",
+            AppTheme.ObsidianNeon => "ObsidianNeon",
+            AppTheme.ArcticGlass => "ArcticGlass",
+            AppTheme.CrimsonCyber => "CrimsonCyber",
+            AppTheme.MidnightPro => "MidnightPro",
+            AppTheme.OceanGlass => "OceanGlass",
+            _ => "DarkCinematic"
+        };
+
+        var uri = new Uri($"avares://NPVideoStudio/Themes/{fileName}.axaml");
+        var themeDictionary = new ResourceInclude(uri) { Source = uri };
+
+        if (_currentThemeDictionary is not null)
+        {
+            Resources.MergedDictionaries.Remove(_currentThemeDictionary);
+        }
+
+        Resources.MergedDictionaries.Add(themeDictionary);
+        _currentThemeDictionary = themeDictionary;
+
+        RequestedThemeVariant = theme is AppTheme.MinimalLight or AppTheme.ArcticGlass or AppTheme.OceanGlass
+            ? Avalonia.Styling.ThemeVariant.Light
+            : Avalonia.Styling.ThemeVariant.Dark;
+    }
+
+    private static string ThisAssemblyVersion()
+    {
+        var version = typeof(App).Assembly.GetName().Version;
+        // Only major.minor.build - the SDK-generated 4th component (revision) isn't meaningful here
+        // and would make this drift from installer/NPVideoStudio.iss's three-part MyAppVersion.
+        return version is null ? "0.1.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+    }
+
+    private static bool IsToolUpdateDue(AppSettings settings) =>
+        settings.LastToolUpdateUtc is null ||
+        DateTimeOffset.UtcNow - settings.LastToolUpdateUtc.Value >=
+        TimeSpan.FromDays(Math.Clamp(settings.ToolUpdateIntervalDays, 1, 90));
+
+    private async Task UpdateToolsInBackgroundAsync(ISettingsService settingsService)
+    {
+        try
+        {
+            _logger?.Information("Automatsko ažuriranje AI alata je pokrenuto");
+            await _services!.GetRequiredService<IDependencyManagerService>().InstallSongAiAsync();
+            settingsService.Current.LastToolUpdateUtc = DateTimeOffset.UtcNow;
+            await settingsService.SaveAsync();
+            _logger?.Information("Automatsko ažuriranje AI alata je završeno");
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error(ex, "Automatsko ažuriranje AI alata nije uspelo");
+        }
+    }
+}

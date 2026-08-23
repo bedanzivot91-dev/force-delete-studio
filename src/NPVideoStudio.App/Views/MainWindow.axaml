@@ -1,0 +1,102 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NPVideoStudio.App.ViewModels"
+        xmlns:views="using:NPVideoStudio.App.Views"
+        x:Class="NPVideoStudio.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NP Video Studio"
+        Width="1560" Height="960" MinWidth="1160" MinHeight="720">
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:StartScreenViewModel"><views:StartScreenView /></DataTemplate>
+    <DataTemplate DataType="vm:NewProjectViewModel"><views:NewProjectView /></DataTemplate>
+    <DataTemplate DataType="vm:WorkspaceViewModel"><views:WorkspaceView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel"><views:SettingsView /></DataTemplate>
+    <DataTemplate DataType="vm:DiagnosticsViewModel"><views:DiagnosticsView /></DataTemplate>
+    <DataTemplate DataType="vm:SongHighlightsViewModel"><views:SongHighlightsView /></DataTemplate>
+    <DataTemplate DataType="vm:LyricSearchViewModel"><views:LyricSearchView /></DataTemplate>
+    <DataTemplate DataType="vm:YouTubeDownloadViewModel"><views:YouTubeDownloadView /></DataTemplate>
+    <DataTemplate DataType="vm:SubtitleGeneratorViewModel"><views:SubtitleGeneratorView /></DataTemplate>
+    <DataTemplate DataType="vm:DependencyManagerViewModel"><views:DependencyManagerView /></DataTemplate>
+    <DataTemplate DataType="vm:MySongsViewModel"><views:MySongsView /></DataTemplate>
+    <DataTemplate DataType="vm:CaptionEditorViewModel"><views:CaptionEditorView /></DataTemplate>
+    <DataTemplate DataType="vm:CaptionStyleGalleryViewModel"><views:CaptionStyleGalleryView /></DataTemplate>
+    <DataTemplate DataType="vm:VideoLayoutAnalyzerViewModel"><views:VideoLayoutAnalyzerView /></DataTemplate>
+    <DataTemplate DataType="vm:RenderQueueViewModel"><views:RenderQueueView /></DataTemplate>
+    <DataTemplate DataType="vm:TemplateGalleryViewModel"><views:TemplateGalleryView /></DataTemplate>
+    <DataTemplate DataType="vm:SaveTemplateViewModel"><views:SaveTemplateView /></DataTemplate>
+    <DataTemplate DataType="vm:QuickVideoViewModel"><views:QuickVideoView /></DataTemplate>
+  </Window.DataTemplates>
+
+  <!-- Real 2026 desktop shell: persistent vertical navigation, separate command bar and edge-to-edge work area. -->
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="{DynamicResource ThemeSidebarWidth}" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="{DynamicResource ThemeCommandbarHeight}" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Border Grid.RowSpan="2" Classes="sidebar" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="14,16">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="11" Margin="7,0,7,22">
+          <Border Classes="brandMark">
+            <TextBlock Text="NP" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <StackPanel Spacing="0" VerticalAlignment="Center">
+            <TextBlock Text="NP VIDEO" FontWeight="Bold" FontSize="14" LetterSpacing="0.8"/>
+            <TextBlock Text="STUDIO 2026" Classes="micro"/>
+          </StackPanel>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="RADNI PROSTOR" Classes="navCaption" Margin="10,0,0,8"/>
+
+        <StackPanel Grid.Row="2" Spacing="5">
+          <Button Classes="sidenav" Command="{Binding GoHomeCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="⌂" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Početna"/></Grid>
+          </Button>
+          <Button Classes="sidenav" Command="{Binding GoToSaveTemplateCommand}" IsVisible="{Binding HasCurrentProject}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="▦" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Sačuvaj šablon"/></Grid>
+          </Button>
+
+          <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="8,13"/>
+          <TextBlock Text="SISTEM" Classes="navCaption" Margin="10,0,0,3"/>
+
+          <Button Classes="sidenav" Command="{Binding GoToSettingsCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="⚙" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Podešavanja"/></Grid>
+          </Button>
+          <Button Classes="sidenav" Command="{Binding GoToDiagnosticsCommand}">
+            <Grid ColumnDefinitions="30,*"><TextBlock Text="◈" Classes="navIcon"/><TextBlock Grid.Column="1" Text="Dijagnostika"/></Grid>
+          </Button>
+        </StackPanel>
+
+        <Border Grid.Row="3" Classes="sidebarFooter" Padding="12" Margin="0,16,0,0">
+          <StackPanel Spacing="3">
+            <TextBlock Text="LOKALNI DESKTOP" Classes="micro"/>
+            <TextBlock Text="Video · Audio · Titlovi" FontSize="12.5" FontWeight="SemiBold"/>
+            <TextBlock Text="Rad bez cloud zaključavanja" Classes="subtle" FontSize="11.5"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Border Grid.Column="1" Grid.Row="0" Classes="commandbar" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto" Margin="22,0">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="Kreativni centar" FontSize="15" FontWeight="SemiBold"/>
+          <Border Classes="livePill"><TextBlock Text="●  SPREMAN" FontSize="10.5" FontWeight="Bold"/></Border>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="commandButton" Content="⌂  Početna" Command="{Binding GoHomeCommand}"/>
+          <Button Classes="commandButton" Content="⚙  Podešavanja" Command="{Binding GoToSettingsCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border Grid.Column="1" Grid.Row="1" Background="{DynamicResource ThemeBackgroundBrush}">
+      <ContentControl Content="{Binding CurrentPage}"/>
+    </Border>
+  </Grid>
+</Window>

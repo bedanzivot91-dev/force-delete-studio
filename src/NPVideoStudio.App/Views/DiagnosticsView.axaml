@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+             x:Class="NPVideoStudio.App.Views.DiagnosticsView"
+             x:DataType="vm:DiagnosticsViewModel">
+
+  <ScrollViewer>
+    <StackPanel Margin="32,28,32,32" Spacing="18" MaxWidth="920">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="DIJAGNOSTIKA" Classes="eyebrow" />
+          <TextBlock Text="Provera sistema" Classes="heading" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="ghost" Content="Pokreni ponovo" Command="{Binding RunChecksCommand}" Margin="8,0" VerticalAlignment="Bottom" />
+        <Button Grid.Column="2" Classes="cta" Content="Napravi paket za podršku" Command="{Binding CreateSupportPackageCommand}" VerticalAlignment="Bottom" />
+      </Grid>
+
+      <TextBlock Text="Program se ne oslanja na tvrdnje - svaka stavka ispod je stvarno provereno na ovom računaru." Classes="subtle" TextWrapping="Wrap" />
+
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#E06060" IsVisible="{Binding StatusMessage, Converter={x:Static conv:ObjectConverters.IsNotNull}}" TextWrapping="Wrap" />
+
+      <ItemsControl ItemsSource="{Binding Checks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:DiagnosticCheckItemViewModel">
+            <Border Classes="panel" Padding="18" Margin="0,0,0,10">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Width="26" Height="26" CornerRadius="13" Background="{Binding StatusColorHex}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusGlyph}" FontWeight="Bold" FontSize="13" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Grid.Column="1" Text="{Binding Result.CheckName}" FontWeight="SemiBold" Margin="12,0,0,0" VerticalAlignment="Center" />
+                  <Button Grid.Column="2" Classes="ghost" Content="Pokušaj automatsku popravku" Command="{Binding AutoFixCommand}"
+                          IsVisible="{Binding CanAutoFix}" IsEnabled="{Binding !IsFixing}" />
+                </Grid>
+                <TextBlock Text="{Binding Result.Description}" TextWrapping="Wrap" Margin="38,0,0,0" />
+                <TextBlock Text="{Binding Result.WhyItMatters}" Classes="subtle" TextWrapping="Wrap" Margin="38,0,0,0"
+                           IsVisible="{Binding Result.WhyItMatters, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                <TextBlock Text="{Binding Result.HowToFix}" Classes="subtle" TextWrapping="Wrap" FontStyle="Italic" Margin="38,0,0,0"
+                           IsVisible="{Binding Result.HowToFix, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                <Expander Header="Tehnički detalji" Margin="38,0,0,0"
+                          IsVisible="{Binding Result.TechnicalDetails, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                  <TextBox Text="{Binding Result.TechnicalDetails}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" />
+                </Expander>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

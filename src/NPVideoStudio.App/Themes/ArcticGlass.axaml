@@ -1,0 +1,38 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="ThemeBackgroundColor">#EAF5FF</Color>
+  <Color x:Key="ThemeSurfaceColor">#F8FCFF</Color>
+  <Color x:Key="ThemePanelColor">#D9FFFFFF</Color>
+  <Color x:Key="ThemeHoverColor">#EAF3FA</Color>
+  <Color x:Key="ThemePressedColor">#DCEBF5</Color>
+  <Color x:Key="ThemeInputColor">#F4FAFF</Color>
+  <Color x:Key="ThemeAccentColor">#1677E8</Color>
+  <Color x:Key="ThemeAccentHoverColor">#3B8FF0</Color>
+  <Color x:Key="ThemeAccentSubtleColor">#331677E8</Color>
+  <Color x:Key="ThemeTextColor">#10233D</Color>
+  <Color x:Key="ThemeSubtleTextColor">#58718D</Color>
+  <Color x:Key="ThemeBorderColor">#B9D7F0</Color>
+
+  <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="{StaticResource ThemeBackgroundColor}" />
+  <SolidColorBrush x:Key="ThemeSurfaceBrush" Color="{StaticResource ThemeSurfaceColor}" />
+  <SolidColorBrush x:Key="ThemePanelBrush" Color="{StaticResource ThemePanelColor}" />
+  <SolidColorBrush x:Key="ThemeHoverBrush" Color="{StaticResource ThemeHoverColor}" />
+  <SolidColorBrush x:Key="ThemePressedBrush" Color="{StaticResource ThemePressedColor}" />
+  <SolidColorBrush x:Key="ThemeInputBrush" Color="{StaticResource ThemeInputColor}" />
+  <SolidColorBrush x:Key="ThemeAccentBrush" Color="{StaticResource ThemeAccentColor}" />
+  <SolidColorBrush x:Key="ThemeAccentHoverBrush" Color="{StaticResource ThemeAccentHoverColor}" />
+  <SolidColorBrush x:Key="ThemeAccentSubtleBrush" Color="{StaticResource ThemeAccentSubtleColor}" />
+  <SolidColorBrush x:Key="ThemeTextBrush" Color="{StaticResource ThemeTextColor}" />
+  <SolidColorBrush x:Key="ThemeSubtleTextBrush" Color="{StaticResource ThemeSubtleTextColor}" />
+  <SolidColorBrush x:Key="ThemeBorderBrush" Color="{StaticResource ThemeBorderColor}" />
+
+  <!-- Glassmorphism fallback note: ThemePanelBrush uses a semi-transparent white over the light blue
+       Background instead of a real backdrop-blur (Avalonia has no cross-platform blur-behind for
+       arbitrary panels), giving a soft "glass" tint without requiring blur support. -->
+  <CornerRadius x:Key="ThemeCornerRadius">14</CornerRadius>
+  <CornerRadius x:Key="ThemeCardCornerRadius">20</CornerRadius>
+  <GridLength x:Key="ThemeSidebarWidth">208</GridLength>
+  <GridLength x:Key="ThemeCommandbarHeight">72</GridLength>
+  <Thickness x:Key="ThemeWorkspaceGutter">30,10,30,20</Thickness>
+  <Thickness x:Key="ThemeBorderThickness">1</Thickness>
+</ResourceDictionary>
