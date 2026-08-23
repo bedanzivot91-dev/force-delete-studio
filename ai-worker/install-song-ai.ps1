@@ -53,8 +53,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Instalacija lyric-align paketa nije uspela.' }
 Write-Output 'Instaliram OpenCV CSRT za Motion Tracking i Auto Reframe...'
 & $managedPython -m pip install --disable-pip-version-check --upgrade opencv-contrib-python-headless
 if ($LASTEXITCODE -ne 0) { throw 'Instalacija OpenCV tracking paketa nije uspela.' }
+Write-Output 'Instaliram AI uklanjanje pozadine bez zelenog platna...'
+& $managedPython -m pip install --disable-pip-version-check --upgrade rembg onnxruntime
+if ($LASTEXITCODE -ne 0) { throw 'Instalacija AI uklanjanja pozadine nije uspela.' }
 Write-Output 'Proveravam AI instalaciju...'
-& $managedPython -c "import importlib.metadata as m; import faster_whisper, demucs, lyric_align, cv2; tracker = getattr(cv2, 'TrackerCSRT_create', None) or getattr(getattr(cv2, 'legacy', None), 'TrackerCSRT_create', None); assert tracker is not None; print('AI alati su spremni. lyric-align ' + m.version('lyric-align') + ', OpenCV ' + cv2.__version__)"
+& $managedPython -c "import importlib.metadata as m; import faster_whisper, demucs, lyric_align, cv2, rembg, onnxruntime; tracker = getattr(cv2, 'TrackerCSRT_create', None) or getattr(getattr(cv2, 'legacy', None), 'TrackerCSRT_create', None); assert tracker is not None; print('AI alati su spremni. lyric-align ' + m.version('lyric-align') + ', OpenCV ' + cv2.__version__ + ', rembg ' + m.version('rembg'))"
 if ($LASTEXITCODE -ne 0) { throw 'AI paketi su instalirani, ali završna provera importa/CSRT trackera nije uspela.' }
 
 Write-Output 'Preuzimam model large-v3 za stihove (ovo je veliko i radi se samo prvi put)...'
