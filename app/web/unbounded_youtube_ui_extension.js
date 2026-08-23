@@ -102,64 +102,6 @@
     }catch(error){toast(error.message,'error',15000);}
   };
 
-  function installControl() {
-    normalizeLegacyControls();
-    const card = $('youtubeReconcileCard');
-    const oldButton = $('ytReconAllVideos');
-    if (!card || !oldButton || $('ytReconVideoLimit')) return;
-
-    const actions = oldButton.parentElement;
-    const field = document.createElement('label');
-    field.style.display = 'inline-flex';
-    field.style.flexDirection = 'column';
-    field.style.gap = '4px';
-    field.style.minWidth = '215px';
-    field.innerHTML = `<span class="muted" style="font-size:11px">VIDEA PO KANALU — 0 = SVI</span><input id="ytReconVideoLimit" type="number" min="0" step="1" value="${savedLimit()}" placeholder="0 = svi, ili 10 / 100 / 5000">`;
-    actions.insertBefore(field, oldButton);
-
-    const button = oldButton.cloneNode(true);
-    button.textContent = 'PROVERI MOJE VIDEOE';
-    button.title = '0 proverava sve dostupne videe; pozitivan broj je tvoj limit po kanalu.';
-    oldButton.replaceWith(button);
-
-    $('ytReconVideoLimit').addEventListener('change',()=>{
-      try{rememberLimit($('ytReconVideoLimit').value);}catch(error){toast(error.message,'error');}
-    });
-
-    button.addEventListener('click', async () => {
-      try {
-        const limit = rememberLimit($('ytReconVideoLimit').value);
-        const body = {
-          max_pages: 0,
-          max_videos_per_channel: limit,
-          candidate_limit: 20,
-          deep: false,
-          reuse_cache: true,
-          force: false,
-          scan_mode: 'all',
-          detect_multiple: true,
-          max_songs_per_video: 6,
-          cache_days: 30,
-          cache_gb: 10,
-        };
-        await startBackground('/api/youtube/audio-analyze-owned', body);
-        $('taskPanel').classList.remove('hidden');
-        $('taskPanel').scrollIntoView({behavior:'smooth'});
-        toast(limit === 0
-          ? 'Pokrenuta je provera SVIH dostupnih videa. Program nema brojčani limit; YouTube kvota/mreža i dalje važe.'
-          : `Pokrenuta je provera do ${limit} videa po kanalu — tačno po tvom izboru.`, 'success', 12000);
-      } catch (error) {
-        toast(error.message, 'error', 15000);
-      }
-    });
-
-    const note = document.createElement('p');
-    note.className = 'fine-print';
-    note.style.flexBasis = '100%';
-    note.innerHTML = '<strong>NEMA LIMITA OD 5.000.</strong> Unesi 10, 15, 100, 5000 ili bilo koji drugi ceo broj. <strong>0 = svi video-snimci koje YouTube nalog može da izlista.</strong> Ako YouTube iscrpi API kvotu ili traži ponovnu prijavu, posao prijavljuje tu stvarnu spoljašnju grešku umesto da glumi da je kanal završen.';
-    actions.appendChild(note);
-  }
-
   const originalLoadYoutubeCenter = loadYoutubeCenter;
   loadYoutubeCenter = async function loadYoutubeCenterUnbounded() {
     await originalLoadYoutubeCenter();
@@ -185,10 +127,8 @@
         $('youtubeAudioResultsList').prepend(warning);
       }
     }
-    installControl();
   };
 
   normalizeLegacyControls();
-  installControl();
   window.SPSYoutubeVideoLimit = {parseVideoLimit,rememberLimit};
 })();
