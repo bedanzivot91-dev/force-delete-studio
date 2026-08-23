@@ -68,7 +68,7 @@ def main() -> None:
     assert str(captured.get("content_type") or "").lower().startswith("application/javascript")
 
     print(
-        "runtime_frontend_bundle_test: PASS — Handler serves the standalone Suno-only five-layout bundle",
+        "runtime_frontend_bundle_test: PASS — Handler serves the standalone Suno-only eight-layout bundle",
         f"bytes={len(payload)}",
     )
 
