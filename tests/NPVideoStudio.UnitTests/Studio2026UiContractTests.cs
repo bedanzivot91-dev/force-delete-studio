@@ -65,6 +65,11 @@ public class Studio2026UiContractTests
         {
             Assert.Contains(command, commandBar);
         }
+        Assert.Contains("Header=\"Montaža i titlovi\"", commandBar);
+        Assert.Contains("Header=\"AI alati\"", commandBar);
+        Assert.Contains("RemoveBackgroundCommand", commandBar);
+        Assert.Contains("GenerateNarrationCommand", commandBar);
+        Assert.Contains("<StackPanel Spacing=\"6\">", commandBar);
     }
 
     [AvaloniaFact]

@@ -188,6 +188,15 @@
       <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
     </Style>
+    <Style Selector="TabControl.toolRibbon">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="TabControl.toolRibbon TabItem">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="MinHeight" Value="36" />
+    </Style>
     <Style Selector="Border#PlayerPanel">
       <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
     </Style>
