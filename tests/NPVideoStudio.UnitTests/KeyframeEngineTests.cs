@@ -13,6 +13,24 @@ public sealed class KeyframeEngineTests : IDisposable
     public void Dispose() => Directory.Delete(_tempDir, recursive: true);
 
     [Fact]
+    public void VolumeEnvelope_IsClampedEvaluatedAndRendered()
+    {
+        var clip = new TimelineClip { Volume = 1, SourceTrimOutSeconds = 4 };
+        clip.Keyframes.Add(new ClipKeyframe { Property = ClipKeyframeProperty.Volume, TimeSeconds = 0, Value = 0 });
+        clip.Keyframes.Add(new ClipKeyframe { Property = ClipKeyframeProperty.Volume, TimeSeconds = 2, Value = 3, Easing = ClipKeyframeEasing.Linear });
+
+        Assert.Equal(1, ClipKeyframeEvaluator.Evaluate(clip, ClipKeyframeProperty.Volume, 1), 6);
+        Assert.Equal(2, ClipKeyframeEvaluator.Evaluate(clip, ClipKeyframeProperty.Volume, 2), 6);
+
+        var method = typeof(FfmpegFilterGraphBuilder).GetMethod(
+            "BuildAnimatedVolumeFilter",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var filter = (string)method.Invoke(null, new object[] { clip, 1d })!;
+        Assert.Contains("eval=frame", filter);
+        Assert.Contains("volume='", filter);
+    }
+
+    [Fact]
     public void Evaluator_LinearEaseAndHold_AreDeterministic()
     {
         var keys = new[]

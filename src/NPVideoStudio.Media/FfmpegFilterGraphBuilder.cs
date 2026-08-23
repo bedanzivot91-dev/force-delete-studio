@@ -172,7 +172,7 @@ public static class FfmpegFilterGraphBuilder
                 }
                 audioFilter.Append(BuildAudioSpeedFilter(clip));
                 audioFilter.Append(BuildAudioEnhancementFilters(clip));
-                audioFilter.Append(FormattableString.Invariant($",volume={(clip.IsFreezeFrame ? 0 : volume)}"));
+                audioFilter.Append(BuildAnimatedVolumeFilter(clip, clip.IsFreezeFrame ? 0 : volume));
                 if (clip.FadeInSeconds > 0)
                 {
                     audioFilter.Append(FormattableString.Invariant($",afade=t=in:st=0:d={clip.FadeInSeconds}"));
@@ -424,7 +424,7 @@ public static class FfmpegFilterGraphBuilder
                     $"[{inputIndex}:a]atrim=start={clip.SourceTrimInSeconds}:end={clip.SourceTrimOutSeconds},asetpts=PTS-STARTPTS"));
                 chain.Append(BuildAudioSpeedFilter(clip));
                 chain.Append(BuildAudioEnhancementFilters(clip));
-                chain.Append(FormattableString.Invariant($",volume={volume}"));
+                chain.Append(BuildAnimatedVolumeFilter(clip, volume));
 
                 if (clip.FadeInSeconds > 0)
                 {
@@ -1032,6 +1032,21 @@ public static class FfmpegFilterGraphBuilder
 
     private static bool HasKeyframes(TimelineClip clip, ClipKeyframeProperty property) =>
         clip.Keyframes.Any(k => k.Property == property);
+
+    private static string BuildAnimatedVolumeFilter(TimelineClip clip, double baseVolume)
+    {
+        if (clip.IsMuted || baseVolume <= 0)
+        {
+            return ",volume=0";
+        }
+        if (!HasKeyframes(clip, ClipKeyframeProperty.Volume))
+        {
+            return FormattableString.Invariant($",volume={baseVolume}");
+        }
+        var envelope = BuildKeyframeValueExpression(clip, ClipKeyframeProperty.Volume, "t", clip.Volume);
+        var trackFactor = clip.Volume <= 1e-9 ? baseVolume : baseVolume / clip.Volume;
+        return FormattableString.Invariant($",volume='{trackFactor}*({envelope})':eval=frame");
+    }
 
     /// <summary>Piecewise FFmpeg expression for one animated property. The easing attached to the RIGHT
     /// keyframe controls travel into that point, matching ClipKeyframeEvaluator exactly.</summary>
