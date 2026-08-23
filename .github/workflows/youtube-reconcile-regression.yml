@@ -24,6 +24,10 @@ on:
       - "app/web/modern_2026_legibility_extension.js"
       - "app/web/modern_2026_shell_extension.js"
       - "app/web/modern_2026_navigation_final.js"
+      - "app/web/real_theme_layouts_extension.js"
+      - "app/web/gridstack_workspace_extension.js"
+      - "app/web/vendor/gridstack/**"
+      - "tests/e2e_test.py"
       - "tests/youtube_pipeline_fix_test.py"
       - "tests/youtube_reconcile_fix_test.py"
       - "tests/unbounded_operations_test.py"
@@ -75,6 +79,8 @@ jobs:
           node --check app\web\modern_2026_navigation_final.js
           node --check app\web\real_theme_layouts_extension.js
           node --check app\web\suno_only_runtime_extension.js
+          node --check app\web\gridstack_workspace_extension.js
+          node --check app\web\vendor\gridstack\gridstack-all.js
       - name: Verify production Handler serves complete final frontend bundle
         run: python tests\runtime_frontend_bundle_test.py
       - name: Verify startup no longer auto-starts full fingerprinting
@@ -92,3 +98,14 @@ jobs:
         run: python tests\full_program_static_audit.py
       - name: Run indexed-song/private-video/UI regression
         run: python tests\youtube_reconcile_fix_test.py
+      - name: Run real-browser eight-theme workspace test
+        env:
+          SUNO_E2E_SCREENSHOT_DIR: e2e-theme-screenshots
+        run: python tests\e2e_test.py
+      - name: Upload rendered theme screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eight-real-theme-screenshots
+          path: e2e-theme-screenshots
+          if-no-files-found: warn
