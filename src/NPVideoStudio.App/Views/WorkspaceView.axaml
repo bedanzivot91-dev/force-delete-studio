@@ -35,6 +35,8 @@
                   Command="{Binding GenerateKaraokeCaptionsForVideoCommand}" IsEnabled="{Binding !IsGeneratingCaptions}" />
           <Button Classes="ghost" Content="Stil izabranog titla" Command="{Binding OpenCaptionStyleGalleryCommand}"
                   ToolTip.Tip="Izaberite titl ili tekst-klip na timeline-u, pa primenite preset koji se čuva i ulazi u izvoz." />
+          <Button Classes="ghost" Content="Ukloni deo po titlu" Command="{Binding Timeline.RippleDeleteSelectedTranscriptCommand}"
+                  ToolTip.Tip="Izabrani red transkripta uklanja isti vremenski deo videa i zvuka i zatvara prazninu." />
         </StackPanel>
 
         <Expander Grid.Column="1" Header="Tačan tekst pesme" HorizontalAlignment="Right">

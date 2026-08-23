@@ -7,6 +7,20 @@ namespace NPVideoStudio.UnitTests;
 /// <summary>Pure logic, no process/model involved.</summary>
 public class TimelineEditSessionTests
 {
+    [Fact]
+    public void RippleDeleteMediaRange_splits_media_and_closes_gap()
+    {
+        var session = new TimelineEditSession(new[] { Track(TimelineTrackKind.Video, Clip(0, 0, 10), Clip(12, 0, 2)) });
+        session.RippleDeleteMediaRange(3, 5);
+        var clips = session.Tracks[0].Clips.OrderBy(c => c.TimelineStartSeconds).ToArray();
+        Assert.Equal(3, clips.Length);
+        Assert.Equal(3, clips[0].TimelineEndSeconds, 3);
+        Assert.Equal(3, clips[1].TimelineStartSeconds, 3);
+        Assert.Equal(10, clips[2].TimelineStartSeconds, 3);
+        session.Undo();
+        Assert.Equal(2, session.Tracks[0].Clips.Count);
+    }
+
     private static TimelineClip Clip(double timelineStart, double trimIn, double trimOut) => new()
     {
         TimelineStartSeconds = timelineStart,

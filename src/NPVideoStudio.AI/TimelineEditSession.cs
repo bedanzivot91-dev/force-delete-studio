@@ -98,6 +98,45 @@ public sealed class TimelineEditSession
         }
     }
 
+    /// <summary>Removes a transcript-selected time range from picture/audio tracks and closes the gap.</summary>
+    public void RippleDeleteMediaRange(double startSeconds, double endSeconds, string? transcriptClipId = null)
+    {
+        startSeconds = Math.Max(0, startSeconds);
+        if (endSeconds - startSeconds < MinClipDurationSeconds) return;
+        var affected = _tracks.Where(t => t.Kind is TimelineTrackKind.Video or TimelineTrackKind.Audio)
+            .SelectMany(t => t.Clips).Any(c => c.TimelineEndSeconds > startSeconds && c.TimelineStartSeconds < endSeconds);
+        if (!affected) return;
+        SaveSnapshot();
+        var gap = endSeconds - startSeconds;
+        foreach (var track in _tracks.Where(t => t.Kind is TimelineTrackKind.Video or TimelineTrackKind.Audio))
+        {
+            foreach (var clip in track.Clips.ToArray())
+            {
+                var clipStart = clip.TimelineStartSeconds; var clipEnd = clip.TimelineEndSeconds;
+                if (clipEnd <= startSeconds) continue;
+                if (clipStart >= endSeconds) { clip.TimelineStartSeconds -= gap; continue; }
+                if (clipStart >= startSeconds && clipEnd <= endSeconds) { track.Clips.Remove(clip); continue; }
+                if (clipStart < startSeconds && clipEnd > endSeconds)
+                {
+                    var right = Clone(clip); right.Id = Guid.NewGuid().ToString("N");
+                    var leftOffset = startSeconds - clipStart; var rightOffset = endSeconds - clipStart;
+                    clip.SourceTrimOutSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(clip, leftOffset);
+                    right.SourceTrimInSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(right, rightOffset);
+                    right.TimelineStartSeconds = startSeconds; track.Clips.Add(right); continue;
+                }
+                if (clipStart < startSeconds)
+                    clip.SourceTrimOutSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(clip, startSeconds - clipStart);
+                else
+                {
+                    clip.SourceTrimInSeconds = SpeedCurveMath.SourceTimeAtTimelineOffset(clip, endSeconds - clipStart);
+                    clip.TimelineStartSeconds = startSeconds;
+                }
+            }
+        }
+        if (transcriptClipId is not null)
+            foreach (var track in _tracks) track.Clips.RemoveAll(c => c.Id == transcriptClipId);
+    }
+
     public void DuplicateClip(string clipId)
     {
         var (track, clip) = FindClipWithTrack(clipId);
