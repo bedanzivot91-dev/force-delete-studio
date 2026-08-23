@@ -130,8 +130,6 @@ def check_api_routes(js: str, py: str, issues: list[str], notes: list[str]) -> N
 
 def check_information_architecture(issues: list[str], notes: list[str]) -> None:
     ia = (WEB / "information_architecture_2026_extension.js").read_text(encoding="utf-8")
-    organized = (WEB / "organized_ui_extension.js").read_text(encoding="utf-8")
-    cleanup = (WEB / "workflow_cleanup_extension.js").read_text(encoding="utf-8")
     required_moves = {
         "Suno": ["Nove Suno pesme", "ia2026SunoOperations", "importView.appendChild"],
         "Audio": ["Brza audio obrada", "ia2026AudioBatchOperations", "audio.appendChild"],
@@ -142,8 +140,19 @@ def check_information_architecture(issues: list[str], notes: list[str]) -> None:
         for token in tokens:
             if token not in ia:
                 issues.append(f"IA 2026: {group} nema očekivano grupisanje: {token}")
-    if 'production_workspace_extension.js' in BACKEND.read_text(encoding="utf-8"):
-        issues.append("Video/NP production modul se i dalje pakuje u Suno aplikaciju.")
+    forbidden_video_layers = (
+        "organized_ui_extension.js",
+        "studio_functionality_extension.js",
+        "workflow_cleanup_extension.js",
+        "production_workspace_extension.js",
+    )
+    present = [name for name in forbidden_video_layers if (WEB / name).exists()]
+    if present:
+        issues.append("Video/NP fajlovi su i dalje fizički prisutni u Suno aplikaciji: " + ", ".join(present))
+    backend_text = BACKEND.read_text(encoding="utf-8")
+    bundled = [name for name in forbidden_video_layers if name in backend_text]
+    if bundled:
+        issues.append("Video/NP moduli se i dalje pakuju u Suno aplikaciju: " + ", ".join(bundled))
     if "['library-tools', 'system']" not in ia:
         issues.append("Stari YouTube tabovi za Library/System nisu uklonjeni iz primarnog YouTube toka.")
     if "count.id = 'recognitionHistoryCount'" not in ia:
