@@ -7,16 +7,15 @@ plugins {
 
 android {
     namespace = "com.sunopesmestudio.app"
-    // compileSdk/targetSdk 35 (Android 15) is the latest stable target as of
-    // this project's last real dependency check against Maven Central in
-    // this session; Google Play's own minimum target-API requirement moves
-    // roughly annually, so re-check before submitting to Play.
-    compileSdk = 35
+    // Android 16 / API 36 is the current stable platform. Google Play
+    // requires new apps and app updates to target API 36 starting
+    // 2026-08-31, so keep compileSdk and targetSdk aligned with that level.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.sunopesmestudio.app"
         minSdk = 26 // Android 8.0 -- covers the vast majority of active devices
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "3.3.2"
 
