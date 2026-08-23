@@ -68,6 +68,10 @@ def main() -> int:
                         page.on('requestfailed',lambda r: failed.append(f'{r.method} {r.url}: {r.failure}'))
                         page.goto(f'http://127.0.0.1:{PORT}/',wait_until='networkidle',timeout=30000)
                         page.locator('#pageTitle').wait_for(timeout=10000)
+                        SCREENSHOT_DIR.mkdir(parents=True,exist_ok=True)
+                        page.screenshot(path=str(SCREENSHOT_DIR/f'{browser_name.lower()}-startup.png'),full_page=True)
+                        if page.locator('#view-home').count()!=1:
+                            raise AssertionError(f'Početna radna površina nije napravljena; JavaScript greške: {errors}')
                         main_views = ('home','library','import','recognition','tools','settings')
                         actual = page.locator('.sidebar nav > .nav-item').evaluate_all(
                             "nodes => nodes.map(node => node.dataset.view)"
@@ -112,7 +116,7 @@ def main() -> int:
                         assert not local_failed, f'Lokalni zahtevi nisu uspeli: {local_failed}'
                         results.append({'browser':browser_name,'ok':True})
                     except Exception as exc:
-                        results.append({'browser':browser_name,'ok':False,'error':str(exc)[:1000]})
+                        results.append({'browser':browser_name,'ok':False,'error':(str(exc)+f'; JavaScript greške: {errors}')[:2000]})
                     finally:
                         if browser: browser.close()
             passed=[r for r in results if r['ok']]
