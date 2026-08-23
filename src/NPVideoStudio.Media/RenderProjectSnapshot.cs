@@ -8,7 +8,7 @@ namespace NPVideoStudio.Media;
 /// live object graph while the UI is simultaneously editing it, and hidden/muted track state must be
 /// resolved before stabilization and FFmpeg graph construction see the timeline.
 /// </summary>
-internal static class RenderProjectSnapshot
+public static class RenderProjectSnapshot
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
