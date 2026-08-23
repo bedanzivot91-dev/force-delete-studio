@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:views="using:NPVideoStudio.App.Views"
              xmlns:conv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
              x:Class="NPVideoStudio.App.Views.ModernInspectorView"
              x:DataType="vm:TimelineClipItemViewModel">
@@ -349,6 +350,9 @@
             <StackPanel Spacing="8">
               <TextBlock Text="Keyframes" Classes="section" />
               <TextBlock Text="{Binding KeyframeSummary}" Classes="subtle" />
+              <views:KeyframeGraphView Height="150" Points="{Binding SelectedPropertyKeyframes}" Duration="{Binding KeyframeGraphDuration}"
+                                       Minimum="{Binding KeyframeValueMinimum}" Maximum="{Binding KeyframeValueMaximum}"
+                                       PointRequested="OnKeyframeGraphPointRequested" ToolTip.Tip="Klikni na graf da dodaš tačku u tačnom vremenu i vrednosti." />
               <TextBlock Text="Svojstvo" Classes="subtle" />
               <ComboBox ItemsSource="{Binding AvailableKeyframeProperties}" SelectedItem="{Binding SelectedKeyframeProperty}" />
               <TextBlock Text="{Binding KeyframeValueLabel}" Classes="subtle" />
