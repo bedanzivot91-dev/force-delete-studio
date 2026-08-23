@@ -104,7 +104,9 @@ public sealed class QuickVideoService : IQuickVideoService
                 throw new InvalidOperationException("ffmpeg je prijavio uspeh, ali izlazni fajl nije pronađen.");
             }
 
-            File.Move(tempPath, outputFilePath, overwrite: true);
+            // A file may appear while ffmpeg is rendering the temporary output. Respect the same
+            // overwrite decision at the final publish step so an unapproved file can never be destroyed.
+            File.Move(tempPath, outputFilePath, overwrite: overwriteConfirmed);
             progress?.Report(100);
             return outputFilePath;
         }
