@@ -82,7 +82,10 @@ public sealed class RenderService : IRenderService
                 throw new InvalidOperationException(job.ErrorMessage);
             }
 
-            File.Move(tempPath, settings.OutputFilePath, overwrite: true);
+            // Re-apply the user's overwrite decision at the atomic publish step. A file can appear at
+            // this path while a long render is running; overwrite:false protects that new user file from
+            // being silently destroyed when the user never approved replacement.
+            File.Move(tempPath, settings.OutputFilePath, overwrite: settings.OverwriteConfirmed);
             job.Status = RenderJobStatus.Completed;
             job.ProgressPercent = 100;
             job.CompletedAt = DateTimeOffset.Now;
