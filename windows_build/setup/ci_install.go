@@ -22,6 +22,14 @@ import (
 
 func init() {
 	if len(os.Args) >= 3 && os.Args[1] == "--ci-install" {
+		// This switch can delete/recreate the caller-provided target directory.
+		// It exists only for the repository's GitHub Actions regression workflow
+		// and must never be a hidden destructive entry point in the shipped GUI
+		// installer on an end-user machine.
+		if !strings.EqualFold(strings.TrimSpace(os.Getenv("GITHUB_ACTIONS")), "true") {
+			fmt.Fprintln(os.Stderr, "--ci-install is available only inside GitHub Actions")
+			os.Exit(2)
+		}
 		os.Exit(ciInstall(os.Args[2]))
 	}
 }
