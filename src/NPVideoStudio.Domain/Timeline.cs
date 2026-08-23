@@ -277,6 +277,11 @@ public sealed class TimelineClip
     /// <summary>0 = ffmpeg drawtext's own default line spacing (only matters for multi-line text).</summary>
     public int LineSpacingPx { get; set; }
 
+    /// <summary>Persisted gallery treatment consumed by preview/export, never UI-only metadata.</summary>
+    public CaptionAnimationKind? CaptionAnimation { get; set; }
+    public CaptionGranularity CaptionGranularity { get; set; } = CaptionGranularity.LineByLine;
+    public string CaptionAccentColor { get; set; } = "#FFFFFF";
+
     public double SourceTrimInSeconds { get; set; }
     public double SourceTrimOutSeconds { get; set; }
 

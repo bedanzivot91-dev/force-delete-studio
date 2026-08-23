@@ -32,12 +32,16 @@ public sealed class CaptionStyleGalleryIntegrationTests
         Assert.StartsWith("#", edited.TextBackgroundColor);
         Assert.Equal(7, edited.TextBackgroundColor.Length);
         Assert.InRange(edited.TextBackgroundOpacity, 0.01, 1.0);
+        Assert.Equal(preset.Animation, edited.CaptionAnimation);
+        Assert.Equal(preset.Granularity, edited.CaptionGranularity);
+        Assert.Equal(preset.AccentColorHex, edited.CaptionAccentColor);
 
         session.Undo();
         var undone = Assert.Single(Assert.Single(session.Tracks).Clips);
         Assert.Equal("#FFFFFF", undone.TextColor);
         Assert.Null(undone.TextOutlineColor);
         Assert.False(undone.HasTextBackground);
+        Assert.Null(undone.CaptionAnimation);
     }
 
     [Fact]
@@ -135,5 +139,49 @@ public sealed class CaptionStyleGalleryIntegrationTests
         Assert.Contains("drawtext=", plan.FilterComplexArgument);
         Assert.Contains($"fontcolor={preset.TextColorHex}", plan.FilterComplexArgument);
         Assert.Contains($"bordercolor={preset.OutlineOrShadowColorHex}", plan.FilterComplexArgument);
+    }
+
+    [Fact]
+    public void FfmpegFinalGraph_WordPresetRendersEachWordAndTemporalAnimation()
+    {
+        var preset = CaptionStylePresetCatalog.All.First(p =>
+            p.Granularity == CaptionGranularity.WordByWord && p.Animation == CaptionAnimationKind.Pop);
+        var caption = new TimelineClip { TextContent = "Još te čekam", SourceTrimOutSeconds = 3 };
+        var session = new TimelineEditSession(new[]
+        {
+            new TimelineTrack { Kind = TimelineTrackKind.Caption, Clips = { caption } }
+        });
+        Assert.True(session.ApplyCaptionStylePreset(caption.Id, preset));
+
+        var asset = new MediaAsset { Id = "video", FilePath = "input.mp4", Duration = TimeSpan.FromSeconds(3), HasVideoStream = true, HasAudioStream = true };
+        var timeline = new Timeline();
+        timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = { new TimelineClip { MediaAssetId = asset.Id, SourceTrimOutSeconds = 3 } } });
+        timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.Caption, Clips = { Assert.Single(Assert.Single(session.Tracks).Clips) } });
+
+        var graph = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset }, 640, 360, 30).FilterComplexArgument;
+
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(graph, "drawtext=text=").Count);
+        Assert.Contains("fontsize='36*(0.72+0.28*", graph);
+        Assert.Contains("between(t,0,1)", graph);
+        Assert.Contains("between(t,1,2)", graph);
+        Assert.Contains("between(t,2,3)", graph);
+    }
+
+    [Fact]
+    public void FfmpegFinalGraph_KaraokeUsesAccentColorForActiveWords()
+    {
+        var asset = new MediaAsset { Id = "video", FilePath = "input.mp4", Duration = TimeSpan.FromSeconds(2), HasVideoStream = true, HasAudioStream = true };
+        var caption = new TimelineClip
+        {
+            TextContent = "Nema te", SourceTrimOutSeconds = 2,
+            CaptionGranularity = CaptionGranularity.Karaoke, CaptionAccentColor = "#FF3366"
+        };
+        var timeline = new Timeline();
+        timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = { new TimelineClip { MediaAssetId = asset.Id, SourceTrimOutSeconds = 2 } } });
+        timeline.Tracks.Add(new TimelineTrack { Kind = TimelineTrackKind.Caption, Clips = { caption } });
+
+        var graph = FfmpegFilterGraphBuilder.Build(timeline, new[] { asset }, 640, 360, 30).FilterComplexArgument;
+
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(graph, "fontcolor=#FF3366").Count);
     }
 }
