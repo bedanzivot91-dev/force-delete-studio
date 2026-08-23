@@ -7,7 +7,7 @@
 
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = '/vendor/gridstack/gridstack.min.css';
+  css.href = '/assets/vendor/gridstack/gridstack.min.css';
   css.dataset.sunoGridstack = '1';
   document.head.appendChild(css);
   const style = document.createElement('style');
