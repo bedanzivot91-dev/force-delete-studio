@@ -104,6 +104,8 @@ def main() -> int:
                             signatures[theme]=tuple((r[0],r[1],r[2],r[3]) for r in rects)
                             sidebar=page.locator('.sidebar').bounding_box(); main=page.locator('main.main').bounding_box()
                             assert sidebar and main
+                            topbar=page.locator('.topbar').bounding_box(); hero=page.locator('.suno-home-hero').bounding_box()
+                            assert topbar and hero and hero['y']-topbar['y'] < 420, f'{theme}: prevelik prazan prostor iznad radne površine'
                             overlap=max(0,min(sidebar['x']+sidebar['width'],main['x']+main['width'])-max(sidebar['x'],main['x']))*max(0,min(sidebar['y']+sidebar['height'],main['y']+main['height'])-max(sidebar['y'],main['y']))
                             assert overlap < 1500, f'{theme}: meni prekriva radnu površinu ({overlap}px²)'
                             page.screenshot(path=str(SCREENSHOT_DIR/f'{browser_name.lower()}-{theme}.png'),full_page=True)
