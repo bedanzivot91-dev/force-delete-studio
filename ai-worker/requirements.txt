@@ -12,3 +12,4 @@ opencv-contrib-python-headless
 rembg
 onnxruntime
 argostranslate
+pyttsx3
