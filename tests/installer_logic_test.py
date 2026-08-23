@@ -10,6 +10,7 @@ setup_all = '\n'.join(
 )
 ci_install = (SETUP_DIR / 'ci_install.go').read_text(encoding='utf-8')
 ci_remove = (ROOT / 'windows_build/uninstaller/ci_remove.go').read_text(encoding='utf-8')
+native_remove_guard = (ROOT / 'windows_build/uninstaller/00_remove_target_guard.go').read_text(encoding='utf-8')
 progress = (ROOT / 'windows_build/progress/main.go').read_text(encoding='utf-8')
 workflow = (ROOT / '.github/workflows/windows-build.yml').read_text(encoding='utf-8')
 checks = []
@@ -58,6 +59,9 @@ ok('WebView2 Evergreen Standalone is bundled for offline install', 'MicrosoftEdg
 # are destructive and must be usable only by the GitHub Actions environment.
 ok('ci installer destructive switch is GitHub-Actions-only', 'GITHUB_ACTIONS' in ci_install and '--ci-install is available only inside GitHub Actions' in ci_install)
 ok('ci uninstaller destructive switch is GitHub-Actions-only', 'GITHUB_ACTIONS' in ci_remove and '--ci-remove is available only inside GitHub Actions' in ci_remove)
+ok('native uninstaller rejects non-Suno target directories', 'validateNativeRemoveTarget' in native_remove_guard and 'AKTIVNA_VERZIJA.txt' in native_remove_guard and 'Versions' in native_remove_guard)
+ok('native uninstaller rejects drive-root deletion', 'odbijeno brisanje korena diska' in native_remove_guard)
+ok('native uninstaller requires both installed executables', 'Deinstaliraj "+appName+".exe' in native_remove_guard and 'appName+".exe' in native_remove_guard)
 
 # Obsolete component references must not survive the pre-build normalizer.
 for obsolete in (
