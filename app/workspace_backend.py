@@ -44,7 +44,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("modern 2026 final legibility pass", core.WEB_DIR / "modern_2026_legibility_extension.js"),
         ("2026 workspace shell and navigation hierarchy", core.WEB_DIR / "modern_2026_shell_extension.js"),
         ("final 2026 navigation grouping", core.WEB_DIR / "modern_2026_navigation_final.js"),
-        ("five genuinely different application layouts", core.WEB_DIR / "real_theme_layouts_extension.js"),
+        ("eight genuinely different application layouts", core.WEB_DIR / "real_theme_layouts_extension.js"),
         ("standalone Suno-only runtime guard", core.WEB_DIR / "suno_only_runtime_extension.js"),
         ("single-owner Suno workspace redesign", core.WEB_DIR / "suno_workspace_redesign_extension.js"),
     )
@@ -81,7 +81,7 @@ def apply(core: Any) -> dict[str, Any]:
         cues = core.load_subtitle_cues(song, core.DB)
         if not cues:
             raise RuntimeError(
-                "Pesma nema sačuvane LRC/SRT titlove. Otvori Video Studio, povuci Suno tajming ili uvezi/uredi titlove i sačuvaj ih pre rendera."
+                "Pesma nema sačuvane LRC/SRT titlove. Otvori pesmu u biblioteci, uvezi ili uredi titlove i sačuvaj ih pre pravljenja lyric videa."
             )
 
         aspect = str(options.get("aspect") or "16:9")

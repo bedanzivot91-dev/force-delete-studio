@@ -118,7 +118,7 @@ def main() -> None:
         assert token in backend, token
     for forbidden in ("organized_ui_extension.js", "studio_functionality_extension.js", "workflow_cleanup_extension.js", "production_workspace_extension.js"):
         assert forbidden not in backend, forbidden
-    checks.append("server wires reconciliation and exact selection into the standalone five-layout Suno app")
+    checks.append("server wires reconciliation and exact selection into the standalone eight-layout Suno app")
 
     print(json.dumps({"ok": True, "passed": len(checks), "checks": checks}, ensure_ascii=False, indent=2))
 

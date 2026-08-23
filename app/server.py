@@ -8,7 +8,7 @@ large-library download fixes without rewriting the mature server in-place:
 - optional one-folder-per-song output for bulk downloads;
 - the browser receives small extension modules appended to app.js so the
   existing UI keeps all of its original code while gaining whole-library
-  controls and the real production/timeline workspace.
+  controls. The standalone program never appends the historical video editor.
 """
 
 import sys
@@ -214,7 +214,6 @@ globals()["_build_per_song_download_options"] = _build_per_song_download_options
 _ORIGINAL_SEND_FILE = _core.Handler._send_file
 _SCRIPT_EXTENSIONS = (
     ("whole-library download extension", _core.WEB_DIR / "bulk_download_extension.js"),
-    ("production timeline workspace", _core.WEB_DIR / "production_workspace_extension.js"),
 )
 
 
