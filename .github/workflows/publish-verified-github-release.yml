@@ -18,10 +18,10 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_ARTIFACT_ID: "9489804845"
-      VERIFIED_HEAD_SHA: "1477f2163117aca49039eb2d355e07159e17fb1b"
-      MERGE_SHA: "e9398526283cc3b6c196075bfa680482355ebc52"
-      RELEASE_TAG: "v3.3.2-suno-workspace-ui-final"
+      VERIFIED_ARTIFACT_ID: "9491216416"
+      VERIFIED_HEAD_SHA: "52ffbde0ebd1cb5f5f8f1a1e9425b5ee4d17a3cd"
+      MERGE_SHA: "3a1232d8dbce5e941c7d8a2a99b5ff61388ea196"
+      RELEASE_TAG: "v3.3.2-suno-full-audit-final"
       SOURCE_ZIP: "verified/artifact-download/Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
       RELEASE_ZIP: "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip"
 
@@ -73,16 +73,16 @@ jobs:
 
           Ovo je Windows FULL-OFFLINE paket koji je prosao zavrsnu kompletnu proveru pre objave na GitHub Releases.
 
-          Verified source head: `1477f2163117aca49039eb2d355e07159e17fb1b`
-          Merged source commit: `e9398526283cc3b6c196075bfa680482355ebc52`
-          Windows build: #1521 - SUCCESS
-          Real installed package regression: #82 - SUCCESS
-          Deep repository audit: #81 - SUCCESS
-          Android build/test: #332 - SUCCESS
+          Verified source head: `52ffbde0ebd1cb5f5f8f1a1e9425b5ee4d17a3cd`
+          Merged source commit: `3a1232d8dbce5e941c7d8a2a99b5ff61388ea196`
+          Windows build: #1560 - SUCCESS
+          Real installed package regression: #86 - SUCCESS
+          Deep repository audit: #86 - SUCCESS
+          Android build/test: #339 - SUCCESS
 
           Windows paket je prosao 33/33 Windows testa, staged runtime, real backend start, real Song Finder sa FFmpeg/Chromaprint, final ZIP/manifests, kao i dva puna clean install -> native GUI/backend/Suno/runtime UI -> uninstall ciklusa.
 
-          Paket sadrži isključivo Suno radnu površinu, osam strukturno različitih tema i ispravljenu navigaciju bez preklapanja sadržaja. Signal Grid ima stabilnu horizontalnu traku, a novi Neon Stage, Album Wall i Mixer Desk menjaju stvarni raspored radne površine. Automatsko skeniranje kratkih YouTube klipova proverava četiri fazna poravnanja i, kada je potrebno, stvarne FFmpeg tempo varijante 0.93/0.97/1.03/1.08.
+          Paket je prošao završni kompletan Suno-only audit: 204 projektna fajla, 933 Python funkcije, 251 UI dugme, 183 frontend API putanje i 47 HTTP integracionih provera. Istorijski Video Studio dodatak uklonjen je i iz rezervnog bundle-a. Osam tema menjaju stvarni raspored, a Signal Grid ima stabilnu horizontalnu traku bez preklapanja. YouTube prepoznavanje koristi četiri fazna poravnanja i FFmpeg tempo varijante 0.93/0.97/1.03/1.08.
 
           Za instalaciju raspakujte ZIP i pokrenite `INSTALIRAJ_PROGRAM.exe`.
           EOF
@@ -145,7 +145,7 @@ jobs:
             --arg verified_head "${VERIFIED_HEAD_SHA}" \
             --arg merged_source_commit "${MERGE_SHA}" \
             --arg artifact_id "${VERIFIED_ARTIFACT_ID}" \
-            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:1521,real_install_run:82,deep_audit_run:81,android_build:332}' \
+            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:1560,real_install_run:86,deep_audit_run:86,android_build:339}' \
             > docs/verified-release.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -154,5 +154,5 @@ jobs:
             echo "Verified release marker already matches."
             exit 0
           fi
-          git commit -m "Record published Suno workspace UI verified v3.3.2 release"
+          git commit -m "Record published full Suno audit verified v3.3.2 release"
           git push origin HEAD:"claude/suno-pesme-studio-full-build-ljk5m7"
