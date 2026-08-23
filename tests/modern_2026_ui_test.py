@@ -51,7 +51,7 @@ def main() -> None:
         assert token in skin, token
     layouts = LAYOUTS.read_text(encoding="utf-8")
     suno_only = SUNO_ONLY.read_text(encoding="utf-8")
-    for theme in ("aurora-flow", "graphite-console", "vinyl-loft", "signal-grid", "paper-studio"):
+    for theme in ("aurora-flow", "graphite-console", "vinyl-loft", "signal-grid", "paper-studio", "neon-stage", "album-wall", "mixer-desk"):
         assert theme in layouts, theme
     assert 'productionView?.remove()' in suno_only
 

@@ -40,6 +40,17 @@
     body.suno-workspace-redesign .suno-context-bar{display:flex;gap:8px;overflow-x:auto;margin:0 0 14px;padding:8px;position:sticky;top:104px;z-index:12}
     body.suno-workspace-redesign .suno-context-bar button{white-space:nowrap}
     body.suno-workspace-redesign .modern-top-badge{display:none!important}
+    /* Signal Grid is the only horizontal workspace.  The redesign runs after
+       the theme layouts, so it must explicitly preserve the horizontal rail;
+       otherwise the generic column rule turns the rail into a huge overlay. */
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .sidebar{height:62px!important;min-height:62px!important;overflow:visible!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .sidebar nav{display:flex!important;flex:1 1 auto!important;flex-direction:row!important;align-items:center!important;gap:4px!important;overflow-x:auto!important;overflow-y:hidden!important;min-width:0!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .sidebar nav>.nav-item{display:inline-flex!important;width:auto!important;min-width:max-content!important;min-height:36px!important;padding:7px 10px!important;font-size:10px!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .suno-tools-drawer{position:relative!important;flex:0 0 auto!important;margin:0!important;padding:0!important;border:0!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .suno-tools-drawer summary{min-height:36px!important;padding:10px!important;border:1px solid var(--m-line)!important;border-radius:3px!important;font-size:10px!important;white-space:nowrap!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .suno-tools-drawer[open] .suno-tools-grid{position:absolute!important;right:0!important;top:44px!important;z-index:100!important;width:230px!important;padding:8px!important;border:1px solid var(--m-line)!important;background:var(--m-panel-solid)!important;box-shadow:0 18px 48px rgba(0,0,0,.45)!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .main{padding-top:14px!important}
+    body.suno-workspace-redesign[data-sps-skin="signal-grid"] .topbar{top:8px!important}
     @media(max-width:1050px){body.suno-workspace-redesign .suno-flow{grid-template-columns:repeat(2,1fr)}body.suno-workspace-redesign .suno-home-hero{grid-template-columns:1fr}}
     @media(max-width:760px){body.suno-workspace-redesign .sidebar nav{flex-direction:row!important}body.suno-workspace-redesign .sidebar nav>.nav-item{min-width:58px!important;width:auto!important;font-size:0!important;justify-content:center!important}body.suno-workspace-redesign .suno-tools-drawer{display:none}body.suno-workspace-redesign .suno-flow,body.suno-workspace-redesign .suno-home-secondary{grid-template-columns:1fr}body.suno-workspace-redesign .suno-context-bar{top:8px}}
   `;

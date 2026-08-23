@@ -24,6 +24,11 @@ def main() -> None:
     assert "data-open-view=\"download\"" in SOURCE
     assert "data-open-view=\"folders\"" in SOURCE
     assert "data-open-view=\"audio\"" in SOURCE
+    assert 'data-sps-skin="signal-grid"' in SOURCE
+    assert 'height:62px!important' in SOURCE
+    assert 'flex-direction:row!important' in SOURCE
+    assert 'overflow-y:hidden!important' in SOURCE
+    assert '.suno-tools-drawer[open] .suno-tools-grid' in SOURCE
     print('suno_workspace_redesign_test: PASS — one menu owner, six core destinations, contextual tools, Suno-only copy')
 
 
