@@ -32,6 +32,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         return
     previous_send_file = handler._send_file
     extensions = (
+        ("GridStack 13.2.0 MIT workspace engine", core.WEB_DIR / "vendor" / "gridstack" / "gridstack-all.js"),
         ("whole-library download extension", core.WEB_DIR / "bulk_download_extension.js"),
         ("arbitrary song count selection", core.WEB_DIR / "arbitrary_selection_extension.js"),
         ("startup heavy-task guard", core.WEB_DIR / "startup_guard_extension.js"),
@@ -47,6 +48,7 @@ def _install_complete_app_bundle(core: Any) -> None:
         ("eight genuinely different application layouts", core.WEB_DIR / "real_theme_layouts_extension.js"),
         ("standalone Suno-only runtime guard", core.WEB_DIR / "suno_only_runtime_extension.js"),
         ("single-owner Suno workspace redesign", core.WEB_DIR / "suno_workspace_redesign_extension.js"),
+        ("functional draggable Suno workspace", core.WEB_DIR / "gridstack_workspace_extension.js"),
     )
 
     def send_file(self: Any, path: Path, download_name: str | None = None, no_cache: bool = False) -> None:

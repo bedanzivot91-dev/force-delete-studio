@@ -121,7 +121,11 @@
       <button class="panel suno-flow-card" data-open-view="folders"><strong>Kolekcije</strong><span>Organizujte pesme bez dupliranja.</span></button>
       <button class="panel suno-flow-card" data-open-view="stats"><strong>Statistika</strong><span>Pregled sadržaja Suno biblioteke.</span></button>
     </div>`;
-  main?.insertBefore(home, firstView || null);
+  // Routed views live inside a nested content host in the production HTML.
+  // insertBefore() requires the reference node to be a DIRECT child; using
+  // main here raised NotFoundError and stopped the whole workspace halfway.
+  const viewHost = firstView?.parentElement || main;
+  viewHost?.insertBefore(home, firstView || null);
 
   const library = document.getElementById('view-library');
   if (library) {

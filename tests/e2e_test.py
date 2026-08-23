@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 PORT=8876
+SCREENSHOT_DIR=Path(os.environ.get('SUNO_E2E_SCREENSHOT_DIR') or (ROOT/'e2e-theme-screenshots'))
 
 
 def get_json(path: str):
@@ -53,7 +54,7 @@ def main() -> int:
         try:
             for _ in range(100):
                 try:
-                    if get_json('/api/health').get('version')=='3.0.0': break
+                    if get_json('/api/health').get('version')=='3.3.2': break
                 except Exception: time.sleep(.2)
             else: raise RuntimeError('Test server nije pokrenut.')
             with sync_playwright() as pw:
@@ -67,6 +68,10 @@ def main() -> int:
                         page.on('requestfailed',lambda r: failed.append(f'{r.method} {r.url}: {r.failure}'))
                         page.goto(f'http://127.0.0.1:{PORT}/',wait_until='networkidle',timeout=30000)
                         page.locator('#pageTitle').wait_for(timeout=10000)
+                        SCREENSHOT_DIR.mkdir(parents=True,exist_ok=True)
+                        page.screenshot(path=str(SCREENSHOT_DIR/f'{browser_name.lower()}-startup.png'),full_page=True)
+                        if page.locator('#view-home').count()!=1:
+                            raise AssertionError(f'Početna radna površina nije napravljena; JavaScript greške: {errors}')
                         main_views = ('home','library','import','recognition','tools','settings')
                         actual = page.locator('.sidebar nav > .nav-item').evaluate_all(
                             "nodes => nodes.map(node => node.dataset.view)"
@@ -83,15 +88,39 @@ def main() -> int:
                             assert 'active' in (page.locator(f'#view-{view}').get_attribute('class') or '')
                         assert page.locator('[data-view="production"]').count() == 0
                         assert page.locator('#view-production').count() == 0
-                        for theme in ('aurora-flow','graphite-console','vinyl-loft','signal-grid','paper-studio'):
+                        page.locator('.sidebar nav > [data-view="home"]').click(); page.wait_for_timeout(150)
+                        assert 'active' in (page.locator('#view-home').get_attribute('class') or '')
+                        themes=('aurora-flow','graphite-console','vinyl-loft','signal-grid','paper-studio','neon-stage','album-wall','mixer-desk')
+                        SCREENSHOT_DIR.mkdir(parents=True,exist_ok=True)
+                        signatures={}
+                        for theme in themes:
                             page.locator('#modernSkinQuickSelect').select_option(theme)
                             assert page.locator('body').get_attribute('data-sps-skin') == theme
+                            page.wait_for_timeout(350)
+                            assert page.locator('.suno-functional-grid').count()==1, f'{theme}: GridStack radna površina nije učitana'
+                            assert page.locator('.suno-functional-grid > .grid-stack-item').count()==7, f'{theme}: nema svih sedam povezanih funkcija'
+                            rects=page.locator('.suno-functional-grid > .grid-stack-item').evaluate_all("nodes => nodes.map(n => {const r=n.getBoundingClientRect(); return [Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)]})")
+                            assert all(r[2]>80 and r[3]>40 for r in rects), f'{theme}: nevidljiv ili sabijen panel {rects}'
+                            signatures[theme]=tuple((r[0],r[1],r[2],r[3]) for r in rects)
+                            sidebar=page.locator('.sidebar').bounding_box(); main=page.locator('main.main').bounding_box()
+                            assert sidebar and main
+                            topbar=page.locator('.topbar').bounding_box(); hero=page.locator('.suno-home-hero').bounding_box()
+                            assert topbar and hero and hero['y']-topbar['y'] < 420, f'{theme}: prevelik prazan prostor iznad radne površine'
+                            overlap=max(0,min(sidebar['x']+sidebar['width'],main['x']+main['width'])-max(sidebar['x'],main['x']))*max(0,min(sidebar['y']+sidebar['height'],main['y']+main['height'])-max(sidebar['y'],main['y']))
+                            assert overlap < 1500, f'{theme}: meni prekriva radnu površinu ({overlap}px²)'
+                            page.screenshot(path=str(SCREENSHOT_DIR/f'{browser_name.lower()}-{theme}.png'),full_page=True)
+                        assert len(set(signatures.values()))>=7, 'Teme su samo promene boje: rasporedi nisu stvarno različiti.'
+                        page.locator('#modernSkinQuickSelect').select_option('aurora-flow')
+                        page.locator('[data-workspace-edit]').click(); assert 'workspace-editing' in (page.locator('.suno-functional-grid').get_attribute('class') or '')
+                        page.locator('[data-workspace-edit]').click(); assert 'workspace-editing' not in (page.locator('.suno-functional-grid').get_attribute('class') or '')
+                        page.locator('[data-open-view="library"]').first.click(); page.wait_for_timeout(100)
+                        assert 'active' in (page.locator('#view-library').get_attribute('class') or ''), 'Panel biblioteke nije povezan sa funkcijom.'
                         assert not errors, f'JavaScript greške: {errors}'
                         local_failed=[x for x in failed if f'127.0.0.1:{PORT}' in x]
                         assert not local_failed, f'Lokalni zahtevi nisu uspeli: {local_failed}'
                         results.append({'browser':browser_name,'ok':True})
                     except Exception as exc:
-                        results.append({'browser':browser_name,'ok':False,'error':str(exc)[:1000]})
+                        results.append({'browser':browser_name,'ok':False,'error':(str(exc)+f'; JavaScript greške: {errors}')[:2000]})
                     finally:
                         if browser: browser.close()
             passed=[r for r in results if r['ok']]
