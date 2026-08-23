@@ -22,7 +22,6 @@
   function rememberLimit(value) {
     const limit = parseVideoLimit(value);
     try { localStorage.setItem('sps-youtube-video-limit', String(limit)); } catch (_) {}
-    if ($('ytReconVideoLimit')) $('ytReconVideoLimit').value = String(limit);
     if ($('youtubeAudioMaxVideos')) $('youtubeAudioMaxVideos').value = String(limit);
     return limit;
   }
