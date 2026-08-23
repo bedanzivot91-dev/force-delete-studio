@@ -12,6 +12,7 @@ namespace NPVideoStudio.Infrastructure.Persistence;
 public sealed class AutoSaveService : IAutoSaveService, IDisposable
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectSnapshotRepository? _snapshotRepository;
     private readonly ISettingsService _settingsService;
     private Timer? _timer;
     private Func<Project?>? _getCurrentProject;
@@ -23,6 +24,7 @@ public sealed class AutoSaveService : IAutoSaveService, IDisposable
     public AutoSaveService(IProjectRepository projectRepository, ISettingsService settingsService)
     {
         _projectRepository = projectRepository;
+        _snapshotRepository = projectRepository as IProjectSnapshotRepository;
         _settingsService = settingsService;
     }
 
@@ -90,9 +92,28 @@ public sealed class AutoSaveService : IAutoSaveService, IDisposable
         await _saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var autoSavePath = AutoSavePathFor(project.ProjectFilePath);
+            // Capture this BEFORE writing. A recovery snapshot is intentionally not allowed to become the
+            // active project identity; SaveAsync does change ProjectFilePath by contract, so autosave must
+            // use the non-mutating snapshot capability supplied by the production ProjectRepository.
+            var originalProjectPath = project.ProjectFilePath;
+            var autoSavePath = AutoSavePathFor(originalProjectPath);
             Directory.CreateDirectory(AppSettings.AutoSaveFolder());
-            await _projectRepository.SaveAsync(project, autoSavePath, cancellationToken).ConfigureAwait(false);
+
+            if (_snapshotRepository is null)
+            {
+                throw new InvalidOperationException(
+                    "Repozitorijum projekta ne podržava bezbedan autosave snapshot bez promene aktivne putanje projekta.");
+            }
+
+            await _snapshotRepository.SaveSnapshotAsync(project, autoSavePath, cancellationToken).ConfigureAwait(false);
+
+            // Defensive invariant check: catches a future broken snapshot implementation immediately,
+            // before a manual Save can silently target the recovery slot instead of the user's project.
+            if (!string.Equals(project.ProjectFilePath, originalProjectPath, StringComparison.Ordinal))
+            {
+                project.ProjectFilePath = originalProjectPath;
+                throw new InvalidOperationException("Autosave je pokušao da promeni aktivnu putanju projekta.");
+            }
         }
         finally
         {
