@@ -23,8 +23,10 @@
       </Grid>
     </Border>
 
-    <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="24,8" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+    <Border Name="CaptionToolbar" DockPanel.Dock="Top" Classes="surface" Padding="16,6,16,8" BorderThickness="0,0,0,1">
+      <TabControl Classes="toolRibbon">
+        <TabItem Header="Titlovi">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="8,8,8,0">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <TextBlock Text="Titlovi" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" />
           <Button Classes="cta" Content="Automatski titlovi"
@@ -59,7 +61,40 @@
                   IsVisible="{Binding IsGeneratingCaptions}" />
           <TextBlock Text="{Binding CaptionsStatusMessage}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
-      </Grid>
+          </Grid>
+        </TabItem>
+        <TabItem Header="AI alati">
+          <Grid ColumnDefinitions="Auto,16,*,Auto" Margin="8,8,8,0">
+            <StackPanel Spacing="5" VerticalAlignment="Center">
+              <TextBlock Text="Vizuelna obrada" FontWeight="SemiBold" />
+              <Button Classes="cta" Content="Ukloni pozadinu" Command="{Binding RemoveBackgroundCommand}"
+                      IsEnabled="{Binding !IsRemovingBackground}"
+                      ToolTip.Tip="Lokalna AI segmentacija pravi transparentan WebM bez zelenog platna." />
+              <TextBlock Text="{Binding BackgroundRemovalStatus}" Classes="subtle" TextWrapping="Wrap" MaxWidth="300" />
+            </StackPanel>
+            <Border Grid.Column="1" Width="1" Margin="7,0" Background="{DynamicResource ThemeBorderBrush}" />
+            <StackPanel Grid.Column="2" Spacing="6">
+              <TextBlock Text="Lokalna naracija" FontWeight="SemiBold" />
+              <TextBox MinWidth="360" Watermark="Unesite tekst koji treba izgovoriti..."
+                       Text="{Binding NarrationText}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="54" />
+              <WrapPanel>
+                <TextBlock Text="Jezik" VerticalAlignment="Center" Margin="0,0,6,6" />
+                <ComboBox Width="84" ItemsSource="{Binding NarrationLanguages}" SelectedItem="{Binding NarrationLanguage}" Margin="0,0,12,6" />
+                <TextBlock Text="Brzina" VerticalAlignment="Center" Margin="0,0,6,6" />
+                <NumericUpDown Width="90" Minimum="80" Maximum="300" Increment="10" Value="{Binding NarrationRate}" Margin="0,0,12,6" />
+                <Button Classes="cta" Content="Napravi WAV naraciju" Command="{Binding GenerateNarrationCommand}"
+                        IsEnabled="{Binding !IsGeneratingNarration}" Margin="0,0,8,6" />
+              </WrapPanel>
+              <TextBlock Text="{Binding NarrationStatus}" Classes="subtle" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="3" Spacing="4" Margin="20,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="LOKALNA OBRADA" Classes="micro" />
+              <TextBlock Text="Bez slanja videa u cloud" Classes="subtle" />
+              <TextBlock Text="Rezultati ulaze u biblioteku" Classes="subtle" />
+            </StackPanel>
+          </Grid>
+        </TabItem>
+      </TabControl>
     </Border>
 
     <Grid Name="EditingGrid" RowDefinitions="3*,Auto,2*">
@@ -86,16 +121,6 @@
                     IsEnabled="{Binding !IsRenderingRealPreview}" />
             <Button Classes="ghost" Content="Renderuj celu traku" Command="{Binding RenderRealPreviewCommand}"
                   IsEnabled="{Binding !IsRenderingRealPreview}" />
-            <Button Classes="ghost" Content="AI ukloni pozadinu" Command="{Binding RemoveBackgroundCommand}" IsEnabled="{Binding !IsRemovingBackground}"
-                    ToolTip.Tip="Lokalna AI segmentacija pravi transparentan WebM bez zelenog platna." />
-            <TextBlock Text="{Binding BackgroundRemovalStatus}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" />
-            <TextBox Width="260" Watermark="Tekst naracije..." Text="{Binding NarrationText}" AcceptsReturn="True" />
-            <ComboBox Width="75" ItemsSource="{Binding NarrationLanguages}" SelectedItem="{Binding NarrationLanguage}" />
-            <NumericUpDown Width="85" Minimum="80" Maximum="300" Increment="10" Value="{Binding NarrationRate}"
-                           ToolTip.Tip="Brzina govora" />
-            <Button Classes="ghost" Content="Napravi naraciju" Command="{Binding GenerateNarrationCommand}"
-                    IsEnabled="{Binding !IsGeneratingNarration}" ToolTip.Tip="Pravi lokalni WAV glasom instaliranim u Windows-u i dodaje ga u biblioteku." />
-            <TextBlock Text="{Binding NarrationStatus}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" />
             <Button Classes="ghost" Content="Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
                     ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
             <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"
