@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NPVideoStudio.App.ViewModels"
+             xmlns:views="using:NPVideoStudio.App.Views"
              x:Class="NPVideoStudio.App.Views.ModernTimelineView"
              x:DataType="vm:TimelineViewModel">
   <DockPanel>
@@ -115,6 +116,8 @@
                                 CornerRadius="8" ClipToBounds="True" Tag="{Binding}"
                                 ToolTip.Tip="Klikni za izbor. Prevuci po vremenu ili na drugu kompatibilnu traku.">
                           <Grid RowDefinitions="*,Auto">
+                            <views:AudioWaveformView Peaks="{Binding WaveformPeaks}" IsVisible="{Binding ShowWaveform}"
+                                                     Margin="4,2" Opacity="0.75" IsHitTestVisible="False" />
                             <TextBlock Text="{Binding Label}" Margin="8,4,8,0" FontSize="12.5" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                             <TextBlock Grid.Row="1" Text="{Binding TimingLabel}" Margin="8,0,8,3" FontSize="11.5"
