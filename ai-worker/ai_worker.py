@@ -80,8 +80,51 @@ def run_capability_check() -> int:
     check_engine("demucs", "demucs")
     check_engine("lyric_align", "lyric_align")
     check_opencv_tracking()
+    check_engine("rembg", "rembg")
     emit({"type": "Done"})
     return 0
+
+
+def run_background_removal(request: dict) -> int:
+    source = request.get("inputFilePath")
+    output = request.get("outputFilePath")
+    if not source or not os.path.isfile(source) or not output:
+        emit({"type": "Error", "message": "Ulazni video ili izlazna putanja nisu ispravni."})
+        return 1
+    try:
+        import cv2
+        from rembg import remove, new_session
+        from PIL import Image
+        session = new_session("u2net_human_seg")
+        capture = cv2.VideoCapture(source)
+        fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
+        total = max(1, int(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
+        with tempfile.TemporaryDirectory(prefix="npvs_bg_") as frames:
+            index = 0
+            while True:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                rgba = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+                result = remove(Image.fromarray(rgba), session=session, alpha_matting=True)
+                result.save(os.path.join(frames, f"{index:08d}.png"))
+                index += 1
+                if index % max(1, total // 20) == 0:
+                    emit({"type": "Progress", "progressPercent": min(90, index * 90 / total), "message": f"Uklanjam pozadinu: {index}/{total} kadrova"})
+            capture.release()
+            if index == 0:
+                raise RuntimeError("Video nema čitljive kadrove.")
+            completed = subprocess.run(["ffmpeg", "-y", "-framerate", str(fps), "-i", os.path.join(frames, "%08d.png"), "-i", source,
+                "-map", "0:v:0", "-map", "1:a?", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-c:a", "libopus", output],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+            if completed.returncode != 0 or not os.path.isfile(output):
+                raise RuntimeError(completed.stderr.strip().splitlines()[-1] if completed.stderr.strip() else "FFmpeg nije napravio transparentni video.")
+        emit({"type": "Result", "outputFilePath": output})
+        emit({"type": "Done", "message": "Pozadina je uklonjena i transparentni video je spreman."})
+        return 0
+    except Exception as ex:
+        emit({"type": "Error", "message": f"Uklanjanje pozadine nije uspelo: {ex}"})
+        return 1
 
 
 def _find_vocals(root: str) -> str | None:
@@ -349,6 +392,8 @@ def main() -> int:
         return run_capability_check()
     if job_kind in ("KnownSongAlignment", "UnknownSongTranscription"):
         return run_transcription(request, job_kind, profile)
+    if job_kind == "BackgroundRemoval":
+        return run_background_removal(request)
 
     emit({"type": "Error", "message": f"Nepoznat tip posla: {job_kind!r}"})
     return 1
