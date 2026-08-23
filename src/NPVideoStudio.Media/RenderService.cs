@@ -32,11 +32,20 @@ public sealed class RenderService : IRenderService
         job.Status = RenderJobStatus.Running;
         job.StartedAt = DateTimeOffset.Now;
 
-        using var stabilization = await VideoStabilizationPrepass.PrepareAsync(project, _ffmpegPath, cancellationToken)
+        // Rendering can take minutes, while the live Project object remains editable by the UI. Work on
+        // a private snapshot so the graph/prepass sees one coherent state from start to finish. The
+        // snapshot also resolves track-level hide/mute semantics before any expensive work begins.
+        var renderProject = RenderProjectSnapshot.Create(project);
+        using var stabilization = await VideoStabilizationPrepass.PrepareAsync(renderProject, _ffmpegPath, cancellationToken)
             .ConfigureAwait(false);
         var plan = FfmpegFilterGraphBuilder.Build(
-            project.Timeline, project.MediaLibrary, project.Format.Width, project.Format.Height, project.Format.Fps,
+            renderProject.Timeline,
+            renderProject.MediaLibrary,
+            renderProject.Format.Width,
+            renderProject.Format.Height,
+            renderProject.Format.Fps,
             stabilization.TransformFiles);
+        plan = RenderProjectSnapshot.MakeLiteralTextSafe(plan);
 
         var directory = Path.GetDirectoryName(settings.OutputFilePath);
         if (!string.IsNullOrEmpty(directory))
