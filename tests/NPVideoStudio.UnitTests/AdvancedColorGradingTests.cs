@@ -98,6 +98,27 @@ public sealed class AdvancedColorGradingTests
     }
 
     [Fact]
+    public void ThreeWayColorWheels_ArePersistedClampedAndRendered()
+    {
+        var clip = new TimelineClip { MediaAssetId = "m", SourceTrimOutSeconds = 2 };
+        var session = new TimelineEditSession(new[] { new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { clip } } });
+        session.SetColorGrading(clip.Id, new ClipColorGradingSettings(0, 0, 0, 0, 0, 0, 0,
+            2, -.2, .3, .4, -.5, .6, -.7, .8, -2));
+        var edited = session.Tracks.Single().Clips.Single();
+        Assert.Equal(1, edited.ShadowRed, 6);
+        Assert.Equal(-1, edited.HighlightBlue, 6);
+        var filters = FfmpegFilterGraphBuilder.BuildEffectFilters(edited);
+        Assert.Contains("colorbalance=rs=1", filters);
+        Assert.Contains(":rm=0.4", filters);
+        Assert.Contains(":rh=-0.7", filters);
+
+        var root = FindRepoRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "Views", "ModernInspectorView.axaml"));
+        foreach (var binding in new[] { "ShadowRed", "ShadowGreen", "ShadowBlue", "MidtoneRed", "MidtoneGreen", "MidtoneBlue", "HighlightRed", "HighlightGreen", "HighlightBlue" })
+            Assert.Contains($"Binding {binding}", xaml);
+    }
+
+    [Fact]
     public async Task RealFfmpeg_ExecutesAdvancedColorFilters()
     {
         var ffmpeg = FfmpegLocator.ResolveFfmpegPath(null);

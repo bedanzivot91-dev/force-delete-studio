@@ -219,7 +219,8 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
 
     private void PushColorGrading(Func<ClipColorGradingSettings, ClipColorGradingSettings> mutate)
     {
-        var current = new ClipColorGradingSettings(ExposureStops, Highlights, Shadows, Temperature, Tint, HueDegrees, Vibrance);
+        var current = new ClipColorGradingSettings(ExposureStops, Highlights, Shadows, Temperature, Tint, HueDegrees, Vibrance,
+            ShadowRed, ShadowGreen, ShadowBlue, MidtoneRed, MidtoneGreen, MidtoneBlue, HighlightRed, HighlightGreen, HighlightBlue);
         _onColorGradingChanged?.Invoke(Clip.Id, mutate(current));
     }
 
@@ -258,6 +259,15 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         get => Clip.Vibrance;
         set { if (Math.Abs(Clip.Vibrance - value) < 1e-6) return; PushColorGrading(s => s with { Vibrance = value }); }
     }
+    public double ShadowRed { get => Clip.ShadowRed; set { if (Math.Abs(Clip.ShadowRed-value)<1e-6) return; PushColorGrading(s=>s with { ShadowRed=value }); } }
+    public double ShadowGreen { get => Clip.ShadowGreen; set { if (Math.Abs(Clip.ShadowGreen-value)<1e-6) return; PushColorGrading(s=>s with { ShadowGreen=value }); } }
+    public double ShadowBlue { get => Clip.ShadowBlue; set { if (Math.Abs(Clip.ShadowBlue-value)<1e-6) return; PushColorGrading(s=>s with { ShadowBlue=value }); } }
+    public double MidtoneRed { get => Clip.MidtoneRed; set { if (Math.Abs(Clip.MidtoneRed-value)<1e-6) return; PushColorGrading(s=>s with { MidtoneRed=value }); } }
+    public double MidtoneGreen { get => Clip.MidtoneGreen; set { if (Math.Abs(Clip.MidtoneGreen-value)<1e-6) return; PushColorGrading(s=>s with { MidtoneGreen=value }); } }
+    public double MidtoneBlue { get => Clip.MidtoneBlue; set { if (Math.Abs(Clip.MidtoneBlue-value)<1e-6) return; PushColorGrading(s=>s with { MidtoneBlue=value }); } }
+    public double HighlightRed { get => Clip.HighlightRed; set { if (Math.Abs(Clip.HighlightRed-value)<1e-6) return; PushColorGrading(s=>s with { HighlightRed=value }); } }
+    public double HighlightGreen { get => Clip.HighlightGreen; set { if (Math.Abs(Clip.HighlightGreen-value)<1e-6) return; PushColorGrading(s=>s with { HighlightGreen=value }); } }
+    public double HighlightBlue { get => Clip.HighlightBlue; set { if (Math.Abs(Clip.HighlightBlue-value)<1e-6) return; PushColorGrading(s=>s with { HighlightBlue=value }); } }
 
     private void PushAudioEnhancement(Func<ClipAudioEnhancementSettings, ClipAudioEnhancementSettings> mutate)
     {

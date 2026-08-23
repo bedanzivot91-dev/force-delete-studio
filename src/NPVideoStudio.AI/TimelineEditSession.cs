@@ -439,13 +439,25 @@ public sealed class TimelineEditSession
         var tint = Math.Clamp(settings.Tint, -1, 1);
         var hue = Math.Clamp(settings.HueDegrees, -180, 180);
         var vibrance = Math.Clamp(settings.Vibrance, -1, 1);
+        var sr = Math.Clamp(settings.ShadowRed, -1, 1);
+        var sg = Math.Clamp(settings.ShadowGreen, -1, 1);
+        var sb = Math.Clamp(settings.ShadowBlue, -1, 1);
+        var mr = Math.Clamp(settings.MidtoneRed, -1, 1);
+        var mg = Math.Clamp(settings.MidtoneGreen, -1, 1);
+        var mb = Math.Clamp(settings.MidtoneBlue, -1, 1);
+        var hr = Math.Clamp(settings.HighlightRed, -1, 1);
+        var hg = Math.Clamp(settings.HighlightGreen, -1, 1);
+        var hb = Math.Clamp(settings.HighlightBlue, -1, 1);
         if (Math.Abs(clip.ExposureStops - exposure) < 1e-9 &&
             Math.Abs(clip.Highlights - highlights) < 1e-9 &&
             Math.Abs(clip.Shadows - shadows) < 1e-9 &&
             Math.Abs(clip.Temperature - temperature) < 1e-9 &&
             Math.Abs(clip.Tint - tint) < 1e-9 &&
             Math.Abs(clip.HueDegrees - hue) < 1e-9 &&
-            Math.Abs(clip.Vibrance - vibrance) < 1e-9) return;
+            Math.Abs(clip.Vibrance - vibrance) < 1e-9 &&
+            Math.Abs(clip.ShadowRed - sr) < 1e-9 && Math.Abs(clip.ShadowGreen - sg) < 1e-9 && Math.Abs(clip.ShadowBlue - sb) < 1e-9 &&
+            Math.Abs(clip.MidtoneRed - mr) < 1e-9 && Math.Abs(clip.MidtoneGreen - mg) < 1e-9 && Math.Abs(clip.MidtoneBlue - mb) < 1e-9 &&
+            Math.Abs(clip.HighlightRed - hr) < 1e-9 && Math.Abs(clip.HighlightGreen - hg) < 1e-9 && Math.Abs(clip.HighlightBlue - hb) < 1e-9) return;
 
         SaveSnapshot();
         var live = FindClipWithTrack(clipId).Clip!;
@@ -456,6 +468,9 @@ public sealed class TimelineEditSession
         live.Tint = tint;
         live.HueDegrees = hue;
         live.Vibrance = vibrance;
+        live.ShadowRed = sr; live.ShadowGreen = sg; live.ShadowBlue = sb;
+        live.MidtoneRed = mr; live.MidtoneGreen = mg; live.MidtoneBlue = mb;
+        live.HighlightRed = hr; live.HighlightGreen = hg; live.HighlightBlue = hb;
     }
 
     public void SetClipAudioEnhancement(string clipId, ClipAudioEnhancementSettings settings)
@@ -1170,6 +1185,15 @@ public sealed class TimelineEditSession
         Tint = clip.Tint,
         HueDegrees = clip.HueDegrees,
         Vibrance = clip.Vibrance,
+        ShadowRed = clip.ShadowRed,
+        ShadowGreen = clip.ShadowGreen,
+        ShadowBlue = clip.ShadowBlue,
+        MidtoneRed = clip.MidtoneRed,
+        MidtoneGreen = clip.MidtoneGreen,
+        MidtoneBlue = clip.MidtoneBlue,
+        HighlightRed = clip.HighlightRed,
+        HighlightGreen = clip.HighlightGreen,
+        HighlightBlue = clip.HighlightBlue,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
