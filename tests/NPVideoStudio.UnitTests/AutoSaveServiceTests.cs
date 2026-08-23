@@ -74,6 +74,31 @@ public class AutoSaveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TriggerNowAsync_DoesNotChangeActiveProjectPathOrLastModifiedTime()
+    {
+        var fakePath = NewFakeProjectPath();
+        var originalModified = new DateTimeOffset(2026, 8, 23, 12, 34, 56, TimeSpan.Zero);
+        var project = new Project
+        {
+            Name = "Autosave identitet",
+            ProjectFilePath = fakePath,
+            LastModifiedAt = originalModified
+        };
+
+        _autoSaveService.Start(() => project);
+        await _autoSaveService.TriggerNowAsync();
+
+        Assert.Equal(fakePath, project.ProjectFilePath);
+        Assert.Equal(originalModified, project.LastModifiedAt);
+
+        var recoverable = await _autoSaveService.FindRecoverableAutoSaveAsync(fakePath);
+        Assert.NotNull(recoverable);
+        var recovered = await _projectRepository.LoadAsync(recoverable!);
+        Assert.Equal(project.Id, recovered.Id);
+        Assert.Equal("Autosave identitet", recovered.Name);
+    }
+
+    [Fact]
     public async Task MarkCleanShutdownAsync_WritesMarkerFileWithoutThrowing()
     {
         await _autoSaveService.MarkCleanShutdownAsync();
