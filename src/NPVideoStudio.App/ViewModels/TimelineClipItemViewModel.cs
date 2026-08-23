@@ -134,7 +134,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     /// <summary>True for both standalone audio and video media that actually contains an audio stream.</summary>
     public bool HasAudioStream { get; }
     public bool CanUseAudioEnhancement => HasAudioStream && !Clip.IsFreezeFrame;
-    public bool SupportsKeyframes => IsPictureClip || IsTextClip;
+    public bool SupportsKeyframes => IsPictureClip || IsTextClip || HasAudioStream;
 
     private bool _isSelected;
 
@@ -515,7 +515,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         get => Clip.BlendMode;
         set { if (Clip.BlendMode == value) return; PushCompositing(s => s with { BlendMode = value }); }
     }
-    private static readonly ClipKeyframeProperty[] PictureKeyframeProperties = Enum.GetValues<ClipKeyframeProperty>();
+    private static readonly ClipKeyframeProperty[] PictureKeyframeProperties =
+    {
+        ClipKeyframeProperty.PositionX, ClipKeyframeProperty.PositionY, ClipKeyframeProperty.Scale,
+        ClipKeyframeProperty.Rotation, ClipKeyframeProperty.Opacity
+    };
+    private static readonly ClipKeyframeProperty[] PictureAndAudioKeyframeProperties = Enum.GetValues<ClipKeyframeProperty>();
+    private static readonly ClipKeyframeProperty[] AudioKeyframeProperties = { ClipKeyframeProperty.Volume };
     private static readonly ClipKeyframeProperty[] TextKeyframeProperties =
     {
         ClipKeyframeProperty.PositionX,
@@ -525,7 +531,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
     };
 
     public IReadOnlyList<ClipKeyframeProperty> AvailableKeyframeProperties =>
-        IsTextClip ? TextKeyframeProperties : PictureKeyframeProperties;
+        IsTextClip ? TextKeyframeProperties
+        : IsPictureClip && HasAudioStream ? PictureAndAudioKeyframeProperties
+        : IsPictureClip ? PictureKeyframeProperties
+        : AudioKeyframeProperties;
     public IReadOnlyList<ClipKeyframeEasing> AvailableKeyframeEasings { get; } = Enum.GetValues<ClipKeyframeEasing>();
 
     private ClipKeyframeProperty _selectedKeyframeProperty = ClipKeyframeProperty.PositionX;
@@ -573,6 +582,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ClipKeyframeProperty.Scale => "Veličina (%)",
         ClipKeyframeProperty.Rotation => "Rotacija (°)",
         ClipKeyframeProperty.Opacity => "Providnost (0-1)",
+        ClipKeyframeProperty.Volume => "Jačina zvuka (0-200%)",
         _ => "Vrednost"
     };
     public double KeyframeValueMinimum => SelectedKeyframeProperty switch
@@ -581,6 +591,7 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ClipKeyframeProperty.Scale => 1,
         ClipKeyframeProperty.Rotation => -3600,
         ClipKeyframeProperty.Opacity => 0,
+        ClipKeyframeProperty.Volume => 0,
         _ => -10000
     };
     public double KeyframeValueMaximum => SelectedKeyframeProperty switch
@@ -589,9 +600,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ClipKeyframeProperty.Scale => 1000,
         ClipKeyframeProperty.Rotation => 3600,
         ClipKeyframeProperty.Opacity => 1,
+        ClipKeyframeProperty.Volume => 2,
         _ => 10000
     };
-    public double KeyframeValueIncrement => SelectedKeyframeProperty == ClipKeyframeProperty.Opacity ? 0.05 : 1;
+    public double KeyframeValueIncrement => SelectedKeyframeProperty is ClipKeyframeProperty.Opacity or ClipKeyframeProperty.Volume ? 0.05 : 1;
     public string KeyframeSummary => Clip.Keyframes.Count == 0
         ? "Nema keyframe-ova"
         : $"{Clip.Keyframes.Count} keyframe tačaka";
@@ -979,6 +991,10 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         _onTransitionChanged = onTransitionChanged;
         _onTextContentChanged = onTextContentChanged;
         _onAdvancedStyleChanged = onAdvancedStyleChanged;
+        if (IsAudioClip)
+        {
+            _selectedKeyframeProperty = ClipKeyframeProperty.Volume;
+        }
         _keyframeValue = CurrentKeyframeValue(_selectedKeyframeProperty);
         AddKeyframeAtPlayheadCommand = new RelayCommand(AddKeyframeAtPlayhead);
         RemoveKeyframeAtPlayheadCommand = new RelayCommand(RemoveKeyframeAtPlayhead);
