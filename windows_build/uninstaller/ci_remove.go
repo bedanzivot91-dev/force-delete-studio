@@ -20,6 +20,13 @@ import (
 func init() {
 	args := os.Args[1:]
 	if len(args) >= 3 && args[0] == "--ci-remove" {
+		// This switch recursively deletes a caller-provided install directory.
+		// Keep it usable by the real GitHub Actions install/uninstall regression,
+		// but make it unreachable as a hidden destructive mode on end-user PCs.
+		if !strings.EqualFold(strings.TrimSpace(os.Getenv("GITHUB_ACTIONS")), "true") {
+			fmt.Fprintln(os.Stderr, "--ci-remove is available only inside GitHub Actions")
+			os.Exit(2)
+		}
 		deleteData, _ := strconv.ParseBool(args[2])
 		os.Exit(ciRemove(filepath.Clean(args[1]), deleteData))
 	}
