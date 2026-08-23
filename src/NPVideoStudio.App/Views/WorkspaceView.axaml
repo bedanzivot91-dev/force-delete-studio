@@ -102,7 +102,7 @@
       <!-- Player and library side by side. Stacking four full-width panels is what made this screen
            unreadable: every panel got a slice of the height and none of them had enough. -->
       <Grid Name="PlayerLibraryGrid" Grid.Row="0" RowDefinitions="*"
-            ColumnDefinitions="2*,Auto,4*,Auto,2*" Margin="0,0,0,0">
+            ColumnDefinitions="2*,Auto,4*,Auto,2*" Margin="{DynamicResource ThemeWorkspaceGutter}">
       <Border Name="PlayerPanel" Grid.Column="2" Classes="panel" Margin="0,0,0,10" Padding="16">
         <DockPanel>
           <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
@@ -222,7 +222,7 @@
 
         <GridSplitter Grid.Column="1" Width="10" Background="Transparent"
                       ResizeDirection="Columns" ToolTip.Tip="Prevucite da promenite širinu plejera" />
-      <Border Name="MediaLibraryPanel" Grid.Column="0" Margin="20,0,0,10" Classes="panel" Padding="0">
+      <Border Name="MediaLibraryPanel" Grid.Column="0" Classes="panel" Padding="0">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource ThemeBorderBrush}">
             <TextBlock Text="Media biblioteka" FontWeight="SemiBold" />
@@ -265,7 +265,7 @@
 
       <!-- CapCut-like inspector: selected clip properties stay on the right while the timeline remains
            a wide visual lane below. Editing a caption no longer expands a card inside the timeline. -->
-      <Border Name="InspectorPanel" Grid.Column="4" Margin="0,0,20,10" Classes="panel" Padding="14"
+      <Border Name="InspectorPanel" Grid.Column="4" Classes="panel" Padding="14"
               DataContext="{Binding Timeline.SelectedClip}">
         <ScrollViewer>
           <StackPanel Spacing="12">

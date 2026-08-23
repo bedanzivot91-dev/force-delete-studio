@@ -15,7 +15,8 @@ public class ThemeResourceCompletenessTests
         "ThemeBackgroundBrush", "ThemeSurfaceBrush", "ThemePanelBrush", "ThemeHoverBrush",
         "ThemePressedBrush", "ThemeInputBrush", "ThemeAccentBrush", "ThemeAccentHoverBrush",
         "ThemeAccentSubtleBrush", "ThemeTextBrush", "ThemeSubtleTextBrush", "ThemeBorderBrush",
-        "ThemeCornerRadius", "ThemeCardCornerRadius", "ThemeBorderThickness"
+        "ThemeCornerRadius", "ThemeCardCornerRadius", "ThemeBorderThickness",
+        "ThemeSidebarWidth", "ThemeCommandbarHeight", "ThemeWorkspaceGutter"
     };
 
     private static readonly string[] ExpectedThemeFiles =
@@ -65,4 +66,18 @@ public class ThemeResourceCompletenessTests
     }
 
     public static IEnumerable<object[]> ThemeFileNames() => ExpectedThemeFiles.Select(f => new object[] { f });
+
+    [Fact]
+    public void Themes_DefineDistinctShellGeometry_NotOnlyDifferentColors()
+    {
+        var geometries = ExpectedThemeFiles.Select(file =>
+        {
+            var document = XDocument.Load(Path.Combine(FindThemesFolder(), file));
+            string Value(string key) => document.Descendants().Single(element =>
+                element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == key).Value;
+            return $"{Value("ThemeSidebarWidth")}|{Value("ThemeCommandbarHeight")}|{Value("ThemeWorkspaceGutter")}";
+        }).ToArray();
+
+        Assert.Equal(ExpectedThemeFiles.Length, geometries.Distinct().Count());
+    }
 }

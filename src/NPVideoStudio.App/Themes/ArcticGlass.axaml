@@ -31,5 +31,8 @@
        arbitrary panels), giving a soft "glass" tint without requiring blur support. -->
   <CornerRadius x:Key="ThemeCornerRadius">14</CornerRadius>
   <CornerRadius x:Key="ThemeCardCornerRadius">20</CornerRadius>
+  <GridLength x:Key="ThemeSidebarWidth">208</GridLength>
+  <GridLength x:Key="ThemeCommandbarHeight">72</GridLength>
+  <Thickness x:Key="ThemeWorkspaceGutter">30,10,30,20</Thickness>
   <Thickness x:Key="ThemeBorderThickness">1</Thickness>
 </ResourceDictionary>

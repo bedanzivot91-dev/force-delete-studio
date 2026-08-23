@@ -29,7 +29,15 @@
   </Window.DataTemplates>
 
   <!-- Real 2026 desktop shell: persistent vertical navigation, separate command bar and edge-to-edge work area. -->
-  <Grid ColumnDefinitions="224,*" RowDefinitions="64,*">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="{DynamicResource ThemeSidebarWidth}" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="{DynamicResource ThemeCommandbarHeight}" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
     <Border Grid.RowSpan="2" Classes="sidebar" BorderThickness="0,0,1,0">
       <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="14,16">
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="11" Margin="7,0,7,22">
