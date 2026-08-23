@@ -852,6 +852,9 @@ public sealed class TimelineEditSession
         SaveSnapshot();
         var liveClip = FindClipWithTrack(clipId).Clip!;
         liveClip.TextColor = preset.TextColorHex;
+        liveClip.CaptionAnimation = preset.Animation;
+        liveClip.CaptionGranularity = preset.Granularity;
+        liveClip.CaptionAccentColor = preset.AccentColorHex;
         liveClip.TextOutlineWidthPx = Math.Max(2, liveClip.TextOutlineWidthPx);
         liveClip.TextShadowOffsetPx = Math.Max(2, liveClip.TextShadowOffsetPx);
 
@@ -859,6 +862,11 @@ public sealed class TimelineEditSession
         {
             liveClip.TextOutlineColor = null;
             liveClip.TextShadowColor = preset.OutlineOrShadowColorHex;
+        }
+        else if (preset.Animation == CaptionAnimationKind.Glow)
+        {
+            liveClip.TextOutlineColor = preset.OutlineOrShadowColorHex;
+            liveClip.TextShadowColor = preset.AccentColorHex;
         }
         else
         {
@@ -936,6 +944,9 @@ public sealed class TimelineEditSession
             target.IsTextItalic = source.IsTextItalic;
             target.TextCase = source.TextCase;
             target.LineSpacingPx = source.LineSpacingPx;
+            target.CaptionAnimation = source.CaptionAnimation;
+            target.CaptionGranularity = source.CaptionGranularity;
+            target.CaptionAccentColor = source.CaptionAccentColor;
         }
     }
 
@@ -1206,6 +1217,9 @@ public sealed class TimelineEditSession
         IsTextItalic = clip.IsTextItalic,
         TextCase = clip.TextCase,
         LineSpacingPx = clip.LineSpacingPx,
+        CaptionAnimation = clip.CaptionAnimation,
+        CaptionGranularity = clip.CaptionGranularity,
+        CaptionAccentColor = clip.CaptionAccentColor,
         SourceTrimInSeconds = clip.SourceTrimInSeconds,
         SourceTrimOutSeconds = clip.SourceTrimOutSeconds,
         TimelineStartSeconds = clip.TimelineStartSeconds,
