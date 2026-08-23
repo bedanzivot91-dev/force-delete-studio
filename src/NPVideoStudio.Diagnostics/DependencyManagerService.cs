@@ -188,8 +188,10 @@ public sealed class DependencyManagerService : IDependencyManagerService
                                  capabilities.FasterWhisperAvailable &&
                                  capabilities.DemucsAvailable &&
                                  capabilities.LyricAlignAvailable &&
-                                 capabilities.OpenCvAvailable && capabilities.BackgroundRemovalAvailable &&
-                                 capabilities.TranslationAvailable;
+                                 capabilities.OpenCvAvailable &&
+                                 capabilities.BackgroundRemovalAvailable &&
+                                 capabilities.TranslationAvailable &&
+                                 capabilities.TextToSpeechAvailable;
 
         var pythonVersion = ParsePythonVersion(capabilities.PythonVersion);
         var pythonCompatible = pythonVersion is { Major: 3, Minor: >= 12 } || pythonVersion is { Major: > 3 };
@@ -206,6 +208,7 @@ public sealed class DependencyManagerService : IDependencyManagerService
               $"OpenCV/CSRT: {(capabilities.OpenCvAvailable ? "da" : "ne")}, " +
               $"AI pozadina: {(capabilities.BackgroundRemovalAvailable ? "da" : "ne")}, " +
               $"Lokalni prevod: {(capabilities.TranslationAvailable ? "da" : "ne")}" +
+              $", Naracija: {(capabilities.TextToSpeechAvailable ? "da" : "ne")}" +
               (capabilities.PythonVersion is null ? "" : $" (Python {capabilities.PythonVersion})") +
               (allRequiredEngines && !pythonCompatible ? "; potreban Python 3.12+" : string.Empty)
             : capabilities.Error ?? "AI worker nije dostupan.";
