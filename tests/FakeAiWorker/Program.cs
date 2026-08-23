@@ -43,6 +43,7 @@ if (jobKind == "CapabilityCheck")
     Emit("""{"type":"CapabilityCheck","engine":"opencv","engineAvailable":true}""");
     Emit("""{"type":"CapabilityCheck","engine":"rembg","engineAvailable":true}""");
     Emit("""{"type":"CapabilityCheck","engine":"argostranslate","engineAvailable":true}""");
+    Emit("""{"type":"CapabilityCheck","engine":"pyttsx3","engineAvailable":true}""");
     Emit("""{"type":"Done"}""");
     return 0;
 }

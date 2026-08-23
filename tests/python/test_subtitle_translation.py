@@ -25,6 +25,16 @@ class SubtitleTranslationTests(unittest.TestCase):
         self.assertEqual("Error", event["type"])
         self.assertIn("jezici", event["message"])
 
+    def test_tts_rejects_empty_text_before_loading_voice_engine(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = WORKER.run_text_to_speech({"text": "", "outputFilePath": "voice.wav"})
+
+        self.assertEqual(1, result)
+        event = json.loads(output.getvalue())
+        self.assertEqual("Error", event["type"])
+        self.assertIn("Tekst naracije", event["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

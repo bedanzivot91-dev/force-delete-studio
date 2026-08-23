@@ -40,6 +40,7 @@ public class AiWorkerClientTests
         Assert.True(capabilities.OpenCvAvailable);
         Assert.True(capabilities.BackgroundRemovalAvailable);
         Assert.True(capabilities.TranslationAvailable);
+        Assert.True(capabilities.TextToSpeechAvailable);
     }
 
     [Fact]

@@ -25,6 +25,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 {
     [ObservableProperty] private bool _isRemovingBackground;
     [ObservableProperty] private string? _backgroundRemovalStatus;
+    [ObservableProperty] private string _narrationText = string.Empty;
+    [ObservableProperty] private string _narrationLanguage = "sr";
+    [ObservableProperty] private int _narrationRate = 170;
+    [ObservableProperty] private bool _isGeneratingNarration;
+    [ObservableProperty] private string? _narrationStatus;
+    public IReadOnlyList<string> NarrationLanguages { get; } = ["sr", "en", "de", "fr", "es", "it"];
     private readonly IProjectRepository _projectRepository;
     private readonly IMediaProbeService _mediaProbeService;
     private readonly IStorageService _storageService;
@@ -78,6 +84,62 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex) { BackgroundRemovalStatus = $"Uklanjanje pozadine nije uspelo: {ex.Message}"; }
         finally { IsRemovingBackground = false; }
+    }
+
+    [RelayCommand]
+    private async Task GenerateNarrationAsync()
+    {
+        if (_aiWorkerClient is null || string.IsNullOrWhiteSpace(NarrationText))
+        {
+            NarrationStatus = "Unesite tekst naracije i instalirajte AI alate.";
+            return;
+        }
+
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NPVideoStudio", "generated", "narration");
+        Directory.CreateDirectory(folder);
+        var output = Path.Combine(folder, $"naracija_{DateTime.Now:yyyyMMdd_HHmmss}.wav");
+        IsGeneratingNarration = true;
+        NarrationStatus = "Pokrećem lokalni Windows glas...";
+        try
+        {
+            await foreach (var evt in _aiWorkerClient.RunAsync(new AiWorkerRequest
+            {
+                JobKind = AiWorkerJobKind.TextToSpeech,
+                Profile = AiProcessingProfile.Fast,
+                Text = NarrationText,
+                VoiceLanguage = NarrationLanguage,
+                SpeechRate = NarrationRate,
+                OutputFilePath = output
+            }))
+            {
+                if (evt.Type is AiWorkerEventType.Progress or AiWorkerEventType.Warning)
+                {
+                    NarrationStatus = evt.Message;
+                }
+                else if (evt.Type == AiWorkerEventType.Error)
+                {
+                    throw new InvalidOperationException(evt.Message);
+                }
+            }
+
+            if (!File.Exists(output))
+            {
+                throw new InvalidOperationException("Generator nije napravio WAV fajl.");
+            }
+
+            await ImportFilesAsync(new[] { output });
+            Timeline.SelectedMediaAsset = MediaLibrary.LastOrDefault(media => media.Asset.FilePath == output);
+            NarrationStatus = "Naracija je dodata u biblioteku. Dodajte je na audio traku.";
+        }
+        catch (Exception ex)
+        {
+            NarrationStatus = $"Naracija nije napravljena: {ex.Message}";
+        }
+        finally
+        {
+            IsGeneratingNarration = false;
+        }
     }
 
     /// <summary>
