@@ -119,6 +119,28 @@ public sealed class AdvancedColorGradingTests
     }
 
     [Fact]
+    public void CubeLut_IsUndoableValidatedAndRendered()
+    {
+        var cube = Path.Combine(_tempLutDirectory.Value, "look.cube");
+        File.WriteAllText(cube, "TITLE \"Identity\"\nLUT_3D_SIZE 2\n0 0 0\n0 0 1\n0 1 0\n0 1 1\n1 0 0\n1 0 1\n1 1 0\n1 1 1\n");
+        var clip = new TimelineClip { Id = "lut", MediaAssetId = "m", SourceTrimOutSeconds = 1 };
+        var session = new TimelineEditSession(new[] { new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { clip } } });
+        session.SetClipLut("lut", cube);
+        var edited = session.Tracks.Single().Clips.Single();
+        Assert.Equal(Path.GetFullPath(cube), edited.LutFilePath);
+        Assert.Contains("lut3d=file=", FfmpegFilterGraphBuilder.BuildEffectFilters(edited));
+        session.Undo();
+        Assert.Null(session.Tracks.Single().Clips.Single().LutFilePath);
+    }
+
+    private static readonly Lazy<string> _tempLutDirectory = new(() =>
+    {
+        var path = Path.Combine(Path.GetTempPath(), "npvs-lut-tests");
+        Directory.CreateDirectory(path);
+        return path;
+    });
+
+    [Fact]
     public async Task RealFfmpeg_ExecutesAdvancedColorFilters()
     {
         var ffmpeg = FfmpegLocator.ResolveFfmpegPath(null);
