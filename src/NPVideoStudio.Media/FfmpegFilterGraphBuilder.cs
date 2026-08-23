@@ -614,6 +614,8 @@ public static class FfmpegFilterGraphBuilder
         Shadows = clip.Shadows,
         Temperature = clip.Temperature,
         Tint = clip.Tint,
+        HueDegrees = clip.HueDegrees,
+        Vibrance = clip.Vibrance,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
@@ -1287,6 +1289,18 @@ public static class FfmpegFilterGraphBuilder
             var blueMid = tint * 0.10;
             parts.Add(FormattableString.Invariant(
                 $"colorbalance=rs={redShadows}:bs={blueShadows}:rm={redMid}:gm={greenMid}:bm={blueMid}:pl=1"));
+        }
+
+        var hueDegrees = Math.Clamp(clip.HueDegrees, -180, 180);
+        if (Math.Abs(hueDegrees) > 1e-6)
+        {
+            parts.Add(FormattableString.Invariant($"hue=h={hueDegrees}"));
+        }
+
+        var vibrance = Math.Clamp(clip.Vibrance, -1, 1);
+        if (Math.Abs(vibrance) > 1e-6)
+        {
+            parts.Add(FormattableString.Invariant($"vibrance=intensity={vibrance}"));
         }
 
         return parts.Count == 0 ? string.Empty : "," + string.Join(",", parts);
