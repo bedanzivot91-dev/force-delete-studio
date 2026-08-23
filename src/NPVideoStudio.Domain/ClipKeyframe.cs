@@ -99,7 +99,9 @@ public static class ClipKeyframeEvaluator
             var span = Math.Max(1e-9, right.TimeSeconds - left.TimeSeconds);
             var t = Math.Clamp((localTimeSeconds - left.TimeSeconds) / span, 0, 1);
             var eased = ApplyEasing(t, right.Easing);
-            return ClampValue(property, left.Value + (right.Value - left.Value) * eased);
+            var leftValue = ClampValue(property, left.Value);
+            var rightValue = ClampValue(property, right.Value);
+            return ClampValue(property, leftValue + (rightValue - leftValue) * eased);
         }
 
         return ClampValue(property, points[^1].Value);
