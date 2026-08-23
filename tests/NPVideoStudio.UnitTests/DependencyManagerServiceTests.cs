@@ -128,7 +128,8 @@ public class DependencyManagerServiceTests : IDisposable
             FasterWhisperAvailable = true,
             DemucsAvailable = true,
             LyricAlignAvailable = true,
-            OpenCvAvailable = true
+            OpenCvAvailable = true,
+            BackgroundRemovalAvailable = true
         };
 
         var results = await _service.GetDependenciesAsync();
@@ -149,7 +150,8 @@ public class DependencyManagerServiceTests : IDisposable
             FasterWhisperAvailable = true,
             DemucsAvailable = true,
             LyricAlignAvailable = true,
-            OpenCvAvailable = true
+            OpenCvAvailable = true,
+            BackgroundRemovalAvailable = true
         };
 
         var results = await _service.GetDependenciesAsync();
