@@ -142,6 +142,12 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         get => _waveformPeaks;
         private set { _waveformPeaks = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowWaveform)); }
     }
+    private IReadOnlyList<double> _beatPositions = Array.Empty<double>();
+    public IReadOnlyList<double> BeatPositions
+    {
+        get => _beatPositions;
+        private set { _beatPositions = value; OnPropertyChanged(); }
+    }
     public bool CanUseAudioEnhancement => HasAudioStream && !Clip.IsFreezeFrame;
     public bool SupportsKeyframes => IsPictureClip || IsTextClip || HasAudioStream;
 
@@ -1030,11 +1036,13 @@ public sealed class TimelineClipItemViewModel : ViewModelBase
         ClearLutCommand = new RelayCommand(() => _onClearLutRequested?.Invoke(Clip.Id));
     }
 
-    public async Task LoadWaveformAsync(IAudioWaveformService service, string sourceFilePath, CancellationToken cancellationToken = default)
+    public async Task LoadWaveformAsync(IAudioWaveformService service, IBeatDetectionService beatDetection,
+        string sourceFilePath, CancellationToken cancellationToken = default)
     {
         if (!HasAudioStream) return;
         WaveformPeaks = await service.ExtractPeaksAsync(sourceFilePath, Clip.SourceTrimInSeconds,
             Math.Max(0, Clip.SourceTrimOutSeconds - Clip.SourceTrimInSeconds), cancellationToken: cancellationToken);
+        BeatPositions = beatDetection.DetectNormalizedPositions(WaveformPeaks);
     }
 
     private static string FormatTime(double seconds)

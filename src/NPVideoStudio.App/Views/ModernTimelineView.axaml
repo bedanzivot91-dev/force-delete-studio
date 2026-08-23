@@ -116,7 +116,7 @@
                                 CornerRadius="8" ClipToBounds="True" Tag="{Binding}"
                                 ToolTip.Tip="Klikni za izbor. Prevuci po vremenu ili na drugu kompatibilnu traku.">
                           <Grid RowDefinitions="*,Auto">
-                            <views:AudioWaveformView Peaks="{Binding WaveformPeaks}" IsVisible="{Binding ShowWaveform}"
+                            <views:AudioWaveformView Peaks="{Binding WaveformPeaks}" BeatPositions="{Binding BeatPositions}" IsVisible="{Binding ShowWaveform}"
                                                      Margin="4,2" Opacity="0.75" IsHitTestVisible="False" />
                             <TextBlock Text="{Binding Label}" Margin="8,4,8,0" FontSize="12.5" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />

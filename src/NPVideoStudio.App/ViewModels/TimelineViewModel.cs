@@ -34,6 +34,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
     private readonly TimelineEditSession _session;
     private readonly IStorageService? _storageService;
     private readonly IAudioWaveformService _waveformService = new AudioWaveformService();
+    private readonly IBeatDetectionService _beatDetectionService = new BeatDetectionService();
 
     public ObservableCollection<TimelineTrackItemViewModel> Tracks { get; } = new();
 
@@ -476,7 +477,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             PixelsPerSecond = ZoomPixelsPerSecond
         };
         if (hasAudioStream && sourceAsset is not null)
-            _ = item.LoadWaveformAsync(_waveformService, sourceAsset.FilePath);
+            _ = item.LoadWaveformAsync(_waveformService, _beatDetectionService, sourceAsset.FilePath);
         return item;
     }
 
