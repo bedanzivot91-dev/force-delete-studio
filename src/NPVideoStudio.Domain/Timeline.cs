@@ -113,7 +113,9 @@ public readonly record struct ClipColorGradingSettings(
     double Highlights,
     double Shadows,
     double Temperature,
-    double Tint);
+    double Tint,
+    double HueDegrees,
+    double Vibrance);
 
 /// <summary>Persisted, non-destructive audio cleanup controls. These values are applied by the real
 /// FFmpeg render/preview chain to source audio; the original media file is never modified.</summary>
@@ -344,6 +346,10 @@ public sealed class TimelineClip
     public double Temperature { get; set; }
     /// <summary>White-balance tint, -1 (green) .. +1 (magenta). Zero is neutral.</summary>
     public double Tint { get; set; }
+    /// <summary>HSL hue rotation in degrees, -180..180. Zero is neutral.</summary>
+    public double HueDegrees { get; set; }
+    /// <summary>Selective colour intensity, -1..1. Unlike Saturation this protects already-saturated colours.</summary>
+    public double Vibrance { get; set; }
 
     /// <summary>Playback speed, 0.25..4. Used when no velocity curve is active.</summary>
     public double SpeedMultiplier { get; set; } = 1.0;

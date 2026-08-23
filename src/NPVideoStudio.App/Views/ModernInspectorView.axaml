@@ -195,6 +195,16 @@
                 <TextBlock Text="Neutralno je 0. Sve vrednosti se čuvaju u projektu i ulaze u preview/export preko FFmpeg-a." Classes="subtle" TextWrapping="Wrap"/>
               </StackPanel>
             </Border>
+            <Border Classes="inspectorSection">
+              <StackPanel Spacing="8">
+                <TextBlock Text="HSL / Vibrance" Classes="section" />
+                <TextBlock Text="Nijansa  •  -180° ↔ +180°" Classes="subtle"/>
+                <Slider Minimum="-180" Maximum="180" Value="{Binding HueDegrees}" TickFrequency="1"/>
+                <TextBlock Text="Živost boja  •  prigušeno ↔ intenzivno" Classes="subtle"/>
+                <Slider Minimum="-1" Maximum="1" Value="{Binding Vibrance}" TickFrequency="0.01"/>
+                <TextBlock Text="Kontrole se čuvaju po klipu i primenjuju u stvarnom preview-u i finalnom exportu." Classes="subtle" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
