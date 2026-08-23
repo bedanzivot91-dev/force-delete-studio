@@ -1,10 +1,12 @@
 package com.sunopesmestudio.app.ui.suno
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +64,24 @@ fun SunoConnectScreen(viewModel: SunoViewModel, modifier: Modifier = Modifier) {
     }
 }
 
+private fun isTrustedSunoPage(url: String?): Boolean {
+    if (url.isNullOrBlank()) return false
+    val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+    if (!uri.scheme.equals("https", ignoreCase = true)) return false
+    val host = uri.host?.lowercase() ?: return false
+    return host == "suno.com" || host.endsWith(".suno.com")
+}
+
+private class SunoOnlyWebViewClient : WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+        val url = request?.url?.toString()
+        // Only main-frame Suno HTTPS navigation belongs inside the credential
+        // surface. Subresources continue to load normally; unrelated top-level
+        // destinations are blocked instead of inheriting AndroidBridge.
+        return request?.isForMainFrame == true && !isTrustedSunoPage(url)
+    }
+}
+
 @Composable
 private fun SunoLoginContent(onTokenCaptured: (String) -> Unit, modifier: Modifier = Modifier) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -85,14 +105,17 @@ private fun SunoLoginContent(onTokenCaptured: (String) -> Unit, modifier: Modifi
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    webViewClient = WebViewClient()
+                    webViewClient = SunoOnlyWebViewClient()
                     addJavascriptInterface(
                         object {
                             @JavascriptInterface
                             fun onToken(token: String?) {
                                 Handler(Looper.getMainLooper()).post {
+                                    val sourceIsTrusted = isTrustedSunoPage(webViewRef?.url)
                                     checking = false
-                                    if (!token.isNullOrBlank()) onTokenCaptured(token)
+                                    if (sourceIsTrusted && !token.isNullOrBlank()) {
+                                        onTokenCaptured(token)
+                                    }
                                 }
                             }
                         },
@@ -106,8 +129,14 @@ private fun SunoLoginContent(onTokenCaptured: (String) -> Unit, modifier: Modifi
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
-                    checking = true
-                    webViewRef?.evaluateJavascript(TOKEN_CAPTURE_JS, null)
+                    val webView = webViewRef
+                    if (webView != null && isTrustedSunoPage(webView.url)) {
+                        checking = true
+                        webView.evaluateJavascript(TOKEN_CAPTURE_JS, null)
+                    } else {
+                        checking = false
+                        webView?.loadUrl("https://suno.com")
+                    }
                 },
                 modifier = Modifier.weight(1f),
             ) {
