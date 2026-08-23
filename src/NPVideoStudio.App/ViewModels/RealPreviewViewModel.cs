@@ -115,6 +115,12 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 
         _session.Volume = Volume;
         _session.AudioDelayMilliseconds = AudioSyncMilliseconds;
+        if (IsMuted)
+        {
+            // The session owns the native-player lock. Never reach through .Player from this ViewModel;
+            // doing so can race its asynchronous Dispose and become a native use-after-free crash.
+            _session.ToggleMute();
+        }
 
         if (!_session.Open(filePath, out _))
         {
@@ -122,6 +128,7 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
         }
 
         HasLoadedFile = true;
+        IsPlaying = true;
         _timer.Start();
     }
 
@@ -160,12 +167,14 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
 
     partial void OnIsMutedChanged(bool value)
     {
-        if (_isDisposed || _session?.Player is null)
+        if (_isDisposed || _session is null || !_session.IsReady)
         {
             return;
         }
 
-        _session.Player.Mute = value;
+        // This callback runs only when the bound bool actually changes, so one safe session toggle maps
+        // exactly to one UI toggle. The initial true state is applied once in LoadAndPlayAsync above.
+        _session.ToggleMute();
     }
 
     partial void OnAudioSyncMillisecondsChanged(int value)
@@ -207,14 +216,21 @@ public sealed partial class RealPreviewViewModel : ViewModelBase, IDisposable
             if (lengthMs > 0)
             {
                 TotalDurationSeconds = lengthMs / 1000.0;
+
+                // Do not read MediaPlayer.IsPlaying directly here: VideoPlaybackSession deliberately
+                // serializes every native access behind its own lock. Natural EOF is observable from the
+                // same safe time/length API, while play/pause/stop commands already own the interactive state.
+                if (CurrentTimeSeconds >= TotalDurationSeconds - 0.05)
+                {
+                    IsPlaying = false;
+                    _timer.Stop();
+                }
             }
         }
         finally
         {
             _isSyncingFromPlayer = false;
         }
-
-        IsPlaying = _session.Player?.IsPlaying ?? false;
     }
 
     private static string FormatTime(double seconds)
