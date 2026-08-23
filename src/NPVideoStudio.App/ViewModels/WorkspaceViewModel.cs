@@ -23,6 +23,8 @@ namespace NPVideoStudio.App.ViewModels;
 /// </summary>
 public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 {
+    [ObservableProperty] private bool _isRemovingBackground;
+    [ObservableProperty] private string? _backgroundRemovalStatus;
     private readonly IProjectRepository _projectRepository;
     private readonly IMediaProbeService _mediaProbeService;
     private readonly IStorageService _storageService;
@@ -51,6 +53,32 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// <see cref="RealPreviewViewModel"/> and <see cref="RenderRealPreviewAsync"/> for what actually
     /// drives it. Kept separate from <see cref="Player"/> (the always-available frame-snapshot preview).</summary>
     public RealPreviewViewModel RealPreview { get; } = new();
+
+    [RelayCommand]
+    private async Task RemoveBackgroundAsync()
+    {
+        var source = ResolvePrimaryVideoFilePath();
+        if (source is null || _aiWorkerClient is null) { BackgroundRemovalStatus = "Izaberite video i instalirajte AI alate."; return; }
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NPVideoStudio", "generated", "background-removal");
+        Directory.CreateDirectory(folder);
+        var output = Path.Combine(folder, Path.GetFileNameWithoutExtension(source) + "_bez_pozadine_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".webm");
+        IsRemovingBackground = true; BackgroundRemovalStatus = "AI analizira kadrove i uklanja pozadinu...";
+        try
+        {
+            await foreach (var evt in _aiWorkerClient.RunAsync(new AiWorkerRequest { JobKind = AiWorkerJobKind.BackgroundRemoval,
+                Profile = AiProcessingProfile.MostAccurate, InputFilePath = Path.GetFullPath(source), OutputFilePath = output }))
+            {
+                if (evt.Type is AiWorkerEventType.Progress or AiWorkerEventType.Warning) BackgroundRemovalStatus = evt.Message;
+                if (evt.Type == AiWorkerEventType.Error) throw new InvalidOperationException(evt.Message);
+            }
+            if (!File.Exists(output)) throw new InvalidOperationException("AI nije napravio transparentni video.");
+            await ImportFilesAsync(new[] { output });
+            Timeline.SelectedMediaAsset = MediaLibrary.LastOrDefault(m => m.Asset.FilePath == output);
+            BackgroundRemovalStatus = "Transparentni video je dodat u biblioteku. Dodajte ga na overlay traku.";
+        }
+        catch (Exception ex) { BackgroundRemovalStatus = $"Uklanjanje pozadine nije uspelo: {ex.Message}"; }
+        finally { IsRemovingBackground = false; }
+    }
 
     /// <summary>
     /// True when the real, continuous player is what is on screen, rather than the frame-snapshot

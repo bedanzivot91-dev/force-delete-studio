@@ -85,7 +85,10 @@
                     ToolTip.Tip="Renderuje samo ~15 sekundi oko trenutne pozicije plejhed-a - mnogo brže od cele trake za duge projekte."
                     IsEnabled="{Binding !IsRenderingRealPreview}" />
             <Button Classes="ghost" Content="Renderuj celu traku" Command="{Binding RenderRealPreviewCommand}"
-                    IsEnabled="{Binding !IsRenderingRealPreview}" />
+                  IsEnabled="{Binding !IsRenderingRealPreview}" />
+            <Button Classes="ghost" Content="AI ukloni pozadinu" Command="{Binding RemoveBackgroundCommand}" IsEnabled="{Binding !IsRemovingBackground}"
+                    ToolTip.Tip="Lokalna AI segmentacija pravi transparentan WebM bez zelenog platna." />
+            <TextBlock Text="{Binding BackgroundRemovalStatus}" Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap" />
             <Button Classes="ghost" Content="Otvori u mom plejeru" Command="{Binding OpenInSystemPlayerCommand}"
                     ToolTip.Tip="Otvara video u plejeru koji već imate na Windows-u (Media Player, VLC...). Ovo uvek radi." />
             <TextBlock Text="{Binding RealPreviewStatusMessage}" Classes="subtle" VerticalAlignment="Center"

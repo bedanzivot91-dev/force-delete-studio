@@ -147,6 +147,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
         var demucs = false;
         var lyricAlign = false;
         var openCv = false;
+        var backgroundRemoval = false;
         var errorMessage = (string?)null;
 
         try
@@ -184,6 +185,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
                     case "opencv":
                         openCv = evt.EngineAvailable == true;
                         break;
+                    case "rembg":
+                        backgroundRemoval = evt.EngineAvailable == true;
+                        break;
                 }
             }
         }
@@ -209,7 +213,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             WhisperXAvailable = whisperX,
             DemucsAvailable = demucs,
             LyricAlignAvailable = lyricAlign,
-            OpenCvAvailable = openCv
+            OpenCvAvailable = openCv,
+            BackgroundRemovalAvailable = backgroundRemoval
         };
     }
 

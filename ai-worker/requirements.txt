@@ -9,3 +9,5 @@ faster-whisper
 demucs
 lyric-align
 opencv-contrib-python-headless
+rembg
+onnxruntime

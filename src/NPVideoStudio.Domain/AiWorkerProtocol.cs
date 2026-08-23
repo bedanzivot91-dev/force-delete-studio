@@ -23,7 +23,8 @@ public enum AiWorkerJobKind
     KnownSongAlignment,
 
     /// <summary>Song not recognized: transcribe from scratch (raw audio, then vocals-only if available).</summary>
-    UnknownSongTranscription
+    UnknownSongTranscription,
+    BackgroundRemoval
 }
 
 /// <summary>
@@ -46,6 +47,8 @@ public sealed class AiWorkerRequest
 
     /// <summary>BCP-47-ish hint (e.g. "sr"), or null to let the worker auto-detect.</summary>
     public string? LanguageHint { get; init; }
+    public string? InputFilePath { get; init; }
+    public string? OutputFilePath { get; init; }
 }
 
 /// <summary>One line of the worker's JSONL event stream.</summary>
@@ -91,6 +94,7 @@ public sealed class AiWorkerEvent
 
     public IReadOnlyList<AiWorkerWord>? Words { get; init; }
     public string? RawText { get; init; }
+    public string? OutputFilePath { get; init; }
 }
 
 /// <summary>
@@ -106,5 +110,6 @@ public sealed class AiWorkerCapabilities
     public bool DemucsAvailable { get; init; }
     public bool LyricAlignAvailable { get; init; }
     public bool OpenCvAvailable { get; init; }
+    public bool BackgroundRemovalAvailable { get; init; }
     public string? Error { get; init; }
 }
