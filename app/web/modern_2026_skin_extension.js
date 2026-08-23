@@ -10,7 +10,7 @@
 
   if (document.getElementById('spsModern2026Style')) return;
 
-  const SKINS = new Set(['aurora-flow', 'graphite-console', 'vinyl-loft', 'signal-grid', 'paper-studio']);
+  const SKINS = new Set(['aurora-flow', 'graphite-console', 'vinyl-loft', 'signal-grid', 'paper-studio', 'neon-stage', 'album-wall', 'mixer-desk']);
   const LEGACY_SKINS = { aurora: 'aurora-flow', graphite: 'graphite-console', midnight: 'signal-grid' };
 
   function readSkin() {
@@ -343,7 +343,7 @@
     if (!document.getElementById('modernSkinQuickSelect')) {
       const quick = document.createElement('label');
       quick.className = 'modern-quick-skin';
-      quick.innerHTML = '<span>TEMA</span><select id="modernSkinQuickSelect" aria-label="Moderna tema i raspored"><option value="aurora-flow">Aurora Flow</option><option value="graphite-console">Graphite Console</option><option value="vinyl-loft">Vinyl Loft</option><option value="signal-grid">Signal Grid</option><option value="paper-studio">Paper Studio</option></select>';
+      quick.innerHTML = '<span>TEMA</span><select id="modernSkinQuickSelect" aria-label="Moderna tema i raspored"><option value="aurora-flow">Aurora Flow</option><option value="graphite-console">Graphite Console</option><option value="vinyl-loft">Vinyl Loft</option><option value="signal-grid">Signal Grid</option><option value="paper-studio">Paper Studio</option><option value="neon-stage">Neon Stage</option><option value="album-wall">Album Wall</option><option value="mixer-desk">Mixer Desk</option></select>';
       topActions.prepend(quick);
       quick.querySelector('select').addEventListener('change', e => applySkin(e.target.value));
     }
@@ -371,6 +371,9 @@
         <button type="button" class="modern-skin-choice" data-modern-skin-choice="vinyl-loft"><span class="modern-skin-preview vinyl"></span><span><strong>Vinyl Loft</strong><small>Topla muzička biblioteka sa velikim omotima</small></span></button>
         <button type="button" class="modern-skin-choice" data-modern-skin-choice="signal-grid"><span class="modern-skin-preview midnight"></span><span><strong>Signal Grid</strong><small>Horizontalna navigacija i tehnički grid</small></span></button>
         <button type="button" class="modern-skin-choice" data-modern-skin-choice="paper-studio"><span class="modern-skin-preview paper"></span><span><strong>Paper Studio</strong><small>Svetla radna površina i urednički izgled</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="neon-stage"><span class="modern-skin-preview aurora"></span><span><strong>Neon Stage</strong><small>Koncertni motiv, uska komandna traka i širok sadržaj</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="album-wall"><span class="modern-skin-preview vinyl"></span><span><strong>Album Wall</strong><small>Galerija omota sa širokom bibliotekom albuma</small></span></button>
+        <button type="button" class="modern-skin-choice" data-modern-skin-choice="mixer-desk"><span class="modern-skin-preview graphite"></span><span><strong>Mixer Desk</strong><small>Komande desno, radna površina levo kao mikser</small></span></button>
       </div>`;
 
     if (legacy) legacy.insertAdjacentElement('beforebegin', panel);
