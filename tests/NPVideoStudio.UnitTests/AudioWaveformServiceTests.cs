@@ -1,4 +1,5 @@
 using NPVideoStudio.Media;
+using Xunit;
 
 namespace NPVideoStudio.UnitTests;
 
