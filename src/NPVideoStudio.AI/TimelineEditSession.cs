@@ -437,11 +437,15 @@ public sealed class TimelineEditSession
         var shadows = Math.Clamp(settings.Shadows, -1, 1);
         var temperature = Math.Clamp(settings.Temperature, -1, 1);
         var tint = Math.Clamp(settings.Tint, -1, 1);
+        var hue = Math.Clamp(settings.HueDegrees, -180, 180);
+        var vibrance = Math.Clamp(settings.Vibrance, -1, 1);
         if (Math.Abs(clip.ExposureStops - exposure) < 1e-9 &&
             Math.Abs(clip.Highlights - highlights) < 1e-9 &&
             Math.Abs(clip.Shadows - shadows) < 1e-9 &&
             Math.Abs(clip.Temperature - temperature) < 1e-9 &&
-            Math.Abs(clip.Tint - tint) < 1e-9) return;
+            Math.Abs(clip.Tint - tint) < 1e-9 &&
+            Math.Abs(clip.HueDegrees - hue) < 1e-9 &&
+            Math.Abs(clip.Vibrance - vibrance) < 1e-9) return;
 
         SaveSnapshot();
         var live = FindClipWithTrack(clipId).Clip!;
@@ -450,6 +454,8 @@ public sealed class TimelineEditSession
         live.Shadows = shadows;
         live.Temperature = temperature;
         live.Tint = tint;
+        live.HueDegrees = hue;
+        live.Vibrance = vibrance;
     }
 
     public void SetClipAudioEnhancement(string clipId, ClipAudioEnhancementSettings settings)
@@ -1162,6 +1168,8 @@ public sealed class TimelineEditSession
         Shadows = clip.Shadows,
         Temperature = clip.Temperature,
         Tint = clip.Tint,
+        HueDegrees = clip.HueDegrees,
+        Vibrance = clip.Vibrance,
         SpeedMultiplier = clip.SpeedMultiplier,
         SpeedCurvePreset = clip.SpeedCurvePreset,
         SpeedCurvePoints = clip.SpeedCurvePoints.Select(point => new SpeedCurvePoint
