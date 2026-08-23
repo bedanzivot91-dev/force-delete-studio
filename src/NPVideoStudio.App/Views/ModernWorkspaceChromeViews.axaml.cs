@@ -15,6 +15,10 @@ public partial class ModernWorkspaceCommandBarView : UserControl
 public partial class ModernInspectorView : UserControl
 {
     public ModernInspectorView() => InitializeComponent();
+    private void OnKeyframeGraphPointRequested(object? sender, KeyframeGraphPointEventArgs e)
+    {
+        if (DataContext is ViewModels.TimelineClipItemViewModel clip) clip.AddKeyframeFromGraph(e.NormalizedX, e.NormalizedY);
+    }
 }
 
 public partial class ModernMediaLibraryView : UserControl
