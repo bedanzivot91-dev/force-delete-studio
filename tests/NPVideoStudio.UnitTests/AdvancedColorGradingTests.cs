@@ -18,13 +18,15 @@ public sealed class AdvancedColorGradingTests
             new TimelineTrack { Kind = TimelineTrackKind.Video, Clips = new List<TimelineClip> { clip } }
         });
 
-        session.SetColorGrading(clip.Id, new ClipColorGradingSettings(9, .4, -.3, .5, -.6));
+        session.SetColorGrading(clip.Id, new ClipColorGradingSettings(9, .4, -.3, .5, -.6, 240, 2));
         var edited = session.Tracks.Single().Clips.Single();
         Assert.Equal(3, edited.ExposureStops);
         Assert.Equal(.4, edited.Highlights, 6);
         Assert.Equal(-.3, edited.Shadows, 6);
         Assert.Equal(.5, edited.Temperature, 6);
         Assert.Equal(-.6, edited.Tint, 6);
+        Assert.Equal(180, edited.HueDegrees, 6);
+        Assert.Equal(1, edited.Vibrance, 6);
 
         session.Undo();
         Assert.Equal(0, session.Tracks.Single().Clips.Single().ExposureStops);
@@ -46,7 +48,7 @@ public sealed class AdvancedColorGradingTests
                 Kind = TimelineTrackKind.Video,
                 Clips = new List<TimelineClip>
                 {
-                    new() { MediaAssetId = "m", SourceTrimOutSeconds = 1, ExposureStops = .75, Highlights = .2, Shadows = -.15, Temperature = .3, Tint = -.25 }
+                    new() { MediaAssetId = "m", SourceTrimOutSeconds = 1, ExposureStops = .75, Highlights = .2, Shadows = -.15, Temperature = .3, Tint = -.25, HueDegrees = 35, Vibrance = .4 }
                 }
             });
             var repo = new ProjectRepository();
@@ -58,6 +60,8 @@ public sealed class AdvancedColorGradingTests
             Assert.Equal(-.15, clip.Shadows, 6);
             Assert.Equal(.3, clip.Temperature, 6);
             Assert.Equal(-.25, clip.Tint, 6);
+            Assert.Equal(35, clip.HueDegrees, 6);
+            Assert.Equal(.4, clip.Vibrance, 6);
         }
         finally { Directory.Delete(dir, true); }
     }
@@ -71,12 +75,16 @@ public sealed class AdvancedColorGradingTests
             Highlights = .25,
             Shadows = -.2,
             Temperature = .4,
-            Tint = -.3
+            Tint = -.3,
+            HueDegrees = 24,
+            Vibrance = .35
         };
         var filters = FfmpegFilterGraphBuilder.BuildEffectFilters(clip);
         Assert.Contains("lutrgb=", filters);
         Assert.Contains("curves=all=", filters);
         Assert.Contains("colorbalance=", filters);
+        Assert.Contains("hue=h=24", filters);
+        Assert.Contains("vibrance=intensity=0.35", filters);
     }
 
     [Fact]
@@ -85,7 +93,7 @@ public sealed class AdvancedColorGradingTests
         var root = FindRepoRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "NPVideoStudio.App", "Views", "ModernInspectorView.axaml"));
         Assert.Contains("Header=\"Boja\"", xaml);
-        foreach (var binding in new[] { "ExposureStops", "Highlights", "Shadows", "Temperature", "Tint" })
+        foreach (var binding in new[] { "ExposureStops", "Highlights", "Shadows", "Temperature", "Tint", "HueDegrees", "Vibrance" })
             Assert.Contains($"Binding {binding}", xaml);
     }
 
@@ -98,7 +106,7 @@ public sealed class AdvancedColorGradingTests
         try
         {
             var output = Path.Combine(dir, "graded.mp4");
-            var clip = new TimelineClip { ExposureStops = .5, Highlights = .2, Shadows = -.1, Temperature = .25, Tint = -.15 };
+            var clip = new TimelineClip { ExposureStops = .5, Highlights = .2, Shadows = -.1, Temperature = .25, Tint = -.15, HueDegrees = 18, Vibrance = .2 };
             var filter = FfmpegFilterGraphBuilder.BuildEffectFilters(clip).TrimStart(',');
             using var process = new Process { StartInfo = new ProcessStartInfo { FileName = ffmpeg, UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true, CreateNoWindow = true } };
             foreach (var arg in new[] { "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=0.5", "-vf", filter, "-c:v", "libx264", "-pix_fmt", "yuv420p", output })
