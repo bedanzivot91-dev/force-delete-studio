@@ -52,10 +52,13 @@ public sealed partial class TimelineViewModel : ViewModelBase
 
     public TimelineClipItemViewModel? SelectedClip =>
         Tracks.SelectMany(t => t.Clips).FirstOrDefault(c => c.Clip.Id == SelectedClipId);
+    public bool CanRippleDeleteSelectedTranscript => SelectedClip is { IsTextClip: true };
 
     partial void OnSelectedClipIdChanged(string? value)
     {
         OnPropertyChanged(nameof(SelectedClip));
+        OnPropertyChanged(nameof(CanRippleDeleteSelectedTranscript));
+        RippleDeleteSelectedTranscriptCommand.NotifyCanExecuteChanged();
         foreach (var clip in Tracks.SelectMany(t => t.Clips))
         {
             clip.RefreshSelection(value);
@@ -282,6 +285,15 @@ public sealed partial class TimelineViewModel : ViewModelBase
     {
         _session.Redo();
         RefreshFromSession();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRippleDeleteSelectedTranscript))]
+    private void RippleDeleteSelectedTranscript()
+    {
+        if (SelectedClip is not { IsTextClip: true } transcript) return;
+        var start = transcript.Clip.TimelineStartSeconds; var end = transcript.Clip.TimelineEndSeconds;
+        _session.RippleDeleteMediaRange(start, end, transcript.Clip.Id);
+        SelectedClipId = null; RefreshFromSession();
     }
 
     private bool CanRedo => _session.CanRedo;
