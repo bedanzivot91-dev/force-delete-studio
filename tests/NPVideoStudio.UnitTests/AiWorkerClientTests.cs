@@ -37,6 +37,9 @@ public class AiWorkerClientTests
         Assert.False(capabilities.WhisperXAvailable);
         Assert.False(capabilities.DemucsAvailable);
         Assert.True(capabilities.LyricAlignAvailable);
+        Assert.True(capabilities.OpenCvAvailable);
+        Assert.True(capabilities.BackgroundRemovalAvailable);
+        Assert.True(capabilities.TranslationAvailable);
     }
 
     [Fact]

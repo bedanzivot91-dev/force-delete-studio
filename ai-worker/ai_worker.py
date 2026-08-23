@@ -81,6 +81,7 @@ def run_capability_check() -> int:
     check_engine("lyric_align", "lyric_align")
     check_opencv_tracking()
     check_engine("rembg", "rembg")
+    check_engine("argostranslate", "argostranslate")
     emit({"type": "Done"})
     return 0
 
@@ -124,6 +125,56 @@ def run_background_removal(request: dict) -> int:
         return 0
     except Exception as ex:
         emit({"type": "Error", "message": f"Uklanjanje pozadine nije uspelo: {ex}"})
+        return 1
+
+
+def run_subtitle_translation(request: dict) -> int:
+    texts = request.get("texts") or []
+    source = (request.get("sourceLanguage") or "sr").lower()
+    target = (request.get("targetLanguage") or "en").lower()
+    if not texts or source == target:
+        emit({"type": "Error", "message": "Izvorni tekst ili jezici za prevod nisu ispravni."})
+        return 1
+    try:
+        import argostranslate.package
+        import argostranslate.translate
+        def find_translation(from_code: str, to_code: str):
+            installed = argostranslate.translate.get_installed_languages()
+            from_language = next((x for x in installed if x.code == from_code), None)
+            to_language = next((x for x in installed if x.code == to_code), None)
+            return from_language.get_translation(to_language) if from_language and to_language else None
+
+        translation = find_translation(source, target)
+        translations = [translation] if translation is not None else []
+        if not translations:
+            emit({"type": "Progress", "progressPercent": 5, "message": f"Preuzimam lokalni model za prevod {source}→{target}..."})
+            argostranslate.package.update_package_index()
+            available = argostranslate.package.get_available_packages()
+            route = [(source, target)]
+            if not any(p.from_code == source and p.to_code == target for p in available) and source != "en" and target != "en":
+                route = [(source, "en"), ("en", target)]
+            packages = [next((p for p in available if p.from_code == start and p.to_code == end), None) for start, end in route]
+            if any(package is None for package in packages):
+                raise RuntimeError(f"Lokalni model za {source}→{target} nije dostupan, ni preko engleskog jezika.")
+            for package in packages:
+                if find_translation(package.from_code, package.to_code) is None:
+                    argostranslate.package.install_from_path(package.download())
+            translations = [find_translation(start, end) for start, end in route]
+            if any(item is None for item in translations):
+                raise RuntimeError("Preuzeti modeli nisu pravilno instalirani.")
+        translated = []
+        for index, value in enumerate(texts):
+            translated_value = str(value)
+            for translation_step in translations:
+                translated_value = translation_step.translate(translated_value)
+            translated.append(translated_value)
+            if index % max(1, len(texts) // 10) == 0:
+                emit({"type": "Progress", "progressPercent": 10 + 85 * (index + 1) / len(texts), "message": f"Prevodim titlove: {index + 1}/{len(texts)}"})
+        emit({"type": "Result", "translatedTexts": translated})
+        emit({"type": "Done", "message": f"Prevedeno je {len(translated)} titlova."})
+        return 0
+    except Exception as ex:
+        emit({"type": "Error", "message": f"Prevod titlova nije uspeo: {ex}"})
         return 1
 
 
@@ -394,6 +445,8 @@ def main() -> int:
         return run_transcription(request, job_kind, profile)
     if job_kind == "BackgroundRemoval":
         return run_background_removal(request)
+    if job_kind == "SubtitleTranslation":
+        return run_subtitle_translation(request)
 
     emit({"type": "Error", "message": f"Nepoznat tip posla: {job_kind!r}"})
     return 1

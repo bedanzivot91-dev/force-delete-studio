@@ -11,3 +11,4 @@ lyric-align
 opencv-contrib-python-headless
 rembg
 onnxruntime
+argostranslate

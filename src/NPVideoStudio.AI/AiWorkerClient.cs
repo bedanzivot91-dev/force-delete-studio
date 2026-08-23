@@ -148,6 +148,7 @@ public sealed class AiWorkerClient : IAiWorkerClient
         var lyricAlign = false;
         var openCv = false;
         var backgroundRemoval = false;
+        var translation = false;
         var errorMessage = (string?)null;
 
         try
@@ -188,6 +189,9 @@ public sealed class AiWorkerClient : IAiWorkerClient
                     case "rembg":
                         backgroundRemoval = evt.EngineAvailable == true;
                         break;
+                    case "argostranslate":
+                        translation = evt.EngineAvailable == true;
+                        break;
                 }
             }
         }
@@ -214,7 +218,8 @@ public sealed class AiWorkerClient : IAiWorkerClient
             DemucsAvailable = demucs,
             LyricAlignAvailable = lyricAlign,
             OpenCvAvailable = openCv,
-            BackgroundRemovalAvailable = backgroundRemoval
+            BackgroundRemovalAvailable = backgroundRemoval,
+            TranslationAvailable = translation
         };
     }
 

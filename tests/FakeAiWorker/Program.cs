@@ -40,6 +40,9 @@ if (jobKind == "CapabilityCheck")
     Emit("""{"type":"CapabilityCheck","engine":"whisperx","engineAvailable":false}""");
     Emit("""{"type":"CapabilityCheck","engine":"demucs","engineAvailable":false}""");
     Emit("""{"type":"CapabilityCheck","engine":"lyric_align","engineAvailable":true}""");
+    Emit("""{"type":"CapabilityCheck","engine":"opencv","engineAvailable":true}""");
+    Emit("""{"type":"CapabilityCheck","engine":"rembg","engineAvailable":true}""");
+    Emit("""{"type":"CapabilityCheck","engine":"argostranslate","engineAvailable":true}""");
     Emit("""{"type":"Done"}""");
     return 0;
 }
