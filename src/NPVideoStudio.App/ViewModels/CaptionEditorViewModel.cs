@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.AI;
 using NPVideoStudio.Domain;
 using NPVideoStudio.App.Services;
+using NPVideoStudio.Core.Services;
 using Serilog;
 
 namespace NPVideoStudio.App.ViewModels;
@@ -18,11 +19,17 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
 {
     private readonly IStorageService _storageService;
     private readonly ILogger _logger;
+    private readonly IAiWorkerClient? _aiWorkerClient;
     private CaptionEditSession? _session;
 
     public ObservableCollection<CaptionWordItemViewModel> Words { get; } = new();
 
     public IReadOnlyList<CaptionFileFormat> AvailableFormats { get; } = Enum.GetValues<CaptionFileFormat>();
+    public IReadOnlyList<CaptionLanguageOption> AvailableLanguages { get; } =
+    [
+        new("sr", "Srpski"), new("en", "Engleski"), new("de", "Nemački"),
+        new("fr", "Francuski"), new("es", "Španski"), new("it", "Italijanski")
+    ];
 
     [ObservableProperty]
     private CaptionFileFormat _selectedFormat = CaptionFileFormat.Srt;
@@ -31,7 +38,20 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
     private string? _statusMessage;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TranslateDocumentCommand))]
     private bool _hasDocument;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TranslateDocumentCommand))]
+    private CaptionLanguageOption _selectedSourceLanguage = new("sr", "Srpski");
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TranslateDocumentCommand))]
+    private CaptionLanguageOption _selectedTargetLanguage = new("en", "Engleski");
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TranslateDocumentCommand))]
+    private bool _isTranslating;
 
     [ObservableProperty]
     private string _findText = string.Empty;
@@ -39,10 +59,84 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
     [ObservableProperty]
     private string _replaceText = string.Empty;
 
-    public CaptionEditorViewModel(IStorageService storageService, ILogger logger)
+    public CaptionEditorViewModel(IStorageService storageService, ILogger logger, IAiWorkerClient? aiWorkerClient = null)
     {
         _storageService = storageService;
         _logger = logger.ForContext("SourceContext", nameof(CaptionEditorViewModel));
+        _aiWorkerClient = aiWorkerClient;
+    }
+
+    private bool CanTranslateDocument() =>
+        HasDocument && !IsTranslating && _session?.Words.Count > 0 && _aiWorkerClient is not null &&
+        SelectedSourceLanguage.Code != SelectedTargetLanguage.Code;
+
+    [RelayCommand(CanExecute = nameof(CanTranslateDocument))]
+    private async Task TranslateDocumentAsync()
+    {
+        if (_session is null || _aiWorkerClient is null)
+        {
+            return;
+        }
+
+        IsTranslating = true;
+        StatusMessage = $"Pokrećem lokalni prevod {SelectedSourceLanguage.Name} → {SelectedTargetLanguage.Name}...";
+        try
+        {
+            IReadOnlyList<string>? translatedTexts = null;
+            await foreach (var evt in _aiWorkerClient.RunAsync(new AiWorkerRequest
+            {
+                JobKind = AiWorkerJobKind.SubtitleTranslation,
+                Profile = AiProcessingProfile.Fast,
+                Texts = _session.Words.Select(word => word.OriginalText).ToArray(),
+                SourceLanguage = SelectedSourceLanguage.Code,
+                TargetLanguage = SelectedTargetLanguage.Code
+            }))
+            {
+                if (evt.Type == AiWorkerEventType.Progress && !string.IsNullOrWhiteSpace(evt.Message))
+                {
+                    StatusMessage = evt.Message;
+                }
+                else if (evt.Type == AiWorkerEventType.Result)
+                {
+                    translatedTexts = evt.TranslatedTexts;
+                }
+                else if (evt.Type == AiWorkerEventType.Error)
+                {
+                    throw new InvalidOperationException(evt.Message ?? "Lokalni prevodilac nije vratio rezultat.");
+                }
+            }
+
+            if (translatedTexts is null || translatedTexts.Count != _session.Words.Count)
+            {
+                throw new InvalidOperationException("Broj prevedenih titlova ne odgovara otvorenom dokumentu.");
+            }
+
+            var translated = _session.Words.Select((word, index) => new CaptionWord
+            {
+                Id = word.Id,
+                OriginalText = translatedTexts[index],
+                NormalizedText = LyricMatcher.Normalize(translatedTexts[index]),
+                Start = word.Start,
+                End = word.End,
+                Confidence = word.Confidence,
+                Source = word.Source,
+                VerificationStatus = word.VerificationStatus,
+                LineBreakAfter = word.LineBreakAfter
+            }).ToArray();
+
+            _session.ReplaceAll(translated);
+            RefreshFromSession();
+            StatusMessage = $"Prevedeno je {translated.Length} titlova. Undo vraća originalni tekst.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Prevod nije uspeo: {ex.Message}";
+            _logger.Error(ex, "Lokalni prevod titlova nije uspeo");
+        }
+        finally
+        {
+            IsTranslating = false;
+        }
     }
 
     /// <summary>Lets other tools (e.g. "Generiši titlove") hand off their result straight into the editor.</summary>
@@ -323,6 +417,7 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
 
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
+        TranslateDocumentCommand.NotifyCanExecuteChanged();
     }
 
     private CaptionWordItemViewModel CreateItem(CaptionWord word)
@@ -361,3 +456,5 @@ public sealed partial class CaptionEditorViewModel : ViewModelBase
         return new CaptionWordItemViewModel(word, split, mergeWithNext, delete, nudgeEarlier, nudgeLater, toggleLineBreak);
     }
 }
+
+public sealed record CaptionLanguageOption(string Code, string Name);
