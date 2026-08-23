@@ -18,6 +18,8 @@ def main() -> None:
         assert f'value="{theme}"' in SKIN, f"tema nije u brzom izboru: {theme}"
         assert f'data-sps-skin="{theme}"' in LAYOUTS, f"nema layout pravila: {theme}"
 
+    # Svaka tema mora imati bar jednu strukturnu odluku. Promena samo CSS
+    # promenljivih/boja nije dovoljna da prođe ovaj test.
     required_structure = {
         "graphite-console": ("grid-template-columns:218px", "width:198px", "minmax(205px,1fr)"),
         "vinyl-loft": ("grid-template-columns:330px", "width:300px", "minmax(310px,1fr)"),
@@ -31,9 +33,9 @@ def main() -> None:
         for token in tokens:
             assert token in (LAYOUTS + REDESIGN), f"{theme} nema strukturno pravilo {token}"
 
-    assert "height:62px!important" in REDESIGN
-    assert "overflow-y:hidden!important" in REDESIGN
-    assert "production_workspace_extension.js" not in SERVER
+    assert 'height:62px!important' in REDESIGN
+    assert 'overflow-y:hidden!important' in REDESIGN
+    assert 'production_workspace_extension.js' not in SERVER
     print("theme_structure_test: PASS — 8 tema su registrovane i menjaju strukturu, Signal Grid ne prekriva sadržaj, video editor nije u fallback bundle-u")
 
 
