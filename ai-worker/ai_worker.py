@@ -82,6 +82,7 @@ def run_capability_check() -> int:
     check_opencv_tracking()
     check_engine("rembg", "rembg")
     check_engine("argostranslate", "argostranslate")
+    check_engine("pyttsx3", "pyttsx3")
     emit({"type": "Done"})
     return 0
 
@@ -175,6 +176,39 @@ def run_subtitle_translation(request: dict) -> int:
         return 0
     except Exception as ex:
         emit({"type": "Error", "message": f"Prevod titlova nije uspeo: {ex}"})
+        return 1
+
+
+def run_text_to_speech(request: dict) -> int:
+    text = (request.get("text") or "").strip()
+    output = request.get("outputFilePath")
+    language = (request.get("voiceLanguage") or "sr").lower()
+    rate = max(80, min(300, int(request.get("speechRate") or 170)))
+    if not text or not output:
+        emit({"type": "Error", "message": "Tekst naracije ili izlazna putanja nisu ispravni."})
+        return 1
+    try:
+        import pyttsx3
+        emit({"type": "Progress", "progressPercent": 10, "message": "Učitavam lokalne Windows glasove..."})
+        engine = pyttsx3.init()
+        voices = engine.getProperty("voices") or []
+        matching = [voice for voice in voices if language in (str(getattr(voice, "languages", "")) + " " + voice.name + " " + voice.id).lower()]
+        if matching:
+            engine.setProperty("voice", matching[0].id)
+        elif not voices:
+            raise RuntimeError("Windows nema instaliran nijedan glas za naraciju.")
+        engine.setProperty("rate", rate)
+        emit({"type": "Progress", "progressPercent": 40, "message": "Generišem naraciju..."})
+        engine.save_to_file(text, output)
+        engine.runAndWait()
+        engine.stop()
+        if not os.path.isfile(output) or os.path.getsize(output) < 44:
+            raise RuntimeError("Windows glas nije napravio ispravan WAV fajl.")
+        emit({"type": "Result", "outputFilePath": output})
+        emit({"type": "Done", "message": "Naracija je napravljena i spremna za timeline."})
+        return 0
+    except Exception as ex:
+        emit({"type": "Error", "message": f"Generisanje naracije nije uspelo: {ex}"})
         return 1
 
 
@@ -447,6 +481,8 @@ def main() -> int:
         return run_background_removal(request)
     if job_kind == "SubtitleTranslation":
         return run_subtitle_translation(request)
+    if job_kind == "TextToSpeech":
+        return run_text_to_speech(request)
 
     emit({"type": "Error", "message": f"Nepoznat tip posla: {job_kind!r}"})
     return 1
