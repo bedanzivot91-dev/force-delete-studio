@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NPVideoStudio.AI;
 using NPVideoStudio.Domain;
+using NPVideoStudio.App.Services;
 
 namespace NPVideoStudio.App.ViewModels;
 
@@ -30,6 +31,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
     private readonly Project _project;
     private readonly Func<double> _getPlayhead;
     private readonly TimelineEditSession _session;
+    private readonly IStorageService? _storageService;
 
     public ObservableCollection<TimelineTrackItemViewModel> Tracks { get; } = new();
 
@@ -99,13 +101,14 @@ public sealed partial class TimelineViewModel : ViewModelBase
         return true;
     }
 
-    public TimelineViewModel(Project project, ObservableCollection<MediaAssetViewModel> availableMedia, Func<double> getPlayhead)
+    public TimelineViewModel(Project project, ObservableCollection<MediaAssetViewModel> availableMedia, Func<double> getPlayhead, IStorageService? storageService = null)
     {
         _project = project;
         _zoomPixelsPerSecond = Math.Clamp(project.Timeline.ZoomPixelsPerSecond, 10, 300);
         AvailableMedia = availableMedia;
         _getPlayhead = getPlayhead;
         _session = new TimelineEditSession(project.Timeline.Tracks);
+        _storageService = storageService;
         RefreshFromSession();
     }
 
@@ -389,6 +392,21 @@ public sealed partial class TimelineViewModel : ViewModelBase
             _session.SetColorGrading(clipId, settings);
             RefreshFromSession();
         }
+        async Task OnPickLutRequested(string clipId)
+        {
+            if (_storageService is null) return;
+            var files = await _storageService.PickFilesAsync("Izaberite LUT", new[] { ("3D LUT", new[] { "cube" }) }, false);
+            if (files.Count == 0) return;
+            _session.SetClipLut(clipId, files[0]);
+            RefreshFromSession();
+            SelectedClipId = clipId;
+        }
+        void OnClearLutRequested(string clipId)
+        {
+            _session.SetClipLut(clipId, null);
+            RefreshFromSession();
+            SelectedClipId = clipId;
+        }
         void OnAudioEnhancementChanged(string clipId, ClipAudioEnhancementSettings settings)
         {
             _session.SetClipAudioEnhancement(clipId, settings);
@@ -451,7 +469,7 @@ public sealed partial class TimelineViewModel : ViewModelBase
             OnLayerPlacementChanged, track.Kind == TimelineTrackKind.ImageOverlay || (track.Kind == TimelineTrackKind.Video && _session.Tracks.Where(t => t.Kind == TimelineTrackKind.Video).FirstOrDefault()?.Id != track.Id), OnEffectsChanged, OnTransformChanged, OnCompositingChanged, track.Kind == TimelineTrackKind.Audio,
             _getPlayhead, OnKeyframeUpsert, OnKeyframeRemove, OnTextFontChanged, sourceDurationSeconds, OnTrimInChanged, OnTrimOutChanged, OnSpeedCurvePresetChanged, OnStabilizationChanged,
             OnTrackingRegionChanged, OnMotionTrackingRequested, OnAutoReframeChanged, OnColorGradingChanged,
-            hasAudioStream, OnAudioEnhancementChanged)
+            hasAudioStream, OnAudioEnhancementChanged, OnPickLutRequested, OnClearLutRequested)
         {
             PixelsPerSecond = ZoomPixelsPerSecond
         };
