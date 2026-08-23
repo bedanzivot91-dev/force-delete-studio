@@ -25,7 +25,8 @@ public enum AiWorkerJobKind
     /// <summary>Song not recognized: transcribe from scratch (raw audio, then vocals-only if available).</summary>
     UnknownSongTranscription,
     BackgroundRemoval,
-    SubtitleTranslation
+    SubtitleTranslation,
+    TextToSpeech
 }
 
 /// <summary>
@@ -53,6 +54,9 @@ public sealed class AiWorkerRequest
     public IReadOnlyList<string>? Texts { get; init; }
     public string? SourceLanguage { get; init; }
     public string? TargetLanguage { get; init; }
+    public string? Text { get; init; }
+    public string? VoiceLanguage { get; init; }
+    public int? SpeechRate { get; init; }
 }
 
 /// <summary>One line of the worker's JSONL event stream.</summary>
@@ -117,5 +121,6 @@ public sealed class AiWorkerCapabilities
     public bool OpenCvAvailable { get; init; }
     public bool BackgroundRemovalAvailable { get; init; }
     public bool TranslationAvailable { get; init; }
+    public bool TextToSpeechAvailable { get; init; }
     public string? Error { get; init; }
 }
