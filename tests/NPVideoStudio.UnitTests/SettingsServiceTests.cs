@@ -56,6 +56,20 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_WhenSettingsLocationCannotBeCreated_FallsBackToDefaultsWithoutThrowing()
+    {
+        var blockerFile = Path.Combine(_tempDir, "nije-folder");
+        await File.WriteAllTextAsync(blockerFile, "x");
+        var impossibleSettingsPath = Path.Combine(blockerFile, "settings.json");
+        var service = new SettingsService(impossibleSettingsPath);
+
+        var exception = await Record.ExceptionAsync(() => service.LoadAsync());
+
+        Assert.Null(exception);
+        Assert.Equal(AppTheme.Studio2026, service.Current.Theme);
+    }
+
+    [Fact]
     public async Task ResetToDefaultsAsync_OverwritesModifiedValues()
     {
         var service = new SettingsService(_settingsPath);
