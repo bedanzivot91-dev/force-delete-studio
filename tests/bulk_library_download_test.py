@@ -63,10 +63,18 @@ def main() -> None:
         "folder_per_song",
         "/api/song-ids",
         "SVE DOSTUPNO",
+        "SAMO MP3",
+        "MP3 + TEKST",
+        "_bulkDownloadPreset === 'audio'",
+        "_bulkDownloadPreset === 'audio_text'",
+        "options.format = 'mp3'",
+        "options.audio_format = 'mp3'",
+        "options.lyrics = true",
+        "options.lyrics = false",
     ):
         assert marker in extension, marker
 
-    print("bulk_library_download_test: PASS — whole-library selection + per-song folders")
+    print("bulk_library_download_test: PASS — whole-library selection + MP3/MP3+TXT presets + per-song folders")
 
 
 if __name__ == "__main__":
