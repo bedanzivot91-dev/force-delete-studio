@@ -16,27 +16,18 @@ import types
 from pathlib import Path
 from typing import Any
 
-# The shipped embeddable Python uses isolated-path mode.  Add this script's
-# directory before importing server_core, matching the production-safe path
-# handling of the original server entrypoint.
 APP_DIR = Path(__file__).resolve().parent
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 import server_core as _core
 
-# The release workflow intentionally reads a literal APP_VERSION from this
-# production entrypoint. Keep the literal for publishing compatibility, but
-# fail immediately if it ever drifts from the mature core implementation.
 APP_VERSION = "3.3.2"
 if APP_VERSION != str(getattr(_core, "APP_VERSION", "")):
     raise RuntimeError(
         f"APP_VERSION mismatch: wrapper={APP_VERSION!r}, core={getattr(_core, 'APP_VERSION', None)!r}"
     )
 
-# Preserve the old module API.  Existing tests/plugins import many names from
-# "server", including a few private helpers, so mirror everything except
-# Python's own dunder attributes before applying the small overrides below.
 _CORE_EXPORT_NAMES = {
     name for name in vars(_core)
     if not name.startswith("__")
@@ -47,26 +38,12 @@ for _name, _value in vars(_core).items():
 
 
 class _CoreMirroringModule(types.ModuleType):
-    """Keep monkeypatches on ``server`` compatible with the old single module.
-
-    Functions re-exported from server_core retain server_core as their globals
-    dictionary.  Existing tests and plugins legitimately patch attributes such
-    as ``server.DB``, ``server.check_update`` and ``server.download_update``.
-    Without mirroring those assignments into server_core, the re-exported
-    functions would silently continue using the unpatched originals.  A module
-    subclass lets normal ``setattr`` / unittest.mock.patch semantics keep both
-    module views synchronized while leaving direct wrapper-only helpers alone.
-    """
-
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
         if name in _CORE_EXPORT_NAMES:
             setattr(_core, name, value)
 
 
-# Python supports changing a live module to a ModuleType subclass.  Install the
-# bridge after the initial export so later monkeypatches behave exactly as they
-# did when server.py was a single file.
 sys.modules[__name__].__class__ = _CoreMirroringModule
 
 
@@ -82,12 +59,6 @@ def _list_song_ids_unbounded(
     max_duration: float | None = None,
     limit: int = 0,
 ) -> list[str]:
-    """Return every matching song id without tying selection to UI page size.
-
-    The old implementation made one list_songs() call and capped it at 20,000.
-    This walks the exact same filter in small pages, so 200 remains only a UI
-    rendering choice and libraries can grow without another artificial ceiling.
-    """
     filter_kwargs = {
         "search": search,
         "filter_name": filter_name,
@@ -107,9 +78,6 @@ def _list_song_ids_unbounded(
     seen: set[str] = set()
     offset = 0
     page_size = 1000
-
-    # If count_songs_filtered is unavailable for an old database schema, keep
-    # paging until list_songs returns a short/empty page.
     while total == 0 or offset < total:
         take = page_size if total == 0 else min(page_size, max(1, total - offset))
         rows = self.list_songs(
@@ -127,7 +95,6 @@ def _list_song_ids_unbounded(
         )
         if not rows:
             break
-
         added = 0
         for row in rows:
             song_id = str(row.get("id") or "")
@@ -135,16 +102,12 @@ def _list_song_ids_unbounded(
                 seen.add(song_id)
                 result.append(song_id)
                 added += 1
-
         offset += len(rows)
         if len(rows) < take or added == 0:
             break
-
     return result
 
 
-# Patch the actual LibraryDB class used by the running server, not just this
-# one instance, so tests/new instances see identical behavior.
 type(_core.DB).list_song_ids = _list_song_ids_unbounded
 globals()["_list_song_ids_unbounded"] = _list_song_ids_unbounded
 
@@ -156,16 +119,12 @@ def _build_per_song_download_options(
     song: dict[str, Any] | None = None,
     collections: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Translate folder_per_song into the target_dir understood by old code."""
     patched = dict(options)
     if not bool(patched.get("folder_per_song")):
         return patched
-
     song = song if song is not None else (_core.DB.get_song(song_id) or {})
     collections = collections if collections is not None else _core.DB.list_collections()
-
     target = Path(str(patched.get("target_dir") or _core.get_download_dir())).expanduser()
-
     collection_id = patched.get("collection_subfolder_id")
     if collection_id:
         for collection in collections:
@@ -174,21 +133,72 @@ def _build_per_song_download_options(
                 if name:
                     target = target / name
                 break
-
     created_at = str(song.get("created_at") or "")
     if bool(patched.get("folders_by_month")) and len(created_at) >= 7:
         target = target / created_at[:7]
-
     title = _core.sanitize_filename(str(song.get("title") or song_id or "pesma"))
-    # The short ID avoids collisions when two Suno generations have the same
-    # visible title while keeping the folder human-readable.
     folder_name = f"{title or 'pesma'} [{song_id[:8]}]"
     target = target / folder_name
-
     patched["target_dir"] = str(target)
     patched["collection_subfolder_id"] = 0
     patched["folders_by_month"] = False
     return patched
+
+
+# --- SUNO MP3 FIX ---------------------------------------------------------
+# Suno has used both snake_case and camelCase audio fields in different web/API
+# responses. The old download path only trusted audio_url. If the current
+# response contains audioUrl/audioURL/streamAudioUrl, the UI can show a song but
+# the downloader receives an empty URL and never creates the MP3.
+def _find_suno_audio_url(value: Any, depth: int = 0) -> str:
+    if depth > 8:
+        return ""
+    if isinstance(value, str):
+        text = value.strip()
+        lower = text.lower()
+        if text.startswith(("http://", "https://")) and (".mp3" in lower or "audiopipe" in lower or "audio" in lower):
+            return text
+        return ""
+    if isinstance(value, dict):
+        for key in (
+            "audio_url", "audioUrl", "audioURL", "audio_url_mp3", "mp3_url", "mp3Url",
+            "stream_audio_url", "streamAudioUrl", "streamAudioURL", "download_url", "downloadUrl",
+        ):
+            found = _find_suno_audio_url(value.get(key), depth + 1)
+            if found:
+                return found
+        for key in ("clip", "song", "track", "data", "result", "payload", "content", "metadata"):
+            if key in value:
+                found = _find_suno_audio_url(value.get(key), depth + 1)
+                if found:
+                    return found
+        for item in value.values():
+            if isinstance(item, (dict, list, str)):
+                found = _find_suno_audio_url(item, depth + 1)
+                if found:
+                    return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_suno_audio_url(item, depth + 1)
+            if found:
+                return found
+    return ""
+
+
+_ORIGINAL_GET_CLIP = _core.SunoClient.get_clip
+
+
+def _get_clip_with_audio_aliases(self: Any, song_id: str) -> dict[str, Any]:
+    detail = _ORIGINAL_GET_CLIP(self, song_id)
+    if isinstance(detail, dict):
+        audio_url = _find_suno_audio_url(detail)
+        if audio_url and not str(detail.get("audio_url") or "").strip():
+            detail["audio_url"] = audio_url
+    return detail
+
+
+_core.SunoClient.get_clip = _get_clip_with_audio_aliases
+globals()["SunoClient"] = _core.SunoClient
 
 
 _ORIGINAL_DOWNLOAD_ONE = _core._download_one
@@ -202,6 +212,20 @@ def _download_one(
     index: int,
     total: int,
 ) -> None:
+    # Resolve the clip once before the mature downloader runs. This writes a
+    # canonical audio_url into the clip/DB even when Suno returned audioUrl or
+    # another current alias. The existing downloader then performs its normal
+    # validated atomic MP3 download and refresh/retry path.
+    try:
+        detail = _ORIGINAL_GET_CLIP(client, song_id)
+        audio_url = _find_suno_audio_url(detail)
+        if audio_url:
+            normalized = dict(detail) if isinstance(detail, dict) else {}
+            normalized["audio_url"] = audio_url
+            _core.DB.upsert_song(normalized)
+    except Exception as exc:
+        if task is not None and hasattr(task, "log"):
+            task.log(f"Osvežavanje Suno MP3 adrese za {song_id} nije uspelo; pokušavam standardni download: {exc}", "warning")
     patched = _build_per_song_download_options(song_id, options)
     return _ORIGINAL_DOWNLOAD_ONE(task, client, song_id, patched, index, total)
 
@@ -224,18 +248,10 @@ def _send_file(
     download_name: str | None = None,
     no_cache: bool = False,
 ) -> None:
-    """Serve app.js plus optional extension modules in ONE lexical scope.
-
-    app.js intentionally stays byte-for-byte unchanged on disk, preserving the
-    mature UI and its existing audits. Concatenating at response time lets the
-    small extensions use established state/api helpers without duplicating the
-    application or creating another frontend runtime.
-    """
     try:
         is_app_js = path.resolve() == (_core.WEB_DIR / "app.js").resolve()
     except OSError:
         is_app_js = False
-
     if is_app_js:
         payload = path.read_bytes()
         appended = False
@@ -253,22 +269,14 @@ def _send_file(
 _core.Handler._send_file = _send_file
 globals()["Handler"] = _core.Handler
 
-# Apply the Windows/local-server and large-library YouTube fixes only after the
-# wrapper's own response/download overrides are in place, so the disconnect
-# guard wraps the final production handlers rather than an obsolete version.
 from runtime_fixes import apply as _apply_runtime_fixes
 _RUNTIME_FIX_EXPORTS = _apply_runtime_fixes(_core)
 globals().update(_RUNTIME_FIX_EXPORTS)
 
-# The renderer already had the capabilities below; this bridge makes the new
-# workspace pass its real colour/waveform options into that renderer instead of
-# showing controls that have no effect.
 from workspace_backend import apply as _apply_workspace_backend
 _WORKSPACE_EXPORTS = _apply_workspace_backend(_core)
 globals().update(_WORKSPACE_EXPORTS)
 
-# Correct operations where the mature code could swallow a partial filesystem
-# or database failure and still return an over-optimistic success result.
 from truthfulness_fixes import apply as _apply_truthfulness_fixes
 _TRUTHFULNESS_EXPORTS = _apply_truthfulness_fixes(_core)
 globals().update(_TRUTHFULNESS_EXPORTS)
