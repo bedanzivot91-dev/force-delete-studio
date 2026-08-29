@@ -3,6 +3,8 @@
    the existing state/api/helper lexical scope instead of duplicating app logic. */
 
 const _bulkOriginalDownloadOptions = downloadOptions;
+const _bulkOriginalStartDownload = startDownload;
+let _bulkDownloadPreset = '';
 
 function _bulkSetAudioFormat(format) {
   qsa('input[name="audioFormat"]').forEach((radio) => {
@@ -17,20 +19,52 @@ function _bulkGetAudioFormat() {
 }
 
 downloadOptions = function downloadOptionsWithSongFolders(forceMp3 = false) {
-  // The bulk downloader must never silently switch the user's requested
-  // format. forceMp3 is used by the quick MP3 action; the normal bulk screen
-  // follows the explicit MP3/WAV/MP3+WAV radio choice.
   const options = _bulkOriginalDownloadOptions(forceMp3);
   options.folder_per_song = Boolean($('optSongFolders')?.checked);
-  if (forceMp3) {
-    options.audio_format = 'mp3';
+  if (forceMp3 || _bulkDownloadPreset === 'audio' || _bulkDownloadPreset === 'audio_text') {
     options.format = 'mp3';
+    options.audio_format = 'mp3';
   } else {
     const format = _bulkGetAudioFormat();
     options.audio_format = format;
     options.format = format;
   }
+  if (_bulkDownloadPreset === 'audio') {
+    options.cover = false;
+    options.lyrics = false;
+    options.synced_lyrics = false;
+    options.metadata = false;
+    options.embed_tags = false;
+    options.video = false;
+  } else if (_bulkDownloadPreset === 'audio_text') {
+    options.cover = false;
+    options.lyrics = true;
+    options.synced_lyrics = false;
+    options.metadata = false;
+    options.embed_tags = false;
+    options.video = false;
+  }
   return options;
+};
+
+startDownload = async function bulkStartDownload(forceMp3 = false) {
+  const ids = selectedIds();
+  if (!ids.length) {
+    showView('library');
+    return toast('Prvo izaberi pesme.', 'error');
+  }
+  try {
+    const options = downloadOptions(forceMp3);
+    await startBackground('/api/download/start', { ids, options });
+    const label = _bulkDownloadPreset === 'audio_text'
+      ? 'MP3 + tekst'
+      : _bulkDownloadPreset === 'audio'
+        ? 'samo MP3'
+        : 'izabrani sadržaj';
+    toast(`Preuzimanje ${ids.length} pesama (${label}) je pokrenuto.`, 'success', 9000);
+  } catch (e) {
+    toast(e.message, 'error', 12000);
+  }
 };
 
 saveToFolder = async function configurableSaveToFolder(ids) {
@@ -74,8 +108,6 @@ async function selectWholeLibraryForBulk(scope = 'filtered') {
       ids = ids.filter((id) => !id.startsWith('local-'));
     }
 
-    // Keep the complete selection in state.selected. The visible 50/100/200
-    // page is only a rendering limit and must never cap the bulk download.
     state.selected = new Set(ids);
     renderSongs();
     updateSelectionUi();
@@ -105,8 +137,7 @@ function _bulkButton(id, text, className, handler) {
 }
 
 function _setDownloadExtras(preset) {
-  // Every preset explicitly chooses MP3 so the result is deterministic even
-  // after the user previously selected WAV or MP3+WAV.
+  _bulkDownloadPreset = preset;
   _bulkSetAudioFormat('mp3');
 
   const set = (id, checked) => { if ($(id)) $(id).checked = checked; };
@@ -117,15 +148,15 @@ function _setDownloadExtras(preset) {
     set('optMetadata', false);
     set('optEmbed', false);
     set('optVideo', false);
-    toast('PODEŠENO: samo MP3. Ne preuzima omot, tekst, LRC/SRT, JSON ni video.', 'info', 7000);
+    toast('PODEŠENO: SAMO MP3.', 'info', 7000);
   } else if (preset === 'audio_text') {
     set('optCover', false);
     set('optLyrics', true);
     set('optSynced', false);
     set('optMetadata', false);
-    set('optEmbed', true);
+    set('optEmbed', false);
     set('optVideo', false);
-    toast('PODEŠENO: MP3 + TXT tekst pesme. Omot, JSON i video su isključeni.', 'success', 7000);
+    toast('PODEŠENO: MP3 + TEKST PESME.', 'success', 7000);
   } else {
     set('optCover', true);
     set('optLyrics', true);
@@ -133,7 +164,7 @@ function _setDownloadExtras(preset) {
     set('optMetadata', true);
     set('optEmbed', true);
     set('optVideo', true);
-    toast('PODEŠENO: sve dostupno — MP3/WAV izbor + omot, tekst, LRC/SRT, JSON i Suno MP4 kada postoji.', 'info', 9000);
+    toast('PODEŠENO: SVE DOSTUPNO.', 'info', 9000);
   }
 }
 
