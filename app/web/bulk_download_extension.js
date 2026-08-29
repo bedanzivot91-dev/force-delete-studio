@@ -3,9 +3,33 @@
    the existing state/api/helper lexical scope instead of duplicating app logic. */
 
 const _bulkOriginalDownloadOptions = downloadOptions;
+
+function _bulkSetAudioFormat(format) {
+  qsa('input[name="audioFormat"]').forEach((radio) => {
+    radio.checked = radio.value === format;
+    const card = radio.closest('.format-card');
+    if (card) card.classList.toggle('active', radio.checked);
+  });
+}
+
+function _bulkGetAudioFormat() {
+  return document.querySelector('input[name="audioFormat"]:checked')?.value || 'mp3';
+}
+
 downloadOptions = function downloadOptionsWithSongFolders(forceMp3 = false) {
+  // The bulk downloader must never silently switch the user's requested
+  // format. forceMp3 is used by the quick MP3 action; the normal bulk screen
+  // follows the explicit MP3/WAV/MP3+WAV radio choice.
   const options = _bulkOriginalDownloadOptions(forceMp3);
   options.folder_per_song = Boolean($('optSongFolders')?.checked);
+  if (forceMp3) {
+    options.audio_format = 'mp3';
+    options.format = 'mp3';
+  } else {
+    const format = _bulkGetAudioFormat();
+    options.audio_format = format;
+    options.format = format;
+  }
   return options;
 };
 
@@ -15,7 +39,7 @@ saveToFolder = async function configurableSaveToFolder(ids) {
   if (!target) return;
   $('downloadTargetInput').value = target;
   showView('download');
-  toast(`Izabrano je ${ids.length} pesama. Sada izaberi MP3/WAV, tekst, omot i ostale fajlove pa klikni „Pokreni preuzimanje“.`, 'success', 12000);
+  toast(`Izabrano je ${ids.length} pesama. Sada izaberi MP3/WAV i prateće fajlove, pa pokreni preuzimanje.`, 'success', 12000);
 };
 
 function _bulkAllFilterParams(filterName = 'all') {
@@ -47,11 +71,11 @@ async function selectWholeLibraryForBulk(scope = 'filtered') {
     let ids = Array.isArray(data.ids) ? data.ids.map(String) : [];
 
     if (scope === 'suno') {
-      // Locally imported files use the local-* id namespace.  The remaining
-      // synced records are the user's Suno-library records.
       ids = ids.filter((id) => !id.startsWith('local-'));
     }
 
+    // Keep the complete selection in state.selected. The visible 50/100/200
+    // page is only a rendering limit and must never cap the bulk download.
     state.selected = new Set(ids);
     renderSongs();
     updateSelectionUi();
@@ -81,23 +105,27 @@ function _bulkButton(id, text, className, handler) {
 }
 
 function _setDownloadExtras(preset) {
+  // Every preset explicitly chooses MP3 so the result is deterministic even
+  // after the user previously selected WAV or MP3+WAV.
+  _bulkSetAudioFormat('mp3');
+
   const set = (id, checked) => { if ($(id)) $(id).checked = checked; };
   if (preset === 'audio') {
     set('optCover', false);
     set('optLyrics', false);
     set('optSynced', false);
     set('optMetadata', false);
-    set('optEmbed', true);
+    set('optEmbed', false);
     set('optVideo', false);
-    toast('Podešeno: samo izabrani audio format, bez dodatnih fajlova.', 'info');
+    toast('PODEŠENO: samo MP3. Ne preuzima omot, tekst, LRC/SRT, JSON ni video.', 'info', 7000);
   } else if (preset === 'audio_text') {
     set('optCover', false);
     set('optLyrics', true);
-    set('optSynced', true);
+    set('optSynced', false);
     set('optMetadata', false);
     set('optEmbed', true);
     set('optVideo', false);
-    toast('Podešeno: audio + TXT tekst + LRC/SRT kada postoje.', 'info');
+    toast('PODEŠENO: MP3 + TXT tekst pesme. Omot, JSON i video su isključeni.', 'success', 7000);
   } else {
     set('optCover', true);
     set('optLyrics', true);
@@ -105,7 +133,7 @@ function _setDownloadExtras(preset) {
     set('optMetadata', true);
     set('optEmbed', true);
     set('optVideo', true);
-    toast('Podešeno: sve dostupno — audio plus omot, tekst, LRC/SRT, JSON i Suno MP4 kada postoji.', 'info', 9000);
+    toast('PODEŠENO: sve dostupno — MP3/WAV izbor + omot, tekst, LRC/SRT, JSON i Suno MP4 kada postoji.', 'info', 9000);
   }
 }
 
@@ -151,6 +179,7 @@ function installWholeLibraryDownloadUi() {
 
   if ($('selectNotDownloadedBtn')) {
     $('selectNotDownloadedBtn').textContent = 'SVE NEPREUZETE — CELA BIBLIOTEKA';
+    $('selectNotDownloadedBtn').onclick = () => selectWholeLibraryForBulk('not_downloaded');
   }
 
   const bigNumber = $('downloadSelectedCount')?.closest('.big-number');
@@ -158,7 +187,7 @@ function installWholeLibraryDownloadUi() {
     const hint = document.createElement('div');
     hint.id = 'bulkSelectionHint';
     hint.className = 'inline-message success';
-    hint.innerHTML = '<strong>NEMA OGRANIČENJA NA 200 ZA PREUZIMANJE.</strong> 50/100/200 je samo broj pesama prikazanih na jednoj stranici. Dugmad iznad mogu da izaberu sve sinhronizovane pesme odjednom. Za preuzimanje nije potreban fingerprint indeks — dovoljno je da je pesma u tvojoj Suno biblioteci u programu.';
+    hint.innerHTML = '<strong>NEMA OGRANIČENJA NA 200 ZA PREUZIMANJE.</strong> 50/100/200 je samo broj pesama prikazanih na jednoj strani. Dugmad iznad mogu da izaberu sve sinhronizovane pesme odjednom.';
     bigNumber.insertAdjacentElement('afterend', hint);
   }
 
@@ -182,7 +211,7 @@ function installWholeLibraryDownloadUi() {
     const presets = document.createElement('div');
     presets.id = 'bulkDownloadPresets';
     presets.className = 'button-row';
-    presets.innerHTML = '<button id="bulkPresetAudioOnly" type="button" class="btn ghost small">SAMO AUDIO</button><button id="bulkPresetAudioText" type="button" class="btn secondary small">AUDIO + TEKST</button><button id="bulkPresetAll" type="button" class="btn success small">SVE DOSTUPNO</button>';
+    presets.innerHTML = '<button id="bulkPresetAudioOnly" type="button" class="btn ghost small">SAMO MP3</button><button id="bulkPresetAudioText" type="button" class="btn secondary small">MP3 + TEKST</button><button id="bulkPresetAll" type="button" class="btn success small">SVE DOSTUPNO</button>';
     extrasGrid.insertAdjacentElement('beforebegin', presets);
     $('bulkPresetAudioOnly').addEventListener('click', () => _setDownloadExtras('audio'));
     $('bulkPresetAudioText').addEventListener('click', () => _setDownloadExtras('audio_text'));
@@ -194,7 +223,7 @@ function installWholeLibraryDownloadUi() {
     const info = document.createElement('p');
     info.id = 'downloadAvailableFilesInfo';
     info.className = 'muted';
-    info.textContent = 'Možeš posebno da biraš: MP3/WAV, JPG omot, TXT tekst, LRC/SRT, JSON Suno podatke, ID3 podatke u MP3-u i Suno MP4 kada postoji.';
+    info.textContent = 'Brzi izbor: SAMO MP3 ili MP3 + TEKST. Ručno možeš uključiti i omot, LRC/SRT, JSON, ID3 i Suno MP4 kada postoje.';
     downloadHeading.insertAdjacentElement('afterend', info);
   }
 }
