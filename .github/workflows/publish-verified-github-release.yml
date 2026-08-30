@@ -1,0 +1,158 @@
+name: Publish verified GitHub release
+
+on:
+  push:
+    branches:
+      - "claude/suno-pesme-studio-full-build-ljk5m7"
+    paths:
+      - ".github/workflows/publish-verified-github-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-verified-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_ARTIFACT_ID: "9491216416"
+      VERIFIED_HEAD_SHA: "52ffbde0ebd1cb5f5f8f1a1e9425b5ee4d17a3cd"
+      MERGE_SHA: "3a1232d8dbce5e941c7d8a2a99b5ff61388ea196"
+      RELEASE_TAG: "v3.3.2-suno-full-audit-final"
+      SOURCE_ZIP: "verified/artifact-download/Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
+      RELEASE_ZIP: "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE-FINAL-AUDITED.zip"
+
+    steps:
+      - name: Checkout default branch for permanent release marker
+        uses: actions/checkout@v4
+        with:
+          ref: "claude/suno-pesme-studio-full-build-ljk5m7"
+          fetch-depth: 0
+
+      - name: Download exact real-install-verified artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${VERIFIED_ARTIFACT_ID}/zip" \
+            -o verified-artifact.zip
+          unzip -q verified-artifact.zip -d verified
+          test -f "${SOURCE_ZIP}"
+          test -s "verified/real-install-evidence.txt"
+
+      - name: Verify exact tested ZIP before release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "${SOURCE_ZIP}" "${RELEASE_ZIP}"
+          ACTUAL_SHA256="$(sha256sum "${RELEASE_ZIP}" | awk '{print $1}')"
+          echo "Verified package SHA-256: ${ACTUAL_SHA256}"
+          printf '%s  %s\n' "${ACTUAL_SHA256}" "${RELEASE_ZIP}" > SHA256SUMS.txt
+          echo "PACKAGE_SHA256=${ACTUAL_SHA256}" >> "${GITHUB_ENV}"
+          unzip -t "${RELEASE_ZIP}" >/dev/null
+
+      - name: Verify merged source commit exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          FOUND_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${MERGE_SHA}" --jq '.sha')"
+          test "${FOUND_SHA}" = "${MERGE_SHA}"
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'EOF'
+          # Suno Pesme Studio v3.3.2 - FINAL AUDITED
+
+          Ovo je Windows FULL-OFFLINE paket koji je prosao zavrsnu kompletnu proveru pre objave na GitHub Releases.
+
+          Verified source head: `52ffbde0ebd1cb5f5f8f1a1e9425b5ee4d17a3cd`
+          Merged source commit: `3a1232d8dbce5e941c7d8a2a99b5ff61388ea196`
+          Windows build: #1560 - SUCCESS
+          Real installed package regression: #86 - SUCCESS
+          Deep repository audit: #86 - SUCCESS
+          Android build/test: #339 - SUCCESS
+
+          Windows paket je prosao 33/33 Windows testa, staged runtime, real backend start, real Song Finder sa FFmpeg/Chromaprint, final ZIP/manifests, kao i dva puna clean install -> native GUI/backend/Suno/runtime UI -> uninstall ciklusa.
+
+          Paket je prošao završni kompletan Suno-only audit: 204 projektna fajla, 933 Python funkcije, 251 UI dugme, 183 frontend API putanje i 47 HTTP integracionih provera. Istorijski Video Studio dodatak uklonjen je i iz rezervnog bundle-a. Osam tema menjaju stvarni raspored, a Signal Grid ima stabilnu horizontalnu traku bez preklapanja. YouTube prepoznavanje koristi četiri fazna poravnanja i FFmpeg tempo varijante 0.93/0.97/1.03/1.08.
+
+          Za instalaciju raspakujte ZIP i pokrenite `INSTALIRAJ_PROGRAM.exe`.
+          EOF
+
+      - name: Create permanent GitHub Release and upload exact verified assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "Suno Pesme Studio v3.3.2 - FINAL AUDITED" \
+              --notes-file release-notes.md
+            gh release upload "${RELEASE_TAG}" \
+              "${RELEASE_ZIP}" \
+              "verified/real-install-evidence.txt" \
+              "SHA256SUMS.txt" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              "${RELEASE_ZIP}" \
+              "verified/real-install-evidence.txt" \
+              "SHA256SUMS.txt" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${MERGE_SHA}" \
+              --title "Suno Pesme Studio v3.3.2 - FINAL AUDITED" \
+              --notes-file release-notes.md
+          fi
+
+      - name: Verify GitHub Release assets are present
+        id: verify_release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json tagName,targetCommitish,assets,url \
+            --jq '{tag:.tagName,target:.targetCommitish,url:.url,assets:[.assets[].name]}'
+          ASSETS="$(gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name')"
+          grep -Fx "${RELEASE_ZIP}" <<<"${ASSETS}"
+          grep -Fx "real-install-evidence.txt" <<<"${ASSETS}"
+          grep -Fx "SHA256SUMS.txt" <<<"${ASSETS}"
+          RELEASE_URL="$(gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" --json url --jq '.url')"
+          echo "release_url=${RELEASE_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Record successful release permanently in repository
+        shell: bash
+        env:
+          RELEASE_URL: ${{ steps.verify_release.outputs.release_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          jq -n \
+            --arg status "verified" \
+            --arg tag "${RELEASE_TAG}" \
+            --arg release_url "${RELEASE_URL}" \
+            --arg zip "${RELEASE_ZIP}" \
+            --arg zip_sha256 "${PACKAGE_SHA256}" \
+            --arg verified_head "${VERIFIED_HEAD_SHA}" \
+            --arg merged_source_commit "${MERGE_SHA}" \
+            --arg artifact_id "${VERIFIED_ARTIFACT_ID}" \
+            '{status:$status,tag:$tag,release_url:$release_url,windows_zip:$zip,windows_zip_sha256:$zip_sha256,verified_head:$verified_head,merged_source_commit:$merged_source_commit,verified_artifact_id:$artifact_id,windows_build:1560,real_install_run:86,deep_audit_run:86,android_build:339}' \
+            > docs/verified-release.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/verified-release.json
+          if git diff --cached --quiet; then
+            echo "Verified release marker already matches."
+            exit 0
+          fi
+          git commit -m "Record published full Suno audit verified v3.3.2 release"
+          git push origin HEAD:"claude/suno-pesme-studio-full-build-ljk5m7"

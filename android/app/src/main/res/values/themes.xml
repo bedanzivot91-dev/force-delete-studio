@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Compose owns the actual UI theming (see ui/theme/Theme.kt); this
+         system theme only controls the pre-Compose splash/window chrome
+         and edge-to-edge status/nav bar contrast. -->
+    <style name="Theme.SunoPesmeStudio" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#0B0D12</item>
+    </style>
+</resources>

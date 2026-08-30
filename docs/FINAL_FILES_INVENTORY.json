@@ -1,0 +1,536 @@
+{
+  "generated_at": "this session, post all changes",
+  "file_count": 106,
+  "files": [
+    {
+      "path": ".claude/scheduled_tasks.lock",
+      "size_bytes": 107,
+      "sha256": "024fd48544d449935e22524c68ce06d11164e22f85f92fef117d5c42fa93d4c3"
+    },
+    {
+      "path": ".github/workflows/android-build.yml",
+      "size_bytes": 4303,
+      "sha256": "99a1c421693cc86a68df127a3e716d7f92a9a015def55b2e5dc29d330eb3d25c"
+    },
+    {
+      "path": ".github/workflows/windows-build.yml",
+      "size_bytes": 8583,
+      "sha256": "f0655e5fd259c7803d037b55d3e4ddc57a7f2018ab0c59ff1e1293a33535bd41"
+    },
+    {
+      "path": ".gitignore",
+      "size_bytes": 163,
+      "sha256": "b459bb1d274ab2b288feb41d95b2db67b9715076d5237bab962ddbc5f5a0f1d5"
+    },
+    {
+      "path": "android/app/build.gradle.kts",
+      "size_bytes": 3322,
+      "sha256": "6b667ded6886dc6f8d5ab4ef245fa1441805c1fe948b5907dbd09013843fe67a"
+    },
+    {
+      "path": "android/app/proguard-rules.pro",
+      "size_bytes": 197,
+      "sha256": "273465881f1c7efbb0ebf4f4bd808fa6e9b3b5d3b2b89a608fc77cee198dc979"
+    },
+    {
+      "path": "android/app/src/main/AndroidManifest.xml",
+      "size_bytes": 1545,
+      "sha256": "ea7b5374c5ce03064d18599e0b36d6801d9490365a577b7fc1595ddecc9fd1d6"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/MainActivity.kt",
+      "size_bytes": 1995,
+      "sha256": "e39ccf33f47ac6741cec23d190f8ebbffe1039133c94265780ddcfdeb9569a93"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/SunoApplication.kt",
+      "size_bytes": 1704,
+      "sha256": "48fa0d855928214ae60741fa0113df1ecdaf324e9d7d6bd7345f4114a0cc88cc"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/AppDatabase.kt",
+      "size_bytes": 1118,
+      "sha256": "d7b76896633863f4320233ff583f113c67dedaeb40281082b4735abbfe8eee82"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/RecognizedTrackDao.kt",
+      "size_bytes": 402,
+      "sha256": "daef098fb7e08f57462914daac6d3a9f14acfcdd8d1dc7833df382225dfbfa2e"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/RecognizedTrackEntity.kt",
+      "size_bytes": 873,
+      "sha256": "6224ba2b05bc62fc24133cd4a3c348a943b2f4b1191f8aee60d7f6919d6e8f03"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/SongDao.kt",
+      "size_bytes": 1504,
+      "sha256": "749775af279b2eb76b799456b871ad6ae250f825cd13a7261fd9cfebac00bb2f"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/SongEntity.kt",
+      "size_bytes": 1287,
+      "sha256": "6cc5f32819ddab63ee2fb319e16689a1f9522d305a2055bff1c7a4cf01e73361"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/ThemePreference.kt",
+      "size_bytes": 1013,
+      "sha256": "e1b9cad1fe784149cd919c2ffbb427678a0b285976a2ed56e89b4e62568b2fc5"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/data/WatchedFoldersPreference.kt",
+      "size_bytes": 1421,
+      "sha256": "21f9efa686821ce7cc700bf46fda28b213b701f6fe2313e95279d8b7d436f1af"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/library/LibraryViewModel.kt",
+      "size_bytes": 1818,
+      "sha256": "18eb8c48e7f11423c89886cee447f5a34fe447a98aa4e28699e6bad7a07c28c0"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/nav/SunoNavHost.kt",
+      "size_bytes": 3859,
+      "sha256": "d86d5da2279472149b9de2169e2a9dafe66a9db282f01de6373f29118465e637"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/recognition/SongFinderViewModel.kt",
+      "size_bytes": 5775,
+      "sha256": "02fa87139a11cd44aed58ba16a0df36a9745883602b9cc7349cbbab49b5038bb"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/screens/HomeScreen.kt",
+      "size_bytes": 1371,
+      "sha256": "4a97699a33c040eb799e3d97b1b59e4bf41cacfcd649fe17685683e03f6fbbbb"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/screens/LibraryScreen.kt",
+      "size_bytes": 5355,
+      "sha256": "8a26154acafe9e1db19cafc1df6783c5b6b254acf8d0ff8835435f20967066e5"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/screens/SettingsScreen.kt",
+      "size_bytes": 2795,
+      "sha256": "974f3543b85470adf8097cd7d3747f4a85e07d8b41580ab59589b67c3349ec9c"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/screens/SongFinderScreen.kt",
+      "size_bytes": 5018,
+      "sha256": "753d6b9eebdc2845962655dd7e0ca3e277311ae4d432392e975c4d1f54afec28"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/ui/theme/Theme.kt",
+      "size_bytes": 7043,
+      "sha256": "d437b8af5756863d666453441e5a2584b2d870253814c87848ca599428201c7b"
+    },
+    {
+      "path": "android/app/src/main/java/com/sunopesmestudio/app/work/LibraryRescanWorker.kt",
+      "size_bytes": 2839,
+      "sha256": "8555c4c4723f04a8118b900ede8c0e62b23649cb130285935b8dbe46f9d79a9f"
+    },
+    {
+      "path": "android/app/src/main/res/drawable/ic_launcher_background.xml",
+      "size_bytes": 417,
+      "sha256": "a1902ca689f67ec525ded4707d00f31ef5149e8f49b72a40908024830a2cd063"
+    },
+    {
+      "path": "android/app/src/main/res/drawable/ic_launcher_foreground.xml",
+      "size_bytes": 673,
+      "sha256": "bd9dc9071c658d7174df0d1594876521af03e99a126644c0c331696be5e4adfc"
+    },
+    {
+      "path": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "size_bytes": 273,
+      "sha256": "1c832bf194d8eecd439a92bcced0df144c9f566b934b3d7865e983d8ee8dbdeb"
+    },
+    {
+      "path": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+      "size_bytes": 273,
+      "sha256": "1c832bf194d8eecd439a92bcced0df144c9f566b934b3d7865e983d8ee8dbdeb"
+    },
+    {
+      "path": "android/app/src/main/res/values/strings.xml",
+      "size_bytes": 632,
+      "sha256": "a46a80867194fcd88759bffc163b7e405be9849b4d34cb6df3d15b682fa7cd12"
+    },
+    {
+      "path": "android/app/src/main/res/values/themes.xml",
+      "size_bytes": 632,
+      "sha256": "7caafa5cf86c0b9dc60fb5aad54a03d0a53b16e60fccaee6c906e06231ac161d"
+    },
+    {
+      "path": "android/app/src/main/res/values-en/strings.xml",
+      "size_bytes": 604,
+      "sha256": "faef5ee63a4b6ade5abd2b6cb2506b09b70ee1a12e70b955b312454cd0a08aaa"
+    },
+    {
+      "path": "android/app/src/main/res/xml/backup_rules.xml",
+      "size_bytes": 413,
+      "sha256": "20a5ccb7783b33d75ced78185b5a973f1de941774ed9fd099dcc385ced88fd94"
+    },
+    {
+      "path": "android/app/src/main/res/xml/data_extraction_rules.xml",
+      "size_bytes": 364,
+      "sha256": "05e1029f43fcc786d0fa57995b31107556d6f3ce60e23e9d8a93fadce70ee04e"
+    },
+    {
+      "path": "android/app/src/test/java/com/sunopesmestudio/app/data/SongEntityTest.kt",
+      "size_bytes": 479,
+      "sha256": "54d253b7f78bcf13eb2f5bc29add9b4e2c812c45c3a47b4ba277c0c750b16989"
+    },
+    {
+      "path": "android/build.gradle.kts",
+      "size_bytes": 774,
+      "sha256": "bb244d4c03da380c75104439d950d2beb3730b9dc3151abfda78d65a44844331"
+    },
+    {
+      "path": "android/gradle/wrapper/gradle-wrapper.jar",
+      "size_bytes": 43764,
+      "sha256": "7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172"
+    },
+    {
+      "path": "android/gradle/wrapper/gradle-wrapper.properties",
+      "size_bytes": 253,
+      "sha256": "7e0821d895908883350587c74476b717016ab416320c44dc82a10def916c6fb5"
+    },
+    {
+      "path": "android/gradle.properties",
+      "size_bytes": 136,
+      "sha256": "5ff4359bb22b9436ec644207f9240f4e47b9a733fe03ba402c77944a05283574"
+    },
+    {
+      "path": "android/gradlew",
+      "size_bytes": 8733,
+      "sha256": "b187b4c52e749f5760afdd6fadc31b2a98ad35fb249bf0dff03b72650f320409"
+    },
+    {
+      "path": "android/gradlew.bat",
+      "size_bytes": 2937,
+      "sha256": "1d297e00bd21de3ace22b4d7f2de1f9dfa858883d66bbf7c1ccbecccec8f4f3b"
+    },
+    {
+      "path": "android/settings.gradle.kts",
+      "size_bytes": 334,
+      "sha256": "508459b9b9b2f50940475acaac6a9fa153152a9d47cd12932d500186567c2166"
+    },
+    {
+      "path": "app/advanced_features.py",
+      "size_bytes": 31373,
+      "sha256": "a6c695bb5f34fe06a5a18d40088f0792857b616a0dd05bc8a3860a45200a1514"
+    },
+    {
+      "path": "app/audio_match.py",
+      "size_bytes": 44592,
+      "sha256": "8cd97d2988ab7fa665d1ac13593c9908cc8ca388f09abc6bc405ce76e435941e"
+    },
+    {
+      "path": "app/audio_tools.py",
+      "size_bytes": 21336,
+      "sha256": "1147e1662ee112ba440d717366806c56a200e4c44eedddc5aaf3338b555e33d0"
+    },
+    {
+      "path": "app/bootstrap.py",
+      "size_bytes": 1655,
+      "sha256": "d815b65ad1115cf9ed4d4412009f7c009bd2d91ea7404fef0b93f2db2b7b2b5e"
+    },
+    {
+      "path": "app/cdp.py",
+      "size_bytes": 19877,
+      "sha256": "30b63cb40bbc7f43f3b885430e5e768129a32e8afe5d711dbaf0befed2a571fc"
+    },
+    {
+      "path": "app/database.py",
+      "size_bytes": 118848,
+      "sha256": "e7f31e6bdbe11fbd2ecf603978a499ffbc05fba489bb5629805d3ae33d17fc0b"
+    },
+    {
+      "path": "app/id3.py",
+      "size_bytes": 3451,
+      "sha256": "82cfb7cf663300b5d0267d2ea01d95b064fea1de2c73707f6fb5cfca7bdd83c6"
+    },
+    {
+      "path": "app/music_recognition.py",
+      "size_bytes": 3188,
+      "sha256": "a198e49c3b92752924e27726eb1818b6632c13ecbffc2cfacba4b14512cc6603"
+    },
+    {
+      "path": "app/security_lock.py",
+      "size_bytes": 4537,
+      "sha256": "dbd0b86d171c96df463d43545b191c56628b1d09c0e3831067e4bd09dcbac74d"
+    },
+    {
+      "path": "app/server.py",
+      "size_bytes": 293835,
+      "sha256": "a61bd14f7558f6da0a24d3cd4fb09c4bb2a3011adb631a2e86d31145698a5cf4"
+    },
+    {
+      "path": "app/suno_client.py",
+      "size_bytes": 37341,
+      "sha256": "c8a20eaf7103b3aab940543240c33c3d6e0eac9e899e4475556e7f449c1dc7e5"
+    },
+    {
+      "path": "app/suno_compat.py",
+      "size_bytes": 2674,
+      "sha256": "a6b5c59da13942f88757c77133bc51baae19ee4cb591bb3d72cfa6dc68f23ed0"
+    },
+    {
+      "path": "app/v3_features.py",
+      "size_bytes": 50380,
+      "sha256": "e619de14151d977eb81150972197b7a300920d15f95b11222accae1c462a9027"
+    },
+    {
+      "path": "app/watchdog.py",
+      "size_bytes": 3935,
+      "sha256": "9fad069d2893d0fdc948a8e8cdc2a8394fca40dfd9e406dbd0612173a314d88c"
+    },
+    {
+      "path": "app/web/app.js",
+      "size_bytes": 165681,
+      "sha256": "e96099c4b0291ae7f5b4fb60b2ecb878a3490b3692b065da5879edf69c7ff9f2"
+    },
+    {
+      "path": "app/web/index.html",
+      "size_bytes": 76324,
+      "sha256": "c0b6811d08b34743a2869bb4d89623a3634a46ab4fbcbcfa34117bdd958814b7"
+    },
+    {
+      "path": "app/web/style.css",
+      "size_bytes": 85572,
+      "sha256": "ab085d8d6c1c9697cf5dcf609b9948c49160916993d27576b84df11078b6091a"
+    },
+    {
+      "path": "app/youtube_oauth.py",
+      "size_bytes": 23624,
+      "sha256": "ad9c8b14cf0e8d8f381a102e478fe0682e95c1d47f1a0797d0a579930c48e227"
+    },
+    {
+      "path": "app/youtube_tools.py",
+      "size_bytes": 20980,
+      "sha256": "756335b8953f0311790741d424015d71e69212453ad0073727e6efae39ec2f9e"
+    },
+    {
+      "path": "ci_scripts/generate_android_reports.py",
+      "size_bytes": 7081,
+      "sha256": "bdebaef16d83509e7b53ecd1d74b43c47b05840256ffe254bdf0c88ea6833249"
+    },
+    {
+      "path": "data/program.log",
+      "size_bytes": 439,
+      "sha256": "75fe553229dcb4ae6e87a42f551c4ee45811e18e041fc872aa06a6957e45bf2c"
+    },
+    {
+      "path": "data/suno_biblioteka.db",
+      "size_bytes": 241664,
+      "sha256": "8103cdab06e91d371a37797a988a085da754c1554d56da62d55fc66e7b4b521b"
+    },
+    {
+      "path": "docs/AI_MODELS_MANIFEST.json",
+      "size_bytes": 2434,
+      "sha256": "2358463492545c31bf97efbdbf040f9450dc7501542c03d8fba6603d5fa010d3"
+    },
+    {
+      "path": "docs/ANDROID_FEATURE_PARITY_MATRIX.md",
+      "size_bytes": 5286,
+      "sha256": "4aae4e46e4b81518a5826308ef6464e24f012d5366c82818001a1ea5e81c2d5e"
+    },
+    {
+      "path": "docs/COMPATIBILITY_MATRIX.json",
+      "size_bytes": 3048,
+      "sha256": "83e84ac51c68e8ad52633f9fc15841c70a82af8cfd3c6860dcc4cf4ee0aa95bf"
+    },
+    {
+      "path": "docs/COMPONENTS_MANIFEST.json",
+      "size_bytes": 3387,
+      "sha256": "cb3528fce303339b07b1e5bc625ef912166fbe7ddcb65816887723e16d19d21f"
+    },
+    {
+      "path": "docs/DEPENDENCY_AUDIT.json",
+      "size_bytes": 418,
+      "sha256": "4f8d289bcea71a485ef36abb1ebdc31f10507295bc8ee538f5169ba49e2c8667"
+    },
+    {
+      "path": "docs/FINAL_DATABASE_SCHEMA.sql",
+      "size_bytes": 15720,
+      "sha256": "36876a1766031279dc036bbf3945bb771e600bad391d466ca0267a720fab04ed"
+    },
+    {
+      "path": "docs/GAP_ANALYSIS.md",
+      "size_bytes": 9551,
+      "sha256": "9b11ded06587f789106c7c4a030144e970b5bd9775dc49ac8cce95a5bcfe2a6e"
+    },
+    {
+      "path": "docs/LOCAL_SMOKE_TEST_REPORT.md",
+      "size_bytes": 3830,
+      "sha256": "361d194edcd2ee110a8d74bafcebc467e17ee9fe95593e1cf3be03092b46a350"
+    },
+    {
+      "path": "docs/ORIGINAL_API_INVENTORY.json",
+      "size_bytes": 4916,
+      "sha256": "e698993e9873fe26ae5c7156f8967d40668273682df53902a73c39cd647ba135"
+    },
+    {
+      "path": "docs/ORIGINAL_DATABASE_SCHEMA.sql",
+      "size_bytes": 15589,
+      "sha256": "553beca6707024c6d94d9bdbd202c12a7d54978a5d20d2cacd6b2d291a48df97"
+    },
+    {
+      "path": "docs/ORIGINAL_FILES_INVENTORY.json",
+      "size_bytes": 7274,
+      "sha256": "4012205a32f6ba5fdbe6242a150dc9b64925186c23650485687847fcbd6af8e5"
+    },
+    {
+      "path": "docs/ORIGINAL_FUNCTION_INVENTORY.json",
+      "size_bytes": 16585,
+      "sha256": "fb7cce4eb98c73bd8370e4aa825e2d68ad3664f3177c8335721984dab89c2eb9"
+    },
+    {
+      "path": "docs/PYTHON_IMPORT_REPORT.json",
+      "size_bytes": 1471,
+      "sha256": "2a3fc55657cb253966282976a56526cfca3c9b801b9abe692cfe7d112d31bcc1"
+    },
+    {
+      "path": "docs/PYTHON_PACKAGES_MANIFEST.json",
+      "size_bytes": 2750,
+      "sha256": "1bdcacd39433ffc6b4ae4fd77cfecff67f2df912c5f2c8883310f31c9e5196b1"
+    },
+    {
+      "path": "docs/SBOM.spdx.json",
+      "size_bytes": 6083,
+      "sha256": "d367b531e3a9bb486ccc9a5bf9df7e00cde3948015f2cd45d38c4631d6736edb"
+    },
+    {
+      "path": "docs/THIRD_PARTY_LICENSES.txt",
+      "size_bytes": 3023,
+      "sha256": "eaaaac3e23fe39c64625b156f21daf124b25531b9b0ec0cdb8a860164f725927"
+    },
+    {
+      "path": "plugins/README.txt",
+      "size_bytes": 411,
+      "sha256": "5848e54acf363d8d23021d589d54ffa373aea4b9b0c585864bb0657085ad92d7"
+    },
+    {
+      "path": "plugins/stems_worker.py",
+      "size_bytes": 1341,
+      "sha256": "c142ff5e016f796e98db9a080682a2b8e58a70fa55ca8de4d26e41f65ee67588"
+    },
+    {
+      "path": "plugins/transcribe_worker.py",
+      "size_bytes": 2514,
+      "sha256": "6a315ced326109b8c8a8550c441a17a5e3b47e5e98668d40ffde4e85a079724a"
+    },
+    {
+      "path": "requirements-ai.txt",
+      "size_bytes": 484,
+      "sha256": "91bd507ada6fd37ab89cad1935fcbf9e98280d271abc43345bc7df030395d6aa"
+    },
+    {
+      "path": "requirements-core.txt",
+      "size_bytes": 467,
+      "sha256": "cd5c41ea9c93a5a9a617bcad28d1e2e5ad9d058119e18f006d4a0a684afe7238"
+    },
+    {
+      "path": "requirements-lock.txt",
+      "size_bytes": 886,
+      "sha256": "22d8059e75da425fe9eb4aad8df474a769575f08c9707e14d8e5f7270caa8a42"
+    },
+    {
+      "path": "tests/critical_v300.py",
+      "size_bytes": 5196,
+      "sha256": "9206bc278c15435b368eef97ce5b4dff105ec37bd9d37c094596e36a9696e04f"
+    },
+    {
+      "path": "tests/e2e_test.py",
+      "size_bytes": 4674,
+      "sha256": "e6d95b85585cdfbe2e09c62249498f1e9ee7f805bac04ef10ef48f1a834bcb1a"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_legacy.json",
+      "size_bytes": 100,
+      "sha256": "6286efd7c6f0408c506fc22f1f2b2b105f69feca0ca1188c64ae1c70b7a3758e"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_nested.json",
+      "size_bytes": 162,
+      "sha256": "6008a260ef8c73fcc66a92de5fc33bcfecfb1609bdff5b6d78a505739a89cbab"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_v3.json",
+      "size_bytes": 130,
+      "sha256": "d5edae7dcf73d79d21f9f875338226a609b7ed20b9c8481be9887e0bf1a6b315"
+    },
+    {
+      "path": "tests/http_integration_v300.py",
+      "size_bytes": 12031,
+      "sha256": "8c43210fd58e9dfc2d5ec8610f3696fc566872af8e2be1be728a94e8893f2b58"
+    },
+    {
+      "path": "tests/import_smoke_test.py",
+      "size_bytes": 1813,
+      "sha256": "b6dd5e3772230cb5104d3babcbc8ff74237bf38af11199a38b18cb89d6cfffb9"
+    },
+    {
+      "path": "tests/installer_logic_test.py",
+      "size_bytes": 2009,
+      "sha256": "146fc413f564d5600f8e78db2b48571b07179be186d0147b563923a9c849504b"
+    },
+    {
+      "path": "tests/original_plus_test.py",
+      "size_bytes": 3857,
+      "sha256": "d9bf73b1c78a7d9a882494b33d09ceddee0638a896ee790aa211b74346a8b06b"
+    },
+    {
+      "path": "tests/regression_v300.py",
+      "size_bytes": 12742,
+      "sha256": "c96929a9a47c0f6904bdc98d370bcad04dfecf96b8b5c3e360b16159442389aa"
+    },
+    {
+      "path": "tests/v3_features_test.py",
+      "size_bytes": 6378,
+      "sha256": "7fdbf6cd371436e1a256d4ee32ec06525d0cde141e537eb204b6b1024e9826c1"
+    },
+    {
+      "path": "tests/watchdog_test.py",
+      "size_bytes": 2151,
+      "sha256": "65b71e3b7ada1ef50ffd5d3fa94761220ab5689ef65b17945eae65611fff8635"
+    },
+    {
+      "path": "windows_build/BUILD_VERIFICATION.md",
+      "size_bytes": 4195,
+      "sha256": "f9556842dde97a2d703bd0f3314de896118720928e63e955bc937cf10a0c6ddc"
+    },
+    {
+      "path": "windows_build/go.mod",
+      "size_bytes": 275,
+      "sha256": "3891236f8a21e4a0635fc7b4a9a49b70fa032ebf15f2345271ea7ce40c5040f5"
+    },
+    {
+      "path": "windows_build/go.sum",
+      "size_bytes": 774,
+      "sha256": "8175b672bfd7759825ceef49fef8caccdf486039a34a576107ec79abef847f94"
+    },
+    {
+      "path": "windows_build/launcher/main.go",
+      "size_bytes": 8205,
+      "sha256": "41abc67857bd332b20550af8d26493e7d4ec0b1b6923f64f49298425c3b76b42"
+    },
+    {
+      "path": "windows_build/progress/main.go",
+      "size_bytes": 4097,
+      "sha256": "7d1790f5e24d66bd2086ba71c78d37722072daf0b7719c927a9f739858ff61c5"
+    },
+    {
+      "path": "windows_build/setup/LICENSE.txt",
+      "size_bytes": 1810,
+      "sha256": "2c65a979f576aec7ade8705ba51a766a6dfd4725926685ddea66b9b839bf9338"
+    },
+    {
+      "path": "windows_build/setup/main.go",
+      "size_bytes": 45523,
+      "sha256": "bac23fa87aa7e7eab8f0c96495a219c6b6c22d12fbeb24f152fcb9d32d6f1c7d"
+    },
+    {
+      "path": "windows_build/uninstaller/main.go",
+      "size_bytes": 8205,
+      "sha256": "ec371e3462bc8c3a510d137aa68f213f222a5f9a8d036f0832e23f5ff8f282eb"
+    }
+  ]
+}
