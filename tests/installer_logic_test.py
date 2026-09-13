@@ -17,7 +17,11 @@ def ok(name, cond):
     checks.append(name)
 
 ok('temporary stage before download', 'os.TempDir(), "SunoPesmeStudio-stage-"' in setup_main)
-ok('version stage created only after components', setup_main.index('prepareComponents(stage') < setup_main.index('versionStage := filepath.Join(versionsRoot')))
+ok(
+    'version stage created only after components',
+    setup_main.index('prepareComponents(stage')
+    < setup_main.index('versionStage := filepath.Join(versionsRoot'),
+)
 ok('cross-volume handled by copy', 'copyTree(stage, versionStage)' in setup_main)
 ok('final self-test on selected disk', 'finalTest := exec.Command(filepath.Join(versionStage' in setup_main)
 ok('python actually executed', '{filepath.Join(pythonDir, "python.exe"), []string{"--version"}}' in setup_main)
