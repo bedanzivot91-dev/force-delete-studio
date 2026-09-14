@@ -61,28 +61,16 @@ def _finish_task(task: Any, message: str, status: str = "done") -> None:
 
 
 def _fingerprint_is_usable(core: Any, cached: Any) -> bool:
-    """A database row is not enough: its payload must decode to real v4 audio data."""
     if not cached or not cached.get("payload"):
         return False
     try:
         signature = core.unpack_signature(cached.get("payload") or b"")
     except Exception:
         return False
-    if not isinstance(signature, dict):
-        return False
-    # v4 matching relies on Chromaprint. Treat an empty/corrupt payload as
-    # pending so the next index pass regenerates it instead of silently
-    # skipping that song forever during Shorts matching.
-    return bool(signature.get("chromaprint"))
+    return isinstance(signature, dict) and bool(signature.get("chromaprint"))
 
 
 def _pending_index_count(core: Any) -> int:
-    """Count songs that should still be fingerprinted or repaired.
-
-    A Suno row with no cached ``audio_url`` is still indexable: the mature
-    source resolver can refresh it through get_clip(). A corrupt cached
-    fingerprint is also pending even when its database row exists.
-    """
     pending = 0
     try:
         rows = core.DB.export_rows()
@@ -136,7 +124,13 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
                     "Automatski dopunjujem ili popravljam indeks pre završetka sinhronizacije.",
                     "warning",
                 )
-            core.song_finder_index_task(task, {"force": False, "finish_task": False})
+            # runtime_fixes deliberately skips optional background indexing when
+            # finish_task=False. This call is NOT optional: recognition must be
+            # complete before sync can claim success, so mark it explicitly.
+            core.song_finder_index_task(
+                task,
+                {"force": False, "finish_task": False, "required_for_recognition": True},
+            )
 
         status_after = core.song_finder_status()
         missing_after = max(
