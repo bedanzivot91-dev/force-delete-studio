@@ -183,6 +183,42 @@ globals()["SunoClient"] = _core.SunoClient
 globals()["_list_library_cursor_complete"] = _list_library_cursor_complete
 
 
+# The legacy UI sends max_pages=10 for "check new" and defaults to 100 for
+# normal sync.  That can leave an older missing Suno clip permanently outside
+# SQLite even though it is still on the account. Correctness wins over the old
+# speed shortcut: both paths now keep reading until Suno reports has_more=false.
+# The very high page number is only a loop-safety ceiling; it is not a library
+# size limit and is far beyond any realistic account.
+_ORIGINAL_SYNC_LIBRARY = _core.sync_library
+
+
+def _sync_library_exhaustive(task: Any, options: dict[str, Any] | None = None) -> None:
+    patched = dict(options or {})
+    try:
+        requested = int(patched.get("max_pages") or 0)
+    except (TypeError, ValueError):
+        requested = 0
+    patched["max_pages"] = max(100000, requested)
+    return _ORIGINAL_SYNC_LIBRARY(task, patched)
+
+
+def _check_new_songs_exhaustive(task: Any, options: dict[str, Any] | None = None) -> None:
+    patched = dict(options or {})
+    patched["include_main"] = bool(patched.get("include_main", True))
+    patched["include_workspaces"] = bool(patched.get("include_workspaces", True))
+    patched["refresh_details"] = bool(patched.get("refresh_details", False))
+    patched["liked"] = False
+    patched["resume"] = False
+    patched["max_pages"] = 100000
+    return _sync_library_exhaustive(task, patched)
+
+
+_core.sync_library = _sync_library_exhaustive
+_core.check_new_songs = _check_new_songs_exhaustive
+globals()["sync_library"] = _sync_library_exhaustive
+globals()["check_new_songs"] = _check_new_songs_exhaustive
+
+
 # --- SUNO MP3 FIX ---------------------------------------------------------
 # Suno has used both snake_case and camelCase audio fields in different web/API
 # responses. The old download path only trusted audio_url. If the current
