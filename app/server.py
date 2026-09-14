@@ -145,6 +145,44 @@ def _build_per_song_download_options(
     return patched
 
 
+# --- SUNO COMPLETE LIBRARY FIX -------------------------------------------
+# The core main-feed reader intentionally used fromStudioProject=False and
+# depended on a second Workspace/Project enumeration to recover those songs.
+# If Suno does not return every project from that separate endpoint, valid
+# songs visible on suno.com never enter the local SQLite database and the song
+# finder cannot possibly match them. Read the authenticated v3 feed without
+# excluding Studio/Project songs. Workspace sync remains enabled as a second
+# source; LibraryDB.upsert_song de-duplicates by Suno clip ID.
+_ORIGINAL_LIST_LIBRARY_CURSOR = _core.SunoClient.list_library_cursor
+
+
+def _list_library_cursor_complete(
+    self: Any,
+    cursor: str | None = None,
+    *,
+    liked: bool = False,
+    trashed: bool = False,
+):
+    filters: dict[str, Any] = {
+        "disliked": "False",
+        "trashed": "True" if trashed else "False",
+    }
+    try:
+        items, next_cursor, has_more, _ = self._feed_v3(cursor=cursor, filters=filters)
+        items = self._local_filter(items, liked=liked, trashed=trashed)
+        self.last_feed_mode = "v3-all"
+        return items, next_cursor, has_more, "v3-all"
+    except _core.SunoAPIError as exc:
+        if exc.status_code == 401:
+            raise
+        return _ORIGINAL_LIST_LIBRARY_CURSOR(self, cursor, liked=liked, trashed=trashed)
+
+
+_core.SunoClient.list_library_cursor = _list_library_cursor_complete
+globals()["SunoClient"] = _core.SunoClient
+globals()["_list_library_cursor_complete"] = _list_library_cursor_complete
+
+
 # --- SUNO MP3 FIX ---------------------------------------------------------
 # Suno has used both snake_case and camelCase audio fields in different web/API
 # responses. The old download path only trusted audio_url. If the current
