@@ -40,7 +40,6 @@ class _DeferredFinishTask:
 
 
 def _task_cancelled(task: Any) -> bool:
-    """Support both real TaskState and lightweight test/utility task objects."""
     event = getattr(task, "cancel_event", None)
     if event is None or not hasattr(event, "is_set"):
         return False
@@ -51,7 +50,6 @@ def _task_cancelled(task: Any) -> bool:
 
 
 def _finish_task(task: Any, message: str, status: str = "done") -> None:
-    """Finish truthfully without assuming every compatible task has TaskState's full API."""
     if status == "partial" and hasattr(task, "finish_partial"):
         task.finish_partial(message)
         return
@@ -62,13 +60,28 @@ def _finish_task(task: Any, message: str, status: str = "done") -> None:
             task.finish(message)
 
 
+def _fingerprint_is_usable(core: Any, cached: Any) -> bool:
+    """A database row is not enough: its payload must decode to real v4 audio data."""
+    if not cached or not cached.get("payload"):
+        return False
+    try:
+        signature = core.unpack_signature(cached.get("payload") or b"")
+    except Exception:
+        return False
+    if not isinstance(signature, dict):
+        return False
+    # v4 matching relies on Chromaprint. Treat an empty/corrupt payload as
+    # pending so the next index pass regenerates it instead of silently
+    # skipping that song forever during Shorts matching.
+    return bool(signature.get("chromaprint"))
+
+
 def _pending_index_count(core: Any) -> int:
-    """Count songs that should still be fingerprinted.
+    """Count songs that should still be fingerprinted or repaired.
 
     A Suno row with no cached ``audio_url`` is still indexable: the mature
-    source resolver can refresh it through get_clip().  The old status counter
-    excluded those rows, which let a newly synced Suno song sit in SQLite
-    forever without ever being offered to the recognizer.
+    source resolver can refresh it through get_clip(). A corrupt cached
+    fingerprint is also pending even when its database row exists.
     """
     pending = 0
     try:
@@ -80,18 +93,15 @@ def _pending_index_count(core: Any) -> int:
         if not song_id:
             continue
         try:
-            if core.DB.get_audio_fingerprint("suno", song_id, core.AUDIO_MATCH_VERSION):
-                continue
+            cached = core.DB.get_audio_fingerprint("suno", song_id, core.AUDIO_MATCH_VERSION)
         except Exception:
-            pass
+            cached = None
+        if cached and _fingerprint_is_usable(core, cached):
+            continue
         try:
             source, _is_remote = core._song_finder_source_cheap(song)
         except Exception:
             source = None
-        # Local/recognized rows need an actual local/remote source. Genuine
-        # Suno IDs are allowed through even with no cached URL because
-        # _song_finder_source() can refresh that URL from the authenticated
-        # Suno account during the index pass.
         if source or not song_id.startswith(("local-", "recognized-")):
             pending += 1
     return pending
@@ -122,8 +132,8 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
         if missing_before > 0:
             if hasattr(task, "log"):
                 task.log(
-                    f"Suno baza je osvežena, ali {missing_before} pesama još nema audio otisak. "
-                    "Automatski dopunjujem indeks pre završetka sinhronizacije.",
+                    f"Suno baza je osvežena, ali {missing_before} pesama još nema ispravan audio otisak. "
+                    "Automatski dopunjujem ili popravljam indeks pre završetka sinhronizacije.",
                     "warning",
                 )
             core.song_finder_index_task(task, {"force": False, "finish_task": False})
