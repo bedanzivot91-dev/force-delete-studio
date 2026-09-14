@@ -1,0 +1,20 @@
+name: Suno complete library regression
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  complete-suno-library:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify complete Suno library database coverage
+        run: python tests/suno_complete_library_sync_test.py
