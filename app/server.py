@@ -195,9 +195,6 @@ def _sync_library_exhaustive(task: Any, options: dict[str, Any] | None = None) -
 
 def _check_new_songs_exhaustive(task: Any, options: dict[str, Any] | None = None) -> None:
     patched = dict(options or {})
-    # "Proveri nove" must never erase a resumable full-sync checkpoint. The
-    # legacy quick checker ignored reset_checkpoints; preserve that contract
-    # even though this correctness path now uses the exhaustive sync engine.
     patched.pop("reset_checkpoints", None)
     patched["include_main"] = bool(patched.get("include_main", True))
     patched["include_workspaces"] = bool(patched.get("include_workspaces", True))
@@ -346,6 +343,10 @@ globals().update(_TRUTHFULNESS_FIX_EXPORTS)
 from song_finder_runtime_fix import apply as _apply_song_finder_runtime_fix
 _SONG_FINDER_FIX_EXPORTS = _apply_song_finder_runtime_fix(_core)
 globals().update(_SONG_FINDER_FIX_EXPORTS)
+
+from recognition_final_fixes import apply as _apply_recognition_final_fixes
+_RECOGNITION_FINAL_EXPORTS = _apply_recognition_final_fixes(_core)
+globals().update(_RECOGNITION_FINAL_EXPORTS)
 
 
 def main() -> None:
