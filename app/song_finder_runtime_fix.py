@@ -62,6 +62,41 @@ def _finish_task(task: Any, message: str, status: str = "done") -> None:
             task.finish(message)
 
 
+def _pending_index_count(core: Any) -> int:
+    """Count songs that should still be fingerprinted.
+
+    A Suno row with no cached ``audio_url`` is still indexable: the mature
+    source resolver can refresh it through get_clip().  The old status counter
+    excluded those rows, which let a newly synced Suno song sit in SQLite
+    forever without ever being offered to the recognizer.
+    """
+    pending = 0
+    try:
+        rows = core.DB.export_rows()
+    except Exception:
+        return 0
+    for song in rows:
+        song_id = str(song.get("id") or "").strip()
+        if not song_id:
+            continue
+        try:
+            if core.DB.get_audio_fingerprint("suno", song_id, core.AUDIO_MATCH_VERSION):
+                continue
+        except Exception:
+            pass
+        try:
+            source, _is_remote = core._song_finder_source_cheap(song)
+        except Exception:
+            source = None
+        # Local/recognized rows need an actual local/remote source. Genuine
+        # Suno IDs are allowed through even with no cached URL because
+        # _song_finder_source() can refresh that URL from the authenticated
+        # Suno account during the index pass.
+        if source or not song_id.startswith(("local-", "recognized-")):
+            pending += 1
+    return pending
+
+
 def _install_sync_auto_index(core: Any) -> dict[str, Any]:
     if getattr(core, "_sync_auto_index_v1", False):
         return {"sync_auto_index_installed": True}
@@ -75,15 +110,15 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
         proxy = _DeferredFinishTask(task)
         result = previous(proxy, dict(options or {}))
 
-        # Cancellation remains cancellation; do not start a long remote index
-        # after the user explicitly stopped the sync. Lightweight test tasks
-        # need not define cancel_event at all.
         if _task_cancelled(task):
             _finish_task(task, proxy.final_message or "Sinhronizacija je zaustavljena.", "cancelled")
             return result
 
         status_before = core.song_finder_status()
-        missing_before = int(status_before.get("songs_not_indexed") or 0)
+        missing_before = max(
+            int(status_before.get("songs_not_indexed") or 0),
+            _pending_index_count(core),
+        )
         if missing_before > 0:
             if hasattr(task, "log"):
                 task.log(
@@ -94,7 +129,10 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
             core.song_finder_index_task(task, {"force": False, "finish_task": False})
 
         status_after = core.song_finder_status()
-        missing_after = int(status_after.get("songs_not_indexed") or 0)
+        missing_after = max(
+            int(status_after.get("songs_not_indexed") or 0),
+            _pending_index_count(core),
+        )
         no_source = int(status_after.get("songs_without_any_source") or 0)
         base_message = proxy.final_message or "Sinhronizacija Suno biblioteke je završena."
         if missing_after > 0:
@@ -102,7 +140,7 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
                 task,
                 base_message
                 + f" Audio indeks NIJE kompletan: {missing_after} pesama još nema upotrebljiv fingerprint"
-                + (f", a {no_source} nema ni lokalni ni Suno audio izvor." if no_source else "."),
+                + (f", a {no_source} trenutno nema ni lokalni ni sačuvani Suno audio izvor." if no_source else "."),
                 "partial",
             )
         elif proxy.final_status == "partial":
