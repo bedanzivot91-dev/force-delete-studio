@@ -3,7 +3,7 @@ from __future__ import annotations
 """Final guard separating cheap YouTube preflight from real audio indexing.
 
 The real owned-channel audio scan explicitly passes ``required_for_youtube``
-when missing Suno fingerprints must be repaired.  A lightweight preflight uses
+when missing Suno fingerprints must be repaired. A lightweight preflight uses
 ``finish_task=False`` without that flag and must never refresh thousands of
 Suno songs merely because its task type happens to be ``youtube_audio_owned``.
 """
@@ -36,7 +36,14 @@ def apply(core: Any) -> dict[str, Any]:
         original_type = getattr(task, "type", "")
         try:
             task.type = "youtube_audio_preflight"
-            return previous(task, opts)
+            result = previous(task, opts)
+            if hasattr(task, "log"):
+                task.log(
+                    "Kompletan audio indeks nije uslov za YouTube preflight; "
+                    "nedostajući kandidati će se indeksirati samo kada pravi audio scan to eksplicitno zatraži.",
+                    "info",
+                )
+            return result
         finally:
             task.type = original_type
 
