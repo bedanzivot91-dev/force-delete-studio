@@ -17,12 +17,18 @@ downloads thousands of Suno tracks.
 from pathlib import Path
 from typing import Any
 
+from atomic_delete_fixes import apply as _apply_atomic_delete_fixes
+
 
 def apply(core: Any) -> dict[str, Any]:
+    # server.py installs truthfulness_fixes immediately before this module.
+    # Layer filesystem/database staging after those wrappers so a locked file
+    # can no longer make a song disappear from SQLite before deletion is safe.
+    atomic_exports = _apply_atomic_delete_fixes(core)
     original_candidates = core._song_finder_candidates
 
     if getattr(core, "_song_finder_fresh_local_fp_v1", False):
-        return {"_song_finder_candidates": core._song_finder_candidates}
+        return {"_song_finder_candidates": core._song_finder_candidates, **atomic_exports}
 
     def candidates_with_fresh_local_fingerprints(
         upload_signatures: dict[str, Any] | list[dict[str, Any]],
@@ -66,4 +72,4 @@ def apply(core: Any) -> dict[str, Any]:
 
     core._song_finder_candidates = candidates_with_fresh_local_fingerprints
     core._song_finder_fresh_local_fp_v1 = True
-    return {"_song_finder_candidates": candidates_with_fresh_local_fingerprints}
+    return {"_song_finder_candidates": candidates_with_fresh_local_fingerprints, **atomic_exports}
