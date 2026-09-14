@@ -9,6 +9,8 @@ Loaded after the mature runtime layers. It fixes cross-layer cases that unit
 * use cheap stat metadata for unchanged local files so every search does not
   SHA-256 the entire local music library;
 * reuse a stat-valid cached local signature during final comparison;
+* never let a merely POSSIBLE fast-shortlist result suppress a stronger match
+  elsewhere in the already-cached fingerprint library;
 * report only decodable Chromaprint payloads as indexed.
 """
 
@@ -50,14 +52,6 @@ def _local_identity_changed(core: Any, song: dict[str, Any], path: Path, cached:
 
 
 def _install_stat_cached_local_signature(core: Any) -> dict[str, Any]:
-    """Return an unchanged local song's valid cached signature in O(1).
-
-    The mature signature resolver computes a full SHA-256 source identity on
-    every local call. Exact matching after the fast shortlist calls that path
-    again, which can reread many large MP3/WAV files even though their size and
-    mtime exactly match the fingerprint row. Preserve force=True semantics and
-    remote URLs; only unchanged local files take this fast path.
-    """
     if getattr(core, "_stat_cached_local_signature_v1", False):
         return {"stat_cached_local_signature_installed": True}
     original = core._signature_for_source
@@ -90,8 +84,6 @@ def _install_stat_cached_local_signature(core: Any) -> dict[str, Any]:
                         ):
                             return usable
             except Exception:
-                # Any uncertainty falls back to the mature identity-checked
-                # extractor; correctness is never traded for this optimization.
                 pass
         return original(source_type, source_id, source, task, label, force)
 
@@ -205,6 +197,68 @@ def _install_pre_shortlist_local_refresh(core: Any) -> dict[str, Any]:
     core._song_finder_shortlist = refreshed_shortlist
     core._pre_shortlist_local_refresh_v1 = True
     return {"_song_finder_shortlist": refreshed_shortlist, "pre_shortlist_local_refresh_installed": True}
+
+
+def _install_ambiguous_full_fallback(core: Any) -> dict[str, Any]:
+    """Full-scan once when the fast shortlist produces only POSSIBLE matches.
+
+    Core already full-scans when a shortlist produces no match.  The remaining
+    false-negative case is a weak/wrong POSSIBLE candidate: because the result
+    list is non-empty, core used to accept it without checking indexed songs
+    that did not make the top-N vote list.  The full fingerprints are already
+    cached, so ambiguous cases can afford one correctness-first linear pass.
+    Thread-local state keeps simultaneous HTTP analyses isolated.
+    """
+    if getattr(core, "_ambiguous_full_fallback_v1", False):
+        return {"ambiguous_full_fallback_installed": True}
+    original_shortlist = core._song_finder_shortlist
+    original_candidates = core._song_finder_candidates
+    context = threading.local()
+
+    def shortlist(upload_signature: dict[str, Any], songs: list[dict[str, Any]]):
+        selected, used_index = original_shortlist(upload_signature, songs)
+        context.full_songs = songs if used_index and len(selected) < len(songs) else None
+        context.shortlist_id = id(selected)
+        return selected, used_index
+
+    def candidates(upload_signatures: Any, songs: list[dict[str, Any]]):
+        found, checked = original_candidates(upload_signatures, songs)
+        full_songs = getattr(context, "full_songs", None)
+        shortlist_id = getattr(context, "shortlist_id", None)
+        is_initial_shortlist = full_songs is not None and id(songs) == shortlist_id
+        confirmed = any(str(item.get("status") or "") == core.song_finder.STATUS_CONFIRMED for item in found)
+        # Leave the existing core no-result fallback alone. Only intercept the
+        # gap where a non-empty but unconfirmed shortlist would otherwise stop.
+        if is_initial_shortlist and found and not confirmed:
+            full_found, full_checked = original_candidates(upload_signatures, full_songs)
+            merged: dict[str, dict[str, Any]] = {}
+            for item in [*found, *full_found]:
+                sid = str(item.get("song_id") or "")
+                if not sid:
+                    continue
+                previous = merged.get(sid)
+                if previous is None:
+                    merged[sid] = item
+                    continue
+                item_confirmed = str(item.get("status") or "") == core.song_finder.STATUS_CONFIRMED
+                prev_confirmed = str(previous.get("status") or "") == core.song_finder.STATUS_CONFIRMED
+                if item_confirmed and not prev_confirmed:
+                    merged[sid] = item
+                elif item_confirmed == prev_confirmed and float(item.get("audio_score") or 0) > float(previous.get("audio_score") or 0):
+                    merged[sid] = item
+            found = list(merged.values())
+            checked = max(int(checked or 0), int(full_checked or 0))
+            context.full_songs = None
+        return found, checked
+
+    core._song_finder_shortlist = shortlist
+    core._song_finder_candidates = candidates
+    core._ambiguous_full_fallback_v1 = True
+    return {
+        "_song_finder_shortlist": shortlist,
+        "_song_finder_candidates": candidates,
+        "ambiguous_full_fallback_installed": True,
+    }
 
 
 def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
@@ -334,5 +388,6 @@ def apply(core: Any) -> dict[str, Any]:
     exports.update(_install_stat_cached_local_signature(core))
     exports.update(_install_truthful_status(core))
     exports.update(_install_pre_shortlist_local_refresh(core))
+    exports.update(_install_ambiguous_full_fallback(core))
     exports.update(_install_selective_required_indexer(core))
     return exports
