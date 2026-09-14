@@ -119,6 +119,31 @@ def test_unchanged_local_file_does_not_hash_whole_audio() -> None:
         assert signature_calls==[],"unchanged indexed local song was unnecessarily re-fingerprinted"
 
 
+def test_final_compare_reuses_stat_valid_cached_signature() -> None:
+    with tempfile.TemporaryDirectory(prefix="final-compare-cache-") as raw:
+        path=Path(raw)/"song.mp3"; path.write_bytes(b"same-local-audio")
+        stat=path.stat(); original_calls=[]
+        cached=pack([7,8,9],identity="local:old-full-sha",size=stat.st_size,mtime=stat.st_mtime)
+        class DB:
+            def export_rows(self): return []
+            def get_audio_fingerprint(self,_type,sid,_version): return cached
+        def original_signature(*args,**kwargs):
+            original_calls.append((args,kwargs)); return {"chromaprint":[99]}
+        core=SimpleNamespace(
+            DB=DB(), AUDIO_MATCH_VERSION="v4", unpack_signature=unpack, song_finder_status=base_status,
+            _song_finder_shortlist=lambda upload,songs:(songs,True), song_finder_index_task=lambda task,options:None,
+            _song_finder_source_cheap=lambda song:(None,False), _signature_for_source=original_signature,
+            get_fingerprint_index=lambda:FakeIndex(), source_identity=lambda p:{"identity":"unused"}, runtime_log=lambda *a,**k:None,
+        )
+        apply(core)
+        result=core._signature_for_source("suno","song-1",path,None,"Song 1",False)
+        assert result["chromaprint"]==[7,8,9],result
+        assert original_calls==[],"final compare re-read an unchanged local file"
+        forced=core._signature_for_source("suno","song-1",path,None,"Song 1",True)
+        assert forced["chromaprint"]==[99],forced
+        assert len(original_calls)==1,"force=True must bypass stat cache"
+
+
 def test_status_rejects_corrupt_fingerprint_row() -> None:
     rows=[{"id":"good","audio_url":"https://cdn/good.mp3"},{"id":"bad","audio_url":"https://cdn/bad.mp3"}]
     fps={"good":pack([1,2,3]),"bad":{"payload":b"corrupt"}}
@@ -141,8 +166,9 @@ def main() -> None:
     test_required_repair_is_selective()
     test_changed_local_file_refreshes_fast_index_before_shortlist()
     test_unchanged_local_file_does_not_hash_whole_audio()
+    test_final_compare_reuses_stat_valid_cached_signature()
     test_status_rejects_corrupt_fingerprint_row()
-    print("recognition_final_fixes_test: PASS — selective repair, pre-shortlist refresh, O(1) unchanged checks and truthful status")
+    print("recognition_final_fixes_test: PASS — selective repair, pre-shortlist refresh, O(1) unchanged checks, final-compare cache and truthful status")
 
 
 if __name__=="__main__": main()
