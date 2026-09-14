@@ -18,3 +18,5 @@ jobs:
           python-version: '3.12'
       - name: Verify complete Suno library database coverage
         run: python tests/suno_complete_library_sync_test.py
+      - name: Verify sync can never be truncated by UI page caps
+        run: python tests/suno_sync_exhaustive_guard_test.py
