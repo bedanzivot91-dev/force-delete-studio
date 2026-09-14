@@ -28,3 +28,5 @@ jobs:
         run: python tests/atomic_delete_fixes_test.py
       - name: Verify truthful import and Panako reporting
         run: python tests/reporting_truthfulness_test.py
+      - name: Verify OAuth config removal truthfulness
+        run: python tests/oauth_removal_guard_test.py
