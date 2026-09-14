@@ -98,10 +98,55 @@ def test_sync_is_partial_when_index_stays_incomplete() -> None:
     assert "2 pesama" in task.message, task.message
 
 
+def test_suno_row_without_cached_audio_url_still_triggers_index_refresh() -> None:
+    state = {"indexed": False, "index_calls": 0}
+
+    class FakeDB:
+        def export_rows(self):
+            # Genuine Suno-like ID, deliberately with no local file/audio_url.
+            return [{"id": "9fcb6ad1-1111-4444-9999-0123456789ab", "title": "Stara Suno pesma", "audio_url": ""}]
+
+        def get_audio_fingerprint(self, source_type, song_id, version):
+            assert source_type == "suno"
+            return {"payload": b"ok"} if state["indexed"] else None
+
+    def original_sync(task, _options):
+        task.finish("Suno sync završen")
+
+    def status():
+        # This reproduces the legacy blind spot: the core status used to say
+        # zero because there was no cached source URL.
+        return {"songs_not_indexed": 0, "songs_without_any_source": 1}
+
+    def index_task(_task, options):
+        assert options.get("finish_task") is False
+        state["index_calls"] += 1
+        state["indexed"] = True
+
+    core = types.SimpleNamespace(
+        DB=FakeDB(),
+        AUDIO_MATCH_VERSION="v4",
+        _song_finder_source_cheap=lambda _song: (None, False),
+        sync_library=original_sync,
+        check_new_songs=original_sync,
+        song_finder_status=status,
+        song_finder_index_task=index_task,
+    )
+    _install_sync_auto_index(core)
+
+    task = Task()
+    core.sync_library(task, {})
+
+    assert state["index_calls"] == 1, "Suno row without cached audio_url must still be offered to the indexer"
+    assert task.status == "done", task.status
+    assert "Audio indeks je kompletan" in task.message, task.message
+
+
 def main() -> None:
     test_sync_waits_for_missing_fingerprints()
     test_sync_is_partial_when_index_stays_incomplete()
-    print("song_finder_sync_auto_index_test: PASS — Suno sync cannot report complete while recognition fingerprints are missing")
+    test_suno_row_without_cached_audio_url_still_triggers_index_refresh()
+    print("song_finder_sync_auto_index_test: PASS — Suno sync cannot report complete while recognition fingerprints are missing, including rows without cached audio_url")
 
 
 if __name__ == "__main__":
