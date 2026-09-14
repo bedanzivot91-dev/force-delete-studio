@@ -39,6 +39,29 @@ class _DeferredFinishTask:
         self.final_status = "partial"
 
 
+def _task_cancelled(task: Any) -> bool:
+    """Support both real TaskState and lightweight test/utility task objects."""
+    event = getattr(task, "cancel_event", None)
+    if event is None or not hasattr(event, "is_set"):
+        return False
+    try:
+        return bool(event.is_set())
+    except Exception:
+        return False
+
+
+def _finish_task(task: Any, message: str, status: str = "done") -> None:
+    """Finish truthfully without assuming every compatible task has TaskState's full API."""
+    if status == "partial" and hasattr(task, "finish_partial"):
+        task.finish_partial(message)
+        return
+    if hasattr(task, "finish"):
+        try:
+            task.finish(message, status=status)
+        except TypeError:
+            task.finish(message)
+
+
 def _install_sync_auto_index(core: Any) -> dict[str, Any]:
     if getattr(core, "_sync_auto_index_v1", False):
         return {"sync_auto_index_installed": True}
@@ -53,19 +76,21 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
         result = previous(proxy, dict(options or {}))
 
         # Cancellation remains cancellation; do not start a long remote index
-        # after the user explicitly stopped the sync.
-        if task.cancel_event.is_set():
-            task.finish(proxy.final_message or "Sinhronizacija je zaustavljena.", status="cancelled")
+        # after the user explicitly stopped the sync. Lightweight test tasks
+        # need not define cancel_event at all.
+        if _task_cancelled(task):
+            _finish_task(task, proxy.final_message or "Sinhronizacija je zaustavljena.", "cancelled")
             return result
 
         status_before = core.song_finder_status()
         missing_before = int(status_before.get("songs_not_indexed") or 0)
         if missing_before > 0:
-            task.log(
-                f"Suno baza je osvežena, ali {missing_before} pesama još nema audio otisak. "
-                "Automatski dopunjujem indeks pre završetka sinhronizacije.",
-                "warning",
-            )
+            if hasattr(task, "log"):
+                task.log(
+                    f"Suno baza je osvežena, ali {missing_before} pesama još nema audio otisak. "
+                    "Automatski dopunjujem indeks pre završetka sinhronizacije.",
+                    "warning",
+                )
             core.song_finder_index_task(task, {"force": False, "finish_task": False})
 
         status_after = core.song_finder_status()
@@ -73,15 +98,17 @@ def _install_sync_auto_index(core: Any) -> dict[str, Any]:
         no_source = int(status_after.get("songs_without_any_source") or 0)
         base_message = proxy.final_message or "Sinhronizacija Suno biblioteke je završena."
         if missing_after > 0:
-            task.finish_partial(
+            _finish_task(
+                task,
                 base_message
                 + f" Audio indeks NIJE kompletan: {missing_after} pesama još nema upotrebljiv fingerprint"
-                + (f", a {no_source} nema ni lokalni ni Suno audio izvor." if no_source else ".")
+                + (f", a {no_source} nema ni lokalni ni Suno audio izvor." if no_source else "."),
+                "partial",
             )
         elif proxy.final_status == "partial":
-            task.finish_partial(base_message + " Audio indeks je kompletan.")
+            _finish_task(task, base_message + " Audio indeks je kompletan.", "partial")
         else:
-            task.finish(base_message + " Audio indeks je kompletan.")
+            _finish_task(task, base_message + " Audio indeks je kompletan.", "done")
         return result
 
     def sync_library_with_index(task: Any, options: dict[str, Any] | None = None) -> Any:
