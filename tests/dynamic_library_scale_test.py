@@ -11,7 +11,16 @@ from audio_match import pack_signature
 
 
 def fake_signature(duration=30.0):
-    return {"duration": duration, "interval": 0.5, "features": [[1.0]]}
+    # AUDIO_MATCH_VERSION v4 requires a real Chromaprint payload.  A feature-
+    # only blob is intentionally considered stale/corrupt by the production
+    # recognition repair path and therefore must not be used to model an
+    # already-indexed song in this incremental-indexing regression.
+    return {
+        "duration": duration,
+        "interval": 0.5,
+        "features": [[1.0]],
+        "chromaprint": [0x12345678 + i for i in range(64)],
+    }
 
 
 def main():
@@ -24,7 +33,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="sps-scale-pages-") as raw:
         db = LibraryDB(Path(raw) / "test.db")
         call_count = {"n": 0}
-        TOTAL_FAKE_PAGES = 150  # deliberately > the old 100-page default
+        TOTAL_FAKE_PAGES = 150
 
         class FakeClient:
             def list_all_projects(self, max_pages=100):
@@ -99,8 +108,8 @@ def main():
         assert len(extract_calls) == 2
         checks.append("both local songs are extracted on first index")
 
-        time.sleep(1.1)  # ensure a strictly different mtime
-        changed_file.write_bytes(b"RIFF" + b"\x11" * 250)  # real content+size change
+        time.sleep(1.1)
+        changed_file.write_bytes(b"RIFF" + b"\x11" * 250)
         extract_calls.clear()
         with patch.object(server_module, "DB", db), patch.object(server_module, "extract_signature", side_effect=fake_extract):
             task4 = server_module.TaskState("index", "index")
@@ -168,7 +177,7 @@ def main():
         with patch.object(server_module, "DB", db), patch.object(server_module, "get_client", return_value=ResumingClient()):
             server_module.sync_library(task6, {"include_workspaces": False, "resume": True})
         assert db.count_songs() == TOTAL, db.count_songs()
-        checks.append("resuming after the interruption completes the sync to the full real total, with no duplicate rows (upsert by Suno ID)")
+        checks.append("resuming after the interruption completes the sync to the full real total, with no duplicate rows")
 
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
