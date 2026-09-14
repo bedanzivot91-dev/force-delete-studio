@@ -19,6 +19,10 @@ jobs:
           python-version: '3.12'
       - name: Compile patched modules
         run: |
-          python -m py_compile app/song_finder_runtime_fix.py app/server.py
+          python -m py_compile app/song_finder_runtime_fix.py app/atomic_delete_fixes.py app/server.py
       - name: Verify local song fingerprint is refreshed before matching
         run: python tests/song_finder_fresh_local_fingerprint_test.py
+      - name: Verify Suno sync cannot finish before recognition index is complete
+        run: python tests/song_finder_sync_auto_index_test.py
+      - name: Verify atomic database/filesystem deletion safety
+        run: python tests/atomic_delete_consistency_test.py
