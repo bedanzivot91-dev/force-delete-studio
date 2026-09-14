@@ -150,15 +150,17 @@ def main():
     # are compared against no useful Suno candidates.
     unbounded_source = (ROOT / "app" / "unbounded_operations.py").read_text(encoding="utf-8")
     runtime_source = (ROOT / "app" / "runtime_fixes.py").read_text(encoding="utf-8")
+    preflight_source = (ROOT / "app" / "youtube_preflight_final_fix.py").read_text(encoding="utf-8")
     for token in (
         'missing_before = int(index_before.get("songs_not_indexed") or 0)',
         '"required_for_youtube": True',
         'Nijedna Suno pesma nema napravljen audio-otisak',
     ):
         assert token in unbounded_source, token
-    assert 'if not finish_task and not required_for_youtube:' in runtime_source
+    assert 'explicit_required = bool(opts.get("required_for_youtube"))' in preflight_source
+    assert 'and not bool(opts.get("finish_task", True))' in preflight_source
     assert 'task.log(summary, "warning" if failed or unavailable else "success")' in runtime_source
-    checks.append("owned-channel audio scan now builds missing Suno fingerprints instead of returning a false 0-result scan")
+    checks.append("owned-channel audio scan explicitly builds missing Suno fingerprints while lightweight preflight stays network-free")
 
     # -- Explicit indexing remains complete, but a cached fingerprint whose
     # temporary Suno URL disappeared is reused without a network refresh. --
