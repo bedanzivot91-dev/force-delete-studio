@@ -21,6 +21,7 @@ import advanced_features as _advanced
 _PATCHED = False
 _ORIGINAL_DELETE_SONG = None
 _ORIGINAL_DELETE_DERIVED = None
+_ORIGINAL_PROCESS_AUDIO_BATCH = None
 
 
 def restore_cloud_backup_strict(
@@ -31,12 +32,6 @@ def restore_cloud_backup_strict(
     restore_root: Path | None = None,
     preserve_original_paths: bool = False,
 ) -> dict[str, Any]:
-    """Restore a cloud backup without claiming success after a DB-link failure.
-
-    Existing destination files are moved aside before replacement and restored
-    if the database update fails, so a failed retry cannot destroy the previous
-    good restore either.
-    """
     package = package.expanduser().resolve()
     if not package.is_file():
         raise RuntimeError("Cloud backup ZIP ne postoji.")
@@ -104,9 +99,6 @@ def restore_cloud_backup_strict(
                     os.replace(temp, target)
                     placed_new = True
 
-                    # The DB link is part of the success condition. The legacy
-                    # implementation swallowed this exception and incremented
-                    # files_restored anyway.
                     if field.startswith("derived:"):
                         db.update_derived_file_path(int(field.split(":", 1)[1]), str(target.resolve()))
                     elif song_id and field:
@@ -117,13 +109,11 @@ def restore_cloud_backup_strict(
                         try:
                             previous.unlink()
                         except OSError as cleanup_exc:
-                            warnings.append(
-                                {
-                                    "arcname": arc,
-                                    "target": str(previous),
-                                    "warning": f"Stara rollback kopija nije obrisana: {cleanup_exc}",
-                                }
-                            )
+                            warnings.append({
+                                "arcname": arc,
+                                "target": str(previous),
+                                "warning": f"Stara rollback kopija nije obrisana: {cleanup_exc}",
+                            })
                 except Exception as exc:
                     temp.unlink(missing_ok=True)
                     rollback_errors: list[str] = []
@@ -174,7 +164,7 @@ def _song_file_paths(song: dict[str, Any]) -> list[Path]:
 
 
 def apply(core: Any) -> dict[str, Any]:
-    global _PATCHED, _ORIGINAL_DELETE_SONG, _ORIGINAL_DELETE_DERIVED
+    global _PATCHED, _ORIGINAL_DELETE_SONG, _ORIGINAL_DELETE_DERIVED, _ORIGINAL_PROCESS_AUDIO_BATCH
     if _PATCHED:
         return {
             "restore_cloud_backup": restore_cloud_backup_strict,
@@ -229,8 +219,32 @@ def apply(core: Any) -> dict[str, Any]:
 
     db_cls.delete_song = delete_song_truthful
     db_cls.delete_derived_file = delete_derived_truthful
+
+    if hasattr(core, "process_audio_batch_task"):
+        _ORIGINAL_PROCESS_AUDIO_BATCH = core.process_audio_batch_task
+
+        def process_audio_batch_truthful(task: Any, song_ids: list[str], options: dict[str, Any]) -> None:
+            before_errors = len(getattr(task, "errors", []) or [])
+            unique_count = len(dict.fromkeys(str(x) for x in song_ids if str(x)))
+            _ORIGINAL_PROCESS_AUDIO_BATCH(task, song_ids, options)
+            cancel_event = getattr(task, "cancel_event", None)
+            if cancel_event is not None and hasattr(cancel_event, "is_set") and cancel_event.is_set():
+                return
+            after_errors = len(getattr(task, "errors", []) or [])
+            new_errors = max(0, after_errors - before_errors)
+            if new_errors <= 0:
+                return
+            message = str(getattr(task, "message", "") or f"Masovna audio obrada: {new_errors} grešaka.")
+            if unique_count and new_errors >= unique_count and hasattr(task, "fail"):
+                task.fail(message)
+            elif hasattr(task, "finish_partial"):
+                task.finish_partial(message)
+
+        core.process_audio_batch_task = process_audio_batch_truthful
+
     _PATCHED = True
     return {
         "restore_cloud_backup": restore_cloud_backup_strict,
+        "process_audio_batch_task": getattr(core, "process_audio_batch_task", None),
         "truthfulness_fixes_installed": True,
     }
