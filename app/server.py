@@ -183,12 +183,11 @@ globals()["SunoClient"] = _core.SunoClient
 globals()["_list_library_cursor_complete"] = _list_library_cursor_complete
 
 
-# The legacy UI sends max_pages=10 for "check new" and defaults to 100 for
-# normal sync.  That can leave an older missing Suno clip permanently outside
-# SQLite even though it is still on the account. Correctness wins over the old
-# speed shortcut: both paths now keep reading until Suno reports has_more=false.
-# The very high page number is only a loop-safety ceiling; it is not a library
-# size limit and is far beyond any realistic account.
+# The normal UI uses 100 pages as its historical "full sync" value. Treat
+# that UI value (and larger values) as an exhaustive account sync so older
+# clips cannot be left outside SQLite. Small explicit limits remain meaningful
+# for checkpoint/resume, tests and controlled service calls: max_pages=1 must
+# still process exactly one page and save the next cursor.
 _ORIGINAL_SYNC_LIBRARY = _core.sync_library
 
 
@@ -198,7 +197,11 @@ def _sync_library_exhaustive(task: Any, options: dict[str, Any] | None = None) -
         requested = int(patched.get("max_pages") or 0)
     except (TypeError, ValueError):
         requested = 0
-    patched["max_pages"] = max(100000, requested)
+    exhaustive = bool(patched.pop("exhaustive", False)) or requested == 0 or requested >= 100
+    if exhaustive:
+        patched["max_pages"] = max(100000, requested)
+    elif requested > 0:
+        patched["max_pages"] = requested
     return _ORIGINAL_SYNC_LIBRARY(task, patched)
 
 
@@ -209,6 +212,7 @@ def _check_new_songs_exhaustive(task: Any, options: dict[str, Any] | None = None
     patched["refresh_details"] = bool(patched.get("refresh_details", False))
     patched["liked"] = False
     patched["resume"] = False
+    patched["exhaustive"] = True
     patched["max_pages"] = 100000
     return _sync_library_exhaustive(task, patched)
 
