@@ -1,0 +1,24 @@
+name: Song finder local fingerprint regression
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  local-fingerprint-regression:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile patched modules
+        run: |
+          python -m py_compile app/song_finder_runtime_fix.py app/server.py
+      - name: Verify local song fingerprint is refreshed before matching
+        run: python tests/song_finder_fresh_local_fingerprint_test.py
