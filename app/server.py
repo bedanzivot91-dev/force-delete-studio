@@ -278,8 +278,12 @@ _WORKSPACE_EXPORTS = _apply_workspace_backend(_core)
 globals().update(_WORKSPACE_EXPORTS)
 
 from truthfulness_fixes import apply as _apply_truthfulness_fixes
-_TRUTHFULNESS_EXPORTS = _apply_truthfulness_fixes(_core)
-globals().update(_TRUTHFULNESS_EXPORTS)
+_TRUTHFULNESS_FIX_EXPORTS = _apply_truthfulness_fixes(_core)
+globals().update(_TRUTHFULNESS_FIX_EXPORTS)
+
+from song_finder_runtime_fix import apply as _apply_song_finder_runtime_fix
+_SONG_FINDER_FIX_EXPORTS = _apply_song_finder_runtime_fix(_core)
+globals().update(_SONG_FINDER_FIX_EXPORTS)
 
 
 def main() -> None:
