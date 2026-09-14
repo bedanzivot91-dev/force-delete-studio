@@ -17,24 +17,17 @@ downloads thousands of Suno tracks.
 from pathlib import Path
 from typing import Any
 
-from atomic_delete_fixes import apply as _apply_atomic_delete_fixes
-
 
 def apply(core: Any) -> dict[str, Any]:
-    # server.py installs truthfulness_fixes immediately before this module.
-    # Layer filesystem/database staging after those wrappers so a locked file
-    # can no longer make a song disappear from SQLite before deletion is safe.
-    atomic_exports = _apply_atomic_delete_fixes(core)
     original_candidates = core._song_finder_candidates
 
     if getattr(core, "_song_finder_fresh_local_fp_v1", False):
-        return {"_song_finder_candidates": core._song_finder_candidates, **atomic_exports}
+        return {"_song_finder_candidates": core._song_finder_candidates}
 
     def candidates_with_fresh_local_fingerprints(
         upload_signatures: dict[str, Any] | list[dict[str, Any]],
         songs: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], int]:
-        refreshed = 0
         for song in songs:
             song_id = str(song.get("id") or "").strip()
             if not song_id:
@@ -49,9 +42,6 @@ def apply(core: Any) -> dict[str, Any]:
                 path = Path(str(source)).expanduser()
                 if not path.exists() or not path.is_file():
                     continue
-                # _signature_for_source validates source_identity for local
-                # files. Missing/stale fingerprints are regenerated; valid
-                # fingerprints are reused without extra FFmpeg work.
                 core._signature_for_source(
                     "suno",
                     song_id,
@@ -60,16 +50,14 @@ def apply(core: Any) -> dict[str, Any]:
                     str(song.get("title") or song.get("display_name") or song_id),
                     False,
                 )
-                refreshed += 1
             except Exception as exc:
                 core.runtime_log(
                     f"Pronalazac: lokalni otisak nije osvezen za {song_id}: {exc}",
                     "warning",
                 )
 
-        result, checked = original_candidates(upload_signatures, songs)
-        return result, checked
+        return original_candidates(upload_signatures, songs)
 
     core._song_finder_candidates = candidates_with_fresh_local_fingerprints
     core._song_finder_fresh_local_fp_v1 = True
-    return {"_song_finder_candidates": candidates_with_fresh_local_fingerprints, **atomic_exports}
+    return {"_song_finder_candidates": candidates_with_fresh_local_fingerprints}
