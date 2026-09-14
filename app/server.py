@@ -146,13 +146,6 @@ def _build_per_song_download_options(
 
 
 # --- SUNO COMPLETE LIBRARY FIX -------------------------------------------
-# The core main-feed reader intentionally used fromStudioProject=False and
-# depended on a second Workspace/Project enumeration to recover those songs.
-# If Suno does not return every project from that separate endpoint, valid
-# songs visible on suno.com never enter the local SQLite database and the song
-# finder cannot possibly match them. Read the authenticated v3 feed without
-# excluding Studio/Project songs. Workspace sync remains enabled as a second
-# source; LibraryDB.upsert_song de-duplicates by Suno clip ID.
 _ORIGINAL_LIST_LIBRARY_CURSOR = _core.SunoClient.list_library_cursor
 
 
@@ -183,11 +176,6 @@ globals()["SunoClient"] = _core.SunoClient
 globals()["_list_library_cursor_complete"] = _list_library_cursor_complete
 
 
-# The normal UI uses 100 pages as its historical "full sync" value. Treat
-# that UI value (and larger values) as an exhaustive account sync so older
-# clips cannot be left outside SQLite. Small explicit limits remain meaningful
-# for checkpoint/resume, tests and controlled service calls: max_pages=1 must
-# still process exactly one page and save the next cursor.
 _ORIGINAL_SYNC_LIBRARY = _core.sync_library
 
 
@@ -207,6 +195,10 @@ def _sync_library_exhaustive(task: Any, options: dict[str, Any] | None = None) -
 
 def _check_new_songs_exhaustive(task: Any, options: dict[str, Any] | None = None) -> None:
     patched = dict(options or {})
+    # "Proveri nove" must never erase a resumable full-sync checkpoint. The
+    # legacy quick checker ignored reset_checkpoints; preserve that contract
+    # even though this correctness path now uses the exhaustive sync engine.
+    patched.pop("reset_checkpoints", None)
     patched["include_main"] = bool(patched.get("include_main", True))
     patched["include_workspaces"] = bool(patched.get("include_workspaces", True))
     patched["refresh_details"] = bool(patched.get("refresh_details", False))
@@ -224,10 +216,6 @@ globals()["check_new_songs"] = _check_new_songs_exhaustive
 
 
 # --- SUNO MP3 FIX ---------------------------------------------------------
-# Suno has used both snake_case and camelCase audio fields in different web/API
-# responses. The old download path only trusted audio_url. If the current
-# response contains audioUrl/audioURL/streamAudioUrl, the UI can show a song but
-# the downloader receives an empty URL and never creates the MP3.
 def _find_suno_audio_url(value: Any, depth: int = 0) -> str:
     if depth > 8:
         return ""
@@ -290,10 +278,6 @@ def _download_one(
     index: int,
     total: int,
 ) -> None:
-    # Resolve the clip once before the mature downloader runs. This writes a
-    # canonical audio_url into the clip/DB even when Suno returned audioUrl or
-    # another current alias. The existing downloader then performs its normal
-    # validated atomic MP3 download and refresh/retry path.
     try:
         detail = _ORIGINAL_GET_CLIP(client, song_id)
         audio_url = _find_suno_audio_url(detail)
