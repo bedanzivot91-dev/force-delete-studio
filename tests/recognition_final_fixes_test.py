@@ -45,6 +45,13 @@ def base_status():
     return {"ok":True,"songs_total":0,"songs_with_audio":0,"songs_remote_only":0,"songs_indexed":0,"songs_not_indexed":0,"songs_without_any_source":0}
 
 
+def core_match_stubs():
+    return {
+        "_song_finder_candidates": lambda sig, songs: ([], 0),
+        "song_finder": SimpleNamespace(STATUS_CONFIRMED="confirmed"),
+    }
+
+
 def test_required_repair_is_selective() -> None:
     rows=[{"id":f"song-{i}","title":f"Song {i}","audio_url":f"https://cdn/{i}.mp3"} for i in range(3000)]
     fingerprints={row["id"]:pack([1,2,3]) for row in rows}
@@ -64,7 +71,7 @@ def test_required_repair_is_selective() -> None:
         _song_finder_shortlist=lambda sig,songs:(songs,False), _song_finder_source_cheap=lambda song:(song["audio_url"],True),
         _song_finder_source=lambda song:(song["audio_url"],True), _signature_for_source=signature, get_fingerprint_index=lambda:index,
         get_client=lambda:SimpleNamespace(get_clip=lambda sid:next(r for r in rows if r["id"]==sid)), now_iso=lambda:"now",
-        runtime_log=lambda *a,**k:None, source_identity=lambda path:{"identity":"x"},
+        runtime_log=lambda *a,**k:None, source_identity=lambda path:{"identity":"x"}, **core_match_stubs(),
     )
     apply(core); task=Task("sync")
     core.song_finder_index_task(task,{"finish_task":False,"required_for_recognition":True})
@@ -93,6 +100,7 @@ def test_changed_local_file_refreshes_fast_index_before_shortlist() -> None:
             _song_finder_source_cheap=lambda song:(path,False) if song["id"]=="song-1" else (None,False),
             _signature_for_source=signature, get_fingerprint_index=lambda:index,
             source_identity=lambda p:{"identity":hashlib.sha256(Path(p).read_bytes()).hexdigest()}, runtime_log=lambda *a,**k:None,
+            **core_match_stubs(),
         )
         apply(core); songs=[{"id":"song-1","title":"ZIVOT JE TO Remastered"},{"id":"song-2","title":"Wrong"}]
         shortlist,used=core._song_finder_shortlist({"chromaprint":[9,9,9]},songs)
@@ -113,6 +121,7 @@ def test_unchanged_local_file_does_not_hash_whole_audio() -> None:
             _song_finder_shortlist=lambda upload,songs:(songs,True), song_finder_index_task=lambda task,options:None,
             _song_finder_source_cheap=lambda song:(path,False), _signature_for_source=lambda *a,**k:signature_calls.append(a) or {"chromaprint":[1,2,3]},
             get_fingerprint_index=lambda:index, source_identity=lambda p:identity_calls.append(p) or {"identity":"should-not-run"}, runtime_log=lambda *a,**k:None,
+            **core_match_stubs(),
         )
         apply(core); core._song_finder_shortlist({"chromaprint":[1,2,3]},[{"id":"song-1"}])
         assert identity_calls==[],"unchanged local song was fully SHA-hashed"
@@ -134,6 +143,7 @@ def test_final_compare_reuses_stat_valid_cached_signature() -> None:
             _song_finder_shortlist=lambda upload,songs:(songs,True), song_finder_index_task=lambda task,options:None,
             _song_finder_source_cheap=lambda song:(None,False), _signature_for_source=original_signature,
             get_fingerprint_index=lambda:FakeIndex(), source_identity=lambda p:{"identity":"unused"}, runtime_log=lambda *a,**k:None,
+            **core_match_stubs(),
         )
         apply(core)
         result=core._signature_for_source("suno","song-1",path,None,"Song 1",False)
@@ -155,6 +165,7 @@ def test_status_rejects_corrupt_fingerprint_row() -> None:
         _song_finder_shortlist=lambda sig,songs:(songs,False), song_finder_index_task=lambda task,options:None,
         _song_finder_source_cheap=lambda song:(song.get("audio_url"),True), _signature_for_source=lambda *a,**k:{"chromaprint":[1]},
         get_fingerprint_index=lambda:FakeIndex(), source_identity=lambda p:{"identity":"x"}, runtime_log=lambda *a,**k:None,
+        **core_match_stubs(),
     )
     apply(core); status=core.song_finder_status()
     assert status["songs_indexed"]==1,status
