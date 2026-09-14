@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import hashlib
+import tempfile
+import threading
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "app"))
+
+from recognition_final_fixes import apply
+
+
+class Task:
+    def __init__(self, task_type="sync"):
+        self.type = task_type
+        self.cancel_event = threading.Event()
+        self.logs = []
+        self.status = "running"
+        self.message = ""
+        self.total = 0
+        self.done = 0
+    def log(self, message, level="info"):
+        self.logs.append((level, str(message)))
+    def set_progress(self, done, total, current=""):
+        self.done = done; self.total = total
+    def finish(self, message, status="done"):
+        self.status = status; self.message = str(message)
+    def finish_partial(self, message):
+        self.status = "partial"; self.message = str(message)
+
+
+class FakeIndex:
+    def __init__(self, ids=None):
+        self.ids = set(ids or [])
+        self.added = []
+    def indexed_song_ids(self):
+        return set(self.ids)
+    def add_songs(self, rows):
+        rows = list(rows); self.added.extend(rows); self.ids.update(r[0] for r in rows); return len(rows)
+    def checkpoint(self):
+        return None
+    def prune(self, keep):
+        self.ids.intersection_update(set(keep))
+    def candidates(self, chromaprint, limit=20):
+        # Deliberately returns only song-2 until song-1 was refreshed.
+        return [{"song_id": sid, "votes": 10} for sid in ("song-1", "song-2") if sid in self.ids][:limit]
+
+
+def pack(fp):
+    return {"payload": (",".join(map(str, fp))).encode(), "source_identity": ""}
+
+
+def unpack(payload):
+    text = bytes(payload).decode()
+    if text == "corrupt":
+        raise ValueError("corrupt")
+    return {"chromaprint": [int(x) for x in text.split(",") if x]}
+
+
+def test_required_repair_is_selective() -> None:
+    rows = [{"id": f"song-{i}", "title": f"Song {i}", "audio_url": f"https://cdn/{i}.mp3"} for i in range(3000)]
+    fingerprints = {row["id"]: pack([1, 2, 3]) for row in rows}
+    fingerprints["song-1777"] = {"payload": b"corrupt", "source_identity": "old"}
+    calls = []
+    index = FakeIndex({row["id"] for row in rows})
+
+    class DB:
+        def export_rows(self): return list(rows)
+        def get_audio_fingerprint(self, _type, sid, _version): return fingerprints.get(sid)
+        def get_song(self, sid): return next((r for r in rows if r["id"] == sid), None)
+        def upsert_song(self, item, source_group=""): return True
+        def set_setting(self, key, value): return None
+
+    def signature(_type, sid, source, task=None, label="", force=False):
+        calls.append(sid)
+        fingerprints[sid] = pack([9, 8, 7])
+        return {"chromaprint": [9, 8, 7]}
+
+    core = SimpleNamespace(
+        DB=DB(), AUDIO_MATCH_VERSION="v4", unpack_signature=unpack,
+        song_finder_index_task=lambda task, options: (_ for _ in ()).throw(AssertionError("legacy full indexer must not run")),
+        _song_finder_shortlist=lambda sig, songs: (songs, False),
+        _song_finder_source_cheap=lambda song: (song["audio_url"], True),
+        _song_finder_source=lambda song: (song["audio_url"], True),
+        _signature_for_source=signature, get_fingerprint_index=lambda: index,
+        get_client=lambda: SimpleNamespace(get_clip=lambda sid: next(r for r in rows if r["id"] == sid)),
+        wait_if_paused=lambda task: None, now_iso=lambda: "now", runtime_log=lambda *a, **k: None,
+        source_identity=lambda path: {"identity": "x"},
+    )
+    apply(core)
+    task = Task("sync")
+    core.song_finder_index_task(task, {"finish_task": False, "required_for_recognition": True})
+    assert calls == ["song-1777"], f"repair touched {len(calls)} songs: {calls[:10]}"
+    assert task.total == 1, task.total
+    assert any("1/1" in msg for _level, msg in task.logs), task.logs
+
+
+def test_changed_local_file_refreshes_fast_index_before_shortlist() -> None:
+    with tempfile.TemporaryDirectory(prefix="stale-fast-index-") as raw:
+        path = Path(raw) / "ZIVOT JE TO Remastered.mp3"
+        path.write_bytes(b"new-remastered-audio")
+        new_identity = hashlib.sha256(path.read_bytes()).hexdigest()
+        cached = {"payload": b"1,2,3", "source_identity": "old-identity"}
+        index = FakeIndex({"song-1", "song-2"})
+        seen_before_original = []
+
+        class DB:
+            def get_audio_fingerprint(self, _type, sid, _version): return cached if sid == "song-1" else pack([4,5,6])
+
+        def signature(_type, sid, source, task=None, label="", force=False):
+            assert sid == "song-1"
+            cached["payload"] = b"9,9,9"
+            cached["source_identity"] = new_identity
+            return {"chromaprint": [9,9,9]}
+
+        def original_shortlist(upload, songs):
+            seen_before_original.extend(index.added)
+            assert any(row[0] == "song-1" and list(row[1]) == [9,9,9] for row in index.added), index.added
+            return songs, True
+
+        core = SimpleNamespace(
+            DB=DB(), AUDIO_MATCH_VERSION="v4", unpack_signature=unpack,
+            _song_finder_shortlist=original_shortlist,
+            song_finder_index_task=lambda task, options: None,
+            _song_finder_source_cheap=lambda song: (path, False) if song["id"] == "song-1" else (None, False),
+            _signature_for_source=signature,
+            get_fingerprint_index=lambda: index,
+            source_identity=lambda p: {"identity": hashlib.sha256(Path(p).read_bytes()).hexdigest()},
+            runtime_log=lambda *a, **k: None,
+        )
+        apply(core)
+        songs = [{"id":"song-1","title":"ZIVOT JE TO Remastered"},{"id":"song-2","title":"Wrong"}]
+        shortlist, used = core._song_finder_shortlist({"chromaprint":[9,9,9]}, songs)
+        assert used is True
+        assert shortlist[0]["id"] == "song-1"
+        assert seen_before_original, "fast index was not refreshed before original shortlist"
+
+
+def main() -> None:
+    test_required_repair_is_selective()
+    test_changed_local_file_refreshes_fast_index_before_shortlist()
+    print("recognition_final_fixes_test: PASS — repair is selective and changed local audio refreshes fast index before shortlist")
+
+
+if __name__ == "__main__":
+    main()
