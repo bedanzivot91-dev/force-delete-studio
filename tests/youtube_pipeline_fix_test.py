@@ -31,16 +31,17 @@ def main():
         assert not (status["songs_with_audio"] == 0 and status["songs_total"] > 0), "must never regress to 0/0 with real remote audio available"
         checks.append("song_finder_status never reports 0 available sources when audio_url exists on every song")
 
-        # -- a song with a cached fingerprint but no current source (e.g. the
-        # local file was deleted and there's no audio_url) must still count
-        # as indexed, not silently disappear from the indexed count. --
+        # -- a song with a VALID cached fingerprint but no current source
+        # (e.g. the local file was deleted and there's no audio_url) must still
+        # count as indexed, not silently disappear from the indexed count.
         db.upsert_song({"id": "orphan", "title": "Orphan", "audio_url": "", "local_wav": "", "duration": 90})
-        db.save_audio_fingerprint("suno", "orphan", server_module.AUDIO_MATCH_VERSION, 90.0, 0.5, b"fake-signature-bytes", "old-identity", 0.0, 0)
+        orphan_signature = {"duration": 90.0, "interval": 0.5, "features": [[1.0]], "chromaprint": [101, 202, 303, 404]}
+        db.save_audio_fingerprint("suno", "orphan", server_module.AUDIO_MATCH_VERSION, 90.0, 0.5, pack_signature(orphan_signature), "old-identity", 0.0, 0)
         with patch.object(server_module, "DB", db):
             status2 = server_module.song_finder_status()
         assert status2["songs_indexed_without_current_source"] >= 1, status2
         assert status2["songs_indexed"] >= 1, status2
-        checks.append("a song with a cached fingerprint but no resolvable current source still counts as indexed")
+        checks.append("a song with a valid cached fingerprint but no resolvable current source still counts as indexed")
 
     # -- song_finder_status must never trigger a Suno API call per song
     # (that would hammer the API and block the UI for a 3000+ song library). --
