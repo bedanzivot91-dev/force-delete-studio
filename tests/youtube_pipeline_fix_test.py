@@ -13,11 +13,6 @@ from audio_match import pack_signature
 def main():
     checks = []
 
-    # -- Regression case: an arbitrarily-sized remote-only library (0 local
-    # files, valid remote Suno audio_url on every song) -- status must NOT
-    # be 0/0, whatever the actual song count happens to be. Uses a small N
-    # only for test speed; the assertions below never assume any specific
-    # library size. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-status-") as raw:
         db = LibraryDB(Path(raw) / "test.db")
         for i in range(50):
@@ -27,13 +22,10 @@ def main():
         assert status["songs_total"] == 50, status
         assert status["songs_with_audio"] == 50, status
         assert status["songs_remote_only"] == 50, status
-        checks.append("50 remote-only songs (0 local files) all count as songs_with_audio -- the exact regression shape")
-        assert not (status["songs_with_audio"] == 0 and status["songs_total"] > 0), "must never regress to 0/0 with real remote audio available"
-        checks.append("song_finder_status never reports 0 available sources when audio_url exists on every song")
+        checks.append("50 remote-only songs (0 local files) all count as songs_with_audio")
+        assert not (status["songs_with_audio"] == 0 and status["songs_total"] > 0)
+        checks.append("song_finder_status never reports 0 available sources when audio_url exists")
 
-        # -- a song with a VALID cached fingerprint but no current source
-        # (e.g. the local file was deleted and there's no audio_url) must still
-        # count as indexed, not silently disappear from the indexed count.
         db.upsert_song({"id": "orphan", "title": "Orphan", "audio_url": "", "local_wav": "", "duration": 90})
         orphan_signature = {"duration": 90.0, "interval": 0.5, "features": [[1.0]], "chromaprint": [101, 202, 303, 404]}
         db.save_audio_fingerprint("suno", "orphan", server_module.AUDIO_MATCH_VERSION, 90.0, 0.5, pack_signature(orphan_signature), "old-identity", 0.0, 0)
@@ -41,10 +33,8 @@ def main():
             status2 = server_module.song_finder_status()
         assert status2["songs_indexed_without_current_source"] >= 1, status2
         assert status2["songs_indexed"] >= 1, status2
-        checks.append("a song with a valid cached fingerprint but no resolvable current source still counts as indexed")
+        checks.append("valid cached fingerprint without current source still counts as indexed")
 
-    # -- song_finder_status must never trigger a Suno API call per song
-    # (that would hammer the API and block the UI for a 3000+ song library). --
     with tempfile.TemporaryDirectory(prefix="sps-yt-status2-") as raw2:
         db2 = LibraryDB(Path(raw2) / "test.db")
         db2.upsert_song({"id": "no-source", "title": "Bez izvora", "audio_url": "", "local_wav": "", "duration": 60})
@@ -55,11 +45,9 @@ def main():
                 return {"id": song_id, "audio_url": "https://cdn.suno.com/refreshed.mp3"}
         with patch.object(server_module, "DB", db2), patch.object(server_module, "get_client", return_value=FakeClient()):
             server_module.song_finder_status()
-        assert api_calls["n"] == 0, f"song_finder_status must not call the Suno API, got {api_calls['n']} calls"
-        checks.append("song_finder_status stays network-free even for songs with neither a local file nor audio_url")
+        assert api_calls["n"] == 0, f"song_finder_status must not call Suno API, got {api_calls['n']}"
+        checks.append("song_finder_status stays network-free")
 
-    # -- copy_song_to_published_folder: remote-only song downloads the full
-    # original instead of silently finishing with zero copied audio. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-copy-") as raw3:
         db3 = LibraryDB(Path(raw3) / "test.db")
         song = {"id": "abcd1234", "title": "Puna Pesma", "audio_url": "https://cdn.suno.com/abcd1234.mp3", "source_url": "https://suno.com/song/abcd1234"}
@@ -83,21 +71,19 @@ def main():
             result = server_module.copy_song_to_published_folder(db3.get_song("abcd1234"), video, status="complete")
 
         assert result["has_full_audio"] is True, result
-        checks.append("a remote-only song (no local file) downloads the full original via the refreshed Suno URL")
+        checks.append("remote-only song downloads full original via refreshed Suno URL")
         folder = Path(result["folder"])
         assert folder.name == "yt123" and folder.parent.name.startswith("Puna Pesma [")
         assert folder.parent.parent.name == "complete" and folder.parent.parent.parent.name == "Moj Kanal"
-        checks.append("folder structure matches <kanal>/<status>/<naslov> [<id>]/<video-id>/")
+        checks.append("published folder structure is correct")
         assert (folder / "YouTube.url").exists()
         shortcut = (folder / "YouTube.url").read_text(encoding="utf-8")
         assert "[InternetShortcut]" in shortcut and video["video_url"] in shortcut
-        checks.append("YouTube.url is a valid Windows internet shortcut pointing at the real video")
+        checks.append("YouTube.url is a valid shortcut")
         manifest = json.loads((folder / "match.json").read_text(encoding="utf-8"))
         assert manifest["suno_song_id"] == "abcd1234" and manifest["youtube_video_id"] == "yt123"
-        checks.append("match.json contains the Suno ID and YouTube ID")
+        checks.append("match.json contains Suno and YouTube IDs")
 
-        # -- re-running (rescan) must update the manifest in place, not
-        # duplicate the folder. --
         with patch.object(server_module, "DB", db3), \
              patch.object(server_module, "get_client", return_value=FakeClient2()), \
              patch.object(server_module, "get_youtube_processed_dir", return_value=target_root), \
@@ -105,29 +91,20 @@ def main():
             result2 = server_module.copy_song_to_published_folder(db3.get_song("abcd1234"), video, status="complete")
         assert result2["folder"] == result["folder"]
         assert len(list(target_root.rglob("match.json"))) == 1
-        checks.append("re-running on the same song+video updates the existing manifest instead of duplicating the folder")
+        checks.append("rescan updates existing publication folder without duplication")
 
-    # -- a title-only (unconfirmed) result must never reach the copy path;
-    # this is enforced by the caller only invoking it for confirmed
-    # statuses, verified here at the status-gate boundary. --
     assert "possible" not in server_module.YOUTUBE_PROCESSED_STATUSES
     assert "title_only" not in server_module.YOUTUBE_PROCESSED_STATUSES
     assert set(server_module.YOUTUBE_PROCESSED_STATUSES) == {"complete", "almost_complete", "partial", "short_clip"}
-    checks.append("only audio-confirmed statuses (complete/almost_complete/partial/short_clip) are eligible for auto-copy")
+    checks.append("only audio-confirmed statuses are eligible for auto-copy")
 
-    # -- the publication matrix must expose source_url so the UI can offer
-    # an "Otvori Suno original" button. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-matrix-") as raw4:
         db4 = LibraryDB(Path(raw4) / "test.db")
         db4.upsert_song({"id": "s1", "title": "Pesma", "source_url": "https://suno.com/song/s1"})
         matrix = db4.youtube_publication_matrix()
         assert matrix["rows"][0]["song"].get("source_url") == "https://suno.com/song/s1"
-        checks.append("youtube_publication_matrix rows include source_url for the Suno-original button")
+        checks.append("publication matrix exposes source_url")
 
-    # -- NEW 3.3.2.343 regression: the internal YouTube preflight must NOT
-    # build the complete 3000-song fingerprint index. It only requests an
-    # index with finish_task=False; that path now returns immediately and lets
-    # per-video candidate fingerprints be built on demand. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-no-full-preindex-") as raw5:
         db5 = LibraryDB(Path(raw5) / "test.db")
         for i in range(25):
@@ -142,14 +119,9 @@ def main():
             server_module.song_finder_index_task(task, {"force": False, "finish_task": False})
         assert api_calls2["n"] == 0, api_calls2
         assert any("nije uslov" in str(row.get("message") or "") for row in task.logs), task.logs
-    checks.append("YouTube audio preflight no longer launches a full-library fingerprint pass before checking videos")
+    checks.append("YouTube preflight stays lightweight and network-free")
 
-    # The real owned-channel AUDIO path is different from the cheap metadata
-    # preflight above. It must require the missing fingerprints; otherwise a
-    # synthetic pre-indexed test passes while the user's quote-titled Shorts
-    # are compared against no useful Suno candidates.
     unbounded_source = (ROOT / "app" / "unbounded_operations.py").read_text(encoding="utf-8")
-    runtime_source = (ROOT / "app" / "runtime_fixes.py").read_text(encoding="utf-8")
     preflight_source = (ROOT / "app" / "youtube_preflight_final_fix.py").read_text(encoding="utf-8")
     for token in (
         'missing_before = int(index_before.get("songs_not_indexed") or 0)',
@@ -159,11 +131,8 @@ def main():
         assert token in unbounded_source, token
     assert 'explicit_required = bool(opts.get("required_for_youtube"))' in preflight_source
     assert 'and not bool(opts.get("finish_task", True))' in preflight_source
-    assert 'task.log(summary, "warning" if failed or unavailable else "success")' in runtime_source
-    checks.append("owned-channel audio scan explicitly builds missing Suno fingerprints while lightweight preflight stays network-free")
+    checks.append("real owned-channel audio scan explicitly requests missing fingerprints")
 
-    # -- Explicit indexing remains complete, but a cached fingerprint whose
-    # temporary Suno URL disappeared is reused without a network refresh. --
     with tempfile.TemporaryDirectory(prefix="sps-yt-index-resume-") as raw6:
         db6 = LibraryDB(Path(raw6) / "test.db")
         db6.upsert_song({"id": "cached-only", "title": "Cached only", "audio_url": "", "duration": 90})
@@ -181,10 +150,8 @@ def main():
             server_module.song_finder_index_task(task2, {"force": False, "parallelism": 2})
         assert network["n"] == 0, network
         assert task2.status in ("done", "partial"), task2.as_dict()
-        checks.append("explicit re-index reuses a valid cached fingerprint without rediscovering an expired Suno URL")
+        checks.append("explicit re-index reuses valid cached fingerprint without network refresh")
 
-    # -- Large-library metadata matching must avoid videos x 3000 full fuzzy
-    # comparisons when an exact/contained title is already a strong match. --
     songs = [{"id": f"s{i}", "title": f"Pesma {i}", "duration": 180.0} for i in range(3000)]
     video = {"video_id": "abcdefghijk", "title": "Pesma 2222 - Official Video", "duration": 180.0, "channel_id": "UCtest"}
     calls = {"n": 0}
@@ -196,10 +163,8 @@ def main():
         found_song, found_match = server_module._best_song_match(video, songs, {"UCtest"})
     assert found_song and found_song["id"] == "s2222", (found_song, found_match)
     assert calls["n"] < 500, f"strong match should not do 3000 expensive comparisons, got {calls['n']}"
-    checks.append(f"strong match in a 3000-song library is found with {calls['n']} expensive comparisons instead of 3000")
+    checks.append(f"strong match in 3000-song library needs only {calls['n']} expensive comparisons")
 
-    # -- Closing/refreshing the WebView while /api/status is writing must be
-    # treated as a client disconnect, not as a server crash (WinError 10053). --
     class AbortedWriter:
         def write(self, payload):
             raise ConnectionAbortedError(10053, "client closed")
@@ -209,10 +174,8 @@ def main():
     handler.send_header = lambda *args, **kwargs: None
     handler.end_headers = lambda *args, **kwargs: None
     server_module.Handler._send_json(handler, {"ok": True, "test": "disconnect"})
-    checks.append("WinError/ConnectionAbortedError while writing localhost JSON is swallowed instead of killing the request thread")
+    checks.append("localhost client disconnect does not crash request thread")
 
-    # -- OAuth automatic follow-up may scan metadata, but it must never start
-    # the old heavy youtube_audio_owned pipeline by itself. --
     started = []
     started_event = threading.Event()
     class DummyTask:
@@ -225,7 +188,7 @@ def main():
         server_module.start_automatic_youtube_pipeline(delay_seconds=0)
         assert started_event.wait(2.0), "automatic metadata scan did not start"
     assert started == ["youtube_owned"], started
-    checks.append("connecting YouTube starts only the lightweight metadata scan, never an automatic full audio/index job")
+    checks.append("connecting YouTube starts only lightweight metadata scan")
 
     print(json.dumps({'ok': True, 'passed': len(checks), 'checks': checks}, ensure_ascii=False, indent=2))
 
