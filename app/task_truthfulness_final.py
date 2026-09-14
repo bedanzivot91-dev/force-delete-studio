@@ -2,13 +2,14 @@ from __future__ import annotations
 
 """Final task-status guards.
 
-Several mature jobs already logged/count individual failures but still called
-``finish()`` unconditionally.  This layer preserves their work and messages,
-then upgrades the final state to partial/error when the message or error list
-proves that the requested operation was incomplete.
+Several mature jobs already log/count individual failures but historically
+called ``finish()`` unconditionally. This layer preserves their work/messages
+and upgrades only the final task state when the requested operation was
+provably incomplete.
 """
 
 import re
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -74,14 +75,10 @@ def apply(core: Any) -> dict[str, Any]:
     exports: dict[str, Any] = {}
 
     def channels_parser(message: str) -> tuple[int, int | None]:
-        failures = _number(message, r"Greške:\s*(\d+)")
-        total = _number(message, r"YouTube kanali provereni:\s*(\d+)")
-        return failures, total or None
+        return _number(message, r"Greške:\s*(\d+)"), _number(message, r"YouTube kanali provereni:\s*(\d+)") or None
 
     def youtube_audio_parser(message: str) -> tuple[int, int | None]:
-        failures = _number(message, r"(\d+)\s+grešaka")
-        total = _number(message, r"Audio analiza završena:\s*(\d+)\s+YouTube")
-        return failures, total or None
+        return _number(message, r"(\d+)\s+grešaka"), _number(message, r"Audio analiza završena:\s*(\d+)\s+YouTube") or None
 
     def fingerprint_parser(message: str) -> tuple[int, int | None]:
         missing = _number(message, r"bez audio izvora\s+(\d+)")
@@ -90,25 +87,33 @@ def apply(core: Any) -> dict[str, Any]:
         total = _number(message, r"spreman:\s*\d+/(\d+)")
         return missing + failures, total or (ready + missing + failures if ready + missing + failures else None)
 
-    def generic_errors_parser(message: str) -> tuple[int, int | None]:
+    def save_folder_parser(message: str) -> tuple[int, int | None]:
         failures = _number(message, r"greške\s*(\d+)")
-        total = _number(message, r"(\d+)/(\d+)")
-        # _number returns the first capture only; derive denominator separately.
-        m = re.search(r"(\d+)\s*/\s*(\d+)", message)
+        m = re.search(r"Sačuvano u folder:\s*(\d+)\s*/\s*(\d+)", message, flags=re.IGNORECASE)
         return failures, int(m.group(2)) if m else None
+
+    def batch_finder_parser(message: str) -> tuple[int, int | None]:
+        m = re.search(
+            r"Batch provera završena:\s*(\d+)\s+pronađeno,\s*(\d+)\s+nije pronađeno,\s*(\d+)\s+grešaka",
+            message,
+            flags=re.IGNORECASE,
+        )
+        if not m:
+            return 0, None
+        found, not_found, errors = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        return errors, found + not_found + errors
 
     for name, parser in (
         ("scan_owned_youtube_channels", channels_parser),
         ("analyze_owned_youtube_audio", youtube_audio_parser),
         ("build_suno_fingerprint_index", fingerprint_parser),
-        ("save_songs_to_folder", generic_errors_parser),
-        ("song_finder_analyze_batch_task", generic_errors_parser),
+        ("save_songs_to_folder", save_folder_parser),
+        ("song_finder_analyze_batch_task", batch_finder_parser),
     ):
         wrapped = _wrap_message_failures(core, name, parser)
         if wrapped is not None:
             exports[name] = wrapped
 
-    # URL import records malformed URLs directly in task.errors.
     if hasattr(core, "import_urls"):
         original = core.import_urls
         def import_urls_truthful(task: Any, urls: list[str]) -> None:
@@ -117,21 +122,19 @@ def apply(core: Any) -> dict[str, Any]:
             if _cancelled(task):
                 return
             failures = len(getattr(task, "errors", []) or []) - before
+            requested = len([u for u in urls if str(u).strip()])
             if failures:
-                (_set_error if failures >= len([u for u in urls if str(u).strip()]) else _set_partial)(task, str(getattr(task, "message", "")))
+                (_set_error if requested and failures >= requested else _set_partial)(task, str(getattr(task, "message", "")))
         core.import_urls = import_urls_truthful
         exports["import_urls"] = import_urls_truthful
 
-    # Watched-folder rescan's legacy condition only marked partial when at
-    # least one NEW song was added. A failed folder with zero new songs could
-    # therefore finish green. The message already contains the real count.
     if hasattr(core, "rescan_watched_folders"):
         original = core.rescan_watched_folders
         def rescan_truthful(task: Any) -> None:
             original(task)
             if _cancelled(task):
                 return
-            message = str(getattr(task, "message", ""))
+            message = str(getattr(task, "message", "") or "")
             failures = _number(message, r"grešaka\s+(\d+)")
             total = _number(message, r"Zapamćeni folderi provereni:\s*(\d+)")
             if failures:
@@ -139,50 +142,74 @@ def apply(core: Any) -> dict[str, Any]:
         core.rescan_watched_folders = rescan_truthful
         exports["rescan_watched_folders"] = rescan_truthful
 
-    # Quality analysis already appends real processing exceptions to task.errors.
+    # Missing local audio is a real incomplete quality batch even though the
+    # mature worker only logs a warning and does not append task.errors.
     if hasattr(core, "advanced_quality_task"):
         original = core.advanced_quality_task
         def quality_truthful(task: Any, options: dict[str, Any]) -> None:
-            before = len(getattr(task, "errors", []) or [])
             original(task, options)
-            if _cancelled(task): return
-            failures = len(getattr(task, "errors", []) or []) - before
-            if failures:
-                total = int(getattr(task, "total", 0) or 0)
-                (_set_error if total and failures >= total else _set_partial)(task, str(getattr(task, "message", "")))
+            if _cancelled(task):
+                return
+            message = str(getattr(task, "message", "") or "")
+            m = re.search(r"Analiza kvaliteta završena:\s*(\d+)\s*/\s*(\d+)", message, flags=re.IGNORECASE)
+            if not m:
+                return
+            done, total = int(m.group(1)), int(m.group(2))
+            if total > 0 and done < total:
+                (_set_error if done == 0 else _set_partial)(task, message)
         core.advanced_quality_task = quality_truthful
         exports["advanced_quality_task"] = quality_truthful
 
-    # Stem/transcription can skip input without throwing. Their summary carries
-    # the actual completed/output count, so incomplete requested batches are partial.
-    for name, pattern in (
-        ("stem_task", r"(\d+)\s+izlaznih fajlova za\s+(\d+)\s+pesama"),
-        ("transcription_task", r"završena:\s*(\d+)\s*/\s*(\d+)"),
-    ):
-        original = getattr(core, name, None)
-        if original is None:
-            continue
-        def make_wrapper(fn: Any, regex: str):
-            def wrapper(task: Any, options: dict[str, Any]) -> None:
-                fn(task, options)
-                if _cancelled(task): return
-                message = str(getattr(task, "message", ""))
-                m = re.search(regex, message, flags=re.IGNORECASE)
-                if not m: return
-                done, total = int(m.group(1)), int(m.group(2))
-                if total > 0 and done < total:
-                    (_set_error if done == 0 else _set_partial)(task, message)
-            return wrapper
-        wrapped = make_wrapper(original, pattern)
-        setattr(core, name, wrapped)
-        exports[name] = wrapped
+    # Stem summary counts OUTPUT FILES (e.g. 4 stems per one successful song),
+    # not successful songs. Determine missing inputs before running instead of
+    # comparing that output-file count with the number of requested songs.
+    if hasattr(core, "stem_task"):
+        original = core.stem_task
+        def stem_truthful(task: Any, options: dict[str, Any]) -> None:
+            ids = [str(x) for x in (options.get("ids") or []) if str(x)]
+            if not ids and options.get("id"):
+                ids = [str(options.get("id"))]
+            eligible = 0
+            for sid in ids:
+                try:
+                    song = core.DB.get_song(sid) or {}
+                    raw = str(song.get("local_audio") or song.get("local_wav") or "").strip()
+                    if raw and Path(raw).is_file():
+                        eligible += 1
+                except Exception:
+                    pass
+            original(task, options)
+            if _cancelled(task):
+                return
+            message = str(getattr(task, "message", "") or "")
+            if ids and eligible < len(ids):
+                (_set_error if eligible == 0 else _set_partial)(task, message)
+        core.stem_task = stem_truthful
+        exports["stem_task"] = stem_truthful
+
+    if hasattr(core, "transcription_task"):
+        original = core.transcription_task
+        def transcription_truthful(task: Any, options: dict[str, Any]) -> None:
+            original(task, options)
+            if _cancelled(task):
+                return
+            message = str(getattr(task, "message", "") or "")
+            m = re.search(r"završena:\s*(\d+)\s*/\s*(\d+)", message, flags=re.IGNORECASE)
+            if not m:
+                return
+            done, total = int(m.group(1)), int(m.group(2))
+            if total > 0 and done < total:
+                (_set_error if done == 0 else _set_partial)(task, message)
+        core.transcription_task = transcription_truthful
+        exports["transcription_task"] = transcription_truthful
 
     if hasattr(core, "relocate_files_task"):
         original = core.relocate_files_task
         def relocate_truthful(task: Any, options: dict[str, Any]) -> None:
             original(task, options)
-            if _cancelled(task): return
-            message = str(getattr(task, "message", ""))
+            if _cancelled(task):
+                return
+            message = str(getattr(task, "message", "") or "")
             m = re.search(r"pronađeno\s+(\d+)\s+od\s+(\d+)\s+nestalih", message, flags=re.IGNORECASE)
             if m:
                 fixed, missing = int(m.group(1)), int(m.group(2))
