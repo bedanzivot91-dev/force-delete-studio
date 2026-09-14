@@ -25,4 +25,4 @@ jobs:
       - name: Verify Suno sync cannot finish before recognition index is complete
         run: python tests/song_finder_sync_auto_index_test.py
       - name: Verify atomic database/filesystem deletion safety
-        run: python tests/atomic_delete_consistency_test.py
+        run: python tests/atomic_delete_fixes_test.py
