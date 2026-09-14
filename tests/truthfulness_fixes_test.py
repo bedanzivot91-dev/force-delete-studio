@@ -4,6 +4,7 @@ import hashlib
 import json
 import sys
 import tempfile
+import threading
 import types
 import zipfile
 from pathlib import Path
@@ -25,16 +26,7 @@ def make_restore_zip(root: Path, payload: bytes = b"derived-audio") -> Path:
         "created_at": "2026-08-21T00:00:00+00:00",
         "encrypted": False,
         "database": "data/suno_biblioteka.db",
-        "files": [
-            {
-                "song_id": "song-1",
-                "field": "derived:7",
-                "arcname": arc,
-                "original_path": "C:/old/restored.wav",
-                "sha256": hashlib.sha256(payload).hexdigest(),
-                "size": len(payload),
-            }
-        ],
+        "files": [{"song_id": "song-1", "field": "derived:7", "arcname": arc, "original_path": "C:/old/restored.wav", "sha256": hashlib.sha256(payload).hexdigest(), "size": len(payload)}],
     }
     with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("data/suno_biblioteka.db", b"fake-db")
@@ -100,17 +92,14 @@ def test_restore_does_not_claim_success_when_db_link_fails() -> None:
         previous_target.parent.mkdir(parents=True, exist_ok=True)
         previous_target.write_bytes(b"previous-good-restore")
         db = RestoreFailDB()
-
         result = fixes.restore_cloud_backup_strict(db, package, restore_root=output)
-
         assert db.restore_called
         assert db.update_called
         assert result["files_restored"] == 0, result
         assert len(result["skipped"]) == 1, result
         assert "simulated DB link failure" in result["skipped"][0]["error"], result
-        assert previous_target.read_bytes() == b"previous-good-restore", "failed rerun must restore the previous valid target"
-        rollback_files = list(output.rglob("*.restore-previous-*")) + list(output.rglob("*.restore-part"))
-        assert not rollback_files, f"rollback temporaries leaked: {rollback_files}"
+        assert previous_target.read_bytes() == b"previous-good-restore"
+        assert not (list(output.rglob("*.restore-previous-*")) + list(output.rglob("*.restore-part")))
 
 
 def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
@@ -122,15 +111,14 @@ def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
         derived_file.write_bytes(b"clip")
         db = DeleteDB(song_file, derived_file)
         core = types.SimpleNamespace(DB=db, restore_cloud_backup=lambda *_a, **_k: None)
-
         old_patched = fixes._PATCHED
         old_song = fixes._ORIGINAL_DELETE_SONG
         old_derived = fixes._ORIGINAL_DELETE_DERIVED
+        old_batch = fixes._ORIGINAL_PROCESS_AUDIO_BATCH
         fixes._PATCHED = False
         try:
             exports = fixes.apply(core)
             assert exports["truthfulness_fixes_installed"] is True
-
             with mock.patch.object(Path, "unlink", side_effect=PermissionError("locked song file")):
                 try:
                     db.delete_song("song-1", delete_files=True)
@@ -139,9 +127,8 @@ def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
                     assert "locked song file" in str(exc)
                 else:
                     raise AssertionError("delete_song must report filesystem failure")
-            assert db.song_delete_flag is False, "original DB delete must not silently perform its own swallowed file delete"
-            assert db.song_present is False, "library row deletion is explicit even when physical cleanup reports failure"
-
+            assert db.song_delete_flag is False
+            assert db.song_present is False
             with mock.patch.object(Path, "unlink", side_effect=PermissionError("locked derived file")):
                 try:
                     db.delete_derived_file(7, delete_from_disk=True)
@@ -158,12 +145,62 @@ def test_delete_failures_are_reported_instead_of_silently_ignored() -> None:
             fixes._PATCHED = old_patched
             fixes._ORIGINAL_DELETE_SONG = old_song
             fixes._ORIGINAL_DELETE_DERIVED = old_derived
+            fixes._ORIGINAL_PROCESS_AUDIO_BATCH = old_batch
+
+
+def test_batch_audio_failures_cannot_finish_green() -> None:
+    class BatchTask:
+        def __init__(self):
+            self.errors = []
+            self.status = "running"
+            self.message = ""
+            self.cancel_event = threading.Event()
+        def finish(self, message, status="done"):
+            self.message = str(message); self.status = status
+        def finish_partial(self, message):
+            self.message = str(message); self.status = "partial"
+        def fail(self, message):
+            self.message = str(message); self.status = "error"
+
+    with tempfile.TemporaryDirectory(prefix="truthful-batch-") as tmp_raw:
+        tmp = Path(tmp_raw)
+        song_file = tmp / "song.mp3"; song_file.write_bytes(b"song")
+        derived_file = tmp / "clip.wav"; derived_file.write_bytes(b"clip")
+        db = DeleteDB(song_file, derived_file)
+
+        def fake_batch(task, song_ids, _options):
+            fail_count = int(_options.get("fail_count") or 0)
+            task.errors.extend([f"failed-{i}" for i in range(fail_count)])
+            task.finish(f"legacy green finish with {fail_count} failures")
+
+        core = types.SimpleNamespace(DB=db, restore_cloud_backup=lambda *_a, **_k: None, process_audio_batch_task=fake_batch)
+        old_patched = fixes._PATCHED
+        old_song = fixes._ORIGINAL_DELETE_SONG
+        old_derived = fixes._ORIGINAL_DELETE_DERIVED
+        old_batch = fixes._ORIGINAL_PROCESS_AUDIO_BATCH
+        fixes._PATCHED = False
+        try:
+            fixes.apply(core)
+            partial = BatchTask()
+            core.process_audio_batch_task(partial, ["a", "b", "c"], {"fail_count": 1})
+            assert partial.status == "partial", partial.status
+            all_failed = BatchTask()
+            core.process_audio_batch_task(all_failed, ["a", "b", "c"], {"fail_count": 3})
+            assert all_failed.status == "error", all_failed.status
+        finally:
+            DeleteDB.delete_song = fixes._ORIGINAL_DELETE_SONG
+            DeleteDB.delete_derived_file = fixes._ORIGINAL_DELETE_DERIVED
+            fixes._PATCHED = old_patched
+            fixes._ORIGINAL_DELETE_SONG = old_song
+            fixes._ORIGINAL_DELETE_DERIVED = old_derived
+            fixes._ORIGINAL_PROCESS_AUDIO_BATCH = old_batch
 
 
 def main() -> None:
     test_restore_does_not_claim_success_when_db_link_fails()
     test_delete_failures_are_reported_instead_of_silently_ignored()
-    print("truthfulness_fixes_test: PASS — partial failures are reported and restore rollback preserves prior good files")
+    test_batch_audio_failures_cannot_finish_green()
+    print("truthfulness_fixes_test: PASS — restore/delete/batch partial failures cannot be reported as clean success")
 
 
 if __name__ == "__main__":
