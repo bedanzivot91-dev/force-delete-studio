@@ -2,8 +2,9 @@ from __future__ import annotations
 
 """Correctness fixes for operations that previously swallowed a real partial failure.
 
-These patches deliberately change only result truthfulness. Best-effort cleanup,
-network fallback and disconnect handling remain untouched.
+These patches deliberately change result truthfulness, not normal best-effort
+cleanup/fallback behavior. A task may finish green only when the requested work
+actually completed without hidden item failures.
 """
 
 import json
@@ -22,6 +23,8 @@ _PATCHED = False
 _ORIGINAL_DELETE_SONG = None
 _ORIGINAL_DELETE_DERIVED = None
 _ORIGINAL_PROCESS_AUDIO_BATCH = None
+_ORIGINAL_LOCAL_IMPORT_IMPL = None
+_ORIGINAL_PANAKO_INDEX_TASK = None
 
 
 def restore_cloud_backup_strict(
@@ -164,12 +167,10 @@ def _song_file_paths(song: dict[str, Any]) -> list[Path]:
 
 
 def apply(core: Any) -> dict[str, Any]:
-    global _PATCHED, _ORIGINAL_DELETE_SONG, _ORIGINAL_DELETE_DERIVED, _ORIGINAL_PROCESS_AUDIO_BATCH
+    global _PATCHED, _ORIGINAL_DELETE_SONG, _ORIGINAL_DELETE_DERIVED
+    global _ORIGINAL_PROCESS_AUDIO_BATCH, _ORIGINAL_LOCAL_IMPORT_IMPL, _ORIGINAL_PANAKO_INDEX_TASK
     if _PATCHED:
-        return {
-            "restore_cloud_backup": restore_cloud_backup_strict,
-            "truthfulness_fixes_installed": True,
-        }
+        return {"restore_cloud_backup": restore_cloud_backup_strict, "truthfulness_fixes_installed": True}
 
     _advanced.restore_cloud_backup = restore_cloud_backup_strict
     core.restore_cloud_backup = restore_cloud_backup_strict
@@ -222,7 +223,6 @@ def apply(core: Any) -> dict[str, Any]:
 
     if hasattr(core, "process_audio_batch_task"):
         _ORIGINAL_PROCESS_AUDIO_BATCH = core.process_audio_batch_task
-
         def process_audio_batch_truthful(task: Any, song_ids: list[str], options: dict[str, Any]) -> None:
             before_errors = len(getattr(task, "errors", []) or [])
             unique_count = len(dict.fromkeys(str(x) for x in song_ids if str(x)))
@@ -230,8 +230,7 @@ def apply(core: Any) -> dict[str, Any]:
             cancel_event = getattr(task, "cancel_event", None)
             if cancel_event is not None and hasattr(cancel_event, "is_set") and cancel_event.is_set():
                 return
-            after_errors = len(getattr(task, "errors", []) or [])
-            new_errors = max(0, after_errors - before_errors)
+            new_errors = max(0, len(getattr(task, "errors", []) or []) - before_errors)
             if new_errors <= 0:
                 return
             message = str(getattr(task, "message", "") or f"Masovna audio obrada: {new_errors} grešaka.")
@@ -239,12 +238,57 @@ def apply(core: Any) -> dict[str, Any]:
                 task.fail(message)
             elif hasattr(task, "finish_partial"):
                 task.finish_partial(message)
-
         core.process_audio_batch_task = process_audio_batch_truthful
+
+    if hasattr(core, "_import_local_folder_impl"):
+        _ORIGINAL_LOCAL_IMPORT_IMPL = core._import_local_folder_impl
+        def import_local_folder_truthful(task: Any, folder: str, remember: bool = True) -> dict[str, Any]:
+            before = int(core.DB.count_songs())
+            result = dict(_ORIGINAL_LOCAL_IMPORT_IMPL(task, folder, remember=remember) or {})
+            after = int(core.DB.count_songs())
+            actual_added = max(0, after - before)
+            files = max(0, int(result.get("files") or 0))
+            skipped = max(0, int(result.get("skipped") or 0))
+            processed = max(0, files - skipped)
+            result["added"] = min(processed, actual_added)
+            result["updated"] = max(0, processed - int(result["added"]))
+            if remember and hasattr(core.DB, "update_watched_folder_scan"):
+                core.DB.update_watched_folder_scan(str(Path(folder).expanduser().resolve()), files, int(result["added"]))
+            return result
+        core._import_local_folder_impl = import_local_folder_truthful
+
+    if hasattr(core, "v3_panako_index_task"):
+        _ORIGINAL_PANAKO_INDEX_TASK = core.v3_panako_index_task
+        def panako_index_truthful(task: Any, options: dict[str, Any]) -> None:
+            ids = list(dict.fromkeys(str(x) for x in options.get("ids") or [] if str(x)))
+            if not ids:
+                ids = [str(row.get("id") or "") for row in core.DB.export_rows() if str(row.get("id") or "")]
+            missing: list[str] = []
+            for song_id in ids:
+                song = core.DB.get_song(song_id) or {}
+                available = False
+                for key in ("local_audio", "local_wav"):
+                    raw = str(song.get(key) or "").strip()
+                    if raw and Path(raw).expanduser().is_file():
+                        available = True
+                        break
+                if not available:
+                    missing.append(song_id)
+            _ORIGINAL_PANAKO_INDEX_TASK(task, options)
+            if missing:
+                message = str(getattr(task, "message", "") or "Panako indeksiranje je završeno.")
+                message += f" Preskočeno {len(missing)}/{len(ids)} pesama jer nemaju lokalni MP3/WAV."
+                if len(missing) >= len(ids) and hasattr(task, "fail"):
+                    task.fail(message)
+                elif hasattr(task, "finish_partial"):
+                    task.finish_partial(message)
+        core.v3_panako_index_task = panako_index_truthful
 
     _PATCHED = True
     return {
         "restore_cloud_backup": restore_cloud_backup_strict,
         "process_audio_batch_task": getattr(core, "process_audio_batch_task", None),
+        "_import_local_folder_impl": getattr(core, "_import_local_folder_impl", None),
+        "v3_panako_index_task": getattr(core, "v3_panako_index_task", None),
         "truthfulness_fixes_installed": True,
     }
