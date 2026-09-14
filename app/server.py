@@ -348,9 +348,17 @@ from recognition_final_fixes import apply as _apply_recognition_final_fixes
 _RECOGNITION_FINAL_EXPORTS = _apply_recognition_final_fixes(_core)
 globals().update(_RECOGNITION_FINAL_EXPORTS)
 
+from youtube_preflight_final_fix import apply as _apply_youtube_preflight_final_fix
+_YOUTUBE_PREFLIGHT_FINAL_EXPORTS = _apply_youtube_preflight_final_fix(_core)
+globals().update(_YOUTUBE_PREFLIGHT_FINAL_EXPORTS)
+
 from task_truthfulness_final import apply as _apply_task_truthfulness_final
 _TASK_TRUTHFULNESS_FINAL_EXPORTS = _apply_task_truthfulness_final(_core)
 globals().update(_TASK_TRUTHFULNESS_FINAL_EXPORTS)
+
+from restore_truthfulness_final import apply as _apply_restore_truthfulness_final
+_RESTORE_TRUTHFULNESS_FINAL_EXPORTS = _apply_restore_truthfulness_final(_core)
+globals().update(_RESTORE_TRUTHFULNESS_FINAL_EXPORTS)
 
 
 def main() -> None:
