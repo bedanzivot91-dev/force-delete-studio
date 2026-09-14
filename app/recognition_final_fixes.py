@@ -8,6 +8,7 @@ Loaded after the mature runtime layers. It fixes cross-layer cases that unit
 * refresh changed local MP3/WAV fingerprints before the fast shortlist;
 * use cheap stat metadata for unchanged local files so every search does not
   SHA-256 the entire local music library;
+* reuse a stat-valid cached local signature during final comparison;
 * report only decodable Chromaprint payloads as indexed.
 """
 
@@ -46,6 +47,57 @@ def _local_identity_changed(core: Any, song: dict[str, Any], path: Path, cached:
         return str(current.get("identity") or "") != expected_identity
     except Exception:
         return True
+
+
+def _install_stat_cached_local_signature(core: Any) -> dict[str, Any]:
+    """Return an unchanged local song's valid cached signature in O(1).
+
+    The mature signature resolver computes a full SHA-256 source identity on
+    every local call. Exact matching after the fast shortlist calls that path
+    again, which can reread many large MP3/WAV files even though their size and
+    mtime exactly match the fingerprint row. Preserve force=True semantics and
+    remote URLs; only unchanged local files take this fast path.
+    """
+    if getattr(core, "_stat_cached_local_signature_v1", False):
+        return {"stat_cached_local_signature_installed": True}
+    original = core._signature_for_source
+
+    def signature_for_source(
+        source_type: str,
+        source_id: str,
+        source: Any,
+        task: Any = None,
+        label: str = "",
+        force: bool = False,
+    ) -> dict[str, Any]:
+        if source_type == "suno" and not force and not (
+            isinstance(source, str) and source.startswith(("http://", "https://"))
+        ):
+            try:
+                path = Path(str(source)).expanduser()
+                if path.is_file():
+                    cached = core.DB.get_audio_fingerprint("suno", str(source_id or ""), core.AUDIO_MATCH_VERSION)
+                    usable = _usable_signature(core, cached)
+                    if usable is not None:
+                        stat = path.stat()
+                        old_size = int(cached.get("source_size") or 0)
+                        old_mtime = float(cached.get("source_mtime") or 0.0)
+                        if (
+                            old_size > 0
+                            and old_mtime > 0
+                            and stat.st_size == old_size
+                            and abs(stat.st_mtime - old_mtime) <= 1e-6
+                        ):
+                            return usable
+            except Exception:
+                # Any uncertainty falls back to the mature identity-checked
+                # extractor; correctness is never traded for this optimization.
+                pass
+        return original(source_type, source_id, source, task, label, force)
+
+    core._signature_for_source = signature_for_source
+    core._stat_cached_local_signature_v1 = True
+    return {"_signature_for_source": signature_for_source, "stat_cached_local_signature_installed": True}
 
 
 def _install_truthful_status(core: Any) -> dict[str, Any]:
@@ -90,7 +142,12 @@ def _install_truthful_status(core: Any) -> dict[str, Any]:
             "songs_indexed": len(usable_ids),
             "songs_indexed_without_current_source": no_source_but_indexed,
             "songs_not_indexed": sum(1 for sid in source_ids if sid not in usable_ids),
-            "songs_without_any_source": sum(1 for song in songs if str(song.get("id") or "").strip() not in source_ids and str(song.get("id") or "").strip() not in usable_ids),
+            "songs_without_any_source": sum(
+                1
+                for song in songs
+                if str(song.get("id") or "").strip() not in source_ids
+                and str(song.get("id") or "").strip() not in usable_ids
+            ),
         })
         return base
 
@@ -210,7 +267,10 @@ def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
                             song = core.DB.get_song(sid) or song
                             source, is_remote = core._song_finder_source_cheap(song)
                     except Exception as refresh_exc:
-                        task.log(f"{title}: Suno audio adresa nije osvežena ({refresh_exc}); pokušavam postojeći izvor.", "warning")
+                        task.log(
+                            f"{title}: Suno audio adresa nije osvežena ({refresh_exc}); pokušavam postojeći izvor.",
+                            "warning",
+                        )
                 if source is None:
                     source, is_remote = core._song_finder_source(song)
                 if source is None:
@@ -234,8 +294,14 @@ def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
                     task.set_progress(counters["done"], len(pending), title)
                 flush()
 
-        workers = max(1, min(int(opts.get("parallelism") or max(2, min(4, int(os.cpu_count() or 4) // 2))), 6))
-        task.log(f"Selektivno popravljam {len(pending)} nedostajućih/oštećenih otisaka; validne pesme ne diram.", "info")
+        workers = max(
+            1,
+            min(int(opts.get("parallelism") or max(2, min(4, int(os.cpu_count() or 4) // 2))), 6),
+        )
+        task.log(
+            f"Selektivno popravljam {len(pending)} nedostajućih/oštećenih otisaka; validne pesme ne diram.",
+            "info",
+        )
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="recognition-repair") as pool:
             list(pool.map(one, pending))
         flush(True)
@@ -265,6 +331,7 @@ def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
 
 def apply(core: Any) -> dict[str, Any]:
     exports: dict[str, Any] = {}
+    exports.update(_install_stat_cached_local_signature(core))
     exports.update(_install_truthful_status(core))
     exports.update(_install_pre_shortlist_local_refresh(core))
     exports.update(_install_selective_required_indexer(core))
