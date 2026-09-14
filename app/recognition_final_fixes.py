@@ -2,12 +2,12 @@ from __future__ import annotations
 
 """Final correctness guards for the local/YouTube song-recognition index.
 
-Loaded after the mature runtime layers.  It fixes two cross-layer cases that
-unit-testing the individual layers could miss:
-* a repair for one missing/corrupt fingerprint must not re-extract thousands of
-  already-valid fingerprints;
-* a changed local MP3/WAV must refresh the fast LSH index before shortlist
-  selection, otherwise the correct song can be excluded before exact matching.
+Loaded after the mature runtime layers. It fixes cross-layer cases that unit
+-testing the individual layers could miss:
+* repair only missing/corrupt fingerprints, not thousands of valid songs;
+* refresh changed local MP3/WAV fingerprints before the fast shortlist;
+* use cheap stat metadata for unchanged local files so every search does not
+  SHA-256 the entire local music library.
 """
 
 import os
@@ -30,14 +30,29 @@ def _usable_signature(core: Any, cached: Any) -> dict[str, Any] | None:
 
 
 def _local_identity_changed(core: Any, song: dict[str, Any], path: Path, cached: Any) -> bool:
+    """Cheaply reject unchanged files before the expensive SHA-256 fallback.
+
+    audio_fingerprints stores the exact size and mtime used when the signature
+    was created. Those two stat fields are enough to know that an unchanged
+    file does not need to be hashed again. If either differs (or this is a
+    legacy fingerprint without stat metadata), the normal signature path will
+    calculate the definitive SHA only for that changed/suspicious file.
+    """
     if not cached:
         return True
-    expected = str(cached.get("source_identity") or "")
-    if not expected:
+    expected_identity = str(cached.get("source_identity") or "")
+    if not expected_identity:
         return True
     try:
+        stat = path.stat()
+        old_size = int(cached.get("source_size") or 0)
+        old_mtime = float(cached.get("source_mtime") or 0.0)
+        if old_size > 0 and old_mtime > 0:
+            return stat.st_size != old_size or abs(stat.st_mtime - old_mtime) > 1e-6
+        # Legacy row: one definitive SHA is necessary. Once regenerated the
+        # stored size+mtime make all subsequent searches O(1) for this file.
         current = core.source_identity(path)
-        return str(current.get("identity") or "") != expected
+        return str(current.get("identity") or "") != expected_identity
     except Exception:
         return True
 
@@ -145,8 +160,6 @@ def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
             title = str(song.get("title") or song.get("display_name") or sid)
             try:
                 source, is_remote = core._song_finder_source_cheap(song)
-                # A corrupt fingerprint plus an old cached CDN URL is a common
-                # trap. Refresh the Suno clip once before a forced extraction.
                 if is_remote and not sid.startswith(("local-", "recognized-")):
                     try:
                         detail = core.get_client().get_clip(sid)
