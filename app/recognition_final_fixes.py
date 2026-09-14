@@ -7,7 +7,8 @@ Loaded after the mature runtime layers. It fixes cross-layer cases that unit
 * repair only missing/corrupt fingerprints, not thousands of valid songs;
 * refresh changed local MP3/WAV fingerprints before the fast shortlist;
 * use cheap stat metadata for unchanged local files so every search does not
-  SHA-256 the entire local music library.
+  SHA-256 the entire local music library;
+* report only decodable Chromaprint payloads as indexed.
 """
 
 import os
@@ -30,14 +31,6 @@ def _usable_signature(core: Any, cached: Any) -> dict[str, Any] | None:
 
 
 def _local_identity_changed(core: Any, song: dict[str, Any], path: Path, cached: Any) -> bool:
-    """Cheaply reject unchanged files before the expensive SHA-256 fallback.
-
-    audio_fingerprints stores the exact size and mtime used when the signature
-    was created. Those two stat fields are enough to know that an unchanged
-    file does not need to be hashed again. If either differs (or this is a
-    legacy fingerprint without stat metadata), the normal signature path will
-    calculate the definitive SHA only for that changed/suspicious file.
-    """
     if not cached:
         return True
     expected_identity = str(cached.get("source_identity") or "")
@@ -49,12 +42,61 @@ def _local_identity_changed(core: Any, song: dict[str, Any], path: Path, cached:
         old_mtime = float(cached.get("source_mtime") or 0.0)
         if old_size > 0 and old_mtime > 0:
             return stat.st_size != old_size or abs(stat.st_mtime - old_mtime) > 1e-6
-        # Legacy row: one definitive SHA is necessary. Once regenerated the
-        # stored size+mtime make all subsequent searches O(1) for this file.
         current = core.source_identity(path)
         return str(current.get("identity") or "") != expected_identity
     except Exception:
         return True
+
+
+def _install_truthful_status(core: Any) -> dict[str, Any]:
+    if getattr(core, "_truthful_recognition_status_v1", False):
+        return {"truthful_recognition_status_installed": True}
+    original = core.song_finder_status
+
+    def truthful_status() -> dict[str, Any]:
+        base = dict(original() or {})
+        try:
+            songs = core.DB.export_rows()
+        except Exception:
+            return base
+        usable_ids: set[str] = set()
+        source_ids: set[str] = set()
+        no_source_but_indexed = 0
+        remote_only = 0
+        for song in songs:
+            sid = str(song.get("id") or "").strip()
+            if not sid:
+                continue
+            try:
+                source, is_remote = core._song_finder_source_cheap(song)
+            except Exception:
+                source, is_remote = None, False
+            if source:
+                source_ids.add(sid)
+                if is_remote:
+                    remote_only += 1
+            try:
+                cached = core.DB.get_audio_fingerprint("suno", sid, core.AUDIO_MATCH_VERSION)
+            except Exception:
+                cached = None
+            if _usable_signature(core, cached) is not None:
+                usable_ids.add(sid)
+                if not source:
+                    no_source_but_indexed += 1
+        base.update({
+            "songs_total": len(songs),
+            "songs_with_audio": len(source_ids),
+            "songs_remote_only": remote_only,
+            "songs_indexed": len(usable_ids),
+            "songs_indexed_without_current_source": no_source_but_indexed,
+            "songs_not_indexed": sum(1 for sid in source_ids if sid not in usable_ids),
+            "songs_without_any_source": sum(1 for song in songs if str(song.get("id") or "").strip() not in source_ids and str(song.get("id") or "").strip() not in usable_ids),
+        })
+        return base
+
+    core.song_finder_status = truthful_status
+    core._truthful_recognition_status_v1 = True
+    return {"song_finder_status": truthful_status, "truthful_recognition_status_installed": True}
 
 
 def _install_pre_shortlist_local_refresh(core: Any) -> dict[str, Any]:
@@ -223,6 +265,7 @@ def _install_selective_required_indexer(core: Any) -> dict[str, Any]:
 
 def apply(core: Any) -> dict[str, Any]:
     exports: dict[str, Any] = {}
+    exports.update(_install_truthful_status(core))
     exports.update(_install_pre_shortlist_local_refresh(core))
     exports.update(_install_selective_required_indexer(core))
     return exports
