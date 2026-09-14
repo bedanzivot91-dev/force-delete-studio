@@ -12,6 +12,8 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from restore_truthfulness_final import apply as _apply_restore_truthfulness
+
 
 def _cancelled(task: Any) -> bool:
     event = getattr(task, "cancel_event", None)
@@ -73,6 +75,7 @@ def apply(core: Any) -> dict[str, Any]:
     if getattr(core, "_task_truthfulness_final_v1", False):
         return {"task_truthfulness_final_installed": True}
     exports: dict[str, Any] = {}
+    exports.update(_apply_restore_truthfulness(core))
 
     def channels_parser(message: str) -> tuple[int, int | None]:
         return _number(message, r"Greške:\s*(\d+)"), _number(message, r"YouTube kanali provereni:\s*(\d+)") or None
@@ -142,8 +145,6 @@ def apply(core: Any) -> dict[str, Any]:
         core.rescan_watched_folders = rescan_truthful
         exports["rescan_watched_folders"] = rescan_truthful
 
-    # Missing local audio is a real incomplete quality batch even though the
-    # mature worker only logs a warning and does not append task.errors.
     if hasattr(core, "advanced_quality_task"):
         original = core.advanced_quality_task
         def quality_truthful(task: Any, options: dict[str, Any]) -> None:
@@ -160,9 +161,6 @@ def apply(core: Any) -> dict[str, Any]:
         core.advanced_quality_task = quality_truthful
         exports["advanced_quality_task"] = quality_truthful
 
-    # Stem summary counts OUTPUT FILES (e.g. 4 stems per one successful song),
-    # not successful songs. Determine missing inputs before running instead of
-    # comparing that output-file count with the number of requested songs.
     if hasattr(core, "stem_task"):
         original = core.stem_task
         def stem_truthful(task: Any, options: dict[str, Any]) -> None:
