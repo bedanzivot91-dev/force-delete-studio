@@ -74,15 +74,18 @@ def apply(core: Any) -> dict[str, Any]:
                 if is_remote:
                     return signature
 
-                # Local audio must remain identity-aware: unchanged files reuse
-                # the v4 fingerprint, while changed/replaced files fall through
-                # to the mature signature path and are regenerated.
+                # server_core imports audio_match.source_identity directly as
+                # ``source_identity``.  Compare exactly the same identity value
+                # the mature cache writer persisted; this keeps unchanged local
+                # files as cache hits while changed/replaced files fall through
+                # and get rebuilt.
                 try:
-                    current_identity = core._audio_source_identity(source)
+                    current = core.source_identity(source)
                 except Exception:
-                    current_identity = None
+                    current = None
                 cached_identity = str((cached or {}).get("source_identity") or "")
-                if current_identity is not None and cached_identity == str(current_identity):
+                current_identity = str((current or {}).get("identity") or "") if isinstance(current, dict) else ""
+                if cached_identity and current_identity and cached_identity == current_identity:
                     return signature
 
         return previous_signature(source_type, source_id, source, task, label, force)
