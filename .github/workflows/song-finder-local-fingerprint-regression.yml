@@ -23,9 +23,11 @@ jobs:
           python-version: '3.12'
       - name: Compile patched modules
         run: |
-          python -m py_compile app/runtime_fixes.py app/song_finder_runtime_fix.py app/recognition_final_fixes.py app/task_truthfulness_final.py app/restore_truthfulness_final.py app/truthfulness_fixes.py app/atomic_delete_fixes.py app/server.py
+          python -m py_compile app/runtime_fixes.py app/song_finder_runtime_fix.py app/recognition_final_fixes.py app/remote_fingerprint_cache_fix.py app/task_truthfulness_final.py app/restore_truthfulness_final.py app/truthfulness_fixes.py app/atomic_delete_fixes.py app/server.py
       - name: Verify local song fingerprint is refreshed before matching
         run: python tests/song_finder_fresh_local_fingerprint_test.py
+      - name: Verify scalable remote/local fingerprint cache semantics
+        run: python tests/dynamic_library_scale_test.py
       - name: Verify final recognition index correctness
         run: python tests/recognition_final_fixes_test.py
       - name: Verify final task result truthfulness
