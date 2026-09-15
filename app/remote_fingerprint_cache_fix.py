@@ -1,29 +1,36 @@
 from __future__ import annotations
 
-"""Final remote-fingerprint cache guard.
+"""Final fingerprint-cache guard for scalable Suno indexing.
 
-A Suno CDN URL is a transport location, not a stable identity for the audio.
-If a current v4 cached fingerprint already contains Chromaprint data, normal
-re-indexing must reuse it instead of downloading/extracting the same remote
-song again merely because the URL/identity differs. Explicit ``force=True``
-still rebuilds the fingerprint. Local files are intentionally unaffected so
-stat/content identity checks remain strict for changed MP3/WAV files.
+The scalable indexer intentionally asks the mature signature path to repair a
+cached entry when necessary. Historically it expressed that internal repair
+hint as ``force=True`` whenever any cache row existed, which accidentally made
+normal re-indexing re-extract every already-indexed song.
+
+This layer separates an explicit user ``force=True`` request from that internal
+hint:
+- valid remote Suno fingerprints are reused because a CDN URL is transport,
+  not stable audio identity;
+- valid local fingerprints are reused only while their saved source identity
+  still matches the current file;
+- changed local files are rebuilt;
+- explicit force still rebuilds everything.
 """
 
 from typing import Any
 
 
-def _usable_cached_signature(core: Any, source_id: str) -> dict[str, Any] | None:
+def _cached_entry(core: Any, source_id: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     try:
         cached = core.DB.get_audio_fingerprint("suno", str(source_id or ""), core.AUDIO_MATCH_VERSION)
         if not cached or not cached.get("payload"):
-            return None
+            return cached, None
         signature = core.unpack_signature(cached.get("payload") or b"")
         if isinstance(signature, dict) and signature.get("chromaprint"):
-            return signature
+            return cached, signature
+        return cached, None
     except Exception:
-        return None
-    return None
+        return None, None
 
 
 def apply(core: Any) -> dict[str, Any]:
@@ -57,12 +64,27 @@ def apply(core: Any) -> dict[str, Any]:
         label: str = "",
         force: bool = False,
     ) -> dict[str, Any]:
-        is_remote = isinstance(source, str) and source.startswith(("http://", "https://"))
-        explicit_force = bool(getattr(task, "_sps_explicit_force", False)) if task is not None else False
-        if source_type == "suno" and is_remote and not explicit_force:
-            cached = _usable_cached_signature(core, str(source_id or ""))
-            if cached is not None:
-                return cached
+        marker = getattr(task, "_sps_explicit_force", None) if task is not None else None
+        explicit_force = bool(marker) if marker is not None else bool(force)
+
+        if source_type == "suno" and not explicit_force:
+            cached, signature = _cached_entry(core, str(source_id or ""))
+            if signature is not None:
+                is_remote = isinstance(source, str) and source.startswith(("http://", "https://"))
+                if is_remote:
+                    return signature
+
+                # Local audio must remain identity-aware: unchanged files reuse
+                # the v4 fingerprint, while changed/replaced files fall through
+                # to the mature signature path and are regenerated.
+                try:
+                    current_identity = core._audio_source_identity(source)
+                except Exception:
+                    current_identity = None
+                cached_identity = str((cached or {}).get("source_identity") or "")
+                if current_identity is not None and cached_identity == str(current_identity):
+                    return signature
+
         return previous_signature(source_type, source_id, source, task, label, force)
 
     core.song_finder_index_task = indexed
