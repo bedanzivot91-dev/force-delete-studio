@@ -348,6 +348,10 @@ from recognition_final_fixes import apply as _apply_recognition_final_fixes
 _RECOGNITION_FINAL_EXPORTS = _apply_recognition_final_fixes(_core)
 globals().update(_RECOGNITION_FINAL_EXPORTS)
 
+from remote_fingerprint_cache_fix import apply as _apply_remote_fingerprint_cache_fix
+_REMOTE_FINGERPRINT_CACHE_EXPORTS = _apply_remote_fingerprint_cache_fix(_core)
+globals().update(_REMOTE_FINGERPRINT_CACHE_EXPORTS)
+
 from youtube_preflight_final_fix import apply as _apply_youtube_preflight_final_fix
 _YOUTUBE_PREFLIGHT_FINAL_EXPORTS = _apply_youtube_preflight_final_fix(_core)
 globals().update(_YOUTUBE_PREFLIGHT_FINAL_EXPORTS)
