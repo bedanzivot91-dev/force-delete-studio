@@ -1,0 +1,20 @@
+name: Atomic deletion regression
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  atomic-delete:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify locked files cannot remove library rows first
+        run: python tests/atomic_delete_fixes_test.py

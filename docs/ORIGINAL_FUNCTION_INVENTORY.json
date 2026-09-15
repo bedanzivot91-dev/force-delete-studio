@@ -1,0 +1,679 @@
+{
+  "app/advanced_features.py": {
+    "classes": [
+      {
+        "name": "DATA_BLOB",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "now_iso",
+      "sha256_file",
+      "unique_timestamp_path",
+      "iter_song_files",
+      "create_incremental_backup",
+      "list_incremental_backups",
+      "restore_incremental_item",
+      "relocate_missing_files",
+      "_run_ffmpeg_capture",
+      "analyze_audio_quality",
+      "parse_lrc",
+      "parse_srt",
+      "load_subtitle_cues",
+      "save_subtitle_files",
+      "normalize_text_lines",
+      "compare_lyrics_transcript",
+      "_dpapi",
+      "create_cloud_backup",
+      "restore_cloud_backup",
+      "plugin_status",
+      "run_stem_separation",
+      "run_transcription",
+      "_version_tuple",
+      "check_update",
+      "download_update"
+    ]
+  },
+  "app/audio_match.py": {
+    "classes": [
+      {
+        "name": "AudioMatchCancelled",
+        "methods": []
+      },
+      {
+        "name": "AudioMatchError",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "_creationflags",
+      "_sha256",
+      "ytdlp_path",
+      "deno_path",
+      "deno_status",
+      "ensure_deno",
+      "ytdlp_status",
+      "_download",
+      "ensure_ytdlp",
+      "_validated_youtube_url",
+      "_extract_video_id",
+      "_cookie_args",
+      "_youtube_runtime_args",
+      "_yt_error",
+      "search_youtube_with_ytdlp",
+      "download_youtube_audio",
+      "inspect_youtube_video",
+      "_median",
+      "_normalize_columns",
+      "_goertzel_log_power",
+      "_frame_features",
+      "_extract_chromaprint",
+      "_chromaprint_bit_similarity",
+      "_chromaprint_candidates",
+      "extract_signature",
+      "pack_signature",
+      "unpack_signature",
+      "_frame_similarity",
+      "_smooth",
+      "_best_segment",
+      "_interval_overlap_ratio",
+      "_merge_intervals",
+      "_missing_intervals",
+      "compare_signatures",
+      "source_identity",
+      "analyze_audio_pair",
+      "closest_duration_candidates",
+      "cleanup_youtube_audio_cache"
+    ]
+  },
+  "app/audio_tools.py": {
+    "classes": [
+      {
+        "name": "AudioCancelled",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "_exe",
+      "ffmpeg_path",
+      "ffprobe_path",
+      "status",
+      "_download",
+      "_sha256",
+      "ensure_ffmpeg",
+      "_run",
+      "_is_url",
+      "_input_args",
+      "probe_audio",
+      "_safe_float",
+      "_source_extension",
+      "_has_effects",
+      "_copy_compatible",
+      "_run_ffmpeg_progress",
+      "process_audio",
+      "waveform_peaks"
+    ]
+  },
+  "app/bootstrap.py": {
+    "classes": [],
+    "top_level_functions": [
+      "progress",
+      "main"
+    ]
+  },
+  "app/cdp.py": {
+    "classes": [
+      {
+        "name": "CDPError",
+        "methods": []
+      },
+      {
+        "name": "SimpleWebSocket",
+        "methods": [
+          "__init__",
+          "_connect",
+          "close",
+          "_send_frame",
+          "send_text",
+          "_recv_exact",
+          "recv_text"
+        ]
+      },
+      {
+        "name": "ChromeConnector",
+        "methods": [
+          "__init__",
+          "find_browser",
+          "_connector_alive",
+          "launch",
+          "_json_get",
+          "pages",
+          "_suno_pages",
+          "_suno_page",
+          "command_on_page",
+          "command",
+          "evaluate_on_page",
+          "evaluate",
+          "get_user_agent",
+          "_cookie_session_token",
+          "refresh_session_activity",
+          "get_session_token",
+          "diagnostics",
+          "connection_status"
+        ]
+      }
+    ],
+    "top_level_functions": []
+  },
+  "app/database.py": {
+    "classes": [
+      {
+        "name": "LibraryDB",
+        "methods": [
+          "__init__",
+          "_connect",
+          "_ensure_columns",
+          "_init_db",
+          "_b",
+          "_text",
+          "_duration",
+          "upsert_song",
+          "update_song_files",
+          "update_song_user_fields",
+          "reset_user_locks",
+          "find_song_by_local_path",
+          "delete_song",
+          "local_file_health",
+          "backup_to",
+          "integrity_check",
+          "update_derived_file_path",
+          "database_counts",
+          "restore_from",
+          "get_sync_checkpoint",
+          "save_sync_checkpoint",
+          "clear_sync_checkpoints",
+          "list_sync_checkpoints",
+          "_history_snapshot",
+          "add_song_history",
+          "list_song_history",
+          "undo_song_history",
+          "enqueue_job",
+          "update_job",
+          "list_jobs",
+          "get_job",
+          "mark_interrupted_jobs",
+          "delete_job",
+          "upsert_schedule",
+          "list_schedules",
+          "mark_schedule_run",
+          "save_subtitle_cues",
+          "list_subtitle_cues",
+          "save_text_comparison",
+          "get_song",
+          "list_songs",
+          "list_song_ids",
+          "count_songs_filtered",
+          "all_song_ids",
+          "source_groups",
+          "bulk_update_user_fields",
+          "append_custom_tags",
+          "duplicate_report",
+          "report_rows",
+          "clear_logs",
+          "is_known_local_file",
+          "count_songs",
+          "stats",
+          "list_collections",
+          "get_collection_by_slug",
+          "_slug",
+          "create_collection",
+          "delete_collection",
+          "set_song_collections",
+          "add_songs_to_collection",
+          "remove_songs_from_collection",
+          "add_derived_file",
+          "get_derived_file",
+          "delete_derived_file",
+          "get_setting",
+          "set_setting",
+          "add_log",
+          "logs",
+          "export_rows",
+          "upsert_youtube_channel",
+          "list_youtube_channels",
+          "get_youtube_channel",
+          "delete_youtube_channel",
+          "update_youtube_channel_scan",
+          "upsert_youtube_video",
+          "upsert_youtube_match",
+          "get_youtube_match",
+          "update_youtube_match",
+          "list_youtube_matches",
+          "publication_calendar",
+          "get_youtube_video",
+          "update_youtube_video_audio_cache",
+          "save_audio_fingerprint",
+          "get_audio_fingerprint",
+          "clear_audio_fingerprints",
+          "save_youtube_audio_analysis",
+          "get_youtube_match_by_pair",
+          "list_youtube_audio_analyses",
+          "youtube_publication_matrix",
+          "youtube_coverage_report",
+          "youtube_duplicate_mix_report",
+          "youtube_audio_summary",
+          "start_youtube_scan_run",
+          "finish_youtube_scan_run",
+          "youtube_summary",
+          "remember_watched_folder",
+          "list_watched_folders",
+          "update_watched_folder_scan",
+          "set_watched_folder_enabled",
+          "remove_watched_folder",
+          "add_recognition",
+          "list_recognitions",
+          "get_recognition",
+          "set_recognition_library_song"
+        ]
+      }
+    ],
+    "top_level_functions": []
+  },
+  "app/id3.py": {
+    "classes": [],
+    "top_level_functions": [
+      "_synchsafe",
+      "_decode_synchsafe",
+      "_text_payload",
+      "_frame",
+      "_text_frame",
+      "_comment_frame",
+      "_lyrics_frame",
+      "_picture_frame",
+      "embed_mp3_metadata"
+    ]
+  },
+  "app/music_recognition.py": {
+    "classes": [
+      {
+        "name": "MusicRecognitionError",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "decode_audio_base64",
+      "_multipart",
+      "recognize_audd"
+    ]
+  },
+  "app/security_lock.py": {
+    "classes": [
+      {
+        "name": "AppSecurity",
+        "methods": [
+          "__init__",
+          "enabled",
+          "timeout_minutes",
+          "_derive",
+          "is_locked",
+          "touch",
+          "status",
+          "set_pin",
+          "unlock",
+          "lock_now",
+          "disable"
+        ]
+      }
+    ],
+    "top_level_functions": []
+  },
+  "app/server.py": {
+    "classes": [
+      {
+        "name": "TaskState",
+        "methods": [
+          "__init__",
+          "log",
+          "set_progress",
+          "fail",
+          "finish",
+          "finish_partial",
+          "as_dict"
+        ]
+      },
+      {
+        "name": "RequestBodyError",
+        "methods": []
+      },
+      {
+        "name": "Handler",
+        "methods": [
+          "log_message",
+          "_security_headers",
+          "_require_loopback_host",
+          "_send_json",
+          "_send_file",
+          "_send_bytes",
+          "_proxy_remote",
+          "_body",
+          "_require_unlocked",
+          "do_GET",
+          "do_POST"
+        ]
+      },
+      {
+        "name": "AppHTTPServer",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "copy_song_to_published_folder",
+      "maintain_runtime_files",
+      "runtime_log",
+      "set_connect_launch_state",
+      "now_iso",
+      "_ensure_writable_directory",
+      "get_download_dir",
+      "_suno_keepalive_enabled",
+      "_suno_keepalive_minutes",
+      "_suno_auto_reopen_browser",
+      "_store_suno_token",
+      "_clear_suno_token",
+      "ensure_suno_session_token",
+      "refresh_suno_session_now",
+      "suno_session_public_state",
+      "suno_session_keepalive_loop",
+      "get_client",
+      "start_task",
+      "wait_if_paused",
+      "launch_suno_browser_background",
+      "check_new_songs",
+      "quick_audio_preset_task",
+      "export_m3u",
+      "export_lyrics_bundle",
+      "full_backup",
+      "youtube_cookie_browser",
+      "get_youtube_api_key",
+      "find_downloaded_google_oauth_json",
+      "get_youtube_access_token",
+      "youtube_credentials",
+      "save_oauth_channels",
+      "_best_song_match",
+      "scan_owned_youtube_channels",
+      "scan_global_youtube",
+      "_song_audio_source_for_match",
+      "_signature_for_source",
+      "_metadata_candidates_for_video",
+      "_apply_youtube_completeness_collection",
+      "_range_overlap_ratio",
+      "_classify_youtube_version",
+      "_analysis_recommendation",
+      "_analyse_video_against_songs",
+      "analyze_owned_youtube_audio",
+      "start_automatic_youtube_pipeline",
+      "analyze_one_youtube_match",
+      "build_suno_fingerprint_index",
+      "analyze_youtube_url_task",
+      "create_youtube_coverage_report",
+      "json_list",
+      "create_youtube_audio_report",
+      "escape_html",
+      "open_external_url",
+      "export_youtube_publication_calendar",
+      "create_youtube_evidence_package",
+      "retry",
+      "sync_library",
+      "import_urls",
+      "_cover_bytes",
+      "_sha256",
+      "_media_content_sha256",
+      "_download_one",
+      "download_songs",
+      "_copy_imported_bundle_to_library",
+      "_import_local_folder_impl",
+      "import_local_folder",
+      "rescan_watched_folders",
+      "_recognition_store_input",
+      "_prepare_recognition_audio",
+      "recognize_music_file",
+      "add_recognition_to_library",
+      "_unique_path",
+      "choose_folder_dialog",
+      "choose_file_dialog",
+      "_safe_archive_member",
+      "_legacy_backup_manifest",
+      "restore_backup_file",
+      "_existing_audio_path",
+      "save_songs_to_folder",
+      "_song_processing_source",
+      "_process_audio_one",
+      "process_audio_task",
+      "process_audio_batch_task",
+      "write_song_tags",
+      "rename_song_files",
+      "safe_media_path",
+      "export_library",
+      "_dir_size",
+      "storage_summary",
+      "run_self_test",
+      "create_diagnostics_package",
+      "advanced_quality_task",
+      "incremental_backup_task",
+      "relocate_files_task",
+      "stem_task",
+      "transcription_task",
+      "_vtt_to_text",
+      "youtube_transcript",
+      "run_persistent_job",
+      "scheduler_loop",
+      "_v3_audio_path",
+      "v3_tool_status",
+      "v3_integrity_task",
+      "v3_organize_task",
+      "v3_shorts_render_task",
+      "v3_lyric_video_task",
+      "v3_youtube_upload_task",
+      "v3_panako_index_task",
+      "v3_snapshot_task",
+      "_loopback_host_allowed",
+      "_validated_public_remote_url",
+      "main"
+    ]
+  },
+  "app/suno_client.py": {
+    "classes": [
+      {
+        "name": "SunoAPIError",
+        "methods": [
+          "__init__"
+        ]
+      },
+      {
+        "name": "SunoClient",
+        "methods": [
+          "__init__",
+          "_current_token",
+          "_browser_token",
+          "_request",
+          "json_request",
+          "_feed_v3",
+          "list_library_cursor",
+          "list_projects_page",
+          "list_all_projects",
+          "list_workspace_cursor",
+          "_local_filter",
+          "list_library_page",
+          "test_connection",
+          "list_playlist",
+          "get_clip",
+          "get_aligned_lyrics",
+          "request_wav",
+          "_find_wav_url",
+          "download_file"
+        ]
+      }
+    ],
+    "top_level_functions": [
+      "sanitize_filename",
+      "_unwrap_clip_payload",
+      "_should_send_suno_auth",
+      "_validate_downloaded_file",
+      "extract_items",
+      "format_lrc",
+      "format_srt"
+    ]
+  },
+  "app/suno_compat.py": {
+    "classes": [
+      {
+        "name": "NormalizedPage",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "_nested_dicts",
+      "normalize_page",
+      "validate_fixture"
+    ]
+  },
+  "app/v3_features.py": {
+    "classes": [],
+    "top_level_functions": [
+      "now_iso",
+      "sha256_file",
+      "atomic_write",
+      "atomic_write_json",
+      "_ram_bytes",
+      "_url_check",
+      "system_preflight",
+      "_song_paths",
+      "library_integrity_scan",
+      "_norm_title",
+      "duplicate_detection",
+      "_template_values",
+      "organize_library",
+      "_audio_energy_points",
+      "suggest_short_clips",
+      "render_short_clip",
+      "_ass_time",
+      "_ass_escape",
+      "build_ass",
+      "render_lyric_video",
+      "youtube_metadata",
+      "create_youtube_package",
+      "_read_json_http_response",
+      "_youtube_response_payload",
+      "_youtube_upload_request",
+      "_youtube_received_offset",
+      "_youtube_query_upload_offset",
+      "_youtube_trim_tags",
+      "_youtube_set_thumbnail",
+      "_youtube_add_to_playlist",
+      "youtube_resumable_upload",
+      "create_proof_package",
+      "panako_status",
+      "_panako_command",
+      "panako_index",
+      "panako_query",
+      "create_program_snapshot",
+      "storage_report",
+      "cleanup_storage",
+      "align_original_lyrics"
+    ]
+  },
+  "app/watchdog.py": {
+    "classes": [],
+    "top_level_functions": [
+      "log",
+      "acquire_single_instance",
+      "main"
+    ]
+  },
+  "app/youtube_oauth.py": {
+    "classes": [
+      {
+        "name": "YouTubeOAuthError",
+        "methods": []
+      },
+      {
+        "name": "_DATA_BLOB",
+        "methods": []
+      },
+      {
+        "name": "YouTubeOAuthManager",
+        "methods": [
+          "__init__",
+          "redirect_uri",
+          "_load_config",
+          "has_client_config",
+          "import_client_config",
+          "remove_client_config",
+          "config_summary",
+          "_load_store",
+          "_save_store",
+          "start_authorization",
+          "_exchange_code",
+          "_refresh_profile",
+          "get_access_token",
+          "refresh_access_token",
+          "_list_channels",
+          "handle_callback",
+          "public_profile",
+          "profiles",
+          "status",
+          "revoke_and_disconnect_profile",
+          "disconnect_profile",
+          "refresh_channels"
+        ]
+      }
+    ],
+    "top_level_functions": [
+      "_dpapi_protect",
+      "_dpapi_unprotect",
+      "_read_json_response",
+      "_post_form",
+      "_get_json",
+      "_channel_from_item"
+    ]
+  },
+  "app/youtube_tools.py": {
+    "classes": [
+      {
+        "name": "YouTubeAPIError",
+        "methods": []
+      }
+    ],
+    "top_level_functions": [
+      "_request_json",
+      "_api_url",
+      "extract_channel_reference",
+      "_channel_from_api",
+      "_channel_id_from_page",
+      "resolve_channel",
+      "parse_iso_duration",
+      "_hydrate_videos",
+      "list_channel_videos",
+      "search_videos",
+      "build_search_queries",
+      "normalize_title",
+      "match_song_to_video",
+      "google_search_url",
+      "bing_search_url",
+      "youtube_search_url",
+      "contact_message",
+      "now_iso"
+    ]
+  },
+  "plugins/stems_worker.py": {
+    "classes": [],
+    "top_level_functions": [
+      "main"
+    ]
+  },
+  "plugins/transcribe_worker.py": {
+    "classes": [],
+    "top_level_functions": [
+      "main"
+    ]
+  }
+}

@@ -1,0 +1,541 @@
+name: Windows build and test (real windows-latest runner)
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Normalize installer source to current component paths
+        shell: powershell
+        run: .\windows_build\normalize_setup_components.ps1
+
+      - name: Go build all 4 windows_build targets (real windows/amd64, native runner)
+        working-directory: windows_build
+        run: |
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw "go vet failed" }
+          New-Item -ItemType Directory -Force -Path ..\build_out | Out-Null
+          go build -ldflags="-H windowsgui" -o ..\build_out\SunoPesmeStudio.exe ./launcher
+          if ($LASTEXITCODE -ne 0) { throw "go build ./launcher failed" }
+          go build -ldflags="-H windowsgui" -o ..\build_out\INSTALIRAJ_PROGRAM.exe ./setup
+          if ($LASTEXITCODE -ne 0) { throw "go build ./setup failed" }
+          go build -ldflags="-H windowsgui" -o ..\build_out\INSTALACIJA_NAPREDAK.exe ./progress
+          if ($LASTEXITCODE -ne 0) { throw "go build ./progress failed" }
+          go build -ldflags="-H windowsgui" -o ..\build_out\Deinstaliraj_Suno_Pesme_Studio.exe ./uninstaller
+          if ($LASTEXITCODE -ne 0) { throw "go build ./uninstaller failed" }
+
+      - name: Verify real PE binaries were produced
+        run: |
+          Get-ChildItem build_out\*.exe | ForEach-Object {
+            Write-Host $_.FullName $_.Length
+            if ($_.Length -lt 500000) { throw "$_ looks too small to be a real linked binary" }
+          }
+          certutil -hashfile build_out\SunoPesmeStudio.exe SHA256
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install core Python dependencies (real pip against PyPI)
+        run: python -m pip install --upgrade pip -r requirements-core.txt
+
+      - name: Install FFmpeg (real Windows binary via winget, on-runner)
+        continue-on-error: true
+        run: winget install --id Gyan.FFmpeg -e --source winget --accept-package-agreements --accept-source-agreements
+
+      - name: Make FFmpeg resolvable the same way the shipped app finds it
+        continue-on-error: true
+        run: |
+          $exe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe) {
+            New-Item -ItemType Directory -Force -Path tools\ffmpeg\bin | Out-Null
+            Copy-Item $exe.FullName tools\ffmpeg\bin\ffmpeg.exe
+            $probe = Join-Path $exe.Directory.FullName "ffprobe.exe"
+            if (Test-Path $probe) { Copy-Item $probe tools\ffmpeg\bin\ffprobe.exe }
+            Write-Host "Copied FFmpeg from $($exe.FullName) to tools\ffmpeg\bin\"
+          } else {
+            Write-Host "No winget-installed ffmpeg.exe found -- ffmpeg-dependent tests below will report that."
+          }
+
+      - name: Verify the FFmpeg used by tests actually has Chromaprint
+        run: |
+          python -c "import sys; sys.path.insert(0,'app'); import audio_tools as t; ok=t.has_chromaprint(); print('ffmpeg:', t.ffmpeg_path()); print('chromaprint muxer present:', ok); sys.exit(0 if ok else 1)"
+
+      - name: Import smoke test -- every app/plugins module, for real
+        timeout-minutes: 10
+        run: python tests/import_smoke_test.py
+
+      - name: py_compile every module
+        run: |
+          Get-ChildItem app\*.py, plugins\*.py | ForEach-Object {
+            python -m py_compile $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "py_compile failed for $_" }
+          }
+
+      - name: Test 01/33 - audio_analysis_test.py
+        timeout-minutes: 10
+        run: python tests/audio_analysis_test.py
+      - name: Test 02/33 - auto_update_test.py
+        timeout-minutes: 10
+        run: python tests/auto_update_test.py
+      - name: Test 03/33 - bulk_library_download_test.py
+        timeout-minutes: 10
+        run: python tests/bulk_library_download_test.py
+      - name: Test 04/33 - chromaprint_upgrade_test.py
+        timeout-minutes: 10
+        run: python tests/chromaprint_upgrade_test.py
+      - name: Test 05/33 - critical_v300.py
+        timeout-minutes: 10
+        run: python tests/critical_v300.py
+      - name: Test 06/33 - duplicate_audio_confirm_test.py
+        timeout-minutes: 10
+        run: python tests/duplicate_audio_confirm_test.py
+      - name: Test 07/33 - dynamic_library_scale_test.py
+        timeout-minutes: 10
+        run: python tests/dynamic_library_scale_test.py
+      - name: Test 08/33 - fingerprint_index_test.py
+        timeout-minutes: 10
+        run: python tests/fingerprint_index_test.py
+      - name: Test 09/33 - http_integration_v300.py
+        timeout-minutes: 10
+        run: python tests/http_integration_v300.py
+      - name: Test 10/33 - installer_logic_test.py
+        timeout-minutes: 10
+        run: python tests/installer_logic_test.py
+      - name: Test 11/33 - original_plus_test.py
+        timeout-minutes: 10
+        run: python tests/original_plus_test.py
+      - name: Test 12/33 - panako_install_test.py
+        timeout-minutes: 10
+        run: python tests/panako_install_test.py
+      - name: Test 13/33 - phase_alignment_test.py
+        timeout-minutes: 10
+        run: python tests/phase_alignment_test.py
+      - name: Test 14/33 - regression_v300.py
+        timeout-minutes: 10
+        run: python tests/regression_v300.py
+      - name: Test 15/33 - release_center_test.py
+        timeout-minutes: 10
+        run: python tests/release_center_test.py
+      - name: Test 16/33 - remote_only_recognition_test.py
+        timeout-minutes: 10
+        run: python tests/remote_only_recognition_test.py
+      - name: Test 17/33 - short_clip_match_test.py
+        timeout-minutes: 10
+        run: python tests/short_clip_match_test.py
+      - name: Test 18/33 - short_clip_thresholds_test.py
+        timeout-minutes: 10
+        run: python tests/short_clip_thresholds_test.py
+      - name: Test 19/33 - shorts_teaser_test.py
+        timeout-minutes: 10
+        run: python tests/shorts_teaser_test.py
+      - name: Test 20/33 - smart_library_test.py
+        timeout-minutes: 10
+        run: python tests/smart_library_test.py
+      - name: Test 21/33 - song_finder_remote_source_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_remote_source_test.py
+      - name: Test 22/33 - song_finder_shortlist_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_shortlist_test.py
+      - name: Test 23/33 - song_finder_test.py
+        timeout-minutes: 10
+        run: python tests/song_finder_test.py
+      - name: Test 24/33 - static_cache_headers_test.py
+        timeout-minutes: 10
+        run: python tests/static_cache_headers_test.py
+      - name: Test 25/33 - subtitle_editor_test.py
+        timeout-minutes: 10
+        run: python tests/subtitle_editor_test.py
+      - name: Test 26/33 - tempo_extraction_test.py
+        timeout-minutes: 10
+        run: python tests/tempo_extraction_test.py
+      - name: Test 27/33 - v3_features_test.py
+        timeout-minutes: 10
+        run: python tests/v3_features_test.py
+      - name: Test 28/33 - version_lab_test.py
+        timeout-minutes: 10
+        run: python tests/version_lab_test.py
+      - name: Test 29/33 - watchdog_test.py
+        timeout-minutes: 10
+        run: python tests/watchdog_test.py
+      - name: Test 30/33 - youtube_channels_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_channels_test.py
+      - name: Test 31/33 - youtube_pipeline_fix_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_pipeline_fix_test.py
+      - name: Test 32/33 - youtube_scan_test.py
+        timeout-minutes: 10
+        run: python tests/youtube_scan_test.py
+      - name: Test 33/33 - platform_intelligence_test.py
+        timeout-minutes: 10
+        run: python tests/platform_intelligence_test.py
+
+      - name: Upload raw build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-output
+          path: build_out/*.exe
+          if-no-files-found: error
+
+      - name: Stage current runtime components into Program/
+        run: |
+          New-Item -ItemType Directory -Force -Path package\Program | Out-Null
+          $proc = Start-Process -FilePath ".\build_out\INSTALIRAJ_PROGRAM.exe" -ArgumentList @("--stage-components", "package\Program") -Wait -NoNewWindow -PassThru
+          if ($proc.ExitCode -ne 0) { throw "--stage-components failed with exit code $($proc.ExitCode)" }
+
+          $verifiedFFmpeg = "tools\ffmpeg\bin\ffmpeg.exe"
+          $verifiedFFprobe = "tools\ffmpeg\bin\ffprobe.exe"
+          $packageFFDir = "package\Program\tools\ffmpeg\bin"
+          if (-not (Test-Path $verifiedFFmpeg) -or -not (Test-Path $verifiedFFprobe)) {
+            throw "Verified full FFmpeg/ffprobe are missing before packaging."
+          }
+          New-Item -ItemType Directory -Force -Path $packageFFDir | Out-Null
+          Copy-Item -Force $verifiedFFmpeg (Join-Path $packageFFDir "ffmpeg.exe")
+          Copy-Item -Force $verifiedFFprobe (Join-Path $packageFFDir "ffprobe.exe")
+          $muxers = & (Join-Path $packageFFDir "ffmpeg.exe") -hide_banner -muxers 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or $muxers -notmatch "chromaprint") {
+            throw "Final Program/ FFmpeg does not contain Chromaprint."
+          }
+
+          $webview = "package\Program\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          if (-not (Test-Path $webview -PathType Leaf) -or (Get-Item $webview).Length -lt 50MB) {
+            throw "WebView2 Evergreen Standalone x64 installer is missing or incomplete."
+          }
+          $sig = Get-AuthenticodeSignature -FilePath $webview
+          if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Microsoft") {
+            throw "WebView2 installer does not have a valid Microsoft Authenticode signature. Status=$($sig.Status) Subject=$($sig.SignerCertificate.Subject)"
+          }
+          Write-Host "Current FFmpeg/Chromaprint and Microsoft WebView2 offline installer verified."
+
+      - name: Assemble Program/ folder structure
+        run: |
+          Copy-Item -Recurse -Force app package\Program\app
+          Copy-Item -Recurse -Force plugins package\Program\plugins
+          Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program\app, package\Program\plugins -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          Copy-Item build_out\SunoPesmeStudio.exe "package\Program\Suno Pesme Studio.exe"
+          Copy-Item build_out\Deinstaliraj_Suno_Pesme_Studio.exe "package\Program\Deinstaliraj Suno Pesme Studio.exe"
+          Copy-Item build_out\INSTALACIJA_NAPREDAK.exe package\Program\
+
+      - name: Install core Python packages into the staged embeddable interpreter
+        run: |
+          $py = "package\Program\python\python.exe"
+          $pth = Get-ChildItem "package\Program\python\*._pth" | Select-Object -First 1
+          (Get-Content $pth.FullName) -replace '^#\s*import site', 'import site' | Set-Content $pth.FullName
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "package\Program\python\get-pip.py"
+          & $py "package\Program\python\get-pip.py" --no-warn-script-location
+          if ($LASTEXITCODE -ne 0) { throw "get-pip.py bootstrap failed" }
+          Remove-Item "package\Program\python\get-pip.py"
+          & $py -m pip install --no-warn-script-location -r requirements-core.txt
+          if ($LASTEXITCODE -ne 0) { throw "pip install into embeddable Python failed" }
+
+      - name: Real import-smoke-test using the STAGED embeddable Python
+        run: |
+          $root = Join-Path (Get-Location) "package\import-smoke-data"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
+          $py = "package\Program\python\python.exe"
+          & $py tests\import_smoke_test.py
+          if ($LASTEXITCODE -ne 0) { throw "import_smoke_test.py failed under the staged embeddable Python, exit code $LASTEXITCODE" }
+
+      - name: Real end-to-end server startup under the STAGED embeddable Python
+        run: |
+          $root = Join-Path (Get-Location) "package\e2e-data"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
+          $env:SUNO_STUDIO_PORT = "18888"
+          $env:SUNO_AUTO_OPEN = "0"
+          $env:PYTHONUTF8 = "1"
+          $proc = Start-Process -FilePath "package\Program\python\pythonw.exe" -ArgumentList @("package\Program\app\server.py") -PassThru -NoNewWindow
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Milliseconds 500
+            try {
+              $resp = Invoke-RestMethod -Uri "http://127.0.0.1:18888/api/health" -TimeoutSec 2
+              if ($resp.ok) { $ok = $true; break }
+            } catch {}
+          }
+          if (-not $ok) {
+            if (-not $proc.HasExited) { $proc.Kill() }
+            throw "The staged server.py never responded to /api/health when spawned the real production way."
+          }
+          try { Invoke-RestMethod -Uri "http://127.0.0.1:18888/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
+          Start-Sleep -Seconds 1
+          if (-not $proc.HasExited) { $proc.Kill() }
+          Write-Host "Staged server.py started for real under the staged embeddable Python and responded to /api/health."
+
+      - name: Real song-finder end-to-end test with real FFmpeg/chromaprint
+        run: |
+          $ffmpeg = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"
+          if (-not (Test-Path $ffmpeg)) { throw "Staged FFmpeg not found at $ffmpeg -- song-finder e2e cannot run without the real component the shipped app uses." }
+          $fixturesDir = "package\songfinder-e2e\fixtures"
+          $dataDir = "package\songfinder-e2e\data"
+          python tests\ci_song_finder_fixtures.py "package\Program\app" $fixturesDir $dataDir
+          if ($LASTEXITCODE -ne 0) { throw "ci_song_finder_fixtures.py failed" }
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 20 -t 15 "$fixturesDir\clip_positive_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 15s positive clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_a.wav" -ss 5 -t 60 "$fixturesDir\clip_positive_60s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the 60s positive clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -i "$fixturesDir\song_b.wav" -ss 10 -t 15 "$fixturesDir\clip_negative_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the negative clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=1.03" "$fixturesDir\clip_speed_up_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the sped-up (1.03x) clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "atempo=0.97" "$fixturesDir\clip_slow_down_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the slowed-down (0.97x) clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "afade=t=in:st=0:d=2,afade=t=out:st=13:d=2" "$fixturesDir\clip_fade_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the fade-in/fade-out clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -af "loudnorm=I=-16:TP=-1.5:LRA=11" "$fixturesDir\clip_normalized_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the loudness-normalized clip" }
+          & $ffmpeg -y -hide_banner -loglevel error -ss 20 -t 15 -i "$fixturesDir\song_a.wav" -f lavfi -t 15 -i "anoisesrc=color=white:amplitude=0.06" -filter_complex "[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.25" "$fixturesDir\clip_noisy_15s.wav"
+          if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed to cut the background-noise clip" }
+          $root = Join-Path (Get-Location) "package\songfinder-e2e"
+          $env:SUNO_STUDIO_USER_DIR = $root
+          $env:SUNO_STUDIO_DATA_DIR = Join-Path $root "data"
+          $env:SUNO_STUDIO_DOWNLOAD_DIR = Join-Path $root "Preuzete_pesme"
+          $env:SUNO_STUDIO_EXPORT_DIR = Join-Path $root "Izvoz"
+          $env:SUNO_STUDIO_PUBLISHED_DIR = Join-Path $root "Objavljene_pesme"
+          $env:SUNO_STUDIO_LIBRARY_DIR = Join-Path $root "Biblioteka_pesama"
+          $env:SUNO_STUDIO_RECOGNITION_DIR = Join-Path $root "Pronalazac_pesme"
+          $env:SUNO_STUDIO_PORT = "18889"
+          $env:SUNO_AUTO_OPEN = "0"
+          $env:PYTHONUTF8 = "1"
+          $proc = Start-Process -FilePath "package\Program\python\pythonw.exe" -ArgumentList @("package\Program\app\server.py") -PassThru -NoNewWindow
+          $base = "http://127.0.0.1:18889"
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { $resp = Invoke-RestMethod -Uri "$base/api/health" -TimeoutSec 2; if ($resp.ok) { $ok = $true; break } } catch {}
+          }
+          if (-not $ok) {
+            if (-not $proc.HasExited) { $proc.Kill() }
+            throw "song-finder e2e server never became healthy"
+          }
+          try {
+            $indexResp = Invoke-RestMethod -Uri "$base/api/song-finder/index" -Method Post -Body (@{force=$true} | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 30
+            $taskId = $indexResp.task.id
+            $done = $false
+            for ($i = 0; $i -lt 120; $i++) {
+              Start-Sleep -Milliseconds 500
+              $task = Invoke-RestMethod -Uri "$base/api/task" -TimeoutSec 5
+              if ($task.task -and $task.task.id -eq $taskId -and $task.task.status -ne "running") { $done = $true; break }
+            }
+            if (-not $done) { throw "song-finder indexing task never finished" }
+            $statusResp = Invoke-RestMethod -Uri "$base/api/song-finder/status" -TimeoutSec 10
+            if ($statusResp.songs_indexed -lt 1) { throw "song-finder status reports 0 indexed songs after indexing" }
+            foreach ($case in @(
+              @{ name = "15s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_15s.wav"; expectFound = $true },
+              @{ name = "60s positive clip (from the indexed song)"; path = "$fixturesDir\clip_positive_60s.wav"; expectFound = $true },
+              @{ name = "15s negative clip (from an UNINDEXED different song)"; path = "$fixturesDir\clip_negative_15s.wav"; expectFound = $false },
+              @{ name = "sped-up 1.03x clip (distortion matrix)"; path = "$fixturesDir\clip_speed_up_15s.wav"; expectFound = $true },
+              @{ name = "slowed-down 0.97x clip (distortion matrix)"; path = "$fixturesDir\clip_slow_down_15s.wav"; expectFound = $true },
+              @{ name = "fade in/out clip (distortion matrix)"; path = "$fixturesDir\clip_fade_15s.wav"; expectFound = $true },
+              @{ name = "loudness-normalized clip (distortion matrix)"; path = "$fixturesDir\clip_normalized_15s.wav"; expectFound = $true },
+              @{ name = "background-noise clip (distortion matrix)"; path = "$fixturesDir\clip_noisy_15s.wav"; expectFound = $true }
+            )) {
+              $full = Join-Path (Get-Location) $case.path
+              $body = (@{ source_path = $full } | ConvertTo-Json)
+              $r = Invoke-RestMethod -Uri "$base/api/song-finder/analyze-file" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
+              Write-Host "$($case.name): found=$($r.result.found) status=$($r.result.status) confidence=$($r.result.primary.confidence) audio_score=$($r.result.primary.audio_score)"
+              if ($r.result.found -ne $case.expectFound) { throw "song-finder e2e FAILED for $($case.name): expected found=$($case.expectFound), got found=$($r.result.found)" }
+              if ($case.expectFound -and $r.result.primary.song_id -ne "ci-song-finder-a") { throw "song-finder matched the wrong song for $($case.name): got $($r.result.primary.song_id)" }
+            }
+            Write-Host "Real song-finder end-to-end check passed."
+          } finally {
+            try { Invoke-RestMethod -Uri "$base/api/shutdown" -Method Post -Body "{}" -ContentType "application/json" -TimeoutSec 5 | Out-Null } catch {}
+            Start-Sleep -Seconds 1
+            if (-not $proc.HasExited) { $proc.Kill() }
+          }
+
+      - name: Audit Program for obsolete or duplicate packaged content
+        run: |
+          $forbidden = @(
+            "package\Program\runtime",
+            "package\Program\models",
+            "package\Program\licences",
+            "package\Program\manifests",
+            "package\Program\recovery",
+            "package\Program\Biblioteka_pesama",
+            "package\Program\OBRAĐENO NA YOUTUBE",
+            "package\Program\Pronalazac_pesme",
+            "package\Program\plugins\README.txt"
+          )
+          foreach ($path in $forbidden) {
+            if (Test-Path -LiteralPath $path) { throw "Obsolete/legacy content leaked into final Program/: $path" }
+          }
+          $checks = @(
+            @{ pattern = "package\Program\tools\ffmpeg\bin\ffmpeg.exe"; name = "ffmpeg.exe" },
+            @{ pattern = "package\Program\tools\ffmpeg\bin\ffprobe.exe"; name = "ffprobe.exe" },
+            @{ pattern = "package\Program\tools\yt-dlp\yt-dlp.exe"; name = "yt-dlp.exe" },
+            @{ pattern = "package\Program\tools\deno\deno.exe"; name = "deno.exe" },
+            @{ pattern = "package\Program\tools\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; name = "WebView2 Standalone" }
+          )
+          foreach ($check in $checks) {
+            $items = @(Get-Item -LiteralPath $check.pattern -ErrorAction SilentlyContinue)
+            if ($items.Count -ne 1) { throw "Expected exactly one current $($check.name), found $($items.Count)" }
+          }
+          $oldNames = @(Get-ChildItem package\Program -Recurse -File | Where-Object { $_.Name -match "essentials_build|ffmpeg-release-essentials|old|legacy|\.bak$|\.old$" })
+          if ($oldNames.Count -gt 0) {
+            $oldNames | ForEach-Object { Write-Host $_.FullName }
+            throw "Obsolete-version files detected in Program/."
+          }
+          Write-Host "Program audit passed: current components only, no known legacy placeholders or duplicate versions."
+
+      - name: Generate MANIFEST_SHA256.txt for the staged Program/ folder
+        run: |
+          Get-ChildItem -Recurse -Directory -Filter "__pycache__" package\Program -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          $lines = Get-ChildItem -Recurse -File package\Program | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path package).Path.Length + 1) -replace '\\','/'
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $rel"
+          }
+          $lines | Set-Content -Encoding ascii package\MANIFEST_SHA256.txt
+          (Get-Content package\MANIFEST_SHA256.txt).Count
+
+      - name: Self-test the launcher against the real staged package
+        working-directory: package
+        run: |
+          $proc = Start-Process -FilePath "Program\Suno Pesme Studio.exe" -ArgumentList @("--self-test") -Wait -NoNewWindow -PassThru
+          if ($proc.ExitCode -ne 0) { throw "launcher --self-test failed with exit code $($proc.ExitCode)" }
+
+      - name: Assemble final release folder and ZIP
+        run: |
+          $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
+          New-Item -ItemType Directory -Force -Path $rel | Out-Null
+          Move-Item package\Program "$rel\Program"
+          Move-Item package\MANIFEST_SHA256.txt "$rel\MANIFEST_SHA256.txt"
+          Copy-Item build_out\INSTALIRAJ_PROGRAM.exe "$rel\INSTALIRAJ_PROGRAM.exe"
+          Copy-Item windows_build\setup\LICENSE.txt "$rel\LICENSE.txt"
+          Get-ChildItem -Recurse -File $rel | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.FullName.Substring((Resolve-Path .).Path.Length + 1).Replace('\','/')
+          } | Set-Content -Encoding ascii "$rel\SHA256SUMS.txt"
+          Compress-Archive -Path $rel -DestinationPath "$rel.zip" -CompressionLevel Optimal
+          Get-Item "$rel.zip" | Select-Object Name, Length
+
+      - name: Verify final release folder and ZIP against MANIFEST_SHA256.txt
+        run: |
+          function Assert-ProgramManifest($packageRoot) {
+            $manifest = Join-Path $packageRoot "MANIFEST_SHA256.txt"
+            if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw "MANIFEST_SHA256.txt is missing from $packageRoot" }
+            $seen = 0
+            $failures = New-Object System.Collections.Generic.List[string]
+            foreach ($line in Get-Content -LiteralPath $manifest) {
+              $trimmed = $line.Trim()
+              if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) { continue }
+              $parts = $trimmed -split "  ", 2
+              if ($parts.Count -ne 2) { [void]$failures.Add("Invalid manifest line: $trimmed"); continue }
+              $expected = $parts[0].Trim().ToLowerInvariant()
+              $relative = $parts[1].Trim().Replace("/", [System.IO.Path]::DirectorySeparatorChar)
+              $file = Join-Path $packageRoot $relative
+              if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { [void]$failures.Add("Missing file: $relative"); continue }
+              $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actual -ne $expected) { [void]$failures.Add("Hash mismatch: $relative expected=$expected actual=$actual") }
+              $seen++
+            }
+            $programDir = Join-Path $packageRoot "Program"
+            $programCount = @(Get-ChildItem -LiteralPath $programDir -Recurse -File).Count
+            if ($seen -lt 3 -or $seen -ne $programCount) { [void]$failures.Add("Manifest file count $seen does not match Program file count $programCount") }
+            if ($failures.Count -gt 0) {
+              $failures | ForEach-Object { Write-Host $_ }
+              throw "Final package manifest verification failed for $packageRoot"
+            }
+            $allowed = @("Program", "MANIFEST_SHA256.txt", "INSTALIRAJ_PROGRAM.exe", "LICENSE.txt", "SHA256SUMS.txt")
+            $unexpected = @(Get-ChildItem -LiteralPath $packageRoot | Where-Object { $allowed -notcontains $_.Name })
+            if ($unexpected.Count -gt 0) {
+              $unexpected | ForEach-Object { Write-Host "Unexpected release-root item: $($_.Name)" }
+              throw "Final release contains obsolete/unexpected root content."
+            }
+            Write-Host "Verified $seen Program files and clean release root at $packageRoot"
+          }
+          $rel = "Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE"
+          Assert-ProgramManifest ((Resolve-Path $rel).Path)
+          $zipProbe = Join-Path $env:RUNNER_TEMP ("suno-zip-probe-" + $env:GITHUB_RUN_ID)
+          if (Test-Path -LiteralPath $zipProbe) { Remove-Item -LiteralPath $zipProbe -Recurse -Force }
+          Expand-Archive -LiteralPath "$rel.zip" -DestinationPath $zipProbe -Force
+          Assert-ProgramManifest (Join-Path $zipProbe $rel)
+          Write-Host "The ZIP itself was expanded and verified successfully."
+
+      - name: Publish release + update manifest (this is what auto-update reads)
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'claude/suno-pesme-studio-full-build-ljk5m7'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ZIP="Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip"
+          TARGET_BRANCH="${GITHUB_HEAD_REF}"
+          BASE_VERSION=$(python -c "import re,io;print(re.search(r'APP_VERSION = \"([^\"]+)\"',io.open('app/server.py',encoding='utf-8').read()).group(1))")
+          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
+          TAG="v${VERSION}"
+          SHA=$(python -c "import hashlib;h=hashlib.sha256();f=open('$ZIP','rb');[h.update(c) for c in iter(lambda:f.read(1<<20),b'')];print(h.hexdigest())")
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP}"
+          gh release create "$TAG" "$ZIP" --title "Suno Pesme Studio ${VERSION}" --notes "Automatski verifikovan Windows build sa ${GITHUB_SHA}." --latest || gh release upload "$TAG" "$ZIP" --clobber
+          python - "$VERSION" "$URL" "$SHA" <<'PYEOF'
+          import json, pathlib, sys
+          version, url, sha = sys.argv[1], sys.argv[2], sys.argv[3]
+          out = pathlib.Path("docs/updates.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps({
+              "version": version,
+              "download_url": url,
+              "sha256": sha,
+              "notes": "Automatski objavljena nova verzija.",
+          }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          print("wrote", out)
+          PYEOF
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp docs/updates.json "${RUNNER_TEMP}/updates.json"
+          pushed=""
+          for attempt in 1 2 3 4 5; do
+            git fetch origin "${TARGET_BRANCH}"
+            git reset --hard FETCH_HEAD
+            mkdir -p docs
+            cp "${RUNNER_TEMP}/updates.json" docs/updates.json
+            git add docs/updates.json
+            if git diff --cached --quiet; then
+              echo "manifest unchanged"; pushed="yes"; break
+            fi
+            git commit -m "Publish update manifest for ${VERSION} [skip ci]"
+            if git push origin HEAD:"${TARGET_BRANCH}"; then pushed="yes"; break; fi
+            echo "push rejected (branch moved), retrying (${attempt}/5)"
+            sleep $((attempt * 5))
+          done
+          if [ -z "$pushed" ]; then
+            echo "::error::Could not publish docs/updates.json after 5 attempts"
+            exit 1
+          fi
+
+      - name: Upload full offline package
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE
+          path: Suno-Pesme-Studio-v3.3.2-WINDOWS-FULL-OFFLINE.zip
+          if-no-files-found: error

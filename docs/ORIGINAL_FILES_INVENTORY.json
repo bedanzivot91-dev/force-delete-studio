@@ -1,0 +1,226 @@
+{
+  "generated_from": "imported 3.3.2 baseline commit",
+  "file_count": 44,
+  "files": [
+    {
+      "path": ".gitignore",
+      "size_bytes": 163,
+      "sha256": "b459bb1d274ab2b288feb41d95b2db67b9715076d5237bab962ddbc5f5a0f1d5"
+    },
+    {
+      "path": "app/advanced_features.py",
+      "size_bytes": 31373,
+      "sha256": "a6c695bb5f34fe06a5a18d40088f0792857b616a0dd05bc8a3860a45200a1514"
+    },
+    {
+      "path": "app/audio_match.py",
+      "size_bytes": 44592,
+      "sha256": "8cd97d2988ab7fa665d1ac13593c9908cc8ca388f09abc6bc405ce76e435941e"
+    },
+    {
+      "path": "app/audio_tools.py",
+      "size_bytes": 21336,
+      "sha256": "1147e1662ee112ba440d717366806c56a200e4c44eedddc5aaf3338b555e33d0"
+    },
+    {
+      "path": "app/bootstrap.py",
+      "size_bytes": 1655,
+      "sha256": "d815b65ad1115cf9ed4d4412009f7c009bd2d91ea7404fef0b93f2db2b7b2b5e"
+    },
+    {
+      "path": "app/cdp.py",
+      "size_bytes": 19877,
+      "sha256": "30b63cb40bbc7f43f3b885430e5e768129a32e8afe5d711dbaf0befed2a571fc"
+    },
+    {
+      "path": "app/database.py",
+      "size_bytes": 118848,
+      "sha256": "e7f31e6bdbe11fbd2ecf603978a499ffbc05fba489bb5629805d3ae33d17fc0b"
+    },
+    {
+      "path": "app/id3.py",
+      "size_bytes": 3451,
+      "sha256": "82cfb7cf663300b5d0267d2ea01d95b064fea1de2c73707f6fb5cfca7bdd83c6"
+    },
+    {
+      "path": "app/music_recognition.py",
+      "size_bytes": 3188,
+      "sha256": "a198e49c3b92752924e27726eb1818b6632c13ecbffc2cfacba4b14512cc6603"
+    },
+    {
+      "path": "app/security_lock.py",
+      "size_bytes": 4537,
+      "sha256": "dbd0b86d171c96df463d43545b191c56628b1d09c0e3831067e4bd09dcbac74d"
+    },
+    {
+      "path": "app/server.py",
+      "size_bytes": 293835,
+      "sha256": "a61bd14f7558f6da0a24d3cd4fb09c4bb2a3011adb631a2e86d31145698a5cf4"
+    },
+    {
+      "path": "app/suno_client.py",
+      "size_bytes": 37341,
+      "sha256": "c8a20eaf7103b3aab940543240c33c3d6e0eac9e899e4475556e7f449c1dc7e5"
+    },
+    {
+      "path": "app/suno_compat.py",
+      "size_bytes": 2674,
+      "sha256": "a6b5c59da13942f88757c77133bc51baae19ee4cb591bb3d72cfa6dc68f23ed0"
+    },
+    {
+      "path": "app/v3_features.py",
+      "size_bytes": 50380,
+      "sha256": "e619de14151d977eb81150972197b7a300920d15f95b11222accae1c462a9027"
+    },
+    {
+      "path": "app/watchdog.py",
+      "size_bytes": 3935,
+      "sha256": "9fad069d2893d0fdc948a8e8cdc2a8394fca40dfd9e406dbd0612173a314d88c"
+    },
+    {
+      "path": "app/web/app.js",
+      "size_bytes": 159652,
+      "sha256": "6fec75789bcfb5f1d3da0e0b0a2e7215d28ba852d9dea9bbe8a46968afccfed7"
+    },
+    {
+      "path": "app/web/index.html",
+      "size_bytes": 74467,
+      "sha256": "515278522b769b2163217796fc29bc4327a9ed3a66323fd0f4e5772ee90c0656"
+    },
+    {
+      "path": "app/web/style.css",
+      "size_bytes": 53534,
+      "sha256": "83285f159f486ce4bdbb21341b1e1d874d4bab85c138b30af63183061eb13351"
+    },
+    {
+      "path": "app/youtube_oauth.py",
+      "size_bytes": 23624,
+      "sha256": "ad9c8b14cf0e8d8f381a102e478fe0682e95c1d47f1a0797d0a579930c48e227"
+    },
+    {
+      "path": "app/youtube_tools.py",
+      "size_bytes": 20980,
+      "sha256": "756335b8953f0311790741d424015d71e69212453ad0073727e6efae39ec2f9e"
+    },
+    {
+      "path": "docs/DEPENDENCY_AUDIT.json",
+      "size_bytes": 524,
+      "sha256": "3a9113efdb4aa6d937c53ca430d8e028c9a73bfdb521b1ebbad301a05844539a"
+    },
+    {
+      "path": "docs/ORIGINAL_API_INVENTORY.json",
+      "size_bytes": 4916,
+      "sha256": "e698993e9873fe26ae5c7156f8967d40668273682df53902a73c39cd647ba135"
+    },
+    {
+      "path": "docs/ORIGINAL_DATABASE_SCHEMA.sql",
+      "size_bytes": 15589,
+      "sha256": "553beca6707024c6d94d9bdbd202c12a7d54978a5d20d2cacd6b2d291a48df97"
+    },
+    {
+      "path": "docs/ORIGINAL_FILES_INVENTORY.json",
+      "size_bytes": 7109,
+      "sha256": "357be24d2a375afb954302537299b4316318e33b0f946884767b0d904f710f26"
+    },
+    {
+      "path": "docs/ORIGINAL_FUNCTION_INVENTORY.json",
+      "size_bytes": 16585,
+      "sha256": "fb7cce4eb98c73bd8370e4aa825e2d68ad3664f3177c8335721984dab89c2eb9"
+    },
+    {
+      "path": "installer/SunoPesmeStudio.iss",
+      "size_bytes": 2770,
+      "sha256": "b242fc89e94e1e3d4d8e46bd5b897a644d17d080257aaee39a6086199fd47c4a"
+    },
+    {
+      "path": "plugins/README.txt",
+      "size_bytes": 411,
+      "sha256": "5848e54acf363d8d23021d589d54ffa373aea4b9b0c585864bb0657085ad92d7"
+    },
+    {
+      "path": "plugins/stems_worker.py",
+      "size_bytes": 1341,
+      "sha256": "c142ff5e016f796e98db9a080682a2b8e58a70fa55ca8de4d26e41f65ee67588"
+    },
+    {
+      "path": "plugins/transcribe_worker.py",
+      "size_bytes": 2514,
+      "sha256": "6a315ced326109b8c8a8550c441a17a5e3b47e5e98668d40ffde4e85a079724a"
+    },
+    {
+      "path": "tests/critical_v300.py",
+      "size_bytes": 5196,
+      "sha256": "9206bc278c15435b368eef97ce5b4dff105ec37bd9d37c094596e36a9696e04f"
+    },
+    {
+      "path": "tests/e2e_test.py",
+      "size_bytes": 4674,
+      "sha256": "e6d95b85585cdfbe2e09c62249498f1e9ee7f805bac04ef10ef48f1a834bcb1a"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_legacy.json",
+      "size_bytes": 100,
+      "sha256": "6286efd7c6f0408c506fc22f1f2b2b105f69feca0ca1188c64ae1c70b7a3758e"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_nested.json",
+      "size_bytes": 162,
+      "sha256": "6008a260ef8c73fcc66a92de5fc33bcfecfb1609bdff5b6d78a505739a89cbab"
+    },
+    {
+      "path": "tests/fixtures/suno_feed_v3.json",
+      "size_bytes": 130,
+      "sha256": "d5edae7dcf73d79d21f9f875338226a609b7ed20b9c8481be9887e0bf1a6b315"
+    },
+    {
+      "path": "tests/http_integration_v300.py",
+      "size_bytes": 12031,
+      "sha256": "8c43210fd58e9dfc2d5ec8610f3696fc566872af8e2be1be728a94e8893f2b58"
+    },
+    {
+      "path": "tests/installer_logic_test.py",
+      "size_bytes": 2009,
+      "sha256": "146fc413f564d5600f8e78db2b48571b07179be186d0147b563923a9c849504b"
+    },
+    {
+      "path": "tests/original_plus_test.py",
+      "size_bytes": 3857,
+      "sha256": "d9bf73b1c78a7d9a882494b33d09ceddee0638a896ee790aa211b74346a8b06b"
+    },
+    {
+      "path": "tests/regression_v300.py",
+      "size_bytes": 12742,
+      "sha256": "c96929a9a47c0f6904bdc98d370bcad04dfecf96b8b5c3e360b16159442389aa"
+    },
+    {
+      "path": "tests/v3_features_test.py",
+      "size_bytes": 6378,
+      "sha256": "7fdbf6cd371436e1a256d4ee32ec06525d0cde141e537eb204b6b1024e9826c1"
+    },
+    {
+      "path": "tests/watchdog_test.py",
+      "size_bytes": 2151,
+      "sha256": "65b71e3b7ada1ef50ffd5d3fa94761220ab5689ef65b17945eae65611fff8635"
+    },
+    {
+      "path": "windows_build/launcher/main.go",
+      "size_bytes": 6049,
+      "sha256": "83f52528f03aba97cda9ddb30b32c1796ce24c2809baf7d0b534b4697ab82989"
+    },
+    {
+      "path": "windows_build/progress.go",
+      "size_bytes": 4097,
+      "sha256": "7d1790f5e24d66bd2086ba71c78d37722072daf0b7719c927a9f739858ff61c5"
+    },
+    {
+      "path": "windows_build/setup/main.go",
+      "size_bytes": 41174,
+      "sha256": "fbaff1dfb243c4fb6d300da69fde43a13717a866fb401d960f7e0d516c7a81f1"
+    },
+    {
+      "path": "windows_build/uninstaller.go",
+      "size_bytes": 8205,
+      "sha256": "ec371e3462bc8c3a510d137aa68f213f222a5f9a8d036f0832e23f5ff8f282eb"
+    }
+  ]
+}

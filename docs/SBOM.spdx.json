@@ -1,0 +1,46 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "Suno-Pesme-Studio-3.3.2-SBOM",
+  "documentNamespace": "https://spdx.org/spdxdocs/suno-pesme-studio-3.3.2",
+  "creationInfo": {
+    "created": "2026-07-31T00:00:00Z",
+    "creators": ["Tool: manual-compilation-from-docs-COMPONENTS_MANIFEST-and-real-dependency-resolution"],
+    "comment": "Generated from real dependency data gathered in this session: PyPI JSON API lookups for Python packages, proxy.golang.org resolution for Go modules, and android/*/build.gradle.kts for Android dependencies. Not an automated SBOM-tool scan; treat as a manually-assembled but source-verified starting point."
+  },
+  "packages": [
+    {"SPDXID": "SPDXRef-Package-python", "name": "python-embeddable", "versionInfo": "3.13.14", "licenseConcluded": "PSF-2.0", "downloadLocation": "https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip", "supplier": "Organization: Python Software Foundation"},
+    {"SPDXID": "SPDXRef-Package-ffmpeg", "name": "ffmpeg", "versionInfo": "8.1.2", "licenseConcluded": "GPL-2.0-or-later", "downloadLocation": "https://www.gyan.dev/ffmpeg/builds/", "supplier": "Organization: FFmpeg (gyan.dev build)", "comment": "essentials build typically includes GPL-licensed encoders (e.g. libx264); see THIRD_PARTY_LICENSES.txt"},
+    {"SPDXID": "SPDXRef-Package-yt-dlp", "name": "yt-dlp", "versionInfo": "2026.07.04", "licenseConcluded": "Unlicense", "downloadLocation": "https://github.com/yt-dlp/yt-dlp"},
+    {"SPDXID": "SPDXRef-Package-deno", "name": "deno", "versionInfo": "2.8.1", "licenseConcluded": "MIT", "downloadLocation": "https://github.com/denoland/deno"},
+    {"SPDXID": "SPDXRef-Package-go-webview2", "name": "go-webview2", "versionInfo": "v0.0.0-20260205173254-56598839c808", "licenseConcluded": "MIT", "downloadLocation": "https://github.com/jchv/go-webview2"},
+    {"SPDXID": "SPDXRef-Package-go-winloader", "name": "go-winloader", "versionInfo": "v0.0.0-20250406163304-c1995be93bd1", "licenseConcluded": "MIT", "downloadLocation": "https://github.com/jchv/go-winloader"},
+    {"SPDXID": "SPDXRef-Package-golang-x-sys", "name": "golang.org/x/sys", "versionInfo": "v0.0.0-20210218145245-beda7e5e158e", "licenseConcluded": "BSD-3-Clause", "downloadLocation": "https://pkg.go.dev/golang.org/x/sys"},
+    {"SPDXID": "SPDXRef-Package-playwright", "name": "playwright", "versionInfo": "1.61.0", "licenseConcluded": "Apache-2.0", "downloadLocation": "https://pypi.org/project/playwright/"},
+    {"SPDXID": "SPDXRef-Package-faster-whisper", "name": "faster-whisper", "versionInfo": "1.2.1", "licenseConcluded": "MIT", "downloadLocation": "https://pypi.org/project/faster-whisper/", "comment": "optional AI feature, not installed by default"},
+    {"SPDXID": "SPDXRef-Package-ctranslate2", "name": "ctranslate2", "versionInfo": "4.8.1", "licenseConcluded": "MIT", "downloadLocation": "https://pypi.org/project/ctranslate2/", "comment": "optional AI feature, not installed by default"},
+    {"SPDXID": "SPDXRef-Package-audio-separator", "name": "audio-separator", "versionInfo": "0.44.5", "licenseConcluded": "MIT", "downloadLocation": "https://pypi.org/project/audio-separator/", "comment": "optional AI feature, not installed by default"},
+    {"SPDXID": "SPDXRef-Package-kotlin", "name": "kotlin", "versionInfo": "2.1.0", "licenseConcluded": "Apache-2.0", "downloadLocation": "https://github.com/JetBrains/kotlin"},
+    {"SPDXID": "SPDXRef-Package-androidx-compose-bom", "name": "androidx-compose-bom", "versionInfo": "2024.12.01", "licenseConcluded": "Apache-2.0", "downloadLocation": "https://developer.android.com/jetpack/androidx/releases/compose-bom"},
+    {"SPDXID": "SPDXRef-Package-androidx-room", "name": "androidx-room", "versionInfo": "2.6.1", "licenseConcluded": "Apache-2.0", "downloadLocation": "https://developer.android.com/jetpack/androidx/releases/room"},
+    {"SPDXID": "SPDXRef-Package-androidx-work", "name": "androidx-work", "versionInfo": "2.10.0", "licenseConcluded": "Apache-2.0", "downloadLocation": "https://developer.android.com/jetpack/androidx/releases/work"}
+  ],
+  "relationships": [
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-python", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-ffmpeg", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-yt-dlp", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-deno", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-go-webview2", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-go-winloader", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-golang-x-sys", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-playwright", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-faster-whisper", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-ctranslate2", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-audio-separator", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-kotlin", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-androidx-compose-bom", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-androidx-room", "relationshipType": "DESCRIBES"},
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relatedSpdxElement": "SPDXRef-Package-androidx-work", "relationshipType": "DESCRIBES"}
+  ]
+}

@@ -1,0 +1,10 @@
+# Optional AI feature dependencies (transcription + stem separation).
+# Referenced by plugins/transcribe_worker.py and plugins/stems_worker.py.
+# NOT required for core library/audio/YouTube/Suno functionality -- these
+# workers are invoked as separate subprocesses so a missing/broken AI
+# environment cannot take down the main app (see app/server.py
+# /api/plugins/stems/run and /api/plugins/transcription/run).
+faster-whisper==1.2.1
+ctranslate2==4.8.1
+audio-separator[cpu]==0.44.5
+

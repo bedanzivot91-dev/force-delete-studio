@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SHELL = ROOT / "app" / "web" / "modern_2026_shell_extension.js"
+NAV_FINAL = ROOT / "app" / "web" / "modern_2026_navigation_final.js"
+INDEX = ROOT / "app" / "web" / "index.html"
+BACKEND = ROOT / "app" / "workspace_backend.py"
+
+
+def main() -> None:
+    shell = SHELL.read_text(encoding="utf-8")
+    nav_final = NAV_FINAL.read_text(encoding="utf-8")
+    backend = BACKEND.read_text(encoding="utf-8")
+
+    assert "sps-shell-2026" in shell
+    assert "2026 WORKSPACE · MATCH RECOVERY" in shell
+    assert "data.uiGeneration" in shell or "dataset.uiGeneration" in shell
+    assert "const groups = [" not in shell, "shell must not perform a second, conflicting navigation layout"
+    assert "stage.appendChild(view)" in shell, "views must be moved as the same DOM nodes"
+    assert "Segoe UI Variable" in shell
+    assert "#view-tools" in shell and "#view-recognition" in shell
+
+    sizes = [float(value) for value in re.findall(r"font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)px", shell)]
+    assert sizes, "no font sizes found in shell"
+    assert min(sizes) >= 12.5, f"2026 shell contains unreadable font size: {min(sizes)}px"
+    assert max(sizes) >= 28.0, "workspace heading is not visually distinct"
+
+    # Final grouping deliberately corrects the last remaining logical scatter:
+    # recognition/song-finder is an audio tool, while release belongs with
+    # YouTube/publication. Existing nav buttons are moved, never cloned.
+    assert "['AUDIO', ['recognition','audio']]" in nav_final
+    assert "['YOUTUBE I OBJAVA', ['release','tools']]" in nav_final
+    assert "['SUNO I BIBLIOTEKA', ['import','library','download','folders','smart','versions','stats']]" in nav_final
+    assert "['SISTEM', ['logs','settings']]" in nav_final
+    assert "section.appendChild(button)" in nav_final
+    assert "spsFinalNav2026Marker" in nav_final
+    assert 'data-view="production"' not in INDEX.read_text(encoding="utf-8")
+
+    legibility_pos = backend.index('modern_2026_legibility_extension.js')
+    shell_pos = backend.index('modern_2026_shell_extension.js')
+    nav_pos = backend.index('modern_2026_navigation_final.js')
+    assert shell_pos > legibility_pos, "2026 shell must load after every legacy/legibility layer"
+    assert nav_pos > shell_pos, "final logical navigation grouping must run after the shell"
+
+    unbounded_pos = backend.index('apply_unbounded_operations(core)')
+    recovery_pos = backend.index('apply_youtube_match_recovery(core)')
+    assert recovery_pos > unbounded_pos, "YouTube match recovery must wrap the final unbounded scanner"
+
+    print("modern_2026_shell_test: PASS — final shell + readable type + logically grouped navigation")
+
+
+if __name__ == "__main__":
+    main()

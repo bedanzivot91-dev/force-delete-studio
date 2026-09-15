@@ -1,0 +1,46 @@
+{
+  "status": "current component inventory for the Windows offline build; this file is development documentation and is not copied into the user release ZIP",
+  "python": {
+    "version": "3.13.15",
+    "architecture": "amd64 embeddable",
+    "url": "https://www.python.org/ftp/python/3.13.15/python-3.13.15-embed-amd64.zip",
+    "sha256": "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf",
+    "policy": "exactly one embedded Python runtime is packaged"
+  },
+  "ffmpeg": {
+    "source": "BtbN FFmpeg-Builds latest win64 GPL ZIP",
+    "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+    "checksum_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256",
+    "required_capability": "Chromaprint muxer",
+    "packaged_files": ["tools/ffmpeg/bin/ffmpeg.exe", "tools/ffmpeg/bin/ffprobe.exe"],
+    "policy": "essentials builds are not accepted by release CI"
+  },
+  "yt_dlp": {
+    "version": "2026.07.04",
+    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.07.04/yt-dlp.exe",
+    "sha256": "52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8",
+    "policy": "exactly one yt-dlp.exe is packaged"
+  },
+  "deno": {
+    "version": "2.9.5",
+    "url": "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip",
+    "checksum_url": "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip.sha256sum",
+    "policy": "the official per-asset SHA-256 checksum is downloaded and verified during staging; exactly one deno.exe is packaged"
+  },
+  "webview2": {
+    "distribution": "Microsoft Evergreen Standalone x64 installer",
+    "url": "https://go.microsoft.com/fwlink/?linkid=2124701",
+    "packaged_file": "tools/webview2/MicrosoftEdgeWebView2RuntimeInstallerX64.exe",
+    "runtime_policy": "use the installed Evergreen Runtime when present; run the bundled offline installer only when the Microsoft WebView2 Runtime is missing",
+    "verification": "release CI requires a valid Microsoft Authenticode signature"
+  },
+  "python_packages": {
+    "core": ["playwright==1.61.0"],
+    "optional_ai": ["faster-whisper==1.2.1", "ctranslate2==4.8.1", "audio-separator[cpu]==0.44.5"]
+  },
+  "cleanup_policy": {
+    "release_root": "contains only Program, MANIFEST_SHA256.txt, INSTALIRAJ_PROGRAM.exe, LICENSE.txt and SHA256SUMS.txt",
+    "installed_versions": "after a successful verified install, cleanupOldVersions removes every inactive version directory that is not locked by Windows",
+    "user_data": "stored under LOCALAPPDATA/Suno Pesme Studio and never deleted as an obsolete runtime component"
+  }
+}

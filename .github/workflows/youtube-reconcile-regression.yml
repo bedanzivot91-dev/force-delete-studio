@@ -1,0 +1,107 @@
+name: YouTube-Suno reconciliation regression
+
+on:
+  pull_request:
+    paths:
+      - "app/runtime_fixes.py"
+      - "app/server.py"
+      - "app/youtube_reconcile_fixes.py"
+      - "app/unbounded_operations.py"
+      - "app/selection_fixes.py"
+      - "app/workspace_backend.py"
+      - "app/web/startup_guard_extension.js"
+      - "app/web/arbitrary_selection_extension.js"
+      - "app/web/unbounded_youtube_ui_extension.js"
+      - "app/web/information_architecture_2026_extension.js"
+      - "app/web/modern_2026_skin_extension.js"
+      - "app/web/modern_2026_surface_coverage_extension.js"
+      - "app/web/modern_2026_compat_extension.js"
+      - "app/web/modern_2026_isolation_extension.js"
+      - "app/web/modern_2026_legibility_extension.js"
+      - "app/web/modern_2026_shell_extension.js"
+      - "app/web/modern_2026_navigation_final.js"
+      - "app/web/real_theme_layouts_extension.js"
+      - "app/web/gridstack_workspace_extension.js"
+      - "app/web/vendor/gridstack/**"
+      - "tests/e2e_test.py"
+      - "tests/youtube_pipeline_fix_test.py"
+      - "tests/youtube_reconcile_fix_test.py"
+      - "tests/unbounded_operations_test.py"
+      - "tests/modern_2026_ui_test.py"
+      - "tests/readability_floor_test.py"
+      - "tests/full_program_static_audit.py"
+      - "tests/runtime_frontend_bundle_test.py"
+      - ".github/workflows/youtube-reconcile-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile-regression:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install core dependencies
+        run: python -m pip install --upgrade pip -r requirements-core.txt
+      - name: Compile runtime modules
+        run: |
+          python -m py_compile app\runtime_fixes.py
+          python -m py_compile app\server.py
+          python -m py_compile app\youtube_reconcile_fixes.py
+          python -m py_compile app\unbounded_operations.py
+          python -m py_compile app\selection_fixes.py
+          python -m py_compile app\workspace_backend.py
+          python -m py_compile tests\runtime_frontend_bundle_test.py
+      - name: Syntax-check Studio UI extensions
+        run: |
+          node --check app\web\startup_guard_extension.js
+          node --check app\web\arbitrary_selection_extension.js
+          node --check app\web\unbounded_youtube_ui_extension.js
+          node --check app\web\information_architecture_2026_extension.js
+          node --check app\web\modern_2026_skin_extension.js
+          node --check app\web\modern_2026_surface_coverage_extension.js
+          node --check app\web\modern_2026_compat_extension.js
+          node --check app\web\modern_2026_isolation_extension.js
+          node --check app\web\modern_2026_legibility_extension.js
+          node --check app\web\modern_2026_shell_extension.js
+          node --check app\web\modern_2026_navigation_final.js
+          node --check app\web\real_theme_layouts_extension.js
+          node --check app\web\suno_only_runtime_extension.js
+          node --check app\web\gridstack_workspace_extension.js
+          node --check app\web\vendor\gridstack\gridstack-all.js
+      - name: Verify production Handler serves complete final frontend bundle
+        run: python tests\runtime_frontend_bundle_test.py
+      - name: Verify startup no longer auto-starts full fingerprinting
+        run: |
+          python -c "from pathlib import Path; p=Path('app/web/startup_guard_extension.js').read_text(encoding='utf-8'); marker='autoRefreshSongFinderIndex = async function'; assert marker in p; body=p.split(marker,1)[1].split('})();',1)[0]; assert 'runSongFinderIndex(false)' not in body; b=Path('app/workspace_backend.py').read_text(encoding='utf-8'); assert 'startup_guard_extension.js' in b; print('startup guard wired and non-blocking')"
+      - name: Verify unlimited and exact-count semantics
+        run: python tests\unbounded_operations_test.py
+      - name: Verify YouTube performance/runtime fixes
+        run: python tests\youtube_pipeline_fix_test.py
+      - name: Verify modern 2026 UI layout and legibility
+        run: python tests\modern_2026_ui_test.py
+      - name: Enforce readable typography floor
+        run: python tests\readability_floor_test.py
+      - name: Full program static audit
+        run: python tests\full_program_static_audit.py
+      - name: Run indexed-song/private-video/UI regression
+        run: python tests\youtube_reconcile_fix_test.py
+      - name: Run real-browser eight-theme workspace test
+        env:
+          SUNO_E2E_SCREENSHOT_DIR: e2e-theme-screenshots
+        run: python tests\e2e_test.py
+      - name: Upload rendered theme screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eight-real-theme-screenshots
+          path: e2e-theme-screenshots
+          if-no-files-found: warn

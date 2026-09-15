@@ -1,0 +1,30 @@
+{
+  "note": "Tested-together version set for this build, not 'whatever is newest'. Each row's Windows compatibility comes from what actually built/ran in this session's CI (GitHub Actions windows-latest / ubuntu-latest), not assumption.",
+  "windows_desktop": {
+    "min_os": "Windows 10 x64 (2004+) / Windows 11 x64",
+    "python": {"version": "3.13.14", "source": "windows_build/setup/main.go prepareComponents() primary pick", "verified": "py_compile + real module import of all 18 app/plugins modules under python3.13 in this session (docs/PYTHON_IMPORT_REPORT.json); NOT yet run on Windows itself for the AI extras"},
+    "python_fallback": {"version": "3.14.6", "note": "kept as fallback only; AI extras (ctranslate2/onnxruntime native wheels) not confirmed 3.14-compatible by anyone in this project"},
+    "ffmpeg": {"version": "8.1.2 (gyan.dev essentials build)", "compatible_with": "yt-dlp 2026.07.04 (ffmpeg is only used as a subprocess by both app/audio_tools.py and yt-dlp, no ABI coupling)"},
+    "yt_dlp": {"version": "2026.07.04", "fallback": "2026.06.09, then latest"},
+    "deno": {"version": "2.8.1"},
+    "go_toolchain": {"version": "go1.24.7", "targets": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0", "verified": "all 4 windows_build binaries (launcher/setup/progress/uninstaller) built and ran assembleDebug-equivalent self-test successfully in windows-build.yml CI, run 9 (commit 99c3387)"},
+    "webview2": {"runtime_type": "Fixed Version (not Evergreen bootstrapper)", "loader_strategy": "github.com/jchv/go-webview2 looks for WebView2Loader.dll next to the exe first, falls back to an in-memory copy embedded in the binary itself -- physical Fixed Version Runtime folder staging (Program/runtime/webview2/) is NOT yet wired into windows-build.yml's packaging step, tracked in docs/GAP_ANALYSIS.md"}
+  },
+  "android": {
+    "min_sdk": 26,
+    "target_sdk": 35,
+    "compile_sdk": 35,
+    "agp": "8.7.3",
+    "kotlin": "2.1.0",
+    "kotlin_compose_plugin": "2.1.0 (org.jetbrains.kotlin.plugin.compose -- required separately since Kotlin 2.0, confirmed by a real CI failure this session before it was added)",
+    "ksp": "2.1.0-1.0.29",
+    "gradle": "8.14.3 (gradle-wrapper.jar generated in this session)",
+    "compose_bom": "2024.12.01",
+    "room": "2.6.1",
+    "verified": "./gradlew assembleDebug + testDebugUnitTest + lintDebug all passed on ubuntu-latest with android-actions/setup-android in this session (android-build.yml run 9, commit 99c3387) -- this exact version combination is what actually built, not a theoretical pick"
+  },
+  "known_incompatibilities_avoided": [
+    "Kotlin 2.1.0 + old-style android.composeOptions.kotlinCompilerExtensionVersion: fails outright since Kotlin 2.0 (real CI failure hit and fixed this session, see git history commit 4ce9c9e)",
+    "Python 3.14 (not 3.13) as the primary embeddable target: no evidence in this project that ctranslate2/onnxruntime wheels support 3.14 yet; 3.13 is what the original shipped .pyc cache and this session's real import test both confirm works"
+  ]
+}

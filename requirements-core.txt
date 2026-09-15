@@ -1,0 +1,9 @@
+# Core runtime dependencies actually imported by app/*.py and plugins/*.py
+# (derived from docs/DEPENDENCY_AUDIT.json, an AST-walk of the real source,
+# not a hand-guessed list). Everything else app/server.py uses is Python
+# 3.13 standard library.
+#
+# playwright is used only by app/cdp.py for the optional controlled-browser
+# Suno login flow (section 15 of the spec) -- not required for local library
+# / audio / Pronalazac-pesme functionality.
+playwright==1.61.0
